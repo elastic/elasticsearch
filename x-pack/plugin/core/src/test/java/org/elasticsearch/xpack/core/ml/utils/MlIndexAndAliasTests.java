@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -169,7 +170,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         );
 
         MlIndexAndAlias.installIndexTemplateIfRequired(
-            clusterState,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
             client,
             notificationsTemplate,
             TimeValue.timeValueMinutes(1),
@@ -209,7 +210,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         );
 
         MlIndexAndAlias.installIndexTemplateIfRequired(
-            clusterState,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
             client,
             notificationsTemplate,
             TimeValue.timeValueMinutes(1),
@@ -236,7 +237,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         );
 
         MlIndexAndAlias.installIndexTemplateIfRequired(
-            clusterState,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
             client,
             notificationsTemplate,
             TimeValue.timeValueMinutes(1),
@@ -446,7 +447,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
-            csBuilder.build()
+            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo", latest);
     }
@@ -469,14 +470,14 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
-            state
+            state.getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo-000002", latest);
 
         latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-baz-000001",
             TestIndexNameExpressionResolver.newInstance(),
-            state
+            state.getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-baz-000003", latest);
     }
@@ -495,16 +496,32 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
-            state
+            state.getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo", latest);
 
         latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo-notthisone-000001",
             TestIndexNameExpressionResolver.newInstance(),
-            state
+            state.getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo-notthisone-000002", latest);
+    }
+
+    public void testLatestIndexMatchingBaseName_OnlyCollidingIndicesExist() {
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foobar", IndexVersion.current(), List.of("job1")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foobaz", IndexVersion.current(), List.of("job2")));
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.metadata(metadata);
+        var state = csBuilder.build();
+
+        var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
+            ".ml-anomalies-custom-foo",
+            TestIndexNameExpressionResolver.newInstance(),
+            state.getMetadata().getProject(ProjectId.DEFAULT)
+        );
+        assertEquals(".ml-anomalies-custom-foo", latest);
     }
 
     public void testBuildIndexAliasesRequest() {
@@ -531,7 +548,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var request = MlIndexAndAlias.addResultsIndexRolloverAliasActions(
             aliasRequestBuilder,
             newIndex,
-            csBuilder.build(),
+            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT),
             Arrays.asList(currentIndices)
         );
         var actions = request.request().getAliasActions();
@@ -611,7 +628,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
-            clusterState,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
             TestIndexNameExpressionResolver.newInstance(),
             TEST_INDEX_PREFIX,
             TEST_INDEX_ALIAS,

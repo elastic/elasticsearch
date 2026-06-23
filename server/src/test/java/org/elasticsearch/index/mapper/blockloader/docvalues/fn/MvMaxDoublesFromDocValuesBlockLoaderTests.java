@@ -9,7 +9,11 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import org.apache.lucene.document.DoubleField;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
@@ -23,40 +27,39 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MvMaxDoublesFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
-    public MvMaxDoublesFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        super(blockAtATime, multiValues, missingValues);
+public class MvMaxDoublesFromDocValuesBlockLoaderTests extends AbstractNumericBlockLoaderTests {
+    public MvMaxDoublesFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
+        super(multiValues, missingValues);
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
+    protected IndexableField field(int v) {
+        return new DoubleField("field", v * 1.1, Field.Store.NO);
+    }
+
+    @Override
+    protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
         var doublesLoader = new DoublesBlockLoader("field", Double::longBitsToDouble);
         var mvMaxDoublesLoader = new MvMaxDoublesFromDocValuesBlockLoader("field", Double::longBitsToDouble);
-
-        var doublesReader = doublesLoader.reader(ctx);
-        var mvMaxDoublesReader = mvMaxDoublesLoader.reader(ctx);
-        assertThat(mvMaxDoublesReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
-        try (
-            TestBlock doubles = read(doublesLoader, doublesReader, ctx, docs);
-            TestBlock maxDoubles = read(mvMaxDoublesLoader, mvMaxDoublesReader, ctx, docs);
-        ) {
-            checkBlocks(doubles, maxDoubles);
+
+        try (var doublesReader = doublesLoader.reader(breaker, ctx); var mvMaxDoublesReader = mvMaxDoublesLoader.reader(breaker, ctx);) {
+            assertThat(mvMaxDoublesReader, readerMatcher());
+            try (TestBlock doubles = read(doublesReader, docs); TestBlock maxDoubles = read(mvMaxDoublesReader, docs);) {
+                checkBlocks(doubles, maxDoubles);
+            }
         }
 
-        doublesReader = doublesLoader.reader(ctx);
-        mvMaxDoublesReader = mvMaxDoublesLoader.reader(ctx);
-        for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-            int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-            for (int d = 0; d < docsArray.length; d++) {
-                docsArray[d] = i + d;
-            }
-            docs = TestBlock.docs(docsArray);
-            try (
-                TestBlock doubles = read(doublesLoader, doublesReader, ctx, docs);
-                TestBlock maxDoubles = read(mvMaxDoublesLoader, mvMaxDoublesReader, ctx, docs);
-            ) {
-                checkBlocks(doubles, maxDoubles);
+        try (var doublesReader = doublesLoader.reader(breaker, ctx); var mvMaxDoublesReader = mvMaxDoublesLoader.reader(breaker, ctx)) {
+            for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                for (int d = 0; d < docsArray.length; d++) {
+                    docsArray[d] = i + d;
+                }
+                docs = TestBlock.docs(docsArray);
+                try (TestBlock doubles = read(doublesReader, docs); TestBlock maxDoubles = read(mvMaxDoublesReader, docs);) {
+                    checkBlocks(doubles, maxDoubles);
+                }
             }
         }
     }

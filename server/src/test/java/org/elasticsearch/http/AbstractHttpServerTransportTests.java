@@ -42,6 +42,7 @@ import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -1153,8 +1154,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         return new ActionModule(
             TestEnvironment.newEnvironment(settings.getSettings()),
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-            null,
-            settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
             threadPool,
@@ -1169,7 +1168,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             List.of(),
             List.of(),
             RestExtension.allowAll(),
-            new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+            new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
+            CrossProjectModeDecider.NOOP,
             TestProjectResolvers.alwaysThrow()
         );
     }

@@ -83,6 +83,7 @@ import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -240,7 +241,7 @@ public class IndexModuleTests extends ESTestCase {
             mapperRegistry,
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
-            module.indexSettings().getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             null,
             indexDeletionListener,
             emptyMap()
@@ -262,7 +263,8 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -293,7 +295,8 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
 
         final IndexService indexService = newIndexService(module);
@@ -322,7 +325,8 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -551,6 +555,25 @@ public class IndexModuleTests extends ESTestCase {
         closeIndexService(indexService);
     }
 
+    public void testQueryCacheEnabledByDefaultForNonStrictlyColumnarMode() {
+        IndexMode mode = randomFrom(
+            IndexMode.STANDARD,
+            IndexMode.TIME_SERIES,
+            IndexMode.LOGSDB,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        assertTrue(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
+    }
+
+    public void testQueryCacheDisabledByDefaultForStrictlyColumnarMode() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        assertFalse(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
+    }
+
     public void testDisableQueryCacheHasPrecedenceOverForceQueryCache() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
@@ -679,7 +702,8 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
 
         final IndexService indexService = newIndexService(module);
@@ -705,7 +729,8 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -811,7 +836,8 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
     }
 

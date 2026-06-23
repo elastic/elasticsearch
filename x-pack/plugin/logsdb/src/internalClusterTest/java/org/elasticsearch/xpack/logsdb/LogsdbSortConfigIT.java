@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Sort;
@@ -31,12 +32,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -74,6 +78,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put("cluster.logsdb.enabled", "true")
+            .put("cluster.logsdb_columnar.enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean())
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .build();
     }
@@ -91,6 +96,8 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testHostnameMessageTimestampSortConfig() throws IOException {
+        assumeTrue("test uses cardinality option", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+
         final String dataStreamName = "test-logsdb-sort-hostname-message-timestamp";
 
         final String mapping = """
@@ -107,8 +114,10 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "pattern_text"
                   },
                   "test_id": {
-                    "type": "text",
-                    "store": true
+                    "type": "keyword",
+                    "doc_values": {
+                      "cardinality": "low"
+                    }
                   }
                 }
               }
@@ -174,6 +183,8 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testHostnameTimestampSortConfig() throws Exception {
+        assumeTrue("test uses cardinality option", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+
         final String dataStreamName = "test-logsdb-sort-hostname-timestamp";
 
         final String MAPPING = """
@@ -187,8 +198,10 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "keyword"
                   },
                   "test_id": {
-                    "type": "text",
-                    "store": true
+                    "type": "keyword",
+                    "doc_values": {
+                      "cardinality": "low"
+                    }
                   }
                 }
               }
@@ -232,6 +245,8 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testTimestampOnlySortConfig() throws IOException {
+        assumeTrue("test uses cardinality option", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+
         final String dataStreamName = "test-logsdb-sort-timestamp-only";
 
         final String MAPPING = """
@@ -245,8 +260,10 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "keyword"
                   },
                   "test_id": {
-                    "type": "text",
-                    "store": true
+                    "type": "keyword",
+                    "doc_values": {
+                      "cardinality": "low"
+                    }
                   }
                 }
               }
@@ -273,10 +290,22 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         var featureService = getInstanceFromNode(FeatureService.class);
         if (featureService.getNodeFeatures().containsKey("mapper.provide_index_sort_setting_defaults")) {
             assertSettings(backingIndex, settings -> {
-                assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings), equalTo(List.of("@timestamp")));
-                assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings), equalTo(List.of(SortOrder.DESC)));
-                assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(settings), equalTo(List.of(MultiValueMode.MAX)));
-                assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(settings), equalTo(List.of("_last")));
+                if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB_COLUMNAR) {
+                    // logsdb_columnar defaults to [subobjects:false], allowing [host.name] injection when [host] is a mapped field
+                    assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings), equalTo(List.of("host.name", "@timestamp")));
+                    assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings), equalTo(List.of(SortOrder.ASC, SortOrder.DESC)));
+                    assertThat(
+                        IndexSortConfig.INDEX_SORT_MODE_SETTING.get(settings),
+                        equalTo(List.of(MultiValueMode.MIN, MultiValueMode.MAX))
+                    );
+                    assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(settings), equalTo(List.of("_last", "_last")));
+                } else {
+                    // logsdb defaults to [subobjects:true], so [host.name] can't be injected when [host] is a mapped field
+                    assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings), equalTo(List.of("@timestamp")));
+                    assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings), equalTo(List.of(SortOrder.DESC)));
+                    assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(settings), equalTo(List.of(MultiValueMode.MAX)));
+                    assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(settings), equalTo(List.of("_last")));
+                }
             });
         }
 
@@ -427,12 +456,13 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
     private void createDataStream(String dataStreamName, String mapping, UnaryOperator<Settings.Builder> settings) throws IOException {
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
+        String indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? "logsdb_columnar" : "logsdb";
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))
                 .template(
                     new Template(
-                        settings.apply(indexSettings(1, 0)).put("index.mode", "logsdb").build(),
+                        settings.apply(indexSettings(1, 0)).put("index.mode", indexMode).build(),
                         new CompressedXContent(mapping),
                         null
                     )
@@ -469,9 +499,9 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                         .matchOpen(true)
                         .matchClosed(true)
                         .allowEmptyExpressions(true)
-                        .resolveAliases(false)
                         .build()
                 )
+                .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
                 .build()
         );
 
@@ -512,13 +542,15 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
             var segment = segments.getFirst();
             var reader = segment.reader();
-            var storedFields = reader.storedFields();
+            SortedSetDocValues dvs = reader.getSortedSetDocValues("test_id");
+            assertNotNull(dvs);
 
             int expectedDocIdx = 0;
 
             for (int docId = 0; docId < reader.maxDoc(); docId++) {
                 String expectedId = orderedDocs[expectedDocIdx++].id;
-                String actualId = storedFields.document(docId).get("test_id");
+                assertTrue(dvs.advanceExact(docId));
+                String actualId = dvs.lookupOrd(dvs.nextOrd()).utf8ToString();
                 assertEquals(expectedId, actualId);
             }
         }

@@ -51,7 +51,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -74,9 +77,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.FOUR;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.SIX;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
@@ -88,7 +93,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.rlike;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.wildcardLike;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
-import static org.elasticsearch.xpack.esql.session.EsqlSession.newMainPlan;
+import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.newMainPlan;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -314,7 +319,8 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             completion.targetField(),
             randomLiteral(DataType.TEXT),
             mock(Expression.class),
-            mock(QueryBuilder.class)
+            mock(QueryBuilder.class),
+            TEST_CFG
         );
         Filter filterB = new Filter(EMPTY, completion, new And(EMPTY, conditionB, conditionCompletion));
 
@@ -396,7 +402,15 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     private static EsRelation relation(List<Attribute> fieldAttributes) {
-        return new EsRelation(EMPTY, randomIdentifier(), randomFrom(IndexMode.values()), Map.of(), Map.of(), Map.of(), fieldAttributes);
+        return new EsRelation(
+            EMPTY,
+            randomIdentifier(),
+            randomFrom(IndexMode.availableModes()),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            fieldAttributes
+        );
     }
 
     public void testPushDownFilterPastLeftJoinWithPushable() {
@@ -1372,17 +1386,8 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     /*
      * Project[[salary{f}#16, emp_no{f}#11]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_InlineJoin[LEFT,[salary{f}#16],[salary{r}#16]]
-     *     |_Filter[salary{f}#16 < 10000[INTEGER] AND salary{f}#16 > 10000[INTEGER]]
-     *     | \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-     *     \_Aggregate[[salary{f}#16],[salary{f}#16]]
-     *       \_StubRelation[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, l
-     * anguages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
-     *
-     * stubReplacedSubPlan:
-     * Aggregate[[salary{f}#16],[salary{f}#16]]
-     * \_Filter[salary{f}#16 < 10000[INTEGER] AND salary{f}#16 > 10000[INTEGER]]
-     *   \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *   \_Filter[salary{f}#16 < 10000[INTEGER] AND salary{f}#16 > 10000[INTEGER]]
+     *     \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      */
     public void testPushDown_ImpossibleFilter_PastInlineJoin() {
         var plan = plan("""
@@ -1392,40 +1397,26 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | WHERE salary > 10000
             | KEEP salary, emp_no
             """);
-        var subPlansResults = new HashSet<LocalRelation>();
-        var firstSubPlan = InlineJoin.firstSubPlan(plan, subPlansResults).stubReplacedSubPlan();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
-        // InlineJoin
-        var ij = as(limit.child(), InlineJoin.class);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(And.class));
+        var and = as(filter.condition(), And.class);
+        var left = as(and.left(), LessThan.class);
+        var leftField = as(left.left(), FieldAttribute.class);
+        assertEquals("salary", leftField.name());
+        var leftRight = as(left.right(), Literal.class);
+        assertEquals(10000, leftRight.value());
+        var right = as(and.right(), GreaterThan.class);
+        var rightField = as(right.left(), FieldAttribute.class);
+        assertEquals("salary", rightField.name());
 
-        // InlineJoin left side
-        var left = as(ij.left(), Filter.class);
-        // Filter[salary{f}#16 < 10000[INTEGER] AND salary{f}#16 > 10000[INTEGER]]
-        assertThat(left.condition(), instanceOf(And.class));
-        var and = as(left.condition(), And.class);
-        var andLeft = as(and.left(), LessThan.class);
-        var andLeftField = as(andLeft.left(), FieldAttribute.class);
-        assertEquals("salary", andLeftField.name());
-        var andLeftRight = as(andLeft.right(), Literal.class);
-        assertEquals(10000, andLeftRight.value());
-        var andRight = as(and.right(), GreaterThan.class);
-        var andRightField = as(andRight.left(), FieldAttribute.class);
-        assertEquals("salary", andRightField.name());
-        var andRightRight = as(andRight.right(), Literal.class);
-        assertEquals(10000, andRightRight.value());
-        as(left.child(), EsRelation.class);
+        assertEquals(leftField, rightField);
 
-        // InlineJoin right side
-        var right = as(ij.right(), Aggregate.class);
-
-        // What EsqlSession is doing
-        var firstSubPlanAggregate = as(firstSubPlan, Aggregate.class);
-        assertEquals(right.output(), firstSubPlanAggregate.output());
-        var firstSubPlanFilter = as(firstSubPlanAggregate.child(), Filter.class);
-        // important bit below: the filter that is executed in the right hand side is the same as the one in the left hand side
-        assertEquals(left, firstSubPlanFilter);
+        var rightRight = as(right.right(), Literal.class);
+        assertEquals(10000, rightRight.value());
+        as(filter.child(), EsRelation.class);
 
         assertWarnings("Line 3:16: Field 'salary' shadowed by field at line 3:40", "No limit defined, adding default limit of [1000]");
     }
@@ -2401,5 +2392,236 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         var firstSubPlanFilter = as(firstSubPlanAggregate.child(), Filter.class);
         // important bit below: the filter that is executed in the right hand side is the same as the one in the left hand side
         assertEquals(left, firstSubPlanFilter);
+    }
+
+    public void testPushDownFilterPastUriParts() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        String query = """
+            FROM test
+            | WHERE emp_no > 10000
+            | uri_parts u = first_name
+            | WHERE u.domain == "elastic.co" AND salary > 5000
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        // 1. The top level plan should be a Limit (can't be pushed down past filters)
+        var limit = as(plan, Limit.class);
+
+        // 2. Top filter should be the non-pushable filter that depends on the UriParts output
+        var topFilter = as(limit.child(), Filter.class);
+        assertThat(topFilter.condition(), instanceOf(Equals.class));
+        var topEquals = as(topFilter.condition(), Equals.class);
+        assertThat(as(topEquals.left(), ReferenceAttribute.class).name(), is("u.domain"));
+
+        // 3. Then the UriParts node
+        var uriParts = as(topFilter.child(), UriParts.class);
+
+        // 4. Below UriParts should be the combined pushable filters
+        var bottomFilter = as(uriParts.child(), Filter.class);
+        assertThat(bottomFilter.condition(), instanceOf(And.class));
+        var bottomAnd = as(bottomFilter.condition(), And.class);
+
+        // Check that both the original filter and the pushed-down filters are present
+        var condition1 = as(bottomAnd.left(), GreaterThan.class);
+        assertThat(as(condition1.left(), FieldAttribute.class).name(), is("emp_no"));
+
+        var condition2 = as(bottomAnd.right(), GreaterThan.class);
+        assertThat(as(condition2.left(), FieldAttribute.class).name(), is("salary"));
+
+        // 5. Finally, the relation
+        as(bottomFilter.child(), EsRelation.class);
+    }
+
+    public void testPushDownFilterPastRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        String query = """
+            FROM test
+            | WHERE emp_no > 10000
+            | registered_domain rd = first_name
+            | WHERE rd.registered_domain == "example.co.uk" AND salary > 5000
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        var limit = as(plan, Limit.class);
+
+        var topFilter = as(limit.child(), Filter.class);
+        assertThat(topFilter.condition(), instanceOf(Equals.class));
+        var topEquals = as(topFilter.condition(), Equals.class);
+        assertThat(as(topEquals.left(), ReferenceAttribute.class).name(), is("rd.registered_domain"));
+
+        var registeredDomain = as(topFilter.child(), RegisteredDomain.class);
+
+        var bottomFilter = as(registeredDomain.child(), Filter.class);
+        assertThat(bottomFilter.condition(), instanceOf(And.class));
+        var bottomAnd = as(bottomFilter.condition(), And.class);
+
+        var condition1 = as(bottomAnd.left(), GreaterThan.class);
+        assertThat(as(condition1.left(), FieldAttribute.class).name(), is("emp_no"));
+
+        var condition2 = as(bottomAnd.right(), GreaterThan.class);
+        assertThat(as(condition2.left(), FieldAttribute.class).name(), is("salary"));
+
+        as(bottomFilter.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[languages{r}#18 == 1[INTEGER]]
+     *   \_MvExpand[languages{f}#10,languages{r}#18]
+     *     \_Filter[emp_no{f}#7 > 10[INTEGER]]
+     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * }
+     */
+    public void testPushDownFilterPastMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | mv_expand languages
+            | where emp_no > 10 and languages == 1
+            """);
+
+        var limit = asLimit(plan, 1000, false);
+        var postExpandFilter = as(limit.child(), Filter.class);
+        var postExpandEquals = as(postExpandFilter.condition(), Equals.class);
+        assertThat(as(postExpandEquals.left(), Attribute.class).name(), is("languages"));
+        assertThat(as(postExpandEquals.right(), Literal.class).value(), is(1));
+        var mvExpand = as(postExpandFilter.child(), MvExpand.class);
+        var preExpandFilter = as(mvExpand.child(), Filter.class);
+        var preExpandGreaterThan = as(preExpandFilter.condition(), GreaterThan.class);
+        assertThat(as(preExpandGreaterThan.left(), Attribute.class).name(), is("emp_no"));
+        assertThat(as(preExpandGreaterThan.right(), Literal.class).value(), is(10));
+        as(preExpandFilter.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[first_name{r}#41 == John[KEYWORD]]
+     *   \_MvExpand[first_name{f}#30,first_name{r}#41]
+     *     \_Filter[languages{r}#40 == 1[INTEGER]]
+     *       \_MvExpand[languages{f}#32,languages{r}#40]
+     *         \_Filter[emp_no{f}#29 > 10[INTEGER]]
+     *           \_EsRelation[test][_meta_field{f}#35, emp_no{f}#29, first_name{f}#30, ..]
+     * }
+     */
+    public void testPushDownFilterPastSequentialMvExpands() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | mv_expand languages
+            | mv_expand first_name
+            | where emp_no > 10 and languages == 1 and first_name == "John"
+            """);
+
+        var limit = asLimit(plan, 1000, false);
+        var firstNameFilter = as(limit.child(), Filter.class);
+        var firstNameEquals = as(firstNameFilter.condition(), Equals.class);
+        assertThat(as(firstNameEquals.left(), Attribute.class).name(), is("first_name"));
+        assertThat(as(firstNameEquals.right(), Literal.class).value(), is(new BytesRef("John")));
+        var firstNameExpand = as(firstNameFilter.child(), MvExpand.class);
+        var languagesFilter = as(firstNameExpand.child(), Filter.class);
+        var languagesEquals = as(languagesFilter.condition(), Equals.class);
+        assertThat(as(languagesEquals.left(), Attribute.class).name(), is("languages"));
+        assertThat(as(languagesEquals.right(), Literal.class).value(), is(1));
+        var languagesExpand = as(languagesFilter.child(), MvExpand.class);
+        var empNoFilter = as(languagesExpand.child(), Filter.class);
+        var empNoGreaterThan = as(empNoFilter.condition(), GreaterThan.class);
+        assertThat(as(empNoGreaterThan.left(), Attribute.class).name(), is("emp_no"));
+        assertThat(as(empNoGreaterThan.right(), Literal.class).value(), is(10));
+        as(empNoFilter.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[emp_no{f}#63 > 10[INTEGER] OR languages{r}#74 == 1[INTEGER]]
+     *   \_MvExpand[languages{f}#66,languages{r}#74]
+     *     \_EsRelation[test][_meta_field{f}#69, emp_no{f}#63, first_name{f}#64, ..]
+     * }
+     */
+    public void testDontPushDownOrFilterPastMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | mv_expand languages
+            | where emp_no > 10 or languages == 1
+            """);
+
+        var limit = asLimit(plan, 1000, false);
+        var orFilter = as(limit.child(), Filter.class);
+        assertThat(orFilter.condition(), instanceOf(Or.class));
+        var mvExpand = as(orFilter.child(), MvExpand.class);
+        as(mvExpand.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[languages{r}#21 == 1[INTEGER]]
+     *   \_MvExpand[languages{f}#13,languages{r}#21]
+     *     \_Filter[double_emp{r}#5 > 20[INTEGER]]
+     *       \_Eval[[emp_no{f}#10 * 2[INTEGER] AS double_emp#5]]
+     *         \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * }
+     */
+    public void testPushDownFilterPastMvExpandWithEval() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval double_emp = emp_no * 2
+            | mv_expand languages
+            | where double_emp > 20 and languages == 1
+            """);
+
+        var limit = asLimit(plan, 1000, false);
+        var languagesFilter = as(limit.child(), Filter.class);
+        var languagesEquals = as(languagesFilter.condition(), Equals.class);
+        assertThat(as(languagesEquals.left(), Attribute.class).name(), is("languages"));
+        assertThat(as(languagesEquals.right(), Literal.class).value(), is(1));
+        var mvExpand = as(languagesFilter.child(), MvExpand.class);
+        var doubleEmpFilter = as(mvExpand.child(), Filter.class);
+        var doubleEmpGreaterThan = as(doubleEmpFilter.condition(), GreaterThan.class);
+        assertThat(as(doubleEmpGreaterThan.left(), Attribute.class).name(), is("double_emp"));
+        assertThat(as(doubleEmpGreaterThan.right(), Literal.class).value(), is(20));
+        var eval = as(doubleEmpFilter.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[languages{r}#58 == 1[INTEGER]]
+     *   \_MvExpand[languages{f}#50,languages{r}#58]
+     *     \_Filter[emp_no{f}#47 > 10[INTEGER] AND salary{f}#52 > 50000[INTEGER]]
+     *       \_EsRelation[test][_meta_field{f}#53, emp_no{f}#47, first_name{f}#48, ..]
+     * }
+     */
+    public void testPushDownChainedWherePastMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | mv_expand languages
+            | where emp_no > 10
+            | where languages == 1
+            | where salary > 50000
+            """);
+
+        var limit = asLimit(plan, 1000, false);
+        var languagesFilter = as(limit.child(), Filter.class);
+        var languagesEquals = as(languagesFilter.condition(), Equals.class);
+        assertThat(as(languagesEquals.left(), Attribute.class).name(), is("languages"));
+        assertThat(as(languagesEquals.right(), Literal.class).value(), is(1));
+        var mvExpand = as(languagesFilter.child(), MvExpand.class);
+        var preExpandFilter = as(mvExpand.child(), Filter.class);
+        assertThat(preExpandFilter.condition(), instanceOf(And.class));
+        var preExpandAnd = as(preExpandFilter.condition(), And.class);
+        var empNoGreaterThan = as(preExpandAnd.left(), GreaterThan.class);
+        assertThat(as(empNoGreaterThan.left(), Attribute.class).name(), is("emp_no"));
+        assertThat(as(empNoGreaterThan.right(), Literal.class).value(), is(10));
+        var salaryGreaterThan = as(preExpandAnd.right(), GreaterThan.class);
+        assertThat(as(salaryGreaterThan.left(), Attribute.class).name(), is("salary"));
+        assertThat(as(salaryGreaterThan.right(), Literal.class).value(), is(50000));
+        as(preExpandFilter.child(), EsRelation.class);
     }
 }

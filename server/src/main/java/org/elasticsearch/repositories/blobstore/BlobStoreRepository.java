@@ -215,6 +215,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String STATELESS_SHARD_UPLOAD_PREWARMING_THREAD_NAME = "stateless_upload_prewarm";
     public static final String SEARCHABLE_SNAPSHOTS_CACHE_FETCH_ASYNC_THREAD_NAME = "searchable_snapshots_cache_fetch_async";
     public static final String SEARCHABLE_SNAPSHOTS_CACHE_PREWARMING_THREAD_NAME = "searchable_snapshots_cache_prewarming";
+    public static final String STATELESS_BLOB_COPY_THREAD_NAME = "stateless_blob_copy";
 
     /**
      * Prefix for the name of the root {@link RepositoryData} blob.
@@ -658,12 +659,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final IndexId index = shardId.index();
         final int shardNum = shardId.shardId();
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        ensureCloneNotAborted(target, shardId);
         executor.execute(ActionRunnable.supply(listener, () -> {
             final long startTime = threadPool.absoluteTimeInMillis();
             final BlobContainer shardContainer = shardContainer(index, shardNum);
             final BlobStoreIndexShardSnapshots existingSnapshots;
             final ShardGeneration newGen;
             final ShardGeneration existingShardGen;
+            ensureCloneNotAborted(target, shardId);
             if (shardGeneration == null) {
                 Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
                     shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet(),
@@ -725,6 +728,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + "]. A snapshot by that name already exists for this shard."
                 );
             }
+            ensureCloneNotAborted(target, shardId);
             final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
             logger.trace("[{}] [{}] writing shard snapshot file for clone", shardId, target);
             INDEX_SHARD_SNAPSHOT_FORMAT.write(
@@ -745,6 +749,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 getSegmentInfoFileCount(sourceMeta.indexFiles())
             );
         }));
+    }
+
+    private void ensureCloneNotAborted(SnapshotId snapshotId, RepositoryShardId repoShardId) {
+        final var snapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+        final var cloneEntry = snapshotsInProgress.asStream()
+            .filter(entry -> entry.isClone() && entry.snapshot().getSnapshotId().equals(snapshotId))
+            .findFirst()
+            .orElse(null);
+
+        if (cloneEntry == null) {
+            // In rare case, the master can fail over and the clone entry gets deleted by the new master
+            logger.debug("clone [{}] was concurrently deleted by the new master", snapshotId);
+            throw new AbortedSnapshotException();
+        }
+
+        final var shardSnapshotStatus = cloneEntry.shardSnapshotStatusByRepoShardId().get(repoShardId);
+        assert shardSnapshotStatus != null;
+        if (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.ABORTED) {
+            throw new AbortedSnapshotException();
+        }
     }
 
     private static int getSegmentInfoFileCount(List<BlobStoreIndexShardSnapshot.FileInfo> indexFiles) {
@@ -2436,7 +2460,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             STATELESS_SHARD_PREWARMING_THREAD_NAME,
             STATELESS_SHARD_UPLOAD_PREWARMING_THREAD_NAME,
             SEARCHABLE_SNAPSHOTS_CACHE_FETCH_ASYNC_THREAD_NAME,
-            SEARCHABLE_SNAPSHOTS_CACHE_PREWARMING_THREAD_NAME
+            SEARCHABLE_SNAPSHOTS_CACHE_PREWARMING_THREAD_NAME,
+            STATELESS_BLOB_COPY_THREAD_NAME
         );
     }
 
@@ -3446,7 +3471,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void doSnapshotShard(SnapshotShardContext context) {
-        blobStoreSnapshotMetrics.shardSnapshotStarted();
+        blobStoreSnapshotMetrics.shardSnapshotStarted(context.status(), threadPool.absoluteTimeInMillis());
         context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status())));
         if (isReadOnly()) {
             context.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
@@ -3521,11 +3546,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexCommitPointFiles = new ArrayList<>();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
-                try (Releasable ignored = context.withCommitRef()) {
-                    // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
-                    metadataFromStore = context.metadataSnapshot();
-                    fileNames = context.fileNames();
-                }
+                // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
+                metadataFromStore = context.metadataSnapshot();
+                fileNames = context.fileNames();
                 for (String fileName : fileNames) {
                     ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
 
@@ -4317,6 +4340,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public int read() throws IOException {
                         checkAborted();
+                        fileReader.maybeReleaseCommitRef();
                         final long beforeReadNanos = System.nanoTime();
                         int value = super.read();
                         totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);
@@ -4326,6 +4350,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         checkAborted();
+                        fileReader.maybeReleaseCommitRef();
                         final long beforeReadNanos = System.nanoTime();
                         int amountRead = super.read(b, off, len);
                         totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);

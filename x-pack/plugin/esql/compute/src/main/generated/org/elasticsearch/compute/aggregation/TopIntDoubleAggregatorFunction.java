@@ -11,12 +11,17 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.Int16ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.Int8ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.IntArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -38,18 +43,13 @@ public final class TopIntDoubleAggregatorFunction implements AggregatorFunction 
 
   private final boolean ascending;
 
-  public TopIntDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopIntDoubleAggregator.SingleState state, int limit, boolean ascending) {
-    this.driverContext = driverContext;
-    this.channels = channels;
-    this.state = state;
+  TopIntDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
+      boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopIntDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit, boolean ascending) {
-    return new TopIntDoubleAggregatorFunction(driverContext, channels, TopIntDoubleAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    this.driverContext = driverContext;
+    this.channels = channels;
+    this.state = TopIntDoubleAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -77,11 +77,35 @@ public final class TopIntDoubleAggregatorFunction implements AggregatorFunction 
     DoubleBlock outputValueBlock = page.getBlock(channels.get(1));
     IntVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, outputValueBlock, mask);
       return;
     }
     DoubleVector outputValueVector = outputValueBlock.asVector();
     if (outputValueVector == null) {
+      if (outputValueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, outputValueBlock, mask);
       return;
     }
@@ -93,11 +117,35 @@ public final class TopIntDoubleAggregatorFunction implements AggregatorFunction 
     DoubleBlock outputValueBlock = page.getBlock(channels.get(1));
     IntVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, outputValueBlock);
       return;
     }
     DoubleVector outputValueVector = outputValueBlock.asVector();
     if (outputValueVector == null) {
+      if (outputValueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, outputValueBlock);
       return;
     }
@@ -105,6 +153,51 @@ public final class TopIntDoubleAggregatorFunction implements AggregatorFunction 
   }
 
   private void addRawVector(IntVector vVector, DoubleVector outputValueVector) {
+    if (vVector.getClass() == IntArrayVector.class) {
+      IntArrayVector specialized = (IntArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        double outputValueValue = outputValueVector.getDouble(valuesPosition);
+        TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == IntArrowBufVector.class) {
+      IntArrowBufVector specialized = (IntArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        double outputValueValue = outputValueVector.getDouble(valuesPosition);
+        TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int16ArrowBufVector.class) {
+      Int16ArrowBufVector specialized = (Int16ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        double outputValueValue = outputValueVector.getDouble(valuesPosition);
+        TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int8ArrowBufVector.class) {
+      Int8ArrowBufVector specialized = (Int8ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        double outputValueValue = outputValueVector.getDouble(valuesPosition);
+        TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantIntVector.class) {
+      ConstantIntVector specialized = (ConstantIntVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        double outputValueValue = outputValueVector.getDouble(valuesPosition);
+        TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       int vValue = vVector.getInt(valuesPosition);
       double outputValueValue = outputValueVector.getDouble(valuesPosition);
@@ -113,6 +206,66 @@ public final class TopIntDoubleAggregatorFunction implements AggregatorFunction 
   }
 
   private void addRawVector(IntVector vVector, DoubleVector outputValueVector, BooleanVector mask) {
+    if (vVector.getClass() == IntArrayVector.class) {
+      IntArrayVector specialized = (IntArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        double outputValueValue = outputValueVector.getDouble(valuesPosition);
+        TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == IntArrowBufVector.class) {
+      IntArrowBufVector specialized = (IntArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        double outputValueValue = outputValueVector.getDouble(valuesPosition);
+        TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int16ArrowBufVector.class) {
+      Int16ArrowBufVector specialized = (Int16ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        double outputValueValue = outputValueVector.getDouble(valuesPosition);
+        TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int8ArrowBufVector.class) {
+      Int8ArrowBufVector specialized = (Int8ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        double outputValueValue = outputValueVector.getDouble(valuesPosition);
+        TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantIntVector.class) {
+      ConstantIntVector specialized = (ConstantIntVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        double outputValueValue = outputValueVector.getDouble(valuesPosition);
+        TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
@@ -180,12 +333,30 @@ public final class TopIntDoubleAggregatorFunction implements AggregatorFunction 
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block topUncast = page.getBlock(channels.get(0));
     if (topUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntBlock top = (IntBlock) topUncast;
     assert top.getPositionCount() == 1;
     Block outputUncast = page.getBlock(channels.get(1));
     if (outputUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleBlock output = (DoubleBlock) outputUncast;

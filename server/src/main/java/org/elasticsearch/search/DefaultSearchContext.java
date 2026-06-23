@@ -25,6 +25,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -32,6 +33,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -43,13 +45,18 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -84,6 +91,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +99,7 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -105,6 +114,8 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
+    @Nullable
+    private StoreMetricsAwareExecutor metricsAwareExecutor;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
@@ -172,7 +183,9 @@ final class DefaultSearchContext extends SearchContext {
         SearchService.ResultsType resultsType,
         boolean enableQueryPhaseParallelCollection,
         int minimumDocsPerSlice,
-        long memoryAccountingBufferSize
+        long memoryAccountingBufferSize,
+        @Nullable CircuitBreaker circuitBreaker,
+        @Nullable Supplier<StoreMetrics> currentThreadStoreMetrics
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -193,7 +206,8 @@ final class DefaultSearchContext extends SearchContext {
                 enableQueryPhaseParallelCollection,
                 field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
             );
-            if (executor == null || maximumNumberOfSlices <= 1) {
+            boolean searcherRequiresExecutor = executor != null && maximumNumberOfSlices > 1;
+            if (searcherRequiresExecutor == false) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -202,6 +216,12 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
+                boolean trackExecutorBytesRead = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled();
+                if (trackExecutorBytesRead) {
+                    this.metricsAwareExecutor = new StoreMetricsAwareExecutor(executor, currentThreadStoreMetrics);
+                    executor = this.metricsAwareExecutor;
+                }
+
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -216,7 +236,7 @@ final class DefaultSearchContext extends SearchContext {
             closeFuture.addListener(ActionListener.releasing(Releasables.wrap(engineSearcher, searcher)));
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.timeout = timeout;
-            searchExecutionContext = indexService.newSearchExecutionContext(
+            SearchExecutionContext baseContext = indexService.newSearchExecutionContext(
                 request.shardId().id(),
                 request.shardRequestIndex(),
                 searcher,
@@ -226,6 +246,11 @@ final class DefaultSearchContext extends SearchContext {
                 request.source() == null ? null : request.source().size(),
                 indexShard.shardSearchStats()
             );
+            searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
+            if (searchExecutionContext != null) {
+                final String requestSliceRouting = request.sliceRouting();
+                searchExecutionContext.setSliceRouting(SliceIndexing.SLICE_ALL.equals(requestSliceRouting) ? null : requestSliceRouting);
+            }
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
             success = true;
@@ -234,6 +259,11 @@ final class DefaultSearchContext extends SearchContext {
                 close();
             }
         }
+    }
+
+    @Override
+    public long getWorkerThreadsBytesRead() {
+        return metricsAwareExecutor == null ? 0L : metricsAwareExecutor.workerBytesRead();
     }
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {
@@ -472,6 +502,10 @@ final class DefaultSearchContext extends SearchContext {
                 filters.add(slicedQuery);
             }
         }
+        final Query sliceRoutingFilter = buildSliceRoutingFilter(searchExecutionContext.getSliceRouting());
+        if (sliceRoutingFilter != null) {
+            filters.add(sliceRoutingFilter);
+        }
 
         if (filters.isEmpty()) {
             return query;
@@ -482,6 +516,28 @@ final class DefaultSearchContext extends SearchContext {
                 builder.add(filter, Occur.FILTER);
             }
             return builder.build();
+        }
+    }
+
+    @Nullable
+    private Query buildSliceRoutingFilter(@Nullable String sliceRouting) {
+        if (sliceRouting == null) {
+            return null;
+        }
+        final List<String> sliceTerms = Arrays.stream(Strings.splitStringByCommaToArray(sliceRouting))
+            .map(String::trim)
+            .filter(value -> value.isEmpty() == false)
+            .toList();
+        if (sliceTerms.isEmpty()) {
+            return new MatchNoDocsQuery("empty [_slice] routing");
+        }
+        final QueryBuilder sliceFilterQuery = sliceTerms.size() == 1
+            ? new TermQueryBuilder(RoutingFieldMapper.NAME, sliceTerms.get(0))
+            : new TermsQueryBuilder(RoutingFieldMapper.NAME, sliceTerms);
+        try {
+            return sliceFilterQuery.toQuery(searchExecutionContext);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

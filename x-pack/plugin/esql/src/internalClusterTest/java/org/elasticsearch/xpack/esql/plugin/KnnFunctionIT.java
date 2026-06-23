@@ -206,6 +206,43 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testKnnAfterMvExpand() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 0.0f);
+
+        var query = String.format(Locale.ROOT, """
+            FROM test
+            | MV_EXPAND id
+            | WHERE KNN(vector, %s)
+            """, Arrays.toString(queryVector));
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[KNN] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testKnnAfterMvExpandWithIntermediateCommands() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 0.0f);
+        String vectorStr = Arrays.toString(queryVector);
+
+        var error = expectThrows(VerificationException.class, () -> run(String.format(Locale.ROOT, """
+            FROM test
+            | MV_EXPAND id
+            | EVAL x = id + 1
+            | WHERE KNN(vector, %s)
+            """, vectorStr)));
+        assertThat(error.getMessage(), containsString("[KNN] function cannot be used after MV_EXPAND"));
+
+        error = expectThrows(VerificationException.class, () -> run(String.format(Locale.ROOT, """
+            FROM test
+            | MV_EXPAND id
+            | SORT id
+            | KEEP id, vector
+            | WHERE KNN(vector, %s)
+            """, vectorStr)));
+        assertThat(error.getMessage(), containsString("[KNN] function cannot be used after MV_EXPAND"));
+    }
+
     public void testKnnWithLookupJoin() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 0.0f);

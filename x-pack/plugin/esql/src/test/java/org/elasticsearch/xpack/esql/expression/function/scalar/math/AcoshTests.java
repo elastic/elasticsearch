@@ -12,17 +12,22 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
+import static org.hamcrest.Matchers.closeTo;
 
 public class AcoshTests extends AbstractScalarFunctionTestCase {
+
+    private static final double ACOSH_OF_2 = 1.3169578969248166;
+    private static final double ACOSH_OF_10 = 2.993222846126381;
+
     public AcoshTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -30,60 +35,15 @@ public class AcoshTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        UnaryTestCaseHelper helper = unary().evaluatorToString("AcoshEvaluator[val=%0]");
 
-        // Within range (x >= 1) using canonical formula:
-        // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Definitions_in_terms_of_logarithms
-        suppliers.add(
-            new TestCaseSupplier(
-                "acosh(1)",
-                List.of(DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(1.0, DataType.DOUBLE, "arg")),
-                    "AcoshEvaluator[val=Attribute[channel=0]]",
-                    DataType.DOUBLE,
-                    equalTo(0.0)
-                )
-            )
-        );
-        suppliers.add(
-            new TestCaseSupplier(
-                "acosh(2)",
-                List.of(DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(2.0, DataType.DOUBLE, "arg")),
-                    "AcoshEvaluator[val=Attribute[channel=0]]",
-                    DataType.DOUBLE,
-                    equalTo(Math.log(2.0 + Math.sqrt(3.0)))  // acosh(2) = ln(2 + sqrt(3))
-                )
-            )
-        );
-        suppliers.add(
-            new TestCaseSupplier(
-                "acosh(10)",
-                List.of(DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(10.0, DataType.DOUBLE, "arg")),
-                    "AcoshEvaluator[val=Attribute[channel=0]]",
-                    DataType.DOUBLE,
-                    equalTo(Math.log(10.0 + Math.sqrt(99.0)))  // acosh(10) = ln(10 + sqrt(99))
-                )
-            )
-        );
+        helper.expectedFromDouble(d -> 0.0).castingToDouble(1, 1, false, suppliers);
+        helper.expectedFromDouble(d -> closeTo(ACOSH_OF_2, Math.ulp(ACOSH_OF_2))).castingToDouble(2, 2, false, suppliers);
+        helper.expectedFromDouble(d -> closeTo(ACOSH_OF_10, Math.ulp(ACOSH_OF_10))).castingToDouble(10, 10, false, suppliers);
 
         // Out of range (x < 1)
-        suppliers.addAll(
-            TestCaseSupplier.forUnaryCastingToDouble(
-                "AcoshEvaluator",
-                "val",
-                k -> null,
-                Double.NEGATIVE_INFINITY,
-                0.999999d,
-                List.of(
-                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line 1:1: java.lang.ArithmeticException: Acosh input out of range"
-                )
-            )
-        );
+        helper.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: Acosh input out of range"))
+            .castingToDouble(Double.NEGATIVE_INFINITY, Math.nextDown(1), false, suppliers);
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 

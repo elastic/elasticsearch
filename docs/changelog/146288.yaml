@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 146288
+summary: Wire native async reads for S3 and Azure
+type: enhancement

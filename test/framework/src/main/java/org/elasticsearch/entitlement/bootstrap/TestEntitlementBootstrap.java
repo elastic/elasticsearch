@@ -16,12 +16,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.config.MainInstrumentationProvider;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
+import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.PluginDescriptor;
@@ -75,7 +80,16 @@ public class TestEntitlementBootstrap {
 
     private static void loadAgent(PolicyManager policyManager, PathLookup pathLookup) {
         logger.debug("Loading entitlement agent");
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
+        PolicyCheckerImpl policyChecker = createPolicyChecker(Set.of(), policyManager, pathLookup);
+        InstrumentationRegistryImpl instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker);
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
+            pathLookup,
+            Set.of(),
+            policyChecker,
+            instrumentationRegistry
+        );
+        new MainInstrumentationProvider().init(instrumentationRegistry);
+        instrumentationRegistry.validate();
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 
@@ -124,7 +138,7 @@ public class TestEntitlementBootstrap {
         }
 
         return new TestPolicyManager(
-            HardcodedEntitlements.serverPolicy(null, null),
+            HardcodedEntitlements.serverPolicy(null, parseTestServerPolicy()),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
@@ -132,6 +146,14 @@ public class TestEntitlementBootstrap {
             classPathEntries,
             testOnlyClassPath
         );
+    }
+
+    private static PolicyCheckerImpl createPolicyChecker(
+        Set<Package> suppressFailureLogPackages,
+        PolicyManager policyManager,
+        PathLookup pathLookup
+    ) {
+        return new PolicyCheckerImpl(suppressFailureLogPackages, EntitlementBootstrap.ENTITLEMENTS_MODULE, policyManager, pathLookup);
     }
 
     private static Map<String, Policy> parsePluginsPolicies(List<TestPluginData> pluginsData) {
@@ -150,6 +172,22 @@ public class TestEntitlementBootstrap {
             }
         }
         return policies;
+    }
+
+    /**
+     * Discovers optional per-lib test entitlement policies on the classpath and merges them
+     * into a single patch to be applied on top of the hardcoded server entitlements.
+     */
+    private static Policy parseTestServerPolicy() throws IOException {
+        var resources = EntitlementInitialization.class.getClassLoader().getResources("META-INF/test-server-entitlement-policy.yaml");
+        List<Scope> mergedScopes = new ArrayList<>();
+        while (resources.hasMoreElements()) {
+            try (var inputStream = getStream(resources.nextElement())) {
+                var policy = new PolicyParser(inputStream, "test-server-patch", false).parsePolicy();
+                mergedScopes = PolicyUtils.mergeScopes(mergedScopes, policy.scopes());
+            }
+        }
+        return mergedScopes.isEmpty() ? null : new Policy("test-server-patch", mergedScopes);
     }
 
     private static List<PluginDescriptor> parsePluginsDescriptors(List<String> pluginNames) {

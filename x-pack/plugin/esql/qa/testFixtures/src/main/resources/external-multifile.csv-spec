@@ -1,0 +1,141 @@
+// Tests for reading data merged from multiple files via glob patterns.
+// Uses {{employees_multifile_split}} template which resolves to multifile_split/*.<format>.
+// The split fixture contains the full employees dataset partitioned into 3 same-schema files.
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
+// backends (S3) the flipped format ITs (TSV/NDJSON/Java-Parquet) register the dataset and run the FROM query
+// verbatim; the other backends rebuild the equivalent EXTERNAL query. The glob template has no index twin, so
+// the dataset keeps the bare name employees_multifile_split.
+
+readAllEmployeesMultiFile
+required_capability: external_command
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+aggregateMultiFileByGender
+required_capability: external_command
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+multiFileSalaryStats
+required_capability: external_command
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| STATS min_salary = MIN(salary), max_salary = MAX(salary), avg_salary = AVG(salary);
+
+min_salary:integer | max_salary:integer | avg_salary:double
+25324              | 74999              | 48248.55
+;
+
+multiFileFilterAndSort
+required_capability: external_command
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| WHERE salary > 70000
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 5;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+10027          | "Divier"           | 73851
+10019          | "Lillian"          | 73717
+;
+
+multiFileEvalAndAggregate
+required_capability: external_command
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| WHERE still_hired == true AND salary > 55000
+| EVAL salary_category = CASE(salary < 60000, "standard", salary < 70000, "senior", "principal")
+| STATS count = COUNT(*), avg_salary = AVG(salary) BY salary_category
+| SORT salary_category;
+
+count:long | avg_salary:double | salary_category:keyword
+2          | 74075.0           | "principal"
+5          | 67017.0           | "senior"
+4          | 56789.25          | "standard"
+;
+
+multiFileSumSalary
+required_capability: external_command
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| STATS total_salary = SUM(salary);
+
+total_salary:long
+4824855
+;
+
+multiFileFilterByEmployee
+required_capability: external_command
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| WHERE emp_no == 10001
+| KEEP emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | "Georgi"           | "Facello"
+;
+
+// File metadata: verify multiple distinct files are read
+
+multiFileDistinctFileCount
+required_capability: external_command
+required_capability: external_source_file_metadata_columns
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| STATS names = COUNT_DISTINCT(`_file.name`);
+
+names:long
+3
+;
+
+multiFileGroupByFile
+required_capability: external_command
+required_capability: external_source_file_metadata_columns
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| STATS count = COUNT(*) BY `_file.name`
+| STATS files = COUNT(*), total = SUM(count);
+
+files:long | total:long
+3          | 100
+;
+
+multiFileMetadataSizePositive
+required_capability: external_command
+required_capability: external_source_file_metadata_columns
+dataset: employees_multifile_split: "{{employees_multifile_split}}"
+
+FROM employees_multifile_split
+| WHERE `_file.size` > 0
+| STATS count = COUNT(*);
+
+count:long
+100
+;

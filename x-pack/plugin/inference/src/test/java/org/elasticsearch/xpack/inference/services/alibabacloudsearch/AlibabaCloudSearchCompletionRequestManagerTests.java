@@ -55,7 +55,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
         verify(mockExecutorService).execute(captor.capture());
 
         ExecutableInferenceRequest executableRequest = captor.getValue();
-        assertThat(executableRequest.request(), is(instanceOf(AlibabaCloudSearchCompletionRequest.class)));
+        assertThat(executableRequest.outboundRequest(), is(instanceOf(AlibabaCloudSearchCompletionRequest.class)));
         assertThat(executableRequest.responseHandler().getRequestType(), is("alibaba cloud search completion"));
     }
 

@@ -19,8 +19,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * This function is used internally by {@link Approximation}, and is not exposed
+ * This function is used internally by {@link ApproximationPlan}, and is not exposed
  * to users via the {@link EsqlFunctionRegistry}.
  */
 public class ConfidenceInterval extends EsqlScalarFunction {
@@ -64,6 +64,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = { "double", },
+        briefSummary = "Computes a confidence interval and its reliability from bootstrap estimates.",
         description = "Computes the confidence interval and its reliability for the given best estimate and bootstrap estimates. The "
             + "output usually is an array with three values: lower bound, upper bound, and the fraction of trials that give a reliable "
             + "interval. If no sensible interval is found, the function returns null instead. "
@@ -149,7 +150,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new ConfidenceIntervalEvaluator.Factory(
             source(),
             toEvaluator.apply(bestEstimate),
@@ -269,9 +270,24 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
         // Collect estimates into an array.
         double[] estimates = new double[estimatesCount];
+        boolean allNaNs = true;
         int offset = estimatesBlock.getFirstValueIndex(position);
         for (int i = 0; i < estimatesCount; i++) {
             estimates[i] = estimatesBlock.getDouble(offset + i);
+            if (Double.isNaN(estimates[i]) == false) {
+                allNaNs = false;
+            }
+        }
+
+        // Every single bucket being NaN indicates that the bestEstimate is exact,
+        // hence the confidence intervals should be zero width.
+        if (allNaNs) {
+            resultBuilder.beginPositionEntry();
+            resultBuilder.appendDouble(bestEstimate);
+            resultBuilder.appendDouble(bestEstimate);
+            resultBuilder.appendDouble(1.0);
+            resultBuilder.endPositionEntry();
+            return;
         }
 
         // When a bucket is empty (indicated by a NaN value), it's not clear how to use it to
@@ -408,15 +424,18 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         double lower = mm + scale * sm * zl;
         double upper = mm + scale * sm * zu;
 
-        if (lower <= bestEstimate && bestEstimate <= upper) {
+        // If the bestEstimate is outside the confidence interval, it is not a sensible interval,
+        // so return null instead. TODO: this criterion is not ideal, and should be revisited.
+        // Allow a little bit of numerical imprecision in the consistency check, which can happen
+        // due to round-off errors when aggregating zero-variance stats (e.g. AVG(x) BY x).
+        if (lower - 1e-12 * Math.abs(lower) <= bestEstimate && bestEstimate <= upper + 1e-12 * Math.abs(upper)) {
             resultBuilder.beginPositionEntry();
             resultBuilder.appendDouble(lower);
             resultBuilder.appendDouble(upper);
             resultBuilder.appendDouble((double) reliableCount / trialCount);
             resultBuilder.endPositionEntry();
         } else {
-            // If the bestEstimate is outside the confidence interval, it is not a sensible interval,
-            // so return null instead. TODO: this criterion is not ideal, and should be revisited.
+
             resultBuilder.appendNull();
         }
     }

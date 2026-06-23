@@ -9,9 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.index.FloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
-import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,17 +24,21 @@ public interface CentroidSupplier {
 
     float[] centroid(int centroidOrdinal) throws IOException;
 
-    default KMeansResult secondLevelClusters() throws IOException {
+    default KMeansResult<float[]> secondLevelClusters() throws IOException {
         return null;
     }
 
-    FloatVectorValues asFloatVectorValues() throws IOException;
-
-    static CentroidSupplier empty(int dims) {
-        return fromArray(new float[0][dims], KMeansResult.EMPTY, dims);
+    default CentroidSlices slices() throws IOException {
+        return null;
     }
 
-    static CentroidSupplier fromArray(float[][] centroids, KMeansResult secondLevelClusters, int dims) {
+    KMeansFloatVectorValues asKmeansFloatVectorValues() throws IOException;
+
+    static CentroidSupplier empty(int dims) {
+        return fromArray(new float[0][dims], KMeansResult.emptyFloat(), dims);
+    }
+
+    static CentroidSupplier fromArray(float[][] centroids, KMeansResult<float[]> secondLevelClusters, int dims) {
         return new CentroidSupplier() {
             @Override
             public int size() {
@@ -48,14 +51,15 @@ public interface CentroidSupplier {
             }
 
             @Override
-            public KMeansResult secondLevelClusters() {
+            public KMeansResult<float[]> secondLevelClusters() {
                 return secondLevelClusters;
             }
 
             @Override
-            public FloatVectorValues asFloatVectorValues() {
-                return KmeansFloatVectorValues.build(Arrays.asList(centroids), null, dims);
+            public KMeansFloatVectorValues asKmeansFloatVectorValues() {
+                return KMeansFloatVectorValues.build(Arrays.asList(centroids), null, dims);
             }
         };
     }
+
 }

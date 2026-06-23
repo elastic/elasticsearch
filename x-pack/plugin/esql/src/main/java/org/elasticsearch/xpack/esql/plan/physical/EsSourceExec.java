@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -25,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class EsSourceExec extends LeafExec {
+public class EsSourceExec extends LeafExec implements DataSourceExec {
 
     private static final TransportVersion REMOVE_NAME_WITH_MODS = TransportVersion.fromName("esql_es_source_remove_name_with_mods");
 
@@ -126,7 +127,9 @@ public class EsSourceExec extends LeafExec {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName() + "[" + indexPattern + "]" + NodeUtils.toString(attributes, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(indexPattern)).append(']');
+        NodeUtils.toString(sb, attributes, format, mapper);
     }
+
 }

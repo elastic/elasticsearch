@@ -51,6 +51,7 @@ import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -66,6 +67,7 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -107,6 +109,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -162,7 +165,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -247,6 +249,7 @@ public class SecurityTests extends ESTestCase {
         settings = Security.additionalSettings(settings, true);
         Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(null, new CrossClusterAccessSecurityExtension.Provider()));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allowedSettings.add(XPackSettings.AUDIT_ENABLED);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
@@ -271,6 +274,7 @@ public class SecurityTests extends ESTestCase {
             mock(PersistentTasksService.class),
             StubLinkedProjectConfigService.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
+            CrossProjectModeDecider.NOOP,
             ProjectRoutingResolver.NOOP
         );
     }
@@ -393,7 +397,7 @@ public class SecurityTests extends ESTestCase {
     public void testDisabledByDefault() throws Exception {
         Collection<Object> components = createComponents(Settings.EMPTY);
         AuditTrailService auditTrailService = findComponent(AuditTrailService.class, components);
-        assertThat(auditTrailService.getAuditTrail(), nullValue());
+        assertThat(auditTrailService.get(), instanceOf(AuditTrail.class));
     }
 
     public void testHttpSettingDefaults() throws Exception {
@@ -486,7 +490,8 @@ public class SecurityTests extends ESTestCase {
             List.of(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
@@ -967,8 +972,6 @@ public class SecurityTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 TestEnvironment.newEnvironment(settingsModule.getSettings()),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                null,
-                settingsModule.getIndexScopedSettings(),
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),
                 threadPool,
@@ -983,7 +986,8 @@ public class SecurityTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
+                CrossProjectModeDecider.NOOP,
                 TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -801,12 +800,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
         assertThat(issues, hasItem(expected));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                    + "See the deprecation documentation for the next major version."
-            )
+            "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -824,12 +819,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
         assertThat(issues, hasItem(expected));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                    + "See the deprecation documentation for the next major version."
-            )
+            "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -879,6 +870,114 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             null
         );
         assertThat(issues, hasItem(expected));
+    }
+
+    public void testCheckDynamicLoggerChildOverride_parentAndChildBothSet_persistentSettings() {
+        Settings clusterSettings = Settings.builder()
+            .put("logger.org.elasticsearch.http", "INFO")
+            .put("logger.org.elasticsearch.http.HttpTracer", "TRACE")
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(clusterSettings).build())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkDynamicLoggerChildOverride(
+            Settings.EMPTY,
+            pluginsAndModules,
+            clusterState,
+            new XPackLicenseState(() -> 0)
+        );
+
+        assertNotNull(issue);
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(
+            issue.getMessage(),
+            equalTo(
+                "Explicitly configured child logger(s) will no longer be overridden by a parent logger update in a future major version"
+            )
+        );
+        assertThat(issue.getDetails(), org.hamcrest.Matchers.containsString("[logger.org.elasticsearch.http.HttpTracer]"));
+    }
+
+    public void testCheckDynamicLoggerChildOverride_parentAndChildBothSet_transientSettings() {
+        Settings clusterSettings = Settings.builder()
+            .put("logger.org.elasticsearch.http", "INFO")
+            .put("logger.org.elasticsearch.http.HttpTracer", "TRACE")
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().transientSettings(clusterSettings).build())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkDynamicLoggerChildOverride(
+            Settings.EMPTY,
+            pluginsAndModules,
+            clusterState,
+            new XPackLicenseState(() -> 0)
+        );
+
+        assertNotNull(issue);
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+    }
+
+    public void testCheckDynamicLoggerChildOverride_onlyParentSet_noIssue() {
+        Settings clusterSettings = Settings.builder().put("logger.org.elasticsearch.http", "INFO").build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(clusterSettings).build())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkDynamicLoggerChildOverride(
+            Settings.EMPTY,
+            pluginsAndModules,
+            clusterState,
+            new XPackLicenseState(() -> 0)
+        );
+
+        assertThat(issue, nullValue());
+    }
+
+    public void testCheckDynamicLoggerChildOverride_siblingLoggers_noIssue() {
+        // Two sibling loggers that are neither ancestor nor descendant of each other.
+        Settings clusterSettings = Settings.builder()
+            .put("logger.org.elasticsearch.http", "INFO")
+            .put("logger.org.elasticsearch.transport", "DEBUG")
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(clusterSettings).build())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkDynamicLoggerChildOverride(
+            Settings.EMPTY,
+            pluginsAndModules,
+            clusterState,
+            new XPackLicenseState(() -> 0)
+        );
+
+        assertThat(issue, nullValue());
+    }
+
+    public void testCheckDynamicLoggerChildOverride_parentInNodeSettings_childInClusterSettings() {
+        // Parent comes from node settings, child comes from cluster settings — the cross-origin case.
+        Settings nodeSettings = Settings.builder().put("logger.org.elasticsearch.http", "INFO").build();
+        Settings clusterSettings = Settings.builder().put("logger.org.elasticsearch.http.HttpTracer", "TRACE").build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(clusterSettings).build())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkDynamicLoggerChildOverride(
+            nodeSettings,
+            pluginsAndModules,
+            clusterState,
+            new XPackLicenseState(() -> 0)
+        );
+
+        assertNotNull(issue);
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(issue.getDetails(), org.hamcrest.Matchers.containsString("[logger.org.elasticsearch.http.HttpTracer]"));
     }
 
     static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {

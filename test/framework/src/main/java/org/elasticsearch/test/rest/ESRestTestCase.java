@@ -49,6 +49,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -80,6 +81,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -185,6 +187,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static final String EXPECTED_ROLLUP_WARNING_MESSAGE =
         "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.";
+
     public static final RequestOptions.Builder ROLLUP_REQUESTS_OPTIONS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
         if (warnings.isEmpty()) {
             return false;
@@ -300,7 +303,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return nodesVersions;
     }
 
-    protected static Set<String> readVersionsFromNodesInfo(RestClient adminClient) throws IOException {
+    public static Set<String> readVersionsFromNodesInfo(RestClient adminClient) throws IOException {
         return getNodesInfo(adminClient).values().stream().map(nodeInfo -> nodeInfo.get("version").toString()).collect(Collectors.toSet());
     }
 
@@ -383,6 +386,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
         multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        // do not override setUp, use an @Before
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // do not override tearDown, use an @After
+        super.tearDown();
     }
 
     @Before
@@ -641,12 +656,15 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @After
     public final void cleanUpCluster() throws Exception {
-        if (preserveClusterUponCompletion() == false) {
-            ensureNoInitializingShards();
-            wipeCluster();
-            waitForClusterStateUpdatesToFinish();
-            checkForUnexpectedlyRecreatedObjects();
-            logIfThereAreRunningTasks();
+        if (previousFailureSkipsRemaining() == false && preserveClusterUponCompletion() == false) {
+            // Skip cleanup when there is no client (e.g. test failed during rolling upgrade after closeClients() but before initClient()).
+            if (cleanupClient != null) {
+                ensureNoInitializingShards();
+                wipeCluster();
+                waitForClusterStateUpdatesToFinish();
+                checkForUnexpectedlyRecreatedObjects();
+                logIfThereAreRunningTasks();
+            }
         }
     }
 
@@ -701,7 +719,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
      * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
      * to filter out outstanding tasks that are expected to be there. In addition to the expected tasks that are defined by the filter we
-     * expect the list task to be there since it is created by the call and the health node task which is always running on the background.
+     * expect the list task to be there since it is created by the call, the health node task, and the index balance metrics task which are
+     * always running in the background.
      *
      * @param restClient the admin client
      * @param taskFilter  predicate used to filter tasks that are expected to be there
@@ -730,6 +749,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                             final String taskName = line.split("\\s+")[0];
                             if (taskName.startsWith(TransportListTasksAction.TYPE.name())
                                 || taskName.startsWith(HealthNode.TASK_NAME)
+                                || taskName.startsWith(IndexBalanceMetricsTaskExecutor.TASK_NAME)
                                 || taskName.startsWith(LEADER_CHECK_ACTION_NAME)
                                 || taskName.startsWith(FOLLOWER_CHECK_ACTION_NAME)
                                 || taskFilter.test(taskName)) {
@@ -1343,7 +1363,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             response = cleanupClient().performRequest(request);
         } catch (ResponseException e) {
             String err = EntityUtils.toString(e.getResponse().getEntity());
-            if (err.contains("no handler found for uri [_query/view]") || err.contains("Incorrect HTTP method for uri [_query/view]")) {
+            if (err.contains("no handler found for uri [_query/view]")
+                || err.contains("Incorrect HTTP method for uri [_query/view]")
+                || err.contains("uri [_query/view] with method [GET] exists but is not available")) {
                 // Views are not supported, don't worry about wiping them
                 return;
             }
@@ -1978,6 +2000,32 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Waits for the given index (pattern) to be at least yellow with no shards initializing or relocating. This is the
+     * appropriate wait condition before querying for documents written prior to a restart or upgrade: yellow alone is
+     * satisfied as soon as the primary is STARTED, but searches routed to an INITIALIZING replica can return stale or
+     * empty results until peer recovery completes, which often surfaces as a 404 from APIs that translate "no hits" to
+     * "not found".
+     *
+     * Prefer this over a raw {@link #ensureHealth} call in any BWC, full-cluster-restart, or rolling-upgrade test that
+     * reads back data indexed before the restart/upgrade. {@link #ensureGreen} is unsuitable for the MIXED phase of
+     * rolling-upgrade tests on indices with {@code auto_expand_replicas=0-1}, since one node is offline at a time and
+     * the cluster legitimately stays yellow.
+     *
+     * @param index index pattern to check (use {@code ""} for cluster-wide health)
+     * @param timeout optional health-check timeout (e.g. {@code "120s"}); {@code null} uses the server default
+     */
+    public static void ensureYellowAndNoInitializingShards(String index, String timeout) throws IOException {
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "yellow");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+            request.addParameter("wait_for_no_initializing_shards", "true");
+            if (timeout != null) {
+                request.addParameter("timeout", timeout);
+            }
+        });
+    }
+
+    /**
      * waits until all shard initialization is completed. This is a handy alternative to ensureGreen as it relates to all shards
      * in the cluster and doesn't require to know how many nodes/replica there are.
      */
@@ -1998,11 +2046,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings) throws IOException {
-        return createIndex(client, name, settings, null, null);
+        return createIndex(client, name, settings, null, null, RequestOptions.DEFAULT);
     }
 
     protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping) throws IOException {
-        return createIndex(client, name, settings, mapping, null);
+        return createIndex(client, name, settings, mapping, null, RequestOptions.DEFAULT);
     }
 
     protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {
@@ -2013,9 +2061,30 @@ public abstract class ESRestTestCase extends ESTestCase {
         return createIndex(client(), name, settings, mapping, aliases);
     }
 
+    protected static CreateIndexResponse createIndex(
+        String name,
+        Settings settings,
+        String mapping,
+        String aliases,
+        RequestOptions requestOptions
+    ) throws IOException {
+        return createIndex(client(), name, settings, mapping, aliases, requestOptions);
+    }
+
     public static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping, String aliases)
         throws IOException {
-        return createIndex(client::performRequest, name, settings, mapping, aliases);
+        return createIndex(client::performRequest, name, settings, mapping, aliases, RequestOptions.DEFAULT);
+    }
+
+    public static CreateIndexResponse createIndex(
+        RestClient client,
+        String name,
+        Settings settings,
+        String mapping,
+        String aliases,
+        RequestOptions requestOptions
+    ) throws IOException {
+        return createIndex(client::performRequest, name, settings, mapping, aliases, requestOptions);
     }
 
     protected static CreateIndexResponse createIndex(
@@ -2024,6 +2093,17 @@ public abstract class ESRestTestCase extends ESTestCase {
         Settings settings,
         String mapping,
         String aliases
+    ) throws IOException {
+        return createIndex(execute, name, settings, mapping, aliases, RequestOptions.DEFAULT);
+    }
+
+    protected static CreateIndexResponse createIndex(
+        CheckedFunction<Request, Response, IOException> execute,
+        String name,
+        Settings settings,
+        String mapping,
+        String aliases,
+        RequestOptions requestOptions
     ) throws IOException {
         final Request request = newXContentRequest(HttpMethod.PUT, "/" + name, (builder, params) -> {
             if (settings != null) {
@@ -2053,6 +2133,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
             return builder;
         });
+        request.setOptions(requestOptions);
 
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
@@ -2437,6 +2518,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".slm-history") || name.startsWith("ilm-history")) {
             return true;
         }
+        if (name.startsWith("logs-elasticsearch.querylog")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
@@ -2679,6 +2763,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         return Optional.empty();
     }
 
+    /**
+     * Builds a {@link TestFeatureService} for executing client YAML against an arbitrary cluster before the
+     * usual per-test {@link ESRestTestCase} client initialization (for example seeding a CCS remote from {@code @BeforeClass}).
+     * Pass the version set from {@link #readVersionsFromNodesInfo} to avoid a redundant {@code /_nodes} call.
+     */
+    public static TestFeatureService newYamlTestFeatureServiceForCluster(RestClient adminClient, Set<String> versions) throws IOException {
+        Map<String, Set<String>> clusterStateFeatures = getClusterStateFeatures(adminClient);
+        return new ESRestTestFeatureService(fromSemanticVersions(versions), clusterStateFeatures.values());
+    }
+
     public static VersionFeaturesPredicate fromSemanticVersions(Set<String> nodesVersions) {
         Set<Version> semanticNodeVersions = nodesVersions.stream()
             .map(ESRestTestCase::parseLegacyVersion)
@@ -2849,8 +2943,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("query", instanceOf(Map.class))
             .entry("planning", instanceOf(Map.class))
             .entry("parsing", instanceOf(Map.class))
+            .entry("view_resolution", instanceOf(Map.class))
+            .entry("dataset_resolution", instanceOf(Map.class))
             .entry("preanalysis", instanceOf(Map.class))
-            .entry("dependency_resolution", instanceOf(Map.class))
+            .entry("indices_resolution", instanceOf(Map.class))
+            .entry("enrich_resolution", instanceOf(Map.class))
+            .entry("inference_resolution", instanceOf(Map.class))
             .entry("analysis", instanceOf(Map.class))
             .entry("field_caps_calls", instanceOf(Integer.class))
             .entry("drivers", instanceOf(List.class))
@@ -2858,12 +2956,26 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("minimumTransportVersion", instanceOf(Integer.class));
     }
 
-    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
+    protected static MapMatcher getResultMatcher(
+        boolean includePartial,
+        boolean includeDocumentsFound,
+        boolean includeTimestamps,
+        boolean includeRollupMetrics
+    ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
             mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
             mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
+        }
+        if (includeRollupMetrics) {
+            // Query-wide rollup metrics added with esql_external_source_profile TV. Older nodes
+            // don't emit these. JSON parsing yields Integer for small values and Long for large
+            // (e.g. cpu_nanos easily overflows Integer); use isIntOrLong() per the EsqlListQueriesActionIT precedent.
+            mapMatcher = mapMatcher.entry("rows_emitted", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("bytes_read", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("read_nanos", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("cpu_nanos", IntOrLongMatcher.isIntOrLong());
         }
         if (includeTimestamps) {
             // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis
@@ -2880,6 +2992,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         return mapMatcher;
     }
 
+    /** Deprecated three-arg form kept for callers that haven't been updated for the rollup metrics. */
+    @Deprecated
+    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
+        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, false);
+    }
+
     /**
      * Create empty result matcher from result, taking into account all metadata items.
      */
@@ -2887,7 +3005,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         return getResultMatcher(
             result.containsKey("is_partial"),
             result.containsKey("documents_found"),
-            result.containsKey("start_time_in_millis")
+            result.containsKey("start_time_in_millis"),
+            result.containsKey("rows_emitted")
         );
     }
 

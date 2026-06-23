@@ -104,45 +104,47 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
         source.size(10);
 
         // Create a SearchHit with sort values for updateSearchAfter
-        org.elasticsearch.search.SearchHit lastHit = org.elasticsearch.search.SearchHit.unpooled(1, "id1");
+        org.elasticsearch.search.SearchHit lastHit = new org.elasticsearch.search.SearchHit(1, "id1");
         lastHit.sortValues(
             new Object[] { 1L },
             new org.elasticsearch.search.DocValueFormat[] { org.elasticsearch.search.DocValueFormat.RAW }
         );
-        org.elasticsearch.search.SearchHits hits = org.elasticsearch.search.SearchHits.unpooled(
+        org.elasticsearch.search.SearchHits hits = new org.elasticsearch.search.SearchHits(
             new org.elasticsearch.search.SearchHit[] { lastHit },
             new org.apache.lucene.search.TotalHits(1, org.apache.lucene.search.TotalHits.Relation.EQUAL_TO),
             1.0f
         );
-
-        // Mock the SearchResponse to return a different PIT ID
-        SearchResponse response = mock(SearchResponse.class);
-        when(response.pointInTimeId()).thenReturn(newPitId);
-        when(response.getHits()).thenReturn(hits);
-
-        // Mock the SearchHitRowSet to indicate there's more data (hasRemaining = true)
-        SearchHitRowSet rowSet = mock(SearchHitRowSet.class);
-        when(rowSet.hasRemaining()).thenReturn(true);
-        when(rowSet.extractors()).thenReturn(Collections.emptyList());
-        when(rowSet.mask()).thenReturn(new BitSet());
-        when(rowSet.getRemainingLimit()).thenReturn(100);
-
-        // Capture the cursor created by handle()
         final Cursor[] cursorHolder = new Cursor[1];
-        ActionListener<Cursor.Page> listener = new ActionListener<>() {
-            @Override
-            public void onResponse(Cursor.Page page) {
-                cursorHolder[0] = page.next();
-            }
+        try {
+            // Mock the SearchResponse to return a different PIT ID
+            SearchResponse response = mock(SearchResponse.class);
+            when(response.pointInTimeId()).thenReturn(newPitId);
+            when(response.getHits()).thenReturn(hits);
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("Should not fail: " + e.getMessage());
-            }
-        };
+            // Mock the SearchHitRowSet to indicate there's more data (hasRemaining = true)
+            SearchHitRowSet rowSet = mock(SearchHitRowSet.class);
+            when(rowSet.hasRemaining()).thenReturn(true);
+            when(rowSet.extractors()).thenReturn(Collections.emptyList());
+            when(rowSet.mask()).thenReturn(new BitSet());
+            when(rowSet.getRemainingLimit()).thenReturn(100);
 
-        // Call handle()
-        SearchHitCursor.handle(mock(Client.class), response, source, () -> rowSet, listener, false, false);
+            ActionListener<Cursor.Page> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(Cursor.Page page) {
+                    cursorHolder[0] = page.next();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Should not fail: " + e.getMessage());
+                }
+            };
+
+            // Call handle()
+            SearchHitCursor.handle(mock(Client.class), response, source, () -> rowSet, listener, false, false);
+        } finally {
+            hits.decRef();
+        }
 
         // Verify that the source now has the new PIT ID
         assertNotNull(source.pointInTimeBuilder());

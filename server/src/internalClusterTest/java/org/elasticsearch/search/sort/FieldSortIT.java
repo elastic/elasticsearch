@@ -27,6 +27,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -1605,6 +1606,42 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
+    public void testSortColumnarId() {
+        assumeTrue("feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        if (randomBoolean()) {
+            prepareCreate("test", Settings.builder().put("index.mapping.use_columnar_id_mode_by_default", true)).get();
+        } else {
+            prepareCreate("test").setMapping("""
+                {
+                    "_id": { "mode": "columnar" }
+                }
+                """).get();
+        }
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 20);
+        IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; ++i) {
+            indexReqs[i] = prepareIndex("test").setId(Integer.toString(i)).setSource();
+        }
+        indexRandom(true, indexReqs);
+
+        SortOrder order = randomFrom(SortOrder.values());
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery()).setSize(randomIntBetween(1, numDocs + 5)).addSort("_id", order),
+            response -> {
+                SearchHit[] hits = response.getHits().getHits();
+                BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
+                for (int i = 0; i < hits.length; ++i) {
+                    String idString = hits[i].getId();
+                    final BytesRef id = new BytesRef(idString);
+                    assertEquals(idString, hits[i].getSortValues()[0]);
+                    assertThat(previous, order == SortOrder.ASC ? lessThan(id) : greaterThan(id));
+                    previous = id;
+                }
+            }
+        );
+    }
+
     /**
      * Test case for issue 6150: https://github.com/elastic/elasticsearch/issues/6150
      */
@@ -2160,17 +2197,20 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testSortMixedFieldTypes() throws IOException {
         assertAcked(
-            prepareCreate("index_long").setMapping("foo", "type=long"),
+            prepareCreate("index_long").setMapping("foo", "type=long").setSettings(Settings.builder().put("number_of_shards", 2)),
             prepareCreate("index_integer").setMapping("foo", "type=integer"),
             prepareCreate("index_double").setMapping("foo", "type=double"),
-            prepareCreate("index_keyword").setMapping("foo", "type=keyword")
+            prepareCreate("index_keyword").setMapping("foo", "type=keyword").setSettings(Settings.builder().put("number_of_shards", 2))
         );
 
         prepareIndex("index_long").setId("1").setSource("foo", "123").get();
+        prepareIndex("index_long").setId("2").setSource("foo", "124").get();
         prepareIndex("index_integer").setId("1").setSource("foo", "123").get();
         prepareIndex("index_double").setId("1").setSource("foo", "123").get();
         prepareIndex("index_keyword").setId("1").setSource("foo", "123").get();
+        prepareIndex("index_keyword").setId("2").setSource("foo", "124").get();
         refresh();
+        ensureGreen("index_long", "index_keyword");
 
         // for debugging, we try to see where the documents are located
         try (RestClient restClient = createRestClient()) {
@@ -2186,15 +2226,11 @@ public class FieldSortIT extends ESIntegTestCase {
             assertNoFailures(prepareSearch("index_long", "index_integer").addSort(new FieldSortBuilder("foo")).setSize(10));
         }
 
-        String errMsg = "Can't sort on field [foo]; the field has incompatible sort types";
-
-        { // mixing long and double types is not allowed
-            SearchPhaseExecutionException exc = expectThrows(
-                SearchPhaseExecutionException.class,
-                prepareSearch("index_long", "index_double").addSort(new FieldSortBuilder("foo")).setSize(10)
-            );
-            assertThat(exc.getCause().toString(), containsString(errMsg));
+        { // mixing long and double types is ok, as we convert to double sort
+            assertNoFailures(prepareSearch("index_long", "index_double").addSort(new FieldSortBuilder("foo")).setSize(10));
         }
+
+        String errMsg = "Can't sort on field [foo]; the field has incompatible sort types";
 
         { // mixing long and keyword types is not allowed
             SearchPhaseExecutionException exc = expectThrows(

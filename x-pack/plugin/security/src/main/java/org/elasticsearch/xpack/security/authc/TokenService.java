@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
@@ -39,9 +40,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -621,7 +624,11 @@ public class TokenService {
                     if (isShardNotAvailableException(e)) {
                         logger.warn("failed to get token doc [{}] because index [{}] is not available", tokenId, tokensIndex.aliasName());
                     } else {
-                        logger.error(() -> "failed to get token doc [" + tokenId + "]", e);
+                        logger.log(
+                            ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException ? Level.WARN : Level.ERROR,
+                            () -> "failed to get token doc [" + tokenId + "]",
+                            e
+                        );
                     }
                     listener.onFailure(e);
                 }),
@@ -2468,7 +2475,11 @@ public class TokenService {
                     @Override
                     public void onFailure(Exception e) {
                         installTokenMetadataInProgress.set(false);
-                        logger.error("unable to install token metadata", e);
+                        logger.log(
+                            MasterService.isPublishFailureException(e) ? Level.WARN : Level.ERROR,
+                            "unable to install token metadata",
+                            e
+                        );
                     }
 
                     @Override

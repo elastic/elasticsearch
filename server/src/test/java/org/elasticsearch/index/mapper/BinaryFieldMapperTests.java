@@ -145,6 +145,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean())
             .build();
 
         var mapping = mapping(b -> {
@@ -165,11 +166,11 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         });
         DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
 
-        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+        var source = source(null, b -> {
             b.field("field", Base64.getEncoder().encodeToString(randomByteArrayOfLength(10)));
             b.field("@timestamp", "2000-10-10T23:40:53.384Z");
             b.field("dimension", "dimension1");
-        }, null);
+        }, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
         ParsedDocument doc = mapper.parse(source);
 
         List<IndexableField> fields = doc.rootDoc().getFields("field");

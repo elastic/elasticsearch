@@ -31,7 +31,6 @@ public interface EstimatesRowSize {
     /**
      * Estimate the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
-     * @return
      */
     PhysicalPlan estimateRowSize(State state);
 
@@ -69,6 +68,23 @@ public interface EstimatesRowSize {
          */
         public void add(boolean needsSortedDocIds, List<? extends Expression> expressions) {
             expressions.stream().forEach(a -> estimatedRowSize += estimateSize(a.dataType()));
+            maxEstimatedRowSize = Math.max(estimatedRowSize, maxEstimatedRowSize);
+            this.needsSortedDocIds |= needsSortedDocIds;
+        }
+
+        /**
+         * Similar to {@link #add(boolean, List)} but count text fields as keyword field.
+         * This allows pipeline with Enrich, LookupJoin to avoiding generate many smaller pages,
+         * which have significant overhead per page.
+         */
+        public void add(boolean needsSortedDocIds, List<? extends Expression> expressions, boolean countTextFieldAsKeyword) {
+            for (var expr : expressions) {
+                DataType dataType = expr.dataType();
+                if (countTextFieldAsKeyword && dataType == DataType.TEXT) {
+                    dataType = DataType.KEYWORD;
+                }
+                estimatedRowSize += estimateSize(dataType);
+            }
             maxEstimatedRowSize = Math.max(estimatedRowSize, maxEstimatedRowSize);
             this.needsSortedDocIds |= needsSortedDocIds;
         }

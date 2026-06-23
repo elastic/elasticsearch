@@ -8,22 +8,23 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
-public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
+public class GoogleVertexAiRerankTaskSettings implements TaskSettings, TopNProvider {
 
     public static final String NAME = "google_vertex_ai_rerank_task_settings";
 
@@ -33,9 +34,7 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
         ValidationException validationException = new ValidationException();
 
         Integer topN = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.TASK_SETTINGS, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiRerankTaskSettings(topN);
     }
@@ -65,6 +64,11 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
 
     public Integer topN() {
         return topN;
+    }
+
+    @Override
+    public Integer getTopN() {
+        return topN();
     }
 
     @Override
@@ -110,9 +114,12 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        GoogleVertexAiRerankRequestTaskSettings requestSettings = GoogleVertexAiRerankRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
-        );
+        GoogleVertexAiRerankRequestTaskSettings requestSettings = GoogleVertexAiRerankRequestTaskSettings.fromMap(newSettings);
         return of(this, requestSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

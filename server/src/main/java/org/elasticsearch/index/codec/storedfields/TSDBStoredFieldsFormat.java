@@ -46,7 +46,7 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         return delegate.fieldsWriter(directory, si, context);
     }
 
-    class TSDBStoredFieldsReader extends StoredFieldsReader {
+    public class TSDBStoredFieldsReader extends StoredFieldsReader {
 
         private final StoredFieldsReader storedFieldsReader;
         private final @Nullable StoredFieldsReader syntheticIdStoredFieldsReader; // null if no synthetic _id
@@ -109,6 +109,10 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
                 syntheticIdStoredFieldsReader.document(docID, visitor);
             }
             storedFieldsReader.document(docID, visitor);
+        }
+
+        public StoredFieldsReader getStoredFieldsReader() {
+            return storedFieldsReader;
         }
     }
 }

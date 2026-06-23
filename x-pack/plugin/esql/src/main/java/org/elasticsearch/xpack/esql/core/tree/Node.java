@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -38,8 +37,18 @@ import static java.util.Collections.emptyList;
  * @param <T> node type
  */
 public abstract class Node<T extends Node<T>> implements NamedWriteable {
+    /**
+     * Maximum number of properties rendered by {@link #toString}.
+     */
     private static final int TO_STRING_MAX_PROP = 10;
+    /**
+     * Maximum number of characters per line rendered by {@link #toString}.
+     */
     public static final int TO_STRING_MAX_WIDTH = 110;
+    /**
+     * Maximum number of lines rendered by {@link #toString}.
+     */
+    public static final int TO_STRING_MAX_LINES = 25;
 
     private final Source source;
     private final List<T> children;
@@ -64,7 +73,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return source.text();
     }
 
-    public List<T> children() {
+    public final List<T> children() {
         return children;
     }
 
@@ -273,6 +282,50 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return transformDown((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
     }
 
+    /**
+     * Asynchronous variant of {@link #transformDown(Function)} that allows the transformation rule to perform
+     * async I/O operations (e.g., transport actions) without blocking the caller thread.
+     * <p>
+     * Children are transformed sequentially, not concurrently, one after another in order.
+     * This method is intended for cases where async I/O is needed during transformation, not for parallel
+     * processing.
+     */
+    @SuppressWarnings("unchecked")
+    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, ActionListener<T> listener) {
+        rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
+            Node<T> node = this.equals(root) ? this : root;
+            node.transformChildren((child, childListener) -> child.transformDown(rule, childListener), originalListener);
+        }));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void transformChildren(BiConsumer<T, ActionListener<T>> traversalOperation, ActionListener<T> listener) {
+        if (children.isEmpty()) {
+            listener.onResponse((T) this);
+            return;
+        }
+
+        final Holder<List<T>> updatedChildren = new Holder<>();
+        SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
+        for (int i = 0; i < children.size(); i++) {
+            var index = i;
+            var child = children.get(index);
+            chain = chain.andThen(originalListener -> {
+                traversalOperation.accept(child, originalListener.delegateFailureAndWrap((o, maybeTransformed) -> {
+                    if (maybeTransformed.equals(child) == false) {
+                        if (updatedChildren.get() == null) {
+                            updatedChildren.set(new ArrayList<>(children));
+                        }
+                        updatedChildren.get().set(index, maybeTransformed);
+                    }
+                    o.onResponse(null);
+                }));
+            });
+        }
+        chain.andThenApply(ignored -> updatedChildren.get() == null ? (T) this : replaceChildrenSameSize(updatedChildren.get()))
+            .addListener(listener);
+    }
+
     @SuppressWarnings("unchecked")
     public T transformUp(Function<? super T, ? extends T> rule) {
         T transformed = transformChildren(child -> child.transformUp(rule));
@@ -396,164 +449,70 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return info().properties();
     }
 
+    /**
+     * Output-shape configuration for the {@code nodeString} render pipeline. Controls truncation,
+     * width, and property-count limits. Orthogonal to identifier mapping — anonymization or any
+     * other identifier-substitution variant flows through a separately-passed
+     * {@link NodeStringMapper}.
+     */
     public enum NodeStringFormat {
-        /** No list truncation, no line breaks due to string width. */
-        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE),
-        /** List truncation and line breaks due to string width applied. */
-        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH);
+        /** Bounded width / lines / property count for human-readable debug toString. The default. */
+        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES),
+        /** No truncation; renders everything. */
+        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
 
-        private final int maxProperties;
-        private final int maxWidth;
+        final int maxProperties;
+        final int maxWidth;
+        final int maxLines;
 
-        NodeStringFormat(int maxProperties, int maxWidth) {
+        NodeStringFormat(int maxProperties, int maxWidth, int maxLines) {
             this.maxProperties = maxProperties;
             this.maxWidth = maxWidth;
+            this.maxLines = maxLines;
         }
     }
 
+    /**
+     * Render this {@link Node} to a {@link String} with the
+     * {@link NodeStringFormat#LIMITED limited} format and the identity mapper. This does not
+     * include this node's {@link #children()}.
+     */
     public final String nodeString() {
-        return nodeString(NodeStringFormat.LIMITED);
+        StringBuilder sb = new StringBuilder();
+        nodeString(sb, NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
+        return sb.toString();
     }
 
-    public String nodeString(NodeStringFormat format) {
-        StringBuilder sb = new StringBuilder();
+    /**
+     * Append this {@link Node}'s string representation to {@code sb}. This
+     * does not include this node's {@link #children()}.
+     * @param sb     target for the string
+     * @param format output-shape configuration (width / lines / property count)
+     * @param mapper identifier-mapping strategy (raw via {@link NodeStringMapper#IDENTITY},
+     *               anonymized via the failure-path anonymizer, etc.)
+     */
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
         sb.append("[");
-        sb.append(propertiesToString(true, format));
+        propertiesToString(sb, true, format, mapper);
         sb.append("]");
-        return sb.toString();
     }
 
     @Override
     public String toString() {
-        return toString(NodeStringFormat.LIMITED);
+        return toString(NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
     }
 
     public String toString(NodeStringFormat format) {
-        return treeString(new StringBuilder(), 0, new BitSet(), format).toString();
+        return toString(format, NodeStringMapper.IDENTITY);
     }
 
-    /**
-     * Render this {@link Node} as a tree like
-     * <pre>
-     * {@code
-     * Project[[i{f}#0]]
-     * \_Filter[i{f}#1]
-     *   \_SubQueryAlias[test]
-     *     \_EsRelation[test][i{f}#2]
-     * }
-     * </pre>
-     */
-    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth, NodeStringFormat format) {
-        if (depth > 0) {
-            // draw children
-            for (int column = 0; column < depth; column++) {
-                if (hasParentPerDepth.get(column)) {
-                    sb.append("|");
-                    // if not the last elder, adding padding (since each column has two chars ("|_" or "\_")
-                    if (column < depth - 1) {
-                        sb.append(" ");
-                    }
-                } else {
-                    // if the child has no parent (elder on the previous level), it means its the last sibling
-                    sb.append((column == depth - 1) ? "\\" : "  ");
-                }
-            }
-
-            sb.append("_");
-        }
-
-        sb.append(nodeString(format));
-
-        @SuppressWarnings("HiddenField")
-        List<T> children = children();
-        if (children.isEmpty() == false) {
-            sb.append("\n");
-        }
-        for (int i = 0; i < children.size(); i++) {
-            T t = children.get(i);
-            hasParentPerDepth.set(depth, i < children.size() - 1);
-            t.treeString(sb, depth + 1, hasParentPerDepth, format);
-            if (i < children.size() - 1) {
-                sb.append("\n");
-            }
-        }
-        return sb;
+    public String toString(NodeStringFormat format, NodeStringMapper mapper) {
+        return new NodeToString(format, mapper).treeString(this, 0).toString();
     }
 
-    /**
-     * Render the properties of this {@link Node} one by
-     * one like {@code foo bar baz}. These go inside the
-     * {@code [} and {@code ]} of the output of {@link #treeString}.
-     */
-    protected String propertiesToString(boolean skipIfChild, NodeStringFormat format) {
-        StringBuilder sb = new StringBuilder();
-
-        @SuppressWarnings("HiddenField")
-        List<?> children = children();
-        // eliminate children (they are rendered as part of the tree)
-        int remainingProperties = format.maxProperties;
-        int currentMaxWidth = 0;
-        boolean needsComma = false;
-
-        List<Object> props = nodeProperties();
-        for (Object prop : props) {
-            // consider a property if it is not ignored AND
-            // it's not a child (optional)
-            if ((skipIfChild && (children.contains(prop) || children.equals(prop))) == false) {
-                if (remainingProperties-- < 0) {
-                    sb.append("...").append(props.size() - format.maxProperties).append("fields not shown");
-                    break;
-                }
-
-                if (needsComma) {
-                    sb.append(",");
-                }
-
-                String stringValue = toString(prop, format);
-
-                // : Objects.toString(prop);
-                if (currentMaxWidth + stringValue.length() > format.maxWidth) {
-                    int cutoff = Math.max(0, format.maxWidth - currentMaxWidth);
-                    sb.append(stringValue, 0, cutoff);
-                    sb.append("\n");
-                    stringValue = stringValue.substring(cutoff);
-                    currentMaxWidth = 0;
-                }
-                currentMaxWidth += stringValue.length();
-                sb.append(stringValue);
-
-                needsComma = true;
-            }
-        }
-
-        return sb.toString();
-    }
-
-    private static String toString(Object obj, NodeStringFormat format) {
-        StringBuilder sb = new StringBuilder();
-        toString(sb, obj, format);
-        return sb.toString();
-    }
-
-    private static void toString(StringBuilder sb, Object obj, NodeStringFormat format) {
-        if (obj instanceof Iterable<?> iterable) {
-            sb.append("[");
-            for (Iterator<?> it = iterable.iterator(); it.hasNext();) {
-                Object o = it.next();
-                toString(sb, o, format);
-                if (it.hasNext()) {
-                    sb.append(", ");
-                }
-            }
-            sb.append("]");
-        } else if (obj instanceof Node<?> node) {
-            sb.append(node.nodeString(format));
-        } else if (obj instanceof NameId) {
-            sb.append("#").append(obj);
-        } else {
-            sb.append(obj);
-        }
+    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format, NodeStringMapper mapper) {
+        new NodePropertiesToString(sb, format, mapper, this, skipIfChild).propertiesToString();
     }
 
     private <U> boolean containsNull(List<U> us) {

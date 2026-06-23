@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +52,7 @@ public class EsqlCCSUtils {
     static Map<String, List<FieldCapabilitiesFailure>> groupFailuresPerCluster(List<FieldCapabilitiesFailure> failures) {
         Map<String, List<FieldCapabilitiesFailure>> perCluster = new HashMap<>();
         for (FieldCapabilitiesFailure failure : failures) {
-            String cluster = RemoteClusterAware.parseClusterAlias(failure.getIndices()[0]);
+            String cluster = RemoteClusterAware.splitIndexName(failure.getIndices()[0]).getClusterGroupingKey();
             perCluster.computeIfAbsent(cluster, k -> new ArrayList<>()).add(failure);
         }
         return perCluster;
@@ -97,7 +97,7 @@ public class EsqlCCSUtils {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
                 listener.onResponse(
                     new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, Collections.emptyList(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
+                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
                         TransportVersion.current()
                     )
                 );
@@ -197,9 +197,36 @@ public class EsqlCCSUtils {
         }
     }
 
+    /**
+     * Check per-cluster failures for view detection errors thrown by remote clusters. Views are never supported in CCS,
+     * so any such error must fail the entire query regardless of whether other clusters succeeded.
+     * Collects all view errors across all clusters and merges them into a single exception.
+     */
+    static void checkForViewErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
+        RemoteViewNotSupportedException merged = null;
+        for (var entry : failures.entrySet()) {
+            for (FieldCapabilitiesFailure failure : entry.getValue()) {
+                Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
+                if (cause instanceof RemoteViewNotSupportedException viewEx) {
+                    merged = merged == null ? viewEx : RemoteViewNotSupportedException.merge(merged, viewEx);
+                }
+            }
+        }
+        if (merged != null) {
+            throw merged;
+        }
+    }
+
+    /**
+     * Update the state for clusters that returned zero matching indices — fail the query, mark the cluster as skipped, or mark it as done.
+     * @param executionInfo - The per-cluster CCS state
+     * @param indexResolutions - The collection of IndexResolution objects produced by field-caps
+     * @param usedFilter - Whether the query had a request-level filter.
+     */
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         Collection<IndexResolution> indexResolutions,
+        Collection<IndexResolution> linkedResolution,
         boolean usedFilter
     ) {
         if (executionInfo.clusterInfo.isEmpty()) {
@@ -210,7 +237,12 @@ public class EsqlCCSUtils {
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getRunningClusterAliases().collect(toSet());
         for (IndexResolution indexResolution : indexResolutions) {
             for (String indexName : indexResolution.resolvedIndices()) {
-                clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
+                clustersWithNoMatchingIndices.remove(RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey());
+            }
+        }
+        for (IndexResolution indexResolution : linkedResolution) {
+            for (String indexName : indexResolution.resolvedIndices()) {
+                clustersWithNoMatchingIndices.remove(RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey());
             }
         }
         /*
@@ -218,7 +250,7 @@ public class EsqlCCSUtils {
          * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
          * 2. fail query if a cluster has no matching indices *and* a concrete index was specified - handled here
          */
-        String fatalErrorMessage = null;
+        StringBuilder fatalErrorMessage = null;
         /*
          * These are clusters in the original request that are not present in the field-caps response. They were
          * specified with an index expression that matched no indices, so the search on that cluster is done.
@@ -230,13 +262,14 @@ public class EsqlCCSUtils {
                 String error = Strings.format("Unknown index [%s]", cluster.getQualifiedIndexExpression());
                 if (executionInfo.shouldSkipOnFailure(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
-                        fatalErrorMessage = error;
+                        fatalErrorMessage = new StringBuilder(error);
                     } else {
-                        fatalErrorMessage += "; " + error;
+                        fatalErrorMessage.append("; ").append(error);
                     }
                 }
                 if (usedFilter == false) {
-                    // We check for filter since the filter may be the reason why the index is missing, and then we don't want to mark yet
+                    // A filter can cause field-caps to return zero indices for a pattern that actually exists. If so, we don't want to
+                    // prematurely fail — we'll retry without the filter.
                     markClusterWithFinalStateAndNoShards(
                         executionInfo,
                         c,
@@ -266,17 +299,31 @@ public class EsqlCCSUtils {
                 }
             }
         }
-        if (fatalErrorMessage != null) {
-            throw new VerificationException(fatalErrorMessage);
+        // When views split a query into multiple branches, each branch gets its own IndexResolution. A branch for an unauthorized
+        // concrete index will have an empty resolution that the per-cluster check above misses. Detect these individually.
+        for (IndexResolution indexResolution : indexResolutions) {
+            if (indexResolution.isValid()
+                && indexResolution.resolvedIndices().isEmpty()
+                && concreteIndexRequested(indexResolution.get().name())) {
+                String clusterAlias = RemoteClusterAware.splitIndexName(indexResolution.get().name()).getClusterGroupingKey();
+                // Already handled
+                if (clustersWithNoMatchingIndices.contains(clusterAlias) || executionInfo.getCluster(clusterAlias) == null) {
+                    continue;
+                }
+                if (executionInfo.shouldSkipOnFailure(clusterAlias) == false || usedFilter) {
+                    String error = Strings.format("Unknown index [%s]", indexResolution.get().name());
+                    if (fatalErrorMessage == null) {
+                        fatalErrorMessage = new StringBuilder(error);
+                    } else {
+                        fatalErrorMessage.append("; ").append(error);
+                    }
+                }
+            }
         }
-    }
 
-    // Filter-less version, mainly for testing where we don't need filter support
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(
-        EsqlExecutionInfo executionInfo,
-        Set<IndexResolution> indexResolutions
-    ) {
-        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolutions, false);
+        if (fatalErrorMessage != null) {
+            throw new VerificationException(fatalErrorMessage.toString());
+        }
     }
 
     // visible for testing

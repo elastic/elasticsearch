@@ -50,7 +50,6 @@ public class AggregateMetricDoubleDataSourceHandler implements DataSourceHandler
             );
 
             map.put("metrics", metrics.stream().map(Enum::toString).toList());
-            map.put("default_metric", metrics.get(ESTestCase.randomIntBetween(0, metrics.size() - 1)));
 
             if (ESTestCase.randomBoolean()) {
                 map.put("ignore_malformed", ESTestCase.randomBoolean());

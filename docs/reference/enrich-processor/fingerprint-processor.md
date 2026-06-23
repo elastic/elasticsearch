@@ -13,7 +13,7 @@ $$$fingerprint-options$$$
 
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
-| `fields` | yes | n/a | Array of fields to include inthe fingerprint. For objects, the processor hashes both the field key andvalue. For other fields, the processor hashes only the field value. |
+| `fields` | yes | n/a | Array of fields to include in the fingerprint. For objects, the processor hashes both the field key andvalue. For other fields, the processor hashes only the field value. |
 | `target_field` | no | `fingerprint` | Output field for the fingerprint. |
 | `salt` | no | <none> | [Salt value](https://en.wikipedia.org/wiki/Salt_(cryptography)) for the hash function. |
 | `method` | no | `SHA-1` | The hash method used tocompute the fingerprint. Must be one of `MD5`, `SHA-1`, `SHA-256`, `SHA-512`, or`MurmurHash3`. |

@@ -8,14 +8,19 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantFloatVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatArrayVector;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.FloatArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -33,16 +38,10 @@ public final class MinFloatAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      FloatState state) {
+  MinFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MinFloatAggregatorFunction(driverContext, channels, new FloatState(MinFloatAggregator.init()));
+    this.state = new FloatState(MinFloatAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -69,6 +68,18 @@ public final class MinFloatAggregatorFunction implements AggregatorFunction {
     FloatBlock vBlock = page.getBlock(channels.get(0));
     FloatVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -79,6 +90,18 @@ public final class MinFloatAggregatorFunction implements AggregatorFunction {
     FloatBlock vBlock = page.getBlock(channels.get(0));
     FloatVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -86,6 +109,37 @@ public final class MinFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(FloatVector vVector) {
+    if (vVector.getClass() == FloatArrayVector.class) {
+      FloatArrayVector specialized = (FloatArrayVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float vValue = specialized.getFloat(valuesPosition);
+        state.floatValue(MinFloatAggregator.combine(state.floatValue(), vValue));
+      }
+      return;
+    }
+    if (vVector.getClass() == FloatArrowBufVector.class) {
+      FloatArrowBufVector specialized = (FloatArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      float bulkAcc = state.floatValue();
+      for (int p = 0; p < bulkCount; p++) {
+        float vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_FLOAT_UNALIGNED, p);
+        bulkAcc = MinFloatAggregator.combine(bulkAcc, vValue);
+      }
+      state.floatValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == ConstantFloatVector.class) {
+      ConstantFloatVector specialized = (ConstantFloatVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float vValue = specialized.getFloat(valuesPosition);
+        state.floatValue(MinFloatAggregator.combine(state.floatValue(), vValue));
+      }
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       float vValue = vVector.getFloat(valuesPosition);
@@ -94,6 +148,46 @@ public final class MinFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(FloatVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == FloatArrayVector.class) {
+      FloatArrayVector specialized = (FloatArrayVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float vValue = specialized.getFloat(valuesPosition);
+        state.floatValue(MinFloatAggregator.combine(state.floatValue(), vValue));
+      }
+      return;
+    }
+    if (vVector.getClass() == FloatArrowBufVector.class) {
+      FloatArrowBufVector specialized = (FloatArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      float bulkAcc = state.floatValue();
+      for (int p = 0; p < bulkCount; p++) {
+        if (mask.getBoolean(p) == false) {
+          continue;
+        }
+        float vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_FLOAT_UNALIGNED, p);
+        bulkAcc = MinFloatAggregator.combine(bulkAcc, vValue);
+      }
+      state.floatValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == ConstantFloatVector.class) {
+      ConstantFloatVector specialized = (ConstantFloatVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float vValue = specialized.getFloat(valuesPosition);
+        state.floatValue(MinFloatAggregator.combine(state.floatValue(), vValue));
+      }
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
@@ -145,12 +239,30 @@ public final class MinFloatAggregatorFunction implements AggregatorFunction {
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block minUncast = page.getBlock(channels.get(0));
     if (minUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     FloatVector min = ((FloatBlock) minUncast).asVector();
     assert min.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();

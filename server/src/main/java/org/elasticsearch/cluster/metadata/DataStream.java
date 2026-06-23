@@ -63,6 +63,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -94,6 +95,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
+    public static final String TYPE = "type";
+    public static final String DATASET = "dataset";
+    public static final String NAMESPACE = "namespace";
 
     private static final int MAX_LENGTH = 100;
     private static final String REPLACEMENT = "_";
@@ -109,8 +113,50 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return sanitizeDataStreamField(dataset, DISALLOWED_IN_DATASET);
     }
 
+    /**
+     * Validates that the provided dataset value is already in its canonical form.
+     * <p>
+     * This method validates and does not sanitize.
+     *
+     * @param dataset the dataset value to validate
+     * @throws IllegalArgumentException if the value contains disallowed characters
+     */
+    public static void validateDataset(String dataset) {
+        validateDataStreamField(DATASET, dataset, DataStream::sanitizeDataset, DISALLOWED_IN_DATASET);
+    }
+
     public static String sanitizeNamespace(String namespace) {
         return sanitizeDataStreamField(namespace, DISALLOWED_IN_NAMESPACE);
+    }
+
+    /**
+     * Validates that the provided namespace value is already in its canonical form.
+     * <p>
+     * This method validates and does not sanitize.
+     *
+     * @param namespace the namespace value to validate
+     * @throws IllegalArgumentException if the value contains disallowed characters
+     */
+    public static void validateNamespace(String namespace) {
+        validateDataStreamField(NAMESPACE, namespace, DataStream::sanitizeNamespace, DISALLOWED_IN_NAMESPACE);
+    }
+
+    private static void validateDataStreamField(
+        String fieldName,
+        String value,
+        Function<String, String> sanitizer,
+        Pattern disallowedCharactersPattern
+    ) {
+        if (Objects.equals(sanitizer.apply(value), value) == false) {
+            throw new IllegalArgumentException(
+                "data stream "
+                    + fieldName
+                    + " '"
+                    + value
+                    + "' contains disallowed characters, must conform to regex "
+                    + disallowedCharactersPattern.pattern()
+            );
+        }
     }
 
     private static String sanitizeDataStreamField(String s, Pattern disallowedInDataset) {
@@ -824,26 +870,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamAutoShardingEvent autoShardingEvent
     ) {
         IndexMode dsIndexMode = this.indexMode;
-        if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            // This allows for migrating a data stream to be a tsdb data stream:
-            // (only if index_mode=null|standard then allow it to be set to time_series)
-            dsIndexMode = IndexMode.TIME_SERIES;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
-            // Allow downgrading a time series data stream to a regular data stream
-            dsIndexMode = null;
-        } else if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.LOGSDB) {
-            dsIndexMode = IndexMode.LOGSDB;
-        } else if (dsIndexMode == IndexMode.LOGSDB && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
-            // Allow downgrading a time series data stream to a regular data stream
-            dsIndexMode = null;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES && indexModeFromTemplate == IndexMode.LOGSDB) {
-            dsIndexMode = IndexMode.LOGSDB;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
-        } else if (dsIndexMode == IndexMode.LOGSDB && indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            dsIndexMode = IndexMode.TIME_SERIES;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+        if (dsIndexMode == IndexMode.LOOKUP || indexModeFromTemplate == IndexMode.LOOKUP) {
+            throw new IllegalArgumentException(
+                "[" + name + "] is a data stream, unsafe rollover is not allowed for [" + IndexMode.LOOKUP + "] index mode"
+            );
         }
-
+        if (dsIndexMode != indexModeFromTemplate) {
+            if (indexModeFromTemplate == IndexMode.TIME_SERIES
+                && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
+                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+            }
+            dsIndexMode = indexModeFromTemplate;
+        }
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(writeIndex);
         return copy().setBackingIndices(
@@ -1219,17 +1257,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getIndicesOlderThan(
+    public Set<Index> getIndicesOlderThan(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         TimeValue effectiveRetention,
         DatastreamIndexTypes types
     ) {
         if (effectiveRetention == null) {
-            return List.of();
+            return Set.of();
         }
 
-        List<Index> indices = new ArrayList<>();
+        Set<Index> indices = new HashSet<>();
         if (types == DatastreamIndexTypes.ALL || types == DatastreamIndexTypes.BACKING_INDICES) {
             indices.addAll(getDataStreamIndices(false).getIndices());
         }
@@ -1290,23 +1328,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * be filtered according to the predicate definition. This is useful for things like "return only
      * the indices that are managed by the data stream lifecycle".
      */
-    private List<Index> getNonWriteIndicesOlderThan(
-        List<Index> indices,
+    private Set<Index> getNonWriteIndicesOlderThan(
+        Set<Index> indices,
         TimeValue retentionPeriod,
         Function<String, IndexMetadata> indexMetadataSupplier,
         @Nullable Predicate<IndexMetadata> indicesPredicate,
         LongSupplier nowSupplier
     ) {
         if (indices.isEmpty()) {
-            return List.of();
+            return Set.of();
         }
-        List<Index> olderIndices = new ArrayList<>();
+        Set<Index> olderIndices = new HashSet<>();
         for (Index index : indices) {
             if (isIndexOlderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
                 olderIndices.add(index);
             }
         }
-        return olderIndices;
+        return Set.copyOf(olderIndices);
     }
 
     private boolean isIndexOlderThan(

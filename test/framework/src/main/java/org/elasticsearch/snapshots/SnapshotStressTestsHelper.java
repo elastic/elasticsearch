@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -103,6 +105,9 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class SnapshotStressTestsHelper {
+
+    private static final Runnable NO_OP_RUNNABLE = () -> {};
+
     public static Set<String> nodeNames(Map<String, DiscoveryNode> nodesMap) {
         return nodesMap.values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
     }
@@ -116,13 +121,13 @@ public class SnapshotStressTestsHelper {
         private boolean transferred = false;
         private final List<Releasable> releasables = new ArrayList<>();
 
-        <T extends Releasable> T add(T releasable) {
+        public <T extends Releasable> T add(T releasable) {
             assert transferred == false : "already transferred";
             releasables.add(releasable);
             return releasable;
         }
 
-        Releasable transfer() {
+        public Releasable transfer() {
             assert transferred == false : "already transferred";
             transferred = true;
             Collections.reverse(releasables);
@@ -222,7 +227,7 @@ public class SnapshotStressTestsHelper {
      */
     public static class TrackedCluster {
 
-        static final Logger logger = LogManager.getLogger(TrackedCluster.class);
+        protected static final Logger logger = LogManager.getLogger(TrackedCluster.class);
         static final String CLIENT = "client";
         static final String NODE_RESTARTER = "node_restarter";
 
@@ -232,13 +237,13 @@ public class SnapshotStressTestsHelper {
             new ScalingExecutorBuilder(CLIENT, 1, 1, TimeValue.ZERO, true, CLIENT),
             new ScalingExecutorBuilder(NODE_RESTARTER, 1, 5, TimeValue.ZERO, true, NODE_RESTARTER)
         );
-        private final Executor clientExecutor = threadPool.executor(CLIENT);
+        protected final Executor clientExecutor = threadPool.executor(CLIENT);
 
-        private final AtomicBoolean shouldStop = new AtomicBoolean();
+        protected final AtomicBoolean shouldStop = new AtomicBoolean();
         private final InternalTestCluster cluster;
         private final Map<String, TrackedNode> nodes = ConcurrentCollections.newConcurrentMap();
         private final Map<String, TrackedRepository> repositories = ConcurrentCollections.newConcurrentMap();
-        private final Map<String, TrackedIndex> indices = ConcurrentCollections.newConcurrentMap();
+        protected final Map<String, TrackedIndex> indices = ConcurrentCollections.newConcurrentMap();
         private final Map<String, TrackedSnapshot> snapshots = ConcurrentCollections.newConcurrentMap();
 
         /**
@@ -246,7 +251,7 @@ public class SnapshotStressTestsHelper {
          * the nodes in the same order, held in this field, so that nodes nearer the end of the list are more likely to be restartable.
          * The elected master node is usually last in this list.
          */
-        private volatile List<TrackedNode> shuffledNodes;
+        protected volatile List<TrackedNode> shuffledNodes;
 
         private final AtomicInteger snapshotCounter = new AtomicInteger();
         private final CountDownLatch completedSnapshotLatch = new CountDownLatch(30);
@@ -334,6 +339,8 @@ public class SnapshotStressTestsHelper {
                 startNodeShutdownMarker();
             }
 
+            startAdditionalActivities();
+
             if (completedSnapshotLatch.await(30, TimeUnit.SECONDS)) {
                 logger.info("--> completed target snapshot count, finishing test");
             } else {
@@ -369,7 +376,7 @@ public class SnapshotStressTestsHelper {
                 logger.warn("--> failed to acquire all permits: {}", failedPermitAcquisitions);
                 logger.info(
                     "--> current cluster state:\n{}",
-                    Strings.toString(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
+                    Strings.toTruncatedString(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
                 );
                 fail("failed to acquire all permits: " + failedPermitAcquisitions);
             }
@@ -379,10 +386,12 @@ public class SnapshotStressTestsHelper {
                 logger.warn("--> threadpool termination timed out");
                 logger.info(
                     "--> current cluster state:\n{}",
-                    Strings.toString(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
+                    Strings.toTruncatedString(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
                 );
             }
         }
+
+        protected void startAdditionalActivities() {}
 
         private void acquirePermitsAtEnd(
             Stream<Tuple<String, Semaphore>> labelledPermits,
@@ -400,7 +409,11 @@ public class SnapshotStressTestsHelper {
                         logger.warn("--> failed to acquire permit [{}]", label);
                         logger.info(
                             "--> current cluster state:\n{}",
-                            Strings.toString(client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
+                            Strings.toTruncatedString(
+                                client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
+                                true,
+                                true
+                            )
                         );
                         HotThreads.logLocalHotThreads(
                             logger,
@@ -418,7 +431,7 @@ public class SnapshotStressTestsHelper {
             });
         }
 
-        private void enqueueAction(final CheckedRunnable<Exception> action) {
+        protected void enqueueAction(final CheckedRunnable<Exception> action) {
             if (shouldStop.get()) {
                 return;
             }
@@ -685,9 +698,10 @@ public class SnapshotStressTestsHelper {
 
                     final ListenableFuture<List<String>> getIndicesStep = new ListenableFuture<>();
 
+                    final TrackedRepository trackedRepository = trackedSnapshot.trackedRepository;
                     logger.info(
                         "--> listing indices in [{}:{}] in preparation for cloning",
-                        trackedSnapshot.trackedRepository.repositoryName,
+                        trackedRepository.repositoryName,
                         trackedSnapshot.snapshotName
                     );
 
@@ -717,7 +731,7 @@ public class SnapshotStressTestsHelper {
                         if (indexNames.isEmpty()) {
                             logger.info(
                                 "--> no successful indices in [{}:{}], skipping clone",
-                                trackedSnapshot.trackedRepository.repositoryName,
+                                trackedRepository.repositoryName,
                                 trackedSnapshot.snapshotName
                             );
                             Releasables.close(releaseAll);
@@ -729,35 +743,61 @@ public class SnapshotStressTestsHelper {
 
                         logger.info(
                             "--> starting clone of [{}:{}] as [{}:{}] with indices {}",
-                            trackedSnapshot.trackedRepository.repositoryName,
+                            trackedRepository.repositoryName,
                             trackedSnapshot.snapshotName,
-                            trackedSnapshot.trackedRepository.repositoryName,
+                            trackedRepository.repositoryName,
                             cloneName,
                             indexNames
                         );
+
+                        final Runnable abortRunnable = maybeCreateAbortRunnable(trackedRepository, cloneName);
 
                         client.admin()
                             .cluster()
                             .prepareCloneSnapshot(
                                 TEST_REQUEST_TIMEOUT,
-                                trackedSnapshot.trackedRepository.repositoryName,
+                                trackedRepository.repositoryName,
                                 trackedSnapshot.snapshotName,
                                 cloneName
                             )
                             .setIndices(indexNames.toArray(new String[0]))
-                            .execute(mustSucceed(acknowledgedResponse -> {
-                                Releasables.close(releaseAll);
-                                assertTrue(acknowledgedResponse.isAcknowledged());
-                                completedSnapshotLatch.countDown();
-                                logger.info(
-                                    "--> completed clone of [{}:{}] as [{}:{}]",
-                                    trackedSnapshot.trackedRepository.repositoryName,
-                                    trackedSnapshot.snapshotName,
-                                    trackedSnapshot.trackedRepository.repositoryName,
-                                    cloneName
-                                );
-                                startCloner();
-                            }));
+                            .execute(ActionListener.runBefore(new ActionListener<>() {
+                                @Override
+                                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                                    assertTrue(acknowledgedResponse.isAcknowledged());
+                                    pollForSnapshotCompletion(client, trackedRepository.repositoryName, cloneName, releaseAll, () -> {
+                                        logger.info(
+                                            "--> completed clone of [{}:{}] as [{}:{}]",
+                                            trackedRepository.repositoryName,
+                                            trackedSnapshot.snapshotName,
+                                            trackedRepository.repositoryName,
+                                            cloneName
+                                        );
+                                        if (abortRunnable == NO_OP_RUNNABLE) {
+                                            snapshots.put(cloneName, new TrackedSnapshot(trackedRepository, cloneName));
+                                            completedSnapshotLatch.countDown();
+                                        }
+                                        startCloner();
+                                    });
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                    if (abortRunnable != NO_OP_RUNNABLE
+                                        && cause instanceof SnapshotException
+                                        && Regex.simpleMatch(
+                                            "*" + cloneName + "*" + SnapshotsInProgress.ABORTED_FAILURE_TEXT,
+                                            cause.getMessage()
+                                        )) {
+                                        logger.info("--> clone was aborted before it is fully populated");
+                                        startCloner();
+                                    } else {
+                                        logAndFailTest(e);
+                                    }
+                                }
+                            }, () -> Releasables.close(releaseAll)));
+                        abortRunnable.run();
                     }));
 
                     startedClone = true;
@@ -1082,65 +1122,13 @@ public class SnapshotStressTestsHelper {
                         createSnapshotRequestBuilder.setIndices(targetIndexNames.toArray(new String[0]));
                     }
 
-                    final boolean abortSnapshot = randomBoolean();
-                    final Runnable abortRunnable;
-                    if (abortSnapshot) {
-                        try (
-                            SnapshotStressTestsHelper.TransferableReleasables abortReleasables =
-                                new SnapshotStressTestsHelper.TransferableReleasables()
-                        ) {
-
-                            assertNotNull(abortReleasables.add(blockFullClusterRestart()));
-                            final Client abortClient = abortReleasables.add(acquireClient()).getClient();
-
-                            assertNotNull(abortReleasables.add(tryAcquirePermit(trackedRepository.permits)));
-
-                            final DeleteSnapshotRequestBuilder deleteSnapshotRequestBuilder = abortClient.admin()
-                                .cluster()
-                                .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, trackedRepository.repositoryName, snapshotName);
-
-                            final Releasable abortReleasable = abortReleasables.transfer();
-
-                            abortRunnable = mustSucceed(() -> {
-                                logger.info("--> abort/delete snapshot [{}:{}] start", trackedRepository.repositoryName, snapshotName);
-                                deleteSnapshotRequestBuilder.execute(new ActionListener<>() {
-                                    @Override
-                                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                                        logger.info(
-                                            "--> abort/delete snapshot [{}:{}] success",
-                                            trackedRepository.repositoryName,
-                                            snapshotName
-                                        );
-                                        Releasables.close(abortReleasable);
-                                        assertTrue(acknowledgedResponse.isAcknowledged());
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        Releasables.close(abortReleasable);
-                                        if (ExceptionsHelper.unwrapCause(e) instanceof SnapshotMissingException) {
-                                            // processed before the snapshot even started
-                                            logger.info(
-                                                "--> abort/delete snapshot [{}:{}] got snapshot missing",
-                                                trackedRepository.repositoryName,
-                                                snapshotName
-                                            );
-                                        } else {
-                                            logAndFailTest(e);
-                                        }
-                                    }
-                                });
-                            });
-                        }
-                    } else {
-                        abortRunnable = () -> {};
-                    }
+                    final Runnable abortRunnable = maybeCreateAbortRunnable(trackedRepository, snapshotName);
 
                     createSnapshotRequestBuilder.execute(mustSucceed(createSnapshotResponse -> {
                         logger.info("--> started partial snapshot [{}:{}]", trackedRepository.repositoryName, snapshotName);
                         Releasables.close(releasableAfterStart.transfer());
                         pollForSnapshotCompletion(client, trackedRepository.repositoryName, snapshotName, releaseAll, () -> {
-                            if (abortSnapshot == false) {
+                            if (abortRunnable == NO_OP_RUNNABLE) {
                                 snapshots.put(snapshotName, new TrackedSnapshot(trackedRepository, snapshotName));
                                 completedSnapshotLatch.countDown();
                             }
@@ -1157,6 +1145,55 @@ public class SnapshotStressTestsHelper {
                     }
                 }
             });
+        }
+
+        private Runnable maybeCreateAbortRunnable(TrackedRepository trackedRepository, String snapshotName) {
+            final Runnable abortRunnable;
+            if (randomBoolean()) {
+                try (TransferableReleasables abortReleasables = new TransferableReleasables()) {
+
+                    assertNotNull(abortReleasables.add(blockFullClusterRestart()));
+                    final Client abortClient = abortReleasables.add(acquireClient()).getClient();
+
+                    assertNotNull(abortReleasables.add(tryAcquirePermit(trackedRepository.permits)));
+
+                    final DeleteSnapshotRequestBuilder deleteSnapshotRequestBuilder = abortClient.admin()
+                        .cluster()
+                        .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, trackedRepository.repositoryName, snapshotName);
+
+                    final Releasable abortReleasable = abortReleasables.transfer();
+
+                    abortRunnable = mustSucceed(() -> {
+                        logger.info("--> abort/delete snapshot [{}:{}] start", trackedRepository.repositoryName, snapshotName);
+                        deleteSnapshotRequestBuilder.execute(new ActionListener<>() {
+                            @Override
+                            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                                logger.info("--> abort/delete snapshot [{}:{}] success", trackedRepository.repositoryName, snapshotName);
+                                Releasables.close(abortReleasable);
+                                assertTrue(acknowledgedResponse.isAcknowledged());
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                Releasables.close(abortReleasable);
+                                if (ExceptionsHelper.unwrapCause(e) instanceof SnapshotMissingException) {
+                                    // processed before the snapshot even started
+                                    logger.info(
+                                        "--> abort/delete snapshot [{}:{}] got snapshot missing",
+                                        trackedRepository.repositoryName,
+                                        snapshotName
+                                    );
+                                } else {
+                                    logAndFailTest(e);
+                                }
+                            }
+                        });
+                    });
+                }
+            } else {
+                abortRunnable = NO_OP_RUNNABLE;
+            }
+            return abortRunnable;
         }
 
         private void pollForSnapshotCompletion(
@@ -1277,7 +1314,7 @@ public class SnapshotStressTestsHelper {
                                     @Override
                                     public ClusterState execute(ClusterState currentState) {
                                         assertTrue(
-                                            Strings.toString(currentState),
+                                            Strings.toTruncatedString(currentState),
                                             currentState.metadata().nodeShutdowns().getAll().isEmpty()
                                         );
                                         final var discoveryNode = currentState.nodes().resolveNode(node.nodeName);
@@ -1352,7 +1389,7 @@ public class SnapshotStressTestsHelper {
         }
 
         @Nullable // if we couldn't block node restarts
-        private Releasable blockNodeRestarts() {
+        protected Releasable blockNodeRestarts() {
             try (
                 SnapshotStressTestsHelper.TransferableReleasables localReleasables = new SnapshotStressTestsHelper.TransferableReleasables()
             ) {
@@ -1499,7 +1536,7 @@ public class SnapshotStressTestsHelper {
 
         }
 
-        private class TrackedIndex {
+        protected class TrackedIndex {
 
             private final Semaphore permits = new Semaphore(Integer.MAX_VALUE);
             private final String indexName;
@@ -1510,6 +1547,14 @@ public class SnapshotStressTestsHelper {
 
             private TrackedIndex(String indexName) {
                 this.indexName = indexName;
+            }
+
+            public Semaphore permits() {
+                return permits;
+            }
+
+            public String indexName() {
+                return indexName;
             }
 
             @Override
@@ -1833,6 +1878,10 @@ public class SnapshotStressTestsHelper {
 
         Semaphore getPermits() {
             return permits;
+        }
+
+        public String nodeName() {
+            return nodeName;
         }
 
         boolean isMasterNode() {

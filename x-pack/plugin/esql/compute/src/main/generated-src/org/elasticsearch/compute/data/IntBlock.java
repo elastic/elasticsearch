@@ -20,14 +20,20 @@ import java.io.IOException;
  * Block that stores int values.
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock {
+public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.IntArrowBufBlock, org.elasticsearch.compute.data.arrow.UInt8ArrowBufBlock,
+    org.elasticsearch.compute.data.arrow.Int8ArrowBufBlock, org.elasticsearch.compute.data.arrow.UInt16ArrowBufBlock,
+    org.elasticsearch.compute.data.arrow.Int16ArrowBufBlock {
 
     /**
      * Retrieves the int value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
      * @param valueIndex the value index
      * @return the data value (as a int)
      */
@@ -84,7 +90,24 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     IntVector asVector();
 
     @Override
-    IntBlock filter(boolean mayContainDuplicates, int... positions);
+    default IntBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
+    IntBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default IntBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
@@ -107,6 +130,12 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
 
     @Override
     IntBlock expand();
+
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Integer.BYTES} since all int values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     static IntBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

@@ -19,8 +19,14 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,7 +34,9 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +50,7 @@ import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.matchesRegex;
 
 /**
@@ -169,6 +178,10 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 .entry("values", List.of(List.of(9)))
                 .entry("documents_found", greaterThan(0))
                 .entry("values_loaded", greaterThan(0))
+                .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+                .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+                .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("completion_time_in_millis", greaterThan(0L))
                 .entry("expiration_time_in_millis", greaterThan(0L))
                 .entry("start_time_in_millis", greaterThan(0L))
@@ -261,15 +274,6 @@ public class HeapAttackIT extends HeapAttackTestCase {
         }
         query.append("\\n| STATS MAX(a)\"}");
         return query(query.toString(), null);
-    }
-
-    private StringBuilder makeManyLongs(int count) {
-        StringBuilder query = startQuery();
-        query.append("FROM manylongs\\n| EVAL i0 = a + b, i1 = b + i0");
-        for (int i = 2; i < count; i++) {
-            query.append(", i").append(i).append(" = i").append(i - 2).append(" + ").append(i - 1);
-        }
-        return query.append("\\n");
     }
 
     public void testSmallConcat() throws IOException {
@@ -390,9 +394,9 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * Returns many moderately long strings.
      */
     public void testManyRepeat() throws IOException {
-        int strings = 30;
+        int strings = 12;
         initManyLongs(10);
-        assertManyStrings(manyRepeat("FROM manylongs", strings), 30);
+        assertManyStrings(manyRepeat("FROM manylongs", strings), strings);
     }
 
     /**
@@ -494,7 +498,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchManyBigFields() throws IOException {
-        initManyBigFieldsIndex(100, "keyword", false);
+        initManyBigFieldsIndex(100, "keyword", false, 1000);
         Map<?, ?> response = fetchManyBigFields(100);
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
@@ -504,7 +508,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyBigFields() throws IOException {
-        initManyBigFieldsIndex(500, "keyword", false);
+        initManyBigFieldsIndex(500, "keyword", false, 1000);
         // 500 docs is plenty to circuit break on most nodes
         assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
     }
@@ -521,7 +525,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testAggManyBigTextFields() throws IOException {
         int docs = 100;
         int fields = 100;
-        initManyBigFieldsIndex(docs, "text", false);
+        initManyBigFieldsIndex(docs, "text", false, 1000);
         Map<?, ?> response = aggManyBigFields(fields);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
@@ -618,51 +622,72 @@ public class HeapAttackIT extends HeapAttackTestCase {
         return responseAsMap(query(query.toString(), "columns"));
     }
 
-    private void initManyLongs(int countPerLong) throws IOException {
-        logger.info("loading many documents with longs");
-        StringBuilder bulk = new StringBuilder();
-        int flush = 0;
-        for (int a = 0; a < countPerLong; a++) {
-            for (int b = 0; b < countPerLong; b++) {
-                for (int c = 0; c < countPerLong; c++) {
-                    for (int d = 0; d < countPerLong; d++) {
-                        for (int e = 0; e < countPerLong; e++) {
-                            bulk.append(String.format(Locale.ROOT, """
-                                {"create":{}}
-                                {"a":%d,"b":%d,"c":%d,"d":%d,"e":%d}
-                                """, a, b, c, d, e));
-                            flush++;
-                            if (flush % 10_000 == 0) {
-                                bulk("manylongs", bulk.toString());
-                                bulk.setLength(0);
-                                logger.info(
-                                    "flushing {}/{} to manylongs",
-                                    flush,
-                                    countPerLong * countPerLong * countPerLong * countPerLong * countPerLong
-                                );
+    public void testManyExponentialHistograms() throws IOException {
+        initManyExponentialHistograms(10_000, 100);
 
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        initIndex("manylongs", bulk.toString());
+        // Run a successful query first as sanity check
+        queryAndVerifyDuplicatedHistograms("many_exponential_histograms", "histo", 1);
+
+        // and now blow up the memory
+        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_exponential_histograms", "histo", attempt * 10));
     }
 
-    private void initSingleDocIndex() throws IOException {
-        logger.info("loading a single document");
-        initIndex("single", """
-            {"create":{}}
-            {"a":1}
-            """);
+    public void testManyTDigests() throws IOException {
+        initManyTDigests(10_000, 100, TDigestFieldType.TDIGEST);
+
+        // Run a successful query first as sanity check
+        queryAndVerifyDuplicatedHistograms("many_tdigests", "histo", 1);
+
+        // and now blow up the memory
+        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_tdigests", "histo", attempt * 10));
     }
 
-    void initManyBigFieldsIndex(int docs, String type, boolean random) throws IOException {
+    public void testManyHistograms() throws IOException {
+        initManyTDigests(10_000, 100, TDigestFieldType.HISTOGRAM);
+
+        // Run a successful query first as sanity check
+        queryAndVerifyDuplicatedHistograms("many_tdigests", "TO_TDIGEST(histo)", 1);
+
+        // and now blow up the memory
+        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_tdigests", "TO_TDIGEST(histo)", attempt * 10));
+    }
+
+    private void queryAndVerifyDuplicatedHistograms(String index, String column, int numDuplications) throws IOException {
+        Map<String, Object> responseMap = queryDuplicatedHistograms(index, column, numDuplications);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "dummy").entry("type", "double"));
+        ListMatcher values = matchesList(List.of(matchesList(List.of(isA(Double.class)))));
+        assertResultMap(responseMap, columns, values);
+    }
+
+    /**
+     * Creates a query which loads each histogram n-times into memory.
+     * We do this by querying n percentiles on each histogram, each with a different filter condition which however never is false.
+     * PERCENTILES() is implemented using a surrogate histogram merge, which means at the end of the STATS we
+     * have n copies of each histogram in memory.
+     */
+    private Map<String, Object> queryDuplicatedHistograms(String index, String column, int numDuplications) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM " + index);
+        query.append("| STATS ");
+        query.append(
+            IntStream.range(0, numDuplications)
+                .mapToObj(i -> "val_" + i + " = PERCENTILE(" + column + ", 50) WHERE histo_id != -" + i)
+                .collect(Collectors.joining(", "))
+        );
+        query.append("BY histo_id");
+        // in the end aggregate it all to a single sum to not blow up the result set
+        query.append("| EVAL vals_sum = ");
+        query.append(IntStream.range(0, numDuplications).mapToObj(i -> "val_" + i).collect(Collectors.joining(" + ")));
+        query.append("| STATS dummy = SUM(vals_sum)\"}");
+        String queryStr = query.toString().replace("\n", "\\n");
+        return responseAsMap(query(queryStr, null));
+    }
+
+    void initManyBigFieldsIndex(int docs, String type, boolean random, int fields) throws IOException {
         logger.info("loading many documents with many big fields");
         int docsPerBulk = 5;
-        int fields = 1000;
         int fieldSize = Math.toIntExact(ByteSizeValue.ofKb(1).getBytes());
+        boolean numeric = type.equalsIgnoreCase("integer") || type.equalsIgnoreCase("long") || type.equalsIgnoreCase("double");
 
         Request request = new Request("PUT", "/manybigfields");
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
@@ -688,10 +713,14 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 } else {
                     bulk.append(", ");
                 }
-                bulk.append('"').append("f").append(String.format(Locale.ROOT, "%03d", f)).append("\": \"");
-                // if requested, generate random string to hit the CBE faster
-                bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f % 10).repeat(fieldSize));
-                bulk.append('"');
+                bulk.append('"').append("f").append(String.format(Locale.ROOT, "%03d", f)).append("\": ");
+                if (numeric) {
+                    bulk.append(randomNumericValue(type));
+                } else {
+                    bulk.append('"');
+                    bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f % 10).repeat(fieldSize));
+                    bulk.append('"');
+                }
             }
             bulk.append("}\n");
             if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
@@ -700,6 +729,15 @@ public class HeapAttackIT extends HeapAttackTestCase {
             }
         }
         initIndex("manybigfields", bulk.toString());
+    }
+
+    private static String randomNumericValue(String type) {
+        return switch (type.toLowerCase(Locale.ROOT)) {
+            case "integer" -> Integer.toString(randomInt());
+            case "long" -> Long.toString(randomLong());
+            case "double" -> Double.toString(randomDouble());
+            default -> throw new IllegalArgumentException("unsupported numeric type: " + type);
+        };
     }
 
     void initGiantTextField(int docs, boolean includeId, long fieldSizeInMb) throws IOException {
@@ -784,6 +822,117 @@ public class HeapAttackIT extends HeapAttackTestCase {
         assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("LAST"));
     }
 
+    /**
+     * Tests that VALUES(long) agg with a large grouping state just small enough
+     * not to trip the breaker.
+     */
+    public void testValuesAggWithManyLongs() throws IOException {
+        int countPer = 10;
+        int echoFactor = 10;
+        initManyLongs(countPer);
+        Map<String, Object> result = valuesFromMany(false, countPer, echoFactor);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "VALUES(vv)").entry("type", "long"));
+        assertMap(result, matchesMap().entry("columns", columns).entry("values", hasSize(1)));
+        List<?> values = (List<?>) result.get("values");
+        values = (List<?>) values.getFirst();
+        values = (List<?>) values.getFirst();
+        long[] sortedValues = values.stream().mapToLong(o -> ((Number) o).longValue()).sorted().toArray();
+        int size = countPer * countPer * countPer * countPer * countPer * (1 + 3 * echoFactor);
+        assertThat(sortedValues.length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(sortedValues[i], equalTo((long) i));
+        }
+    }
+
+    /**
+     * Tests that VALUES(long) agg with a large grouping state trips the circuit breaker.
+     */
+    public void testValuesAggWithTooManyLongs() throws IOException {
+        int countPer = 10;
+        initManyLongs(countPer);
+        assertCircuitBreaks(attempt -> valuesFromMany(false, countPer, attempt * 20));
+    }
+
+    /**
+     * Tests that VALUES(keyword) agg with a large grouping state just small enough
+     * not to trip the breaker.
+     */
+    public void testValuesAggWithManyKeywords() throws IOException {
+        int countPer = 10;
+        int echoFactor = 5;
+        initManyLongs(countPer);
+
+        Map<String, Object> result = valuesFromMany(true, countPer, echoFactor);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "VALUES(vv)").entry("type", "keyword"));
+        assertMap(result, matchesMap().entry("columns", columns).entry("values", hasSize(1)));
+        List<?> values = (List<?>) result.get("values");
+        values = (List<?>) values.getFirst();
+        values = (List<?>) values.getFirst();
+        List<String> sortedValues = values.stream().map(o -> (String) o).sorted().toList();
+        int fromCounts = countPer * countPer * countPer * countPer * countPer;
+        int echoMulti = 1 + 3 * echoFactor;
+        int size = fromCounts * echoMulti;
+        assertThat(sortedValues.size(), equalTo(size));
+        List<String> expected = new ArrayList<>(size);
+        for (int a = 0; a < echoMulti; a++) {
+            for (int c = 0; c < fromCounts; c++) {
+                expected.add("a".repeat(a) + c);
+            }
+        }
+        Collections.sort(expected);
+        for (int i = 0; i < size; i++) {
+            assertThat(sortedValues.get(i), equalTo(expected.get(i)));
+        }
+    }
+
+    /**
+     * Tests that VALUES(keyword) agg with a large grouping state trips the circuit breaker.
+     */
+    public void testValuesAggWithTooManyKeywords() throws IOException {
+        int countPer = 10;
+        initManyLongs(countPer);
+        assertCircuitBreaks(attempt -> valuesFromMany(true, countPer, attempt * 10));
+    }
+
+    private Map<String, Object> valuesFromMany(boolean keyword, int countPer, int echoFactor) throws IOException {
+        String query = """
+            FROM manylongs
+            | EVAL v = a + b * $b + c * $c + d * $d + e * $e
+            """;
+        query = query.replace("$b", Integer.toString(countPer));
+        query = query.replace("$c", Integer.toString(countPer * countPer));
+        query = query.replace("$d", Integer.toString(countPer * countPer * countPer));
+        query = query.replace("$e", Integer.toString(countPer * countPer * countPer * countPer));
+        StringBuilder q = new StringBuilder(query);
+        if (keyword) {
+            q.append("| EVAL v = v::KEYWORD\n");
+        }
+        q.append("| EVAL vv = v\n");
+        if (keyword) {
+            String echo = "a";
+            for (int i = 0; i < echoFactor; i++) {
+                q.append("| EVAL vv = MV_UNION(MV_UNION(vv, CONCAT(\\\"").append(echo).append("\\\", v)");
+                echo += "a";
+                q.append("), MV_UNION(CONCAT(\\\"").append(echo).append("\\\", v)");
+                echo += "a";
+                q.append(", CONCAT(\\\"").append(echo).append("\\\", v)))\n");
+                echo += "a";
+            }
+        } else {
+            long echoSize = ((long) countPer) * countPer * countPer * countPer * countPer;
+            long echo = echoSize;
+            for (int i = 0; i < echoFactor; i++) {
+                q.append("| EVAL vv = MV_UNION(MV_UNION(vv, v + ").append(echo);
+                echo += echoSize;
+                q.append("), MV_UNION(v + ").append(echo);
+                echo += echoSize;
+                q.append(", v + ").append(echo).append("))\n");
+                echo += echoSize;
+            }
+        }
+        return responseAsMap(query("{\"query\": \"" + q + "| STATS VALUES(vv)\"}", "columns, values"));
+    }
+
     private Map<String, Object> aggregateByIdOnLargeText(String aggregation) throws IOException {
         StringBuilder query = new StringBuilder("{\"query\": \"FROM bigtext\n");
         // Grouping on the unique id field generates a large number of buckets where each bucket's value contains the
@@ -839,6 +988,107 @@ public class HeapAttackIT extends HeapAttackTestCase {
             }
         }
         initIndex("mv_longs", bulk.toString());
+    }
+
+    private void initManyExponentialHistograms(int numHistograms, int numBucketsPerHistogram) throws IOException {
+        logger.info("loading many documents with exponential histograms");
+
+        createIndex("many_exponential_histograms", Settings.EMPTY, """
+            {
+                "properties": {
+                  "histo": {
+                    "type": "exponential_histogram"
+                  },
+                  "histo_id": {
+                    "type": "long"
+                  }
+                }
+            }
+            """);
+
+        StringBuilder bulk = new StringBuilder();
+        int flush = 0;
+        for (int i = 0; i < numHistograms; i++) {
+
+            // The scale doesn't actually matter here
+            ExponentialHistogramBuilder builder = ExponentialHistogram.builder(10, ExponentialHistogramCircuitBreaker.noop());
+            for (int j = 0; j < numBucketsPerHistogram; j++) {
+                builder.setPositiveBucket(i + j, 1 + i + j * 2);
+            }
+            String histoJson;
+            try (XContentBuilder xContentBuilder = JsonXContent.contentBuilder()) {
+                ExponentialHistogramXContent.serialize(xContentBuilder, builder.build());
+                histoJson = Strings.toString(xContentBuilder);
+            }
+
+            bulk.append(String.format(Locale.ROOT, """
+                {"create":{}}
+                {"histo_id":%d,"histo":%s}
+                """, i + 1, histoJson));
+            flush++;
+            if (flush % 10_000 == 0) {
+                bulk("many_exponential_histograms", bulk.toString());
+                bulk.setLength(0);
+                logger.info("flushing {}/{} to many_exponential_histograms", flush, numHistograms);
+            }
+        }
+        // Load the remaining data and also do a force merge
+        initIndex("many_exponential_histograms", bulk.toString());
+    }
+
+    enum TDigestFieldType {
+        TDIGEST,
+        HISTOGRAM
+    }
+
+    private void initManyTDigests(int numHistograms, int numCentroidsPerHistogram, TDigestFieldType fieldType) throws IOException {
+        logger.info("loading many documents with tdigests");
+
+        createIndex("many_tdigests", Settings.EMPTY, """
+            {
+                "properties": {
+                  "histo": {
+                    "type": "%s"
+                  },
+                  "histo_id": {
+                    "type": "long"
+                  }
+                }
+            }
+            """.formatted(fieldType == TDigestFieldType.TDIGEST ? "tdigest" : "histogram"));
+
+        StringBuilder bulk = new StringBuilder();
+        int flush = 0;
+        String centroidsFieldName = fieldType == TDigestFieldType.TDIGEST ? "centroids" : "values";
+        for (int i = 0; i < numHistograms; i++) {
+            StringBuilder histoJson = new StringBuilder("{");
+            histoJson.append("\"").append(centroidsFieldName).append("\":");
+            histoJson.append(
+                IntStream.range(i, i + numCentroidsPerHistogram).mapToObj(Integer::toString).collect(Collectors.joining(",", "[", "]"))
+            );
+            histoJson.append(",\"counts\":");
+            int finalI = i;
+            histoJson.append(
+                IntStream.range(0, numCentroidsPerHistogram)
+                    .map(j -> 1 + finalI + (j * 2))
+                    .mapToObj(Integer::toString)
+                    .collect(Collectors.joining(",", "[", "]"))
+            );
+            histoJson.append("}");
+
+            bulk.append(String.format(Locale.ROOT, """
+                {"create":{}}
+                {"histo_id":%d,"histo":%s}
+                """, i + 1, histoJson));
+            flush++;
+            if (flush % 10_000 == 0) {
+                bulk("many_tdigests", bulk.toString());
+                bulk.setLength(0);
+                logger.info("flushing {}/{} to many_tdigests", flush, numHistograms);
+            }
+        }
+        // Load the remaining data and also do a force merge
+        initIndex("many_tdigests", bulk.toString());
     }
 
 }

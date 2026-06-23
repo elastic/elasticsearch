@@ -10,6 +10,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -186,28 +189,27 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
 
     public void testMergingWithPassThrough() {
         boolean isSourceSynthetic = randomBoolean();
-        var passThroughMapper = new RootObjectMapper.Builder("_doc").add(new PassThroughObjectMapper.Builder("metrics").setPriority(10))
-            .build(MapperBuilderContext.root(isSourceSynthetic, true));
-        var objectMapper = new RootObjectMapper.Builder("_doc").add(
+        var passThroughBuilder = new RootObjectMapper.Builder("_doc").add(new PassThroughObjectMapper.Builder("metrics").setPriority(10));
+        var objectBuilder = new RootObjectMapper.Builder("_doc").add(
             new ObjectMapper.Builder("metrics").add(new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings()))
-        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
-
-        RootObjectMapper merged = passThroughMapper.merge(
-            objectMapper,
-            MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
         );
+
+        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE);
+        RootObjectMapper merged = (RootObjectMapper) passThroughBuilder.mergeWith(objectBuilder, mergeContext)
+            .build(mergeContext.getMapperBuilderContext());
         assertThat(merged.getMapper("metrics"), instanceOf(PassThroughObjectMapper.class));
 
-        var objectMapperWithSubObjectTrue = new RootObjectMapper.Builder("_doc").add(
+        var passThroughBuilder2 = new RootObjectMapper.Builder("_doc").add(new PassThroughObjectMapper.Builder("metrics").setPriority(10));
+        var objectWithSubObjectTrue = new RootObjectMapper.Builder("_doc").add(
             new ObjectMapper.Builder("metrics", Explicit.of(ObjectMapper.Subobjects.ENABLED)).add(
                 new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings())
             )
-        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+        );
 
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> passThroughMapper.merge(
-                objectMapperWithSubObjectTrue,
+            () -> passThroughBuilder2.mergeWith(
+                objectWithSubObjectTrue,
                 MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
             )
         );
@@ -216,15 +218,17 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             equalTo("can't merge a passthrough mapping [metrics] with an object mapping that is either root or has subobjects enabled")
         );
 
-        var rootObjectMapper = new RootObjectMapper.Builder("metrics").add(
+        var passThroughBuilder3 = new PassThroughObjectMapper.Builder("metrics").setPriority(10);
+        var rootObjectBuilder = new RootObjectMapper.Builder("metrics").add(
             new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings())
-        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+        );
 
         error = expectThrows(
             IllegalArgumentException.class,
-            () -> new PassThroughObjectMapper.Builder("metrics").setPriority(10)
-                .build(MapperBuilderContext.root(isSourceSynthetic, true))
-                .merge(rootObjectMapper, MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> passThroughBuilder3.mergeWith(
+                rootObjectBuilder,
+                MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+            )
         );
         assertThat(
             error.getMessage(),
@@ -263,7 +267,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
                 List.of(create("foo", 1), create("bar", 1), create("baz", 3), create("bar", 4))
             )
         );
-        assertThat(e.getMessage(), containsString("Pass-through object [bar] has a conflicting param [priority=1] with object [foo]"));
+        assertThat(e.getMessage(), containsString("Pass-through source [bar] has a conflicting param [priority=1] with source [foo]"));
     }
 
     public void testTimeSeriesDimensionAndMetricConflict() throws IOException {
@@ -280,5 +284,97 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             e.getMessage(),
             containsString("[time_series_dimension] and [time_series_metric] cannot be set in conjunction with each other [labels.dim]")
         );
+    }
+
+    /**
+     * In columnar/logsdb_columnar mode passthrough objects are auto-flattened: their child fields are
+     * stored as flat dotted names at root level and the passthrough's prefix+priority are captured in
+     * {@code prefix_properties}. {@link FieldTypeLookup} then reconstructs root-level
+     * aliases so that queries can omit the passthrough prefix.
+     */
+    public void testPassThroughAliasesInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // The concrete dotted path must be reachable
+            assertNotNull("attributes.env should be a concrete field [" + indexMode + "]", mapperService.fieldType("attributes.env"));
+
+            // The root-level alias must exist via prefix_properties
+            assertNotNull("root alias 'env' should exist via passthrough [" + indexMode + "]", mapperService.fieldType("env"));
+
+            // The prefixProperties map must be populated on the root
+            Map<String, PrefixProperties> pp = mapperService.mappingLookup().getMapping().getRoot().getPrefixProperties();
+            assertEquals(Integer.valueOf(1), pp.get("attributes").passthrough());
+        }
+    }
+
+    /**
+     * When two passthrough objects in columnar mode share a leaf name the higher-priority passthrough
+     * wins the root-level alias.
+     */
+    public void testPassThroughPriorityWinsInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("region").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("resource").field("type", "passthrough").field("priority", 2).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("region").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            assertNotNull("attributes.region should be a concrete field [" + indexMode + "]", mapperService.fieldType("attributes.region"));
+            assertNotNull("resource.region should be a concrete field [" + indexMode + "]", mapperService.fieldType("resource.region"));
+
+            MappedFieldType rootAlias = mapperService.fieldType("region");
+            assertNotNull("root-level alias 'region' should exist [" + indexMode + "]", rootAlias);
+            assertEquals("higher-priority passthrough should win for root alias [" + indexMode + "]", "resource.region", rootAlias.name());
+        }
+    }
+
+    /**
+     * A passthrough with a dotted name (e.g. {@code "resource.attributes"}) must produce a short-name
+     * alias for each child field: {@code "resource.attributes.env"} → alias {@code "env"}.
+     */
+    public void testPassThroughWithDottedPrefixInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            assertNotNull(
+                "resource.attributes.env should be a concrete field [" + indexMode + "]",
+                mapperService.fieldType("resource.attributes.env")
+            );
+            assertNotNull("root alias 'env' should exist via dotted passthrough [" + indexMode + "]", mapperService.fieldType("env"));
+        }
     }
 }

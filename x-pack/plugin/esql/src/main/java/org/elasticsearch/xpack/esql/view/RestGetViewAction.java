@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -37,15 +38,19 @@ public class RestGetViewAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        GetViewAction.Request req = new GetViewAction.Request(
-            RestUtils.getMasterNodeTimeout(request),
-            Strings.splitStringByCommaToArray(request.param("name"))
-        );
+        GetViewAction.Request req = new GetViewAction.Request(RestUtils.getMasterNodeTimeout(request));
+        var requestedViews = Strings.splitStringByCommaToArray(request.param("name"));
+        req.indices(isGetAllViews(requestedViews) ? new String[] { "*" } : requestedViews);
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetViewAction.INSTANCE,
             req,
             new RestToXContentListener<>(channel)
         );
+    }
+
+    private boolean isGetAllViews(String[] requestedViews) {
+        return requestedViews.length == 0 || requestedViews[0].equals(Metadata.ALL);
     }
 
     @Override

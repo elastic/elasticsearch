@@ -16,6 +16,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
@@ -47,6 +48,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTe
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     private static final String INDEX_BASE_NAME = "semantic_text_test_index";
@@ -85,8 +87,22 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testSemanticTextOperations() throws Exception {
         switch (CLUSTER_TYPE) {
-            case OLD -> createAndPopulateIndex();
-            case MIXED, UPGRADED -> performIndexQueryHighlightOps();
+            case OLD -> {
+                assumeFalse(
+                    "Legacy format index creation is not supported on clusters with index version ["
+                        + IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN
+                        + "] or later",
+                    useLegacyFormat && minimumIndexVersion().onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+                );
+                createAndPopulateIndex();
+            }
+            case MIXED, UPGRADED -> {
+                assumeTrue(
+                    "Skipping because legacy format index was not created in the old cluster phase",
+                    useLegacyFormat == false || indexExists(getIndexName())
+                );
+                performIndexQueryHighlightOps();
+            }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
@@ -122,10 +138,10 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         indexDoc(DOC_2_ID, DOC_VALUES.get(DOC_2_ID));
 
         ObjectPath sparseQueryObjectPath = semanticQuery(SPARSE_FIELD, SPARSE_MODEL, "test value", 3);
-        assertQueryResponseWithHighlights(sparseQueryObjectPath, SPARSE_FIELD);
+        assertQueryResponseWithHighlights(sparseQueryObjectPath, SPARSE_FIELD, useLegacyFormat);
 
         ObjectPath denseQueryObjectPath = semanticQuery(DENSE_FIELD, DENSE_MODEL, "test value", 3);
-        assertQueryResponseWithHighlights(denseQueryObjectPath, DENSE_FIELD);
+        assertQueryResponseWithHighlights(denseQueryObjectPath, DENSE_FIELD, useLegacyFormat);
     }
 
     private String getIndexName() {
@@ -217,6 +233,10 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
             builder.field("highlight", highlightBuilder);
         }
+        // Use the fields parameter to get _inference_fields for compatibility with old stack versions
+        builder.startArray("fields");
+        builder.value("_inference_fields");
+        builder.endArray();
         builder.endObject();
 
         Request request = new Request("GET", getIndexName() + "/_search");
@@ -226,7 +246,8 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         return assertOKAndCreateObjectPath(response);
     }
 
-    private static void assertQueryResponseWithHighlights(ObjectPath queryObjectPath, String field) throws IOException {
+    private static void assertQueryResponseWithHighlights(ObjectPath queryObjectPath, String field, boolean useLegacyFormat)
+        throws IOException {
         assertThat(queryObjectPath.evaluate("hits.total.value"), equalTo(2));
         assertThat(queryObjectPath.evaluateArraySize("hits.hits"), equalTo(2));
 
@@ -236,6 +257,12 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             String id = ObjectPath.evaluate(hit, "_id");
             assertThat(id, notNullValue());
             docIds.add(id);
+
+            if (useLegacyFormat) {
+                assertThat(ObjectPath.evaluate(hit, "_source._inference_fields"), nullValue());
+            } else {
+                assertThat(ObjectPath.evaluate(hit, "_source._inference_fields." + field), notNullValue());
+            }
 
             List<String> expectedHighlight = DOC_VALUES.get(id);
             assertThat(expectedHighlight, notNullValue());

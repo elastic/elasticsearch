@@ -102,7 +102,10 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.setDescription("(Re)generates a transport version definition file");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
-        validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
+        validateTask.configure(t -> {
+            t.mustRunAfter(generateDefinitionsTask);
+            t.getIncrement().set(generateDefinitionsTask.flatMap(GenerateTransportVersionDefinitionTask::getIncrement));
+        });
 
         var resolveConflictTask = project.getTasks()
             .register("resolveTransportVersionConflict", ResolveTransportVersionConflictTask.class, t -> {
@@ -120,10 +123,19 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         var generateInitialTask = project.getTasks()
             .register("generateInitialTransportVersion", GenerateInitialTransportVersionTask.class, t -> {
                 t.setGroup(taskGroup);
-                t.setDescription("(Re)generates an initial transport version for an Elasticsearch release version");
+                t.setDescription("Generates an initial transport version for an Elasticsearch release version");
                 t.getCurrentVersion().set(currentVersion);
             });
         validateTask.configure(t -> t.mustRunAfter(generateInitialTask));
+
+        var updateTransportVersionsTask = project.getTasks()
+            .register("updateTransportVersionsCSV", UpdateTransportVersionsCSVTask.class, t -> {
+                t.setGroup(taskGroup);
+                t.setDescription("Updates TransportVersions.csv with a new stack version entry");
+                t.getTransportVersionsFile()
+                    .set(project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/TransportVersions.csv"));
+            });
+        validateTask.configure(t -> t.mustRunAfter(updateTransportVersionsTask));
     }
 
     private static String getResourceRoot(Project project) {

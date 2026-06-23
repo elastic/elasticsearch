@@ -114,7 +114,6 @@ public abstract class AbstractVersionsTask extends DefaultTask {
 
     private static final Logger LOGGER = Logging.getLogger(AbstractVersionsTask.class);
 
-    static final String TRANSPORT_VERSION_TYPE = "TransportVersion";
     static final String INDEX_VERSION_TYPE = "IndexVersion";
 
     static final String SERVER_MODULE_PATH = "server/src/main/java/";
@@ -123,7 +122,6 @@ public abstract class AbstractVersionsTask extends DefaultTask {
     static final String INDEX_VERSIONS_FILE_PATH = SERVER_MODULE_PATH + "org/elasticsearch/index/IndexVersions.java";
 
     static final String SERVER_RESOURCES_PATH = "server/src/main/resources/";
-    static final String TRANSPORT_VERSIONS_RECORD = SERVER_RESOURCES_PATH + "org/elasticsearch/TransportVersions.csv";
     static final String INDEX_VERSIONS_RECORD = SERVER_RESOURCES_PATH + "org/elasticsearch/index/IndexVersions.csv";
 
     final Path rootDir;

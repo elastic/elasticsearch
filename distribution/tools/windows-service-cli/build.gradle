@@ -4,6 +4,8 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:cli")
   compileOnly project(":distribution:tools:server-cli")
+  compileOnly project(":distribution:tools:server-launcher")
+  compileOnly project(":libs:server-launcher-common")
 
   testImplementation project(":test:framework")
 }

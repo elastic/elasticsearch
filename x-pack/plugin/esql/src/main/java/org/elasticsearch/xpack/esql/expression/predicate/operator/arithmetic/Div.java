@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,14 +27,15 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsi
 
 public class Div extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);
+    public static final String OP_NAME = "Div";
 
     private DataType type;
 
     @FunctionInfo(operator = "/", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, description = """
         Divide one value by another. For numeric operands, if either field is <<esql-multivalued-fields,multivalued>>
-        then the result is `null`.
-        note = "Division of two integer types will yield an integer result, rounding towards 0. "
-        + "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
+        then the result is `null`.""", note = """
+        Division of two integer types will yield an integer result, rounding towards 0. "
+        If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
         For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.
         """)
     public Div(
@@ -53,7 +56,11 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator.DivFactory::new
+            DIV_DENSE_VECTOR_EVALUATOR,
+            DivIntsByConstantEvaluator.Factory::new,
+            DivLongsByConstantEvaluator.Factory::new,
+            DivDoublesByConstantEvaluator.Factory::new,
+            /* excludeZeroRhs */ true
         );
         this.type = type;
     }
@@ -66,7 +73,11 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator.DivFactory::new
+            DIV_DENSE_VECTOR_EVALUATOR,
+            DivIntsByConstantEvaluator.Factory::new,
+            DivLongsByConstantEvaluator.Factory::new,
+            DivDoublesByConstantEvaluator.Factory::new,
+            /* excludeZeroRhs */ true
         );
     }
 
@@ -123,10 +134,54 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
-        double value = lhs / rhs;
-        if (Double.isNaN(value) || Double.isInfinite(value)) {
+        if (rhs == 0.0) {
+            throw new ArithmeticException("/ by zero");
+        }
+
+        return NumericUtils.asFiniteNumber(lhs / rhs);
+    }
+
+    @Evaluator(extraName = "IntsByConstant")
+    static int processIntsByConstant(int lhs, @Fixed(jitConstant = true) int rhs) {
+        return lhs / rhs;
+    }
+
+    @Evaluator(extraName = "LongsByConstant")
+    static long processLongsByConstant(long lhs, @Fixed(jitConstant = true) long rhs) {
+        return lhs / rhs;
+    }
+
+    @Evaluator(extraName = "DoublesByConstant", warnExceptions = { ArithmeticException.class })
+    static double processDoublesByConstant(double lhs, @Fixed(jitConstant = true) double rhs) {
+        return NumericUtils.asFiniteNumber(lhs / rhs);
+    }
+
+    private static float divDenseVectorElements(float lhs, float rhs) {
+        float value = lhs / rhs;
+        if (Float.isNaN(value) || Float.isInfinite(value)) {
             throw new ArithmeticException("/ by zero");
         }
         return value;
     }
+
+    private static final DenseVectorBinaryEvaluator DIV_DENSE_VECTOR_EVALUATOR = new DenseVectorBinaryEvaluator() {
+        @Override
+        public ExpressionEvaluator.Factory vectorsOperation(
+            Source source,
+            ExpressionEvaluator.Factory lhs,
+            ExpressionEvaluator.Factory rhs
+        ) {
+            return new DenseVectorsEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory scalarVectorOperation(Source source, float lhs, ExpressionEvaluator.Factory rhs) {
+            return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory vectorScalarOperation(Source source, ExpressionEvaluator.Factory lhs, float rhs) {
+            return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
+        }
+    };
 }

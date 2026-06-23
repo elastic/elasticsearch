@@ -75,6 +75,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.AsyncRecoveryTarget;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryResponse;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
@@ -96,6 +97,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -139,19 +142,22 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
     };
 
-    protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
+    protected static final RecoveryListener recoveryListener = new RecoveryListener() {
         @Override
         public void onRecoveryDone(
             RecoveryState state,
             ShardLongFieldRange timestampMillisFieldRange,
             ShardLongFieldRange eventIngestedMillisFieldRange
-        ) {
-
-        }
+        ) {}
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
             throw new AssertionError(e);
+        }
+
+        @Override
+        public void onRecoveryAborted() {
+            // Abortion is a normal reaction to changes in allocation or node shutdown. Don't fail here.
         }
     };
 
@@ -169,9 +175,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }).when(shard).close(any(), anyBoolean(), any(), any());
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpShardTestResources() throws Exception {
         Settings settings = threadPoolSettings();
         threadPool = setUpThreadPool(settings);
         nodeEnvironment = newNodeEnvironment(settings);
@@ -183,19 +188,32 @@ public abstract class IndexShardTestCase extends ESTestCase {
         writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         failOnShardFailures();
+        // threadPoolSettings() always explicitly sets the deprecated USE_THREAD_POOL_MERGE_SCHEDULER_SETTING,
+        // which fires a deprecation warning when the cluster settings are read during setup above.
+        // Consume it here so subclasses don't need to assert it in every test method.
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     protected ThreadPool setUpThreadPool(Settings settings) {
         return new TestThreadPool(getClass().getName(), settings);
     }
 
+    @After
+    public void tearDownShardTestResources() throws Exception {
+        IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
+    }
+
     @Override
-    public void tearDown() throws Exception {
-        try {
-            IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
-        } finally {
-            super.tearDown();
-        }
+    public final void tearDown() throws Exception {
+        super.tearDown();
     }
 
     protected void tearDownThreadPool() {
@@ -637,7 +655,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             );
             mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-            final Engine.Warmer warmer = createTestWarmer(indexSettings);
+            final Engine.Warmer warmer = createTestWarmer(indexSettings, mapperService);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
                 CircuitBreakerMetrics.NOOP,
@@ -668,6 +686,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 breakerService,
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 relativeTimeSupplier,
+                null,
                 null,
                 MapperMetrics.NOOP,
                 new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -1101,7 +1120,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard, final boolean refresh) throws IOException {
-        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh));
+        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh, false));
     }
 
     protected void assertDocCount(IndexShard shard, int docCount) throws IOException {
@@ -1280,7 +1299,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
             ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
                 .shardGenerations()
-                .getShardGen(indexId, shard.shardId().getId())
+                .getShardGen(indexId, shard.shardId().getId()),
+            randomLongBetween(1, Long.MAX_VALUE)
         );
         final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
         final ShardGeneration shardGen;
@@ -1324,12 +1344,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return indexShard.getReplicationTracker();
     }
 
-    public static Engine.Warmer createTestWarmer(IndexSettings indexSettings) {
+    public static Engine.Warmer createTestWarmer(IndexSettings indexSettings, MapperService mapperService) {
         return reader -> {
             // This isn't a warmer but sometimes verify the content in the reader
             if (randomBoolean()) {
                 try {
-                    EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, reader);
+                    EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, mapperService, reader);
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }

@@ -21,32 +21,40 @@ public class ResultBuilderForLongRange implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         throw new AssertionError("LongRangeBlock can't be a key");
     }
 
     @Override
     public void decodeValue(BytesRef values) {
         int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
-        if (count == 0) {
-            builder.appendNull();
-        } else {
-            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-                builder.from().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
-            } else {
-                builder.from().appendNull();
-            }
-            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-                builder.to().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
-            } else {
-                builder.to().appendNull();
+        switch (count) {
+            case 0 -> builder.appendNull();
+            case 1 -> decodeOneLongRange(values);
+            default -> {
+                builder.beginPositionEntry();
+                for (int i = 0; i < count; i++) {
+                    decodeOneLongRange(values);
+                }
+                builder.endPositionEntry();
             }
         }
+    }
+
+    private void decodeOneLongRange(BytesRef values) {
+        long from = TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values);
+        long to = TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values);
+        builder.appendLongRange(from, to);
     }
 
     @Override
     public Block build() {
         return builder.build();
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
     }
 
     @Override

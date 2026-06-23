@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
@@ -34,8 +35,12 @@ public class LookupJoinGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
+        if (schema.lookupIndices().isEmpty()) {
+            return EMPTY_DESCRIPTION;
+        }
         LookupIdx lookupIdx = randomFrom(schema.lookupIndices());
         String lookupIdxName = lookupIdx.idxName();
         int joinColumnsCount = randomInt(lookupIdx.keys().size() - 1) + 1; // at least one column must be used for the join
@@ -91,7 +96,7 @@ public class LookupJoinGenerator implements CommandGenerator {
             }
         }
         String cmdString = stringBuilder.toString();
-        return new CommandDescription(LOOKUP_JOIN, this, cmdString, Map.of());
+        return new CommandDescription(LOOKUP_JOIN, this, cmdString, Map.of("nKeys", keyNames.size()));
     }
 
     @Override
@@ -107,17 +112,19 @@ public class LookupJoinGenerator implements CommandGenerator {
             return VALIDATION_OK;
         }
 
-        // the -1 is for the additional RENAME, that could drop one column
-        int prevCols = previousColumns.size() - 1;
+        // this is for the additional RENAME, that could drop columns
+        int prevCols = previousColumns.size() - (Integer) commandDescription.context().get("nKeys");
 
         if (previousColumns.stream().anyMatch(x -> x.name().equals("<all-fields-projected>"))) {
             // known bug https://github.com/elastic/elasticsearch/issues/121741
             prevCols--;
         }
 
-        if (prevCols > columns.size()) {
-            return new ValidationResult(false, "Expecting at least [" + prevCols + "] columns, got [" + columns.size() + "]");
-        }
+        // todo: awaits fix https://github.com/elastic/elasticsearch/issues/142636
+        // if (prevCols > columns.size()) {
+        // return new ValidationResult(false, "Expecting at least [" + prevCols + "] columns, got [" + columns.size() + "]");
+        // }
+
         return VALIDATION_OK;
     }
 }

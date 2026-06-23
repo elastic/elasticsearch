@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -55,6 +56,9 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         "SpatialIntersects",
         SpatialIntersects::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SpatialIntersects.class)
+        .binary(SpatialIntersects::new)
+        .name("st_intersects");
 
     // public for test access with reflection
     public static final SpatialRelations GEO = new SpatialRelations(
@@ -73,6 +77,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
 
     @FunctionInfo(
         returnType = { "boolean" },
+        briefSummary = "Returns true if two geometries intersect.",
         description = """
             Returns true if two geometries intersect.
             They intersect if they have any point in common, including their interior points

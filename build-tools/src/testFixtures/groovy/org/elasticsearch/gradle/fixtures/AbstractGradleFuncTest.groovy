@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.fixtures
 
 import spock.lang.Specification
 import spock.lang.TempDir
+import com.github.tomakehurst.wiremock.WireMockServer
 
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.IOUtils
@@ -20,6 +21,7 @@ import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
+import org.junit.After
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 
@@ -30,6 +32,7 @@ import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*
 import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 abstract class AbstractGradleFuncTest extends Specification {
@@ -68,12 +71,32 @@ abstract class AbstractGradleFuncTest extends Specification {
             minimumCompilerJava = 21
         """
         propertiesFile <<
-            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME\n"
+        // Pin the JAXP TransformerFactory to the JDK built-in implementation.
+        // The plugin-under-test classpath injected via GradleRunner#withPluginClasspath transitively
+        // contains Saxon-HE (pulled in by the nmcp publishing plugin), which registers itself as a
+        // javax.xml.transform.TransformerFactory service provider. Whether the JDK's FactoryFinder
+        // picks up that service registration depends on non-deterministic classpath/ServiceLoader
+        // ordering, so on some platforms (e.g. CI) Gradle's internal XmlFactories resolves to
+        // net.sf.saxon.TransformerFactoryImpl, which the Gradle core classloader cannot load,
+        // failing GenerateMavenPom with a TransformerFactoryConfigurationError. Forcing the JDK
+        // default keeps POM generation deterministic across environments.
+        propertiesFile <<
+            "systemProp.javax.xml.transform.TransformerFactory=com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl"
 
         def nativeLibsProject = subProject(":libs:native:native-libraries")
+        // Stub mirrors the real producer: a dedicated `nativeLibs` consumable variant that
+        // carries the platform-native library directory. ElasticsearchJavaBasePlugin requests
+        // exactly this configuration via project(path:..., configuration: 'nativeLibs').
         nativeLibsProject << """
             plugins {
                 id 'base'
+            }
+            configurations {
+                nativeLibs {
+                    canBeConsumed = true
+                    canBeResolved = false
+                }
             }
         """
         def mutedTestsFile = testProjectDir.newFile("muted-tests.yml")
@@ -105,6 +128,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         subProjectBuild
     }
 
+
     GradleRunner gradleRunner(Object... arguments) {
         return gradleRunner(testProjectDir.root, arguments)
     }
@@ -119,6 +143,7 @@ abstract class AbstractGradleFuncTest extends Specification {
                                 )
                                 .withProjectDir(projectDir)
                                 .withPluginClasspath()
+                                .withTestKitDir(gradleUserHome)
                                 .forwardOutput()
             ), configurationCacheCompatible,
                 buildApiRestrictionsDisabled)
@@ -170,18 +195,39 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     File internalBuild(
-            List<String> extraPlugins = [],
-            String maintenance = "7.16.10",
-            String major4 = "8.1.3",
-            String major3 = "8.2.1",
-            String major2 = "8.3.0",
-            String major1 = "8.4.0",
-            String current = "9.0.0"
+        List<String> extraPlugins = [],
+        String maintenance = "7.16.10",
+        String major4 = "8.1.3",
+        String major3 = "8.2.1",
+        String major2 = "8.3.0",
+        String major1 = "8.4.0",
+        String current = "9.0.0"
     ) {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'
           ${extraPlugins.collect { p -> "id '$p'" }.join('\n')}
         }
+        """
+        configureBwcVersions(maintenance, major4, major3, major2, major1, current)
+        return buildFile
+    }
+
+    /**
+     * Appends the {@code BwcVersions} wiring that {@link #internalBuild} relies on as plain
+     * statements, without emitting a {@code plugins {}} block. Use this instead of
+     * {@code internalBuild()} when the build script already has {@code elasticsearch.global-build-info}
+     * applied (for example tests extending {@code AbstractGradleInternalPluginFuncTest}), where an
+     * additional {@code plugins {}} block would be illegal after the plugin has been applied.
+     */
+    void configureBwcVersions(
+        String maintenance = "7.16.10",
+        String major4 = "8.1.3",
+        String major3 = "8.2.1",
+        String major2 = "8.3.0",
+        String major1 = "8.4.0",
+        String current = "9.0.0"
+    ) {
+        buildFile << """
         import org.elasticsearch.gradle.Architecture
 
         import org.elasticsearch.gradle.internal.BwcVersions
@@ -245,11 +291,72 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
             '''
     }
 
+    /**
+     * Parses the Gradle Problems API report and returns the diagnostics as a list of maps.
+     * Each diagnostic has: problemId (list of {name, displayName}), severity, contextualLabel, solutions, locations.
+     */
+    List<Map> problemsReportDiagnostics() {
+        def reportFile = new File(projectDir, "build/reports/problems/problems-report.html")
+        if (!reportFile.exists()) {
+            return []
+        }
+        def content = reportFile.text
+        def matcher = content =~ /\/\/ begin-report-data\n(.*)\n\/\/ end-report-data/
+        if (!matcher.find()) {
+            return []
+        }
+        def json = new groovy.json.JsonSlurper().parseText(matcher.group(1))
+        return json.diagnostics ?: []
+    }
+
+    /**
+     * Asserts that problems were reported with the given group name in the problem ID hierarchy.
+     */
+    def assertProblemsReportContains(String groupName) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.any { diag ->
+            diag.problemId.any { id -> id.name == groupName }
+        } : "Expected problems report to contain group '${groupName}', but found: ${diagnostics.collect { it.problemId*.name }.flatten().unique()}"
+        true
+    }
+
+    /**
+     * Asserts that problems were reported with the given problem name (leaf ID) in the report.
+     */
+    def assertProblemsReportContainsProblem(String problemName) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.any { diag ->
+            diag.problemId.last().name == problemName
+        } : "Expected problems report to contain problem '${problemName}', but found: ${diagnostics.collect { it.problemId.last().name }.unique()}"
+        true
+    }
+
+    /**
+     * Asserts that the problems report contains at least the expected number of diagnostics.
+     */
+    def assertProblemsReportHasAtLeast(int expectedCount) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.size() >= expectedCount : "Expected at least ${expectedCount} problems, but found ${diagnostics.size()}"
+        true
+    }
+
+    /**
+     * Asserts that problems have the expected severity.
+     */
+    def assertProblemsReportSeverity(String problemName, String expectedSeverity) {
+        def diagnostics = problemsReportDiagnostics()
+        def matching = diagnostics.findAll { diag -> diag.problemId.last().name == problemName }
+        assert matching.every { it.severity == expectedSeverity } : \
+            "Expected severity '${expectedSeverity}' for problem '${problemName}', but found: ${matching.collect { it.severity }.unique()}"
+        true
+    }
+
     boolean featureFailed() {
         specificationContext.currentSpec.listeners
             .findAll { it instanceof TestResultExtension.ErrorListener }
             .any {
-                (it as TestResultExtension.ErrorListener).errorInfo != null }
+                (it as TestResultExtension.ErrorListener).errorInfo != null
+            }
     }
 
     ZipAssertion zip(String relativePath) {
@@ -301,7 +408,7 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
         }
 
         String read() {
-            try(ZipFile zipFile1 = new ZipFile(zipFile)) {
+            try (ZipFile zipFile1 = new ZipFile(zipFile)) {
                 def inputStream = zipFile1.getInputStream(entry)
                 return IOUtils.toString(inputStream, StandardCharsets.UTF_8.name())
             } catch (IOException e) {

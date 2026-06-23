@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
@@ -131,6 +132,20 @@ public class GoogleCloudStorageClientSettings {
         (key) -> Setting.intSetting(key, 5, 0, Setting.Property.NodeScope)
     );
 
+    /** The maximum number of megabytes to copy for each copy RPC call. */
+    static final Setting.AffixSetting<Long> MEGABYTES_COPIED_PER_CHUNK_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "megabytes_copied_per_chunk",
+        (key) -> Setting.longSetting(key, ByteSizeValue.ofGb(5).getMb(), 1L, Setting.Property.NodeScope)
+    );
+
+    /** Tenacious retries for transient blob store errors. */
+    static final Setting.AffixSetting<Boolean> GCS_TENACIOUS_RETRIES_ENABLED_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "tenacious_retries.enabled",
+        key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
+    );
+
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
@@ -157,6 +172,12 @@ public class GoogleCloudStorageClientSettings {
 
     private final int maxRetries;
 
+    /** The maximum number of megabytes to copy for each copy RPC call. */
+    private final long megabytesCopiedPerChunk;
+
+    /** Tenacious retries for transient blob store errors. */
+    private final boolean tenaciousRetriesEnabled;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -166,7 +187,9 @@ public class GoogleCloudStorageClientSettings {
         final String applicationName,
         final URI tokenUri,
         final Proxy proxy,
-        final int maxRetries
+        final int maxRetries,
+        final long megabytesCopiedPerChunk,
+        final boolean tenaciousRetriesEnabled
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -177,6 +200,8 @@ public class GoogleCloudStorageClientSettings {
         this.tokenUri = tokenUri;
         this.proxy = proxy;
         this.maxRetries = maxRetries;
+        this.megabytesCopiedPerChunk = megabytesCopiedPerChunk;
+        this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -216,6 +241,14 @@ public class GoogleCloudStorageClientSettings {
         return maxRetries;
     }
 
+    public long getMegabytesCopiedPerChunk() {
+        return megabytesCopiedPerChunk;
+    }
+
+    public boolean getTenaciousRetriesEnabled() {
+        return tenaciousRetriesEnabled;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -228,12 +261,26 @@ public class GoogleCloudStorageClientSettings {
             && Objects.equals(applicationName, that.applicationName)
             && Objects.equals(tokenUri, that.tokenUri)
             && Objects.equals(proxy, that.proxy)
-            && maxRetries == that.maxRetries;
+            && maxRetries == that.maxRetries
+            && megabytesCopiedPerChunk == that.megabytesCopiedPerChunk
+            && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(credential, endpoint, projectId, connectTimeout, readTimeout, applicationName, tokenUri, proxy, maxRetries);
+        return Objects.hash(
+            credential,
+            endpoint,
+            projectId,
+            connectTimeout,
+            readTimeout,
+            applicationName,
+            tokenUri,
+            proxy,
+            maxRetries,
+            megabytesCopiedPerChunk,
+            tenaciousRetriesEnabled
+        );
     }
 
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
@@ -270,7 +317,9 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
             getConfigValue(settings, clientName, TOKEN_URI_SETTING),
             proxy,
-            getConfigValue(settings, clientName, MAX_RETRIES_SETTING)
+            getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
+            getConfigValue(settings, clientName, MEGABYTES_COPIED_PER_CHUNK_SETTING),
+            getConfigValue(settings, clientName, GCS_TENACIOUS_RETRIES_ENABLED_SETTING)
         );
     }
 

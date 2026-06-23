@@ -17,7 +17,9 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -97,6 +100,8 @@ import static org.mockito.Mockito.when;
 public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollower() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
@@ -112,7 +117,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
 
         ClusterState currentState = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)))
             .build();
 
         boolean[] invoked = new boolean[] { false };
@@ -151,7 +156,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata result = resultCs.metadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
@@ -167,6 +172,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testAutoFollower_dataStream() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
@@ -182,7 +189,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
 
         ClusterState currentState = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)))
             .build();
 
         boolean[] invoked = new boolean[] { false };
@@ -221,7 +228,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata result = resultCs.metadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
@@ -247,8 +254,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         followedLeaderIndexUUIDS.put("remote", new ArrayList<>());
         Map<String, Map<String, String>> headers = new HashMap<>();
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, headers);
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)))
             .build();
 
         Exception failure = new RuntimeException("failure");
@@ -286,6 +295,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testAutoFollowerUpdateClusterStateFailure() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
         ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
@@ -298,7 +309,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Map<String, Map<String, String>> headers = new HashMap<>();
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, headers);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)))
             .build();
 
         Exception failure = new RuntimeException("failure");
@@ -397,12 +408,19 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         headers.put("pattern_1", singletonMap("header", "value"));
         headers.put("pattern_2", emptyMap());
 
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final Supplier<ClusterState> followerClusterStateSupplier = localClusterStateSupplier(
             ClusterState.builder(new ClusterName("test"))
                 .metadata(
                     Metadata.builder()
-                        .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(autoFollowPatterns, followedLeaderIndexUUIDs, headers))
-                        .build()
+                        .put(
+                            ProjectMetadata.builder(projectId)
+                                .putCustom(
+                                    AutoFollowMetadata.TYPE,
+                                    new AutoFollowMetadata(autoFollowPatterns, followedLeaderIndexUUIDs, headers)
+                                )
+                        )
                 )
                 .build()
         );
@@ -442,6 +460,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testAutoFollowerWithPausedActivePatterns() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final String remoteCluster = randomAlphaOfLength(5);
 
         final AtomicReference<ClusterState> remoteClusterState = new AtomicReference<>(
@@ -450,7 +470,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         final AtomicReference<ClusterState> localClusterState = new AtomicReference<>(
             ClusterState.builder(new ClusterName("local"))
-                .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(emptyMap(), emptyMap(), emptyMap())))
+                .metadata(
+                    Metadata.builder()
+                        .put(
+                            ProjectMetadata.builder(projectId)
+                                .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(emptyMap(), emptyMap(), emptyMap()))
+                        )
+                )
                 .build()
         );
 
@@ -635,18 +661,19 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final ClusterState finalRemoteClusterState = remoteClusterState.get();
         final ClusterState finalLocalClusterState = localClusterState.get();
 
-        AutoFollowMetadata autoFollowMetadata = finalLocalClusterState.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = finalLocalClusterState.metadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(2));
         assertThat(autoFollowMetadata.getPatterns().values().stream().noneMatch(AutoFollowPattern::isActive), is(true));
 
+        final ProjectMetadata project = finalRemoteClusterState.metadata().getProject(projectId);
         assertThat(
             autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("patternLogs"),
             containsInAnyOrder(
-                finalRemoteClusterState.metadata().getProject().index("patternLogs-0").getIndexUUID(),
-                finalRemoteClusterState.metadata().getProject().index("patternLogs-1").getIndexUUID(),
-                finalRemoteClusterState.metadata().getProject().index("patternLogs-2").getIndexUUID(),
-                finalRemoteClusterState.metadata().getProject().index("patternLogs-3").getIndexUUID(),
-                finalRemoteClusterState.metadata().getProject().index("patternLogs-4").getIndexUUID()
+                project.index("patternLogs-0").getIndexUUID(),
+                project.index("patternLogs-1").getIndexUUID(),
+                project.index("patternLogs-2").getIndexUUID(),
+                project.index("patternLogs-3").getIndexUUID(),
+                project.index("patternLogs-4").getIndexUUID()
                 // patternLogs-5 exists in remote cluster state but patternLogs was paused
             )
         );
@@ -655,16 +682,18 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("patternDocs"),
             containsInAnyOrder(
                 // patternDocs-0 does not exist in remote cluster state
-                finalRemoteClusterState.metadata().getProject().index("patternDocs-1").getIndexUUID(),
-                finalRemoteClusterState.metadata().getProject().index("patternDocs-2").getIndexUUID(),
-                finalRemoteClusterState.metadata().getProject().index("patternDocs-3").getIndexUUID(),
-                finalRemoteClusterState.metadata().getProject().index("patternDocs-4").getIndexUUID(),
-                finalRemoteClusterState.metadata().getProject().index("patternDocs-5").getIndexUUID()
+                project.index("patternDocs-1").getIndexUUID(),
+                project.index("patternDocs-2").getIndexUUID(),
+                project.index("patternDocs-3").getIndexUUID(),
+                project.index("patternDocs-4").getIndexUUID(),
+                project.index("patternDocs-5").getIndexUUID()
             )
         );
     }
 
     public void testAutoFollowerCreateAndFollowApiCallFailure() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
         ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
@@ -677,7 +706,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Map<String, Map<String, String>> headers = new HashMap<>();
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, headers);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)))
             .build();
 
         Exception failure = new RuntimeException("failure");
@@ -727,38 +756,45 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testGetLeaderIndicesToFollow() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "metrics-*");
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Metadata.Builder imdBuilder = Metadata.builder();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         for (int i = 0; i < 5; i++) {
             String indexName = "metrics-" + i;
             Settings.Builder builder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_INDEX_UUID, indexName);
-            imdBuilder.put(IndexMetadata.builder(indexName).settings(builder).numberOfShards(1).numberOfReplicas(0));
+            projectBuilder.put(IndexMetadata.builder(indexName).settings(builder).numberOfShards(1).numberOfReplicas(0));
 
             ShardRouting shardRouting = TestShardRouting.newShardRouting(
-                new ShardId(imdBuilder.get(indexName).getIndex(), 0),
+                new ShardId(projectBuilder.get(indexName).getIndex(), 0),
                 "1",
                 true,
                 ShardRoutingState.INITIALIZING
             ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-            IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(imdBuilder.get(indexName).getIndex())
+            IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(projectBuilder.get(indexName).getIndex())
                 .addShard(shardRouting)
                 .build();
             routingTableBuilder.add(indexRoutingTable);
         }
 
-        imdBuilder.put(IndexMetadata.builder("logs-0").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
+        projectBuilder.put(
+            IndexMetadata.builder("logs-0").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
+        );
         ShardRouting shardRouting = TestShardRouting.newShardRouting("logs-0", 0, "1", true, ShardRoutingState.INITIALIZING)
             .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(imdBuilder.get("logs-0").getIndex()).addShard(shardRouting).build();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(projectBuilder.get("logs-0").getIndex())
+            .addShard(shardRouting)
+            .build();
         routingTableBuilder.add(indexRoutingTable);
 
+        final GlobalRoutingTable globalRoutingTable = GlobalRoutingTable.builder().put(projectId, routingTableBuilder).build();
         ClusterState remoteState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(imdBuilder)
-            .routingTable(routingTableBuilder.build())
+            .metadata(Metadata.builder().put(projectBuilder))
+            .routingTable(globalRoutingTable)
             .build();
 
         List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
@@ -771,7 +807,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(result.get(4).getName(), equalTo("metrics-4"));
 
         final List<String> followedIndexUUIDs = Collections.singletonList(
-            remoteState.metadata().getProject().index("metrics-2").getIndexUUID()
+            remoteState.metadata().getProject(projectId).index("metrics-2").getIndexUUID()
         );
         result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, followedIndexUUIDs);
         result.sort(Index.COMPARE_BY_NAME);
@@ -808,17 +844,27 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testGetLeaderIndicesToFollow_shardsNotStarted() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "*");
 
         // 1 shard started and another not started:
         ClusterState remoteState = createRemoteClusterState("index1", true);
-        Metadata.Builder mBuilder = Metadata.builder(remoteState.metadata());
-        mBuilder.put(IndexMetadata.builder("index2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(remoteState.metadata().getProject(projectId));
+        projectBuilder.put(
+            IndexMetadata.builder("index2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
+        );
         ShardRouting shardRouting = TestShardRouting.newShardRouting("index2", 0, "1", true, ShardRoutingState.INITIALIZING);
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(mBuilder.get("index2").getIndex()).addShard(shardRouting).build();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(projectBuilder.get("index2").getIndex())
+            .addShard(shardRouting)
+            .build();
         remoteState = ClusterState.builder(remoteState.getClusterName())
-            .metadata(mBuilder)
-            .routingTable(RoutingTable.builder(remoteState.routingTable()).add(indexRoutingTable).build())
+            .metadata(Metadata.builder(remoteState.metadata()).put(projectBuilder))
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(projectId, RoutingTable.builder(remoteState.routingTable(projectId)).add(indexRoutingTable))
+                    .build()
+            )
             .build();
 
         List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
@@ -827,12 +873,16 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         // Start second shard:
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-        indexRoutingTable = IndexRoutingTable.builder(remoteState.metadata().getProject().indices().get("index2").getIndex())
+        indexRoutingTable = IndexRoutingTable.builder(remoteState.metadata().getProject(projectId).indices().get("index2").getIndex())
             .addShard(shardRouting)
             .build();
         remoteState = ClusterState.builder(remoteState.getClusterName())
             .metadata(remoteState.metadata())
-            .routingTable(RoutingTable.builder(remoteState.routingTable()).add(indexRoutingTable).build())
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(projectId, RoutingTable.builder(remoteState.routingTable(projectId)).add(indexRoutingTable))
+                    .build()
+            )
             .build();
 
         result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
@@ -843,57 +893,65 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testGetLeaderIndicesToFollowWithClosedIndices() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "*");
 
         // index is opened
         ClusterState remoteState = ClusterStateCreationUtils.stateWithActivePrimary("test-index", true, randomIntBetween(1, 3), 0);
         List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
         assertThat(result.size(), equalTo(1));
-        assertThat(result, hasItem(remoteState.metadata().getProject().index("test-index").getIndex()));
+        assertThat(result, hasItem(remoteState.metadata().getProject(projectId).index("test-index").getIndex()));
 
         // index is closed
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(remoteState.metadata().getProject(projectId));
+        projectBuilder.put(
+            IndexMetadata.builder(remoteState.metadata().getProject(projectId).index("test-index"))
+                .state(IndexMetadata.State.CLOSE)
+                .build(),
+            true
+        );
+        final GlobalRoutingTable globalRoutingTable = GlobalRoutingTable.builder()
+            .put(projectId, remoteState.routingTable(projectId))
+            .build();
         remoteState = ClusterState.builder(remoteState)
-            .metadata(
-                Metadata.builder(remoteState.metadata())
-                    .put(
-                        IndexMetadata.builder(remoteState.metadata().getProject().index("test-index"))
-                            .state(IndexMetadata.State.CLOSE)
-                            .build(),
-                        true
-                    )
-                    .build()
-            )
+            .metadata(Metadata.builder(remoteState.metadata()).put(projectBuilder))
+            .routingTable(globalRoutingTable)
             .build();
         result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
         assertThat(result.size(), equalTo(0));
     }
 
     public void testRecordLeaderIndexAsFollowFunction() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
             Collections.emptyMap(),
             Map.of("pattern1", Collections.emptyList()),
             Collections.emptyMap()
         );
         ClusterState clusterState = new ClusterState.Builder(new ClusterName("name")).metadata(
-            new Metadata.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            new Metadata.Builder().put(ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
         ).build();
         Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction("pattern1", new Index("index1", "index1"));
 
         ClusterState result = function.apply(clusterState);
-        AutoFollowMetadata autoFollowMetadataResult = result.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadataResult = result.metadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1"), notNullValue());
         assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1").size(), equalTo(1));
         assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1").get(0), equalTo("index1"));
     }
 
     public void testRecordLeaderIndexAsFollowFunctionNoEntry() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
             Collections.emptyMap(),
             Collections.emptyMap(),
             Collections.emptyMap()
         );
         ClusterState clusterState = new ClusterState.Builder(new ClusterName("name")).metadata(
-            new Metadata.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            new Metadata.Builder().put(ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
         ).build();
         Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction("pattern1", new Index("index1", "index1"));
 
@@ -902,21 +960,24 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testCleanFollowedLeaderIndices() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
             Collections.emptyMap(),
             Map.of("pattern1", Arrays.asList("index1", "index2", "index3")),
             Collections.emptyMap()
         );
         ClusterState clusterState = new ClusterState.Builder(new ClusterName("name")).metadata(
-            new Metadata.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            new Metadata.Builder().put(ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
         ).build();
 
-        Metadata remoteMetadata = new Metadata.Builder().put(
-            IndexMetadata.builder("index1")
-                .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "index1"))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-        )
+        ProjectMetadata remoteMetadata = ProjectMetadata.builder(projectId)
+            .put(
+                IndexMetadata.builder("index1")
+                    .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "index1"))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
             .put(
                 IndexMetadata.builder("index3")
                     .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "index3"))
@@ -925,29 +986,35 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             )
             .build();
 
-        Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(remoteMetadata, Collections.singletonList("pattern1"));
-        AutoFollowMetadata result = function.apply(clusterState).metadata().getProject().custom(AutoFollowMetadata.TYPE);
+        Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(
+            Metadata.builder().put(remoteMetadata).build(),
+            Collections.singletonList("pattern1")
+        );
+        AutoFollowMetadata result = function.apply(clusterState).metadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").size(), equalTo(2));
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").get(0), equalTo("index1"));
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").get(1), equalTo("index3"));
     }
 
     public void testCleanFollowedLeaderIndicesNoChanges() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
             Collections.emptyMap(),
             Map.of("pattern1", Arrays.asList("index1", "index2", "index3")),
             Collections.emptyMap()
         );
         ClusterState clusterState = new ClusterState.Builder(new ClusterName("name")).metadata(
-            new Metadata.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            new Metadata.Builder().put(ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
         ).build();
 
-        Metadata remoteMetadata = new Metadata.Builder().put(
-            IndexMetadata.builder("index1")
-                .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "index1"))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-        )
+        ProjectMetadata remoteMetadata = ProjectMetadata.builder(projectId)
+            .put(
+                IndexMetadata.builder("index1")
+                    .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "index1"))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
             .put(
                 IndexMetadata.builder("index2")
                     .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "index2"))
@@ -962,26 +1029,34 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             )
             .build();
 
-        Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(remoteMetadata, Collections.singletonList("pattern1"));
+        Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(
+            Metadata.builder().put(remoteMetadata).build(),
+            Collections.singletonList("pattern1")
+        );
         ClusterState result = function.apply(clusterState);
         assertThat(result, sameInstance(clusterState));
     }
 
     public void testCleanFollowedLeaderIndicesNoEntry() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
             Collections.emptyMap(),
             Map.of("pattern2", Arrays.asList("index1", "index2", "index3")),
             Collections.emptyMap()
         );
         ClusterState clusterState = new ClusterState.Builder(new ClusterName("name")).metadata(
-            new Metadata.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+            new Metadata.Builder().put(ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
         ).build();
 
-        Metadata remoteMetadata = new Metadata.Builder().put(
-            IndexMetadata.builder("index1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
-        ).build();
+        ProjectMetadata remoteMetadata = ProjectMetadata.builder(projectId)
+            .put(IndexMetadata.builder("index1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
+            .build();
 
-        Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(remoteMetadata, Collections.singletonList("pattern1"));
+        Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(
+            Metadata.builder().put(remoteMetadata).build(),
+            Collections.singletonList("pattern1")
+        );
         ClusterState result = function.apply(clusterState);
         assertThat(result, sameInstance(clusterState));
     }
@@ -1417,16 +1492,18 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testUpdateAutoFollowers() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         ClusterService clusterService = mockClusterService();
         // Return a cluster state with no patterns so that the auto followers never really execute:
-        ClusterState followerState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        AutoFollowMetadata.TYPE,
-                        new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())
-                    )
+        ProjectMetadata emptyProjectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(
+                AutoFollowMetadata.TYPE,
+                new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())
             )
+            .build();
+        ClusterState followerState = ClusterState.builder(new ClusterName("remote"))
+            .metadata(Metadata.builder().put(emptyProjectMetadata))
             .build();
         when(clusterService.state()).thenReturn(followerState);
         AutoFollowCoordinator autoFollowCoordinator = new AutoFollowCoordinator(
@@ -1443,11 +1520,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         patterns.put("pattern1", createAutoFollowPattern("remote1", "logs-*"));
         patterns.put("pattern2", createAutoFollowPattern("remote2", "logs-*"));
         patterns.put("pattern3", createAutoFollowPattern("remote2", "metrics-*"));
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
+            .build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
-            )
+            .metadata(Metadata.builder().put(projectMetadata))
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(2));
@@ -1460,24 +1537,20 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         // Remove patterns 1 and 3:
         patterns.remove("pattern1");
         patterns.remove("pattern3");
-        clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
-            )
+        projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             .build();
+        clusterState = ClusterState.builder(new ClusterName("remote")).metadata(Metadata.builder().put(projectMetadata)).build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(1));
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote2"), notNullValue());
         assertThat(removedAutoFollower1.removed, is(true));
         // Add pattern 4:
         patterns.put("pattern4", createAutoFollowPattern("remote1", "metrics-*"));
-        clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
-            )
+        projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             .build();
+        clusterState = ClusterState.builder(new ClusterName("remote")).metadata(Metadata.builder().put(projectMetadata)).build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(2));
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote1"), notNullValue());
@@ -1491,12 +1564,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(removedAutoFollower2.removed, is(false));
         patterns.remove("pattern2");
         patterns.remove("pattern4");
-        clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
-            )
+        projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             .build();
+        clusterState = ClusterState.builder(new ClusterName("remote")).metadata(Metadata.builder().put(projectMetadata)).build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
         assertThat(removedAutoFollower1.removed, is(true));
@@ -1564,16 +1635,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         patterns.put("pattern2", createAutoFollowPattern("remote2", "logs-*"));
         patterns.put("pattern3", createAutoFollowPattern("remote2", "metrics-*"));
 
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
+            .build();
         autoFollowCoordinator.updateAutoFollowers(
-            ClusterState.builder(new ClusterName("remote"))
-                .metadata(
-                    Metadata.builder()
-                        .putCustom(
-                            AutoFollowMetadata.TYPE,
-                            new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())
-                        )
-                )
-                .build()
+            ClusterState.builder(new ClusterName("remote")).metadata(Metadata.builder().put(projectMetadata)).build()
         );
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(2));
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote1"), notNullValue());
@@ -1628,16 +1696,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             )
         );
 
+        projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
+            .build();
         autoFollowCoordinator.updateAutoFollowers(
-            ClusterState.builder(new ClusterName("remote"))
-                .metadata(
-                    Metadata.builder()
-                        .putCustom(
-                            AutoFollowMetadata.TYPE,
-                            new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())
-                        )
-                )
-                .build()
+            ClusterState.builder(new ClusterName("remote")).metadata(Metadata.builder().put(projectMetadata)).build()
         );
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(1));
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote2"), notNullValue());
@@ -1668,16 +1731,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             )
         );
 
+        projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
+            .build();
         autoFollowCoordinator.updateAutoFollowers(
-            ClusterState.builder(new ClusterName("remote"))
-                .metadata(
-                    Metadata.builder()
-                        .putCustom(
-                            AutoFollowMetadata.TYPE,
-                            new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap())
-                        )
-                )
-                .build()
+            ClusterState.builder(new ClusterName("remote")).metadata(Metadata.builder().put(projectMetadata)).build()
         );
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(1));
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote1"), notNullValue());
@@ -1687,16 +1745,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertNotSame(removedAutoFollower4, removedAutoFollower1);
         assertThat(removedAutoFollower2.removed, is(true));
 
+        ProjectMetadata emptyProjectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(
+                AutoFollowMetadata.TYPE,
+                new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())
+            )
+            .build();
         autoFollowCoordinator.updateAutoFollowers(
-            ClusterState.builder(new ClusterName("remote"))
-                .metadata(
-                    Metadata.builder()
-                        .putCustom(
-                            AutoFollowMetadata.TYPE,
-                            new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())
-                        )
-                )
-                .build()
+            ClusterState.builder(new ClusterName("remote")).metadata(Metadata.builder().put(emptyProjectMetadata)).build()
         );
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
         assertThat(removedAutoFollower1.removed, is(true));
@@ -1717,12 +1773,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         autoFollowHeaders.put("remote", Map.of("key", "val"));
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
 
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata).build();
         final LinkedList<ClusterState> leaderStates = new LinkedList<>();
         ClusterState[] states = new ClusterState[16];
         for (int i = 0; i < states.length; i++) {
-            states[i] = ClusterState.builder(new ClusterName("name"))
-                .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
-                .build();
+            states[i] = ClusterState.builder(new ClusterName("name")).metadata(Metadata.builder().put(projectMetadata)).build();
             String indexName = "logs-" + i;
             leaderStates.add(
                 i == 0 ? createRemoteClusterState(indexName, true) : createRemoteClusterState(leaderStates.get(i - 1), indexName)
@@ -1769,6 +1826,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testWaitForTimeOut() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
@@ -1781,11 +1840,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         autoFollowHeaders.put("remote", Map.of("key", "val"));
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
 
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata).build();
         ClusterState[] states = new ClusterState[16];
         for (int i = 0; i < states.length; i++) {
-            states[i] = ClusterState.builder(new ClusterName("name"))
-                .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
-                .build();
+            states[i] = ClusterState.builder(new ClusterName("name")).metadata(Metadata.builder().put(projectMetadata)).build();
         }
         Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results -> { fail("should not be invoked"); };
         AtomicInteger counter = new AtomicInteger();
@@ -1821,6 +1879,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testAutoFollowerFollowerIndexAlreadyExists() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
@@ -1835,24 +1895,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         autoFollowHeaders.put("remote", Map.of("key", "val"));
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
 
-        ClusterState currentState = ClusterState.builder(new ClusterName("name"))
-            .metadata(
-                Metadata.builder()
-                    .put(
-                        IndexMetadata.builder("logs-20190101")
-                            .settings(settings(IndexVersion.current()))
-                            .putCustom(
-                                Ccr.CCR_CUSTOM_METADATA_KEY,
-                                Map.of(
-                                    Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY,
-                                    remoteState.metadata().getProject().index("logs-20190101").getIndexUUID()
-                                )
-                            )
-                            .numberOfShards(1)
-                            .numberOfReplicas(0)
+        ProjectMetadata.Builder currentStateProjectBuilder = ProjectMetadata.builder(projectId)
+            .put(
+                IndexMetadata.builder("logs-20190101")
+                    .settings(settings(IndexVersion.current()))
+                    .putCustom(
+                        Ccr.CCR_CUSTOM_METADATA_KEY,
+                        Map.of(
+                            Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY,
+                            remoteState.metadata().getProject(projectId).index("logs-20190101").getIndexUUID()
+                        )
                     )
-                    .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
             )
+            .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata);
+        ClusterState currentState = ClusterState.builder(new ClusterName("name"))
+            .metadata(Metadata.builder().put(currentStateProjectBuilder.build()))
             .build();
 
         final Object[] resultHolder = new Object[1];
@@ -1877,7 +1936,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata result = resultCs.metadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
@@ -1910,6 +1969,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
      * not for this logic.
      */
     public void testRepeatedFailures() throws InterruptedException {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final ClusterState clusterState = mock(ClusterState.class);
         final Metadata metadata = mock(Metadata.class);
         when(clusterState.metadata()).thenReturn(metadata);
@@ -1990,22 +2051,24 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testClosedIndicesAreNotAutoFollowed() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         final String pattern = "pattern1";
-        final ClusterState localState = ClusterState.builder(new ClusterName("local"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        AutoFollowMetadata.TYPE,
-                        new AutoFollowMetadata(
-                            Map.of(pattern, createAutoFollowPattern("remote", "docs-*")),
-                            Map.of(pattern, List.of()),
-                            Map.of(pattern, Map.of())
-                        )
-                    )
+        ProjectMetadata localProjectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(
+                AutoFollowMetadata.TYPE,
+                new AutoFollowMetadata(
+                    Map.of(pattern, createAutoFollowPattern("remote", "docs-*")),
+                    Map.of(pattern, List.of()),
+                    Map.of(pattern, Map.of())
+                )
             )
+            .build();
+        final ClusterState localState = ClusterState.builder(new ClusterName("local"))
+            .metadata(Metadata.builder().put(localProjectMetadata))
             .build();
 
         ClusterState remoteState = null;
@@ -2019,18 +2082,19 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             }
             if (randomBoolean()) {
                 // randomly close the index
+                ProjectMetadata.Builder closeProjectBuilder = ProjectMetadata.builder(remoteState.metadata().getProject(projectId));
+                closeProjectBuilder.put(
+                    IndexMetadata.builder(remoteState.metadata().getProject(projectId).index(indexName))
+                        .state(IndexMetadata.State.CLOSE)
+                        .build(),
+                    true
+                );
+                final GlobalRoutingTable globalRoutingTable = GlobalRoutingTable.builder()
+                    .put(projectId, remoteState.routingTable(projectId))
+                    .build();
                 remoteState = ClusterState.builder(remoteState.getClusterName())
-                    .routingTable(remoteState.routingTable())
-                    .metadata(
-                        Metadata.builder(remoteState.metadata())
-                            .put(
-                                IndexMetadata.builder(remoteState.metadata().getProject().index(indexName))
-                                    .state(IndexMetadata.State.CLOSE)
-                                    .build(),
-                                true
-                            )
-                            .build()
-                    )
+                    .routingTable(globalRoutingTable)
+                    .metadata(Metadata.builder(remoteState.metadata()).put(closeProjectBuilder.build()))
                     .build();
             }
         }
@@ -2079,7 +2143,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
-        for (var index : remoteState.metadata().getProject().indices().entrySet()) {
+        for (var index : remoteState.metadata().getProject(projectId).indices().entrySet()) {
             boolean expect = index.getValue().getState() == IndexMetadata.State.OPEN;
             assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(expect));
             assertThat(followedIndices.contains(index.getKey()), is(expect));
@@ -2087,42 +2151,44 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testExcludedPatternIndicesAreNotAutoFollowed() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
         final String pattern = "pattern1";
-        final ClusterState localState = ClusterState.builder(new ClusterName("local"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        AutoFollowMetadata.TYPE,
-                        new AutoFollowMetadata(
-                            Map.of(
-                                pattern,
-                                new AutoFollowPattern(
-                                    "remote",
-                                    List.of("docs-*"),
-                                    List.of("docs-excluded-*"),
-                                    null,
-                                    Settings.EMPTY,
-                                    true,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null
-                                )
-                            ),
-                            Map.of(pattern, List.of()),
-                            Map.of(pattern, Map.of())
+        ProjectMetadata localProjectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(
+                AutoFollowMetadata.TYPE,
+                new AutoFollowMetadata(
+                    Map.of(
+                        pattern,
+                        new AutoFollowPattern(
+                            "remote",
+                            List.of("docs-*"),
+                            List.of("docs-excluded-*"),
+                            null,
+                            Settings.EMPTY,
+                            true,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
                         )
-                    )
+                    ),
+                    Map.of(pattern, List.of()),
+                    Map.of(pattern, Map.of())
+                )
             )
+            .build();
+        final ClusterState localState = ClusterState.builder(new ClusterName("local"))
+            .metadata(Metadata.builder().put(localProjectMetadata))
             .build();
 
         ClusterState remoteState = ClusterState.EMPTY_STATE;
@@ -2182,11 +2248,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
-        AutoFollowMetadata autoFollowMetadata = lastModifiedClusterState.get().metadata().getProject().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = lastModifiedClusterState.get()
+            .metadata()
+            .getProject(projectId)
+            .custom(AutoFollowMetadata.TYPE);
         final List<String> autoFollowedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(pattern);
         assertThat(autoFollowedIndices.size(), equalTo(nbLeaderIndices));
 
-        for (var index : remoteState.metadata().getProject().indices().entrySet()) {
+        for (var index : remoteState.metadata().getProject(projectId).indices().entrySet()) {
             final Index remoteIndex = index.getValue().getIndex();
             boolean followed = remoteIndex.getName().startsWith("docs-excluded") == false;
             assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(followed));
@@ -2356,9 +2425,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     private ClusterState createClusterStateWith(Map<String, AutoFollowPattern> patterns) {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         var builder = ClusterState.builder(new ClusterName("remote"));
         if (patterns != null) {
-            builder.metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Map.of(), Map.of())));
+            ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
+                .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Map.of(), Map.of()))
+                .build();
+            builder.metadata(Metadata.builder().put(projectMetadata));
         }
         return builder.build();
     }
@@ -2391,19 +2465,21 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
 
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final String pattern = "pattern1";
-        final ClusterState localState = ClusterState.builder(new ClusterName("local"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        AutoFollowMetadata.TYPE,
-                        new AutoFollowMetadata(
-                            Map.of(pattern, createAutoFollowPattern("remote", indexPattern)),
-                            Map.of(pattern, List.of()),
-                            Map.of(pattern, Map.of())
-                        )
-                    )
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(
+                AutoFollowMetadata.TYPE,
+                new AutoFollowMetadata(
+                    Map.of(pattern, createAutoFollowPattern("remote", indexPattern)),
+                    Map.of(pattern, List.of()),
+                    Map.of(pattern, Map.of())
+                )
             )
+            .build();
+        final ClusterState localState = ClusterState.builder(new ClusterName("local"))
+            .metadata(Metadata.builder().put(projectMetadata))
             .build();
 
         final AtomicReference<ClusterState> lastModifiedClusterState = new AtomicReference<>(localState);
@@ -2464,6 +2540,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         long metadataVersion,
         boolean systemIndex
     ) {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         Settings.Builder indexSettings;
         if (enableSoftDeletes == false) {
             indexSettings = settings(IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0)).put(
@@ -2481,8 +2559,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .numberOfReplicas(0)
             .system(systemIndex)
             .build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().put(indexMetadata, true).version(metadataVersion));
+            .metadata(Metadata.builder().put(projectMetadata).version(metadataVersion));
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             new ShardId(indexMetadata.getIndex(), 0),
@@ -2491,7 +2570,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             ShardRoutingState.INITIALIZING
         ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
-        return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+        final GlobalRoutingTable globalRoutingTable = GlobalRoutingTable.builder()
+            .put(projectId, RoutingTable.builder().add(indexRoutingTable))
+            .build();
+        return csBuilder.routingTable(globalRoutingTable).build();
     }
 
     private static ClusterState createRemoteClusterState(final ClusterState previous, final String... indices) {
@@ -2502,8 +2584,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         if (indices == null) {
             return previous;
         }
-        final Metadata.Builder metadataBuilder = Metadata.builder(previous.metadata()).version(previous.metadata().version() + 1);
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(previous.routingTable());
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(previous.metadata().getProject(projectId));
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(previous.routingTable(projectId));
         for (String indexName : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
                 .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))
@@ -2511,7 +2595,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 .numberOfReplicas(0)
                 .system(systemIndices)
                 .build();
-            metadataBuilder.put(indexMetadata, true);
+            projectBuilder.put(indexMetadata, true);
             routingTableBuilder.add(
                 IndexRoutingTable.builder(indexMetadata.getIndex())
                     .addShard(
@@ -2525,20 +2609,26 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     .build()
             );
         }
+        final GlobalRoutingTable globalRoutingTable = GlobalRoutingTable.builder().put(projectId, routingTableBuilder).build();
         return ClusterState.builder(previous.getClusterName())
-            .metadata(metadataBuilder.build())
-            .routingTable(routingTableBuilder.build())
+            .metadata(Metadata.builder(previous.metadata()).put(projectBuilder.build()).version(previous.metadata().version() + 1))
+            .routingTable(globalRoutingTable)
             .build();
     }
 
     private static Supplier<ClusterState> localClusterStateSupplier(ClusterState... states) {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final AutoFollowMetadata emptyAutoFollowMetadata = new AutoFollowMetadata(
             Collections.emptyMap(),
             Collections.emptyMap(),
             Collections.emptyMap()
         );
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(AutoFollowMetadata.TYPE, emptyAutoFollowMetadata)
+            .build();
         final ClusterState lastState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, emptyAutoFollowMetadata))
+            .metadata(Metadata.builder().put(projectMetadata))
             .build();
         final LinkedList<ClusterState> queue = new LinkedList<>(Arrays.asList(states));
         return () -> {
@@ -2566,6 +2656,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     private static ClusterState createRemoteClusterStateWithDataStream(String dataStreamName, boolean system, boolean withFailures) {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         long currentTimeMillis = System.currentTimeMillis();
 
         Settings.Builder indexSettings = settings(IndexVersion.current());
@@ -2603,10 +2695,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         }
         DataStream dataStream = dataStreamBuilder.build();
 
-        var mdBuilder = Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L);
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId).put(indexMetadata, true).put(dataStream);
         if (withFailures) {
-            mdBuilder.put(failureIndexMetadata, true);
+            projectBuilder.put(failureIndexMetadata, true);
         }
+        var mdBuilder = Metadata.builder().put(projectBuilder.build()).version(0L);
 
         var routingTableBuilder = RoutingTable.builder();
 
@@ -2632,7 +2725,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             routingTableBuilder.add(failureIndexRoutingTable);
         }
 
-        return ClusterState.builder(new ClusterName("remote")).metadata(mdBuilder).routingTable(routingTableBuilder.build()).build();
+        final GlobalRoutingTable routingTable = GlobalRoutingTable.builder().put(projectId, routingTableBuilder).build();
+        return ClusterState.builder(new ClusterName("remote")).metadata(mdBuilder).routingTable(routingTable).build();
     }
 
 }

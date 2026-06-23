@@ -38,9 +38,11 @@ import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -173,13 +175,15 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
         List<RowData> rows = new ArrayList<>();
         Map<Integer, RefCounted> shardRefs = new HashMap<>();
 
+        Set<Doc> seenIds = new HashSet<>();
         for (int i = 0; i < size; i++) {
             BytesRef tsid = randomFrom(tsids);
 
             long tsOffset = randomLongBetween(0, 10 * 60 * 1000); // 0-10 minutes
             long ts = timeBucket.round(START_TIME + tsOffset);
 
-            Doc doc = new Doc(between(0, 2), between(0, 5), randomNonNegativeInt());
+            Doc doc = randomValueOtherThanMany(seenIds::contains, () -> new Doc(between(0, 2), between(0, 5), randomNonNegativeInt()));
+            seenIds.add(doc);
             shardRefs.putIfAbsent(doc.shard, AbstractRefCounted.of(() -> {}));
 
             rows.add(new RowData(tsid, ts, doc));
@@ -262,7 +266,8 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
             ),
             mode,
             List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels())),
-            randomPageSize()
+            randomPageSize(),
+            null
         );
 
     }
@@ -274,7 +279,7 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        String hash = "blockHash=BytesRefLongBlockHash{keys=[BytesRefKey[channel=0], LongKey[channel=1]], entries=0, size=%size%}".replace(
+        String hash = "blockHash=BytesRefLongBlockHash{keys=[tsid[channel=0], timestamp[channel=1]], entries=0, size=%size%}".replace(
             "%size%",
             byteRefBlockHashSize()
         );
@@ -327,7 +332,7 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
                     shardBuilder.build(),
                     segmentBuilder.build(),
                     docBuilder.build(),
-                    DocVector.config()
+                    DocVector.config().mayContainDuplicates()
                 );
 
                 currentPosition += length;

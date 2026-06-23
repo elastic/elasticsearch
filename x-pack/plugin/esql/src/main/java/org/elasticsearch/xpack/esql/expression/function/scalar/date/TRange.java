@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -21,10 +21,11 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -74,7 +75,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 public class TRange extends EsqlConfigurationFunction
     implements
         OptionalArgument,
-        SurrogateExpression,
+        OnlySurrogateExpression,
         PostAnalysisPlanVerificationAware,
         TimestampAware {
     public static final String NAME = "TRange";
@@ -86,8 +87,11 @@ public class TRange extends EsqlConfigurationFunction
     private final Expression second;
     private final Expression timestamp;
 
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TRange.class).ternaryConfig(TRange::new).name("trange");
+
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Filters data for a given time range using the @timestamp attribute.",
         description = "Filters data for the given time range using the @timestamp attribute.",
         examples = {
             @Example(file = "trange", tag = "docsTRangeOffsetFromNow"),
@@ -129,7 +133,7 @@ public class TRange extends EsqlConfigurationFunction
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         throw new UnsupportedOperationException("should be rewritten");
     }
 
@@ -208,10 +212,8 @@ public class TRange extends EsqlConfigurationFunction
 
     @Override
     public Expression surrogate() {
-        long[] range = getRange(FoldContext.small());
-
-        Expression startLiteral = new Literal(source(), range[0], timestamp.dataType());
-        Expression endLiteral = new Literal(source(), range[1], timestamp.dataType());
+        Expression startLiteral = rangeStartLiteral(FoldContext.small(), timestamp.dataType());
+        Expression endLiteral = rangeEndLiteral(FoldContext.small(), timestamp.dataType());
 
         return new And(source(), new GreaterThan(source(), timestamp, startLiteral), new LessThanOrEqual(source(), timestamp, endLiteral));
     }
@@ -226,7 +228,15 @@ public class TRange extends EsqlConfigurationFunction
         return timestamp.nullable();
     }
 
-    private long[] getRange(FoldContext foldContext) {
+    public Literal rangeStartLiteral(FoldContext foldContext, DataType targetType) {
+        return new Literal(source(), getRange(foldContext, targetType)[0], targetType);
+    }
+
+    public Literal rangeEndLiteral(FoldContext foldContext, DataType targetType) {
+        return new Literal(source(), getRange(foldContext, targetType)[1], targetType);
+    }
+
+    private long[] getRange(FoldContext foldContext, DataType targetType) {
         Instant rangeStart;
         Instant rangeEnd;
 
@@ -248,11 +258,11 @@ public class TRange extends EsqlConfigurationFunction
             throw new InvalidArgumentException("TRANGE rangeStart time [{}] must be before rangeEnd time [{}]", rangeStart, rangeEnd);
         }
 
-        if (timestamp.dataType() == DataType.DATE_NANOS && first.dataType() == DataType.DATE_NANOS) {
+        if (targetType == DataType.DATE_NANOS && first.dataType() == DataType.DATE_NANOS) {
             return new long[] { DateUtils.toLong(rangeStart), DateUtils.toLong(rangeEnd) };
         }
 
-        boolean convertToNanos = timestamp.dataType() == DataType.DATE_NANOS;
+        boolean convertToNanos = targetType == DataType.DATE_NANOS;
         return new long[] {
             convertToNanos ? DateUtils.toLong(rangeStart) : rangeStart.toEpochMilli(),
             convertToNanos ? DateUtils.toLong(rangeEnd) : rangeEnd.toEpochMilli() };

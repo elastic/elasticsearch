@@ -43,10 +43,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -104,6 +107,7 @@ import org.junit.Before;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -161,13 +165,19 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }
 
         stopClusters();
-        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
-            ESIntegTestCase.TestSeedPlugin.class,
-            MockHttpTransport.TestPlugin.class,
-            MockTransportService.TestPlugin.class,
-            InternalSettingsPlugin.class,
-            getTestTransportPlugin()
+        Collection<Class<? extends Plugin>> mockPlugins = new ArrayList<>(
+            Arrays.asList(
+                ESIntegTestCase.TestSeedPlugin.class,
+                MockHttpTransport.TestPlugin.class,
+                MockTransportService.TestPlugin.class,
+                InternalSettingsPlugin.class,
+                getTestTransportPlugin()
+            )
         );
+
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            mockPlugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
+        }
 
         InternalTestCluster leaderCluster = new InternalTestCluster(
             randomLong(),
@@ -342,10 +352,19 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         };
     }
 
+    @Override
+    protected boolean enableAllPagesReleasedCheck() {
+        // CCR tests keep leader and follower clusters alive between test methods; cluster-internal
+        // page caches are live when after() fires. The check runs in stopClusters() instead,
+        // after all clusters are fully shut down.
+        return false;
+    }
+
     @AfterClass
-    public static void stopClusters() throws IOException {
+    public static void stopClusters() throws Exception {
         IOUtils.close(clusterGroup);
         clusterGroup = null;
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
     }
 
     protected int numberOfNodesPerCluster() {
@@ -523,13 +542,15 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 new CcrStatsAction.Request(TEST_REQUEST_TIMEOUT)
             ).actionGet();
             assertThat(
-                "Follow stats not empty: " + Strings.toString(statsResponse.getFollowStats()),
+                "Follow stats not empty: " + Strings.toTruncatedString(statsResponse.getFollowStats()),
                 statsResponse.getFollowStats().getStatsResponses(),
                 empty()
             );
 
             final ClusterState clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            PersistentTasksCustomMetadata tasks = clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
+            @FixForMultiProject(description = "ccr is not project aware")
+            final ProjectId projectId = ProjectId.DEFAULT;
+            PersistentTasksCustomMetadata tasks = clusterState.metadata().getProject(projectId).custom(PersistentTasksCustomMetadata.TYPE);
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
                 .stream()
                 .filter(t -> t.getTaskName().equals(ShardFollowTask.NAME))
@@ -879,10 +900,12 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         clusterService.submitUnbatchedStateUpdateTask("remove-ccr-related-metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                @FixForMultiProject(description = "ccr is not project aware")
+                final ProjectId projectId = ProjectId.DEFAULT;
                 AutoFollowMetadata empty = new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
                 ClusterState.Builder newState = ClusterState.builder(currentState);
                 newState.putProjectMetadata(
-                    ProjectMetadata.builder(currentState.metadata().getProject())
+                    ProjectMetadata.builder(currentState.metadata().getProject(projectId))
                         .putCustom(AutoFollowMetadata.TYPE, empty)
                         .removeCustom(PersistentTasksCustomMetadata.TYPE)
                         .build()

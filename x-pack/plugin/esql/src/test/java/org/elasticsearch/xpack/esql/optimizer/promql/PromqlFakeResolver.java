@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -40,7 +42,8 @@ public class PromqlFakeResolver extends Rule<LogicalPlan, LogicalPlan> {
     /**
      * PromQL functions that translate to ES|QL functions that only accept counter metrics.
      */
-    private static final Set<String> COUNTER_FUNCTIONS = Set.of("rate", "irate", "increase", "deriv", "idelta", "histogram_quantile");
+    private static final Set<String> COUNTER_FUNCTIONS = Set.of("rate", "irate", "increase", "deriv", "idelta");
+    private static final String HISTOGRAM_QUANTILE = "histogram_quantile";
     public static final FieldAttribute TIMESTAMP = new FieldAttribute(
         Source.EMPTY,
         null,
@@ -125,6 +128,25 @@ public class PromqlFakeResolver extends Rule<LogicalPlan, LogicalPlan> {
                     collectLabelsAndMetrics(within.child(), labels, counters, counters);
                 }
                 case AcrossSeriesAggregate across -> across.groupings().stream().map(Expression::sourceText).forEach(labels::add);
+                case HistogramQuantile histogramQuantile -> {
+                    skipBranch.set(Boolean.TRUE);
+                    collectLabelsAndMetrics(histogramQuantile.child(), labels, counters, counters);
+                }
+                case UnresolvedPromqlFunction u when HISTOGRAM_QUANTILE.equals(u.functionName()) -> {
+                    skipBranch.set(Boolean.TRUE);
+                    if (u.rawParams().size() >= 2) {
+                        collectLabelsAndMetrics(u.rawParams().get(1), labels, counters, counters);
+                    }
+                }
+                case UnresolvedPromqlFunction u when COUNTER_FUNCTIONS.contains(u.functionName()) -> {
+                    skipBranch.set(Boolean.TRUE);
+                    if (u.rawParams().isEmpty() == false) {
+                        collectLabelsAndMetrics(u.rawParams().getFirst(), labels, counters, counters);
+                    }
+                }
+                case UnresolvedPromqlFunction u when u.grouping() != null -> {
+                    u.groupingKeys().stream().map(Expression::sourceText).forEach(labels::add);
+                }
                 default -> {
                 }
             }

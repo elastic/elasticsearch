@@ -43,6 +43,8 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,10 +55,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.snapshots.SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.clearShutdownMetadata;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.flushMasterQueue;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemovalMetadata;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.clearShutdownMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.flushMasterQueue;
+import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownForRemovalMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownMetadata;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,8 +71,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
     private MockLog mockLog;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void captureMockLog() throws Exception {
         mockLog = MockLog.capture(SnapshotShutdownProgressTracker.class);
     }
 
@@ -79,9 +81,9 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         mockLog = MockLog.capture(SnapshotShutdownProgressTracker.class);
     }
 
-    public void tearDown() throws Exception {
+    @After
+    public void closeMockLog() throws Exception {
         mockLog.close();
-        super.tearDown();
     }
 
     @Override
@@ -406,13 +408,14 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var snapshotName = randomIdentifier();
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(snapshotName, repoName, primaryNode);
 
-        final var updateSnapshotStatusBarrier = new CyclicBarrier(2);
+        final var updateSnapshotStatusRequestArrived = new CountDownLatch(1);
+        final var releaseUpdateSnapshotStatusRequests = new CountDownLatch(1);
         final var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         masterTransportService.addRequestHandlingBehavior(
             TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> masterTransportService.getThreadPool().generic().execute(() -> {
-                safeAwait(updateSnapshotStatusBarrier);
-                safeAwait(updateSnapshotStatusBarrier);
+                updateSnapshotStatusRequestArrived.countDown();
+                safeAwait(releaseUpdateSnapshotStatusRequests);
                 try {
                     handler.messageReceived(request, channel, task);
                 } catch (Exception e) {
@@ -425,7 +428,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         addUnassignedShardsWatcher(clusterService, indexName);
         putShutdownForRemovalMetadata(primaryNode, clusterService);
         unblockAllDataNodes(repoName); // lets the shard snapshot pause, but allocation filtering stops it from moving
-        safeAwait(updateSnapshotStatusBarrier); // wait for data node to notify master that the shard snapshot is paused
+        safeAwait(updateSnapshotStatusRequestArrived); // wait for data node to notify master that the shard snapshot is paused (and any
+                                                       // other updates to arrive)
 
         // abort snapshot (and wait for the abort to land in the cluster state)
         final var deleteStartedListener = ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
@@ -440,7 +444,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var deleteSnapshotFuture = startDeleteSnapshot(repoName, snapshotName); // abort the snapshot
         safeAwait(deleteStartedListener);
 
-        safeAwait(updateSnapshotStatusBarrier); // process pause notification now that the snapshot is ABORTED
+        releaseUpdateSnapshotStatusRequests.countDown(); // release all blocked update_snapshot_status requests so they can complete
+        masterTransportService.clearAllRules(); // allow any further requests to use the real handler
 
         assertEquals(SnapshotState.FAILED, snapshotFuture.get(10, TimeUnit.SECONDS).getSnapshotInfo().state());
         assertTrue(deleteSnapshotFuture.get(10, TimeUnit.SECONDS).isAcknowledged());
@@ -472,6 +477,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             SnapshotState.SUCCESS,
             startFullSnapshot(repoName, randomIdentifier()).get(10, TimeUnit.SECONDS).getSnapshotInfo().state()
         );
+        masterTransportService.clearAllRules();
         clearShutdownMetadata(clusterService);
     }
 
@@ -613,6 +619,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         // Release the master node to respond
         snapshotStatusUpdateLatch.countDown();
+        masterTransportService.clearAllRules();
 
         // Wait for the snapshot to fully pause.
         safeAwait(snapshotPausedListener);

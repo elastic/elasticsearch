@@ -133,7 +133,9 @@ final class SystemJvmOptions {
     private static Stream<String> maybeEnableNativeAccess(boolean useEntitlements) {
         var enableNativeAccessOptions = new ArrayList<String>();
         if (Runtime.version().feature() >= 21) {
-            enableNativeAccessOptions.add("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            enableNativeAccessOptions.add(
+                "--enable-native-access=org.elasticsearch.nativeaccess,org.elasticsearch.foreign,org.apache.lucene.core"
+            );
             if (useEntitlements) {
                 enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
                 if (Runtime.version().feature() >= 24) {
@@ -174,9 +176,11 @@ final class SystemJvmOptions {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+
         // We instrument classes in these modules to call the bridge. Because the bridge gets patched
         // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
-        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+        String modulesContainingEntitlementInstrumentation =
+            "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs,jdk.management.agent";
         return Stream.of(
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",

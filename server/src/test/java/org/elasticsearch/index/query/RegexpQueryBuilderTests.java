@@ -11,7 +11,9 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -144,5 +147,42 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
             }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[regexp] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
+    }
+
+    public void testRegexpQueryCircuitBreakerAccounting() throws IOException {
+        assertCircuitBreakerAccountsForQuery(new RegexpQueryBuilder(TEXT_FIELD_NAME, ".*test.*pattern.*"));
+    }
+
+    public void testRegexpCircuitBreakerTripsWithLowLimit() {
+        assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            IntStream.range(0, 50)
+                .forEach(
+                    i -> boolQuery.should(
+                        new RegexpQueryBuilder(TEXT_FIELD_NAME, "(pattern" + i + "|alternate" + i + "|option" + i + ").*")
+                    )
+                );
+            return boolQuery;
+        });
+    }
+
+    public void testRegexpFallbackOnUnmappedFieldChargesOnce() throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        context.setAllowUnmappedFields(true);
+        try {
+            long before = cb.getUsed();
+            Query query = new RegexpQueryBuilder("unmapped_field", ".*pattern.*").toQuery(context);
+            long delta = cb.getUsed() - before;
+
+            assertThat(query, instanceOf(Accountable.class));
+            assertEquals(
+                "regexp fallback on an unmapped field must charge the breaker exactly once via the visitor walk",
+                ((Accountable) query).ramBytesUsed(),
+                delta
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
     }
 }

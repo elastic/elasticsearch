@@ -13,8 +13,11 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
@@ -62,6 +65,9 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
         entries.add(LookupJoinExec.ENTRY);
         entries.add(WriteableExponentialHistogram.ENTRY);
         entries.add(TDigestHolder.ENTRY);
+        entries.add(FileSplit.ENTRY);
+        entries.add(CoalescedSplit.ENTRY);
+        entries.add(EncryptedData.ENTRY);
         return new NamedWriteableRegistry(entries);
     }
 

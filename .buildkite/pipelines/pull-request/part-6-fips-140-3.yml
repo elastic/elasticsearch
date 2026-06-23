@@ -1,5 +1,6 @@
 config:
   allow-labels:
+    - Team:Security
     - test-fips
 steps:
   - label: part-6-fips-140-3
@@ -7,6 +8,9 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
-      machineType: custom-32-98304
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
+      preemptible: true
+      spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"

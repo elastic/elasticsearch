@@ -505,7 +505,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, actual, 1e-3f * length);
     }
 
-    public void testDotProductRangeDefaultEqualsPanama() {
+    public void testDotProductRange() {
         int vectorSize = randomIntBetween(64, 2048);
         int offset = randomIntBetween(0, vectorSize - 1);
         int length = randomIntBetween(1, vectorSize - offset);
@@ -514,14 +514,21 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
         float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
         assertEquals(expected, actual, 1e-3f * length);
-        assertEquals(expected, ESVectorUtil.dotProduct(a, b, offset, length), 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
     }
 
-    public void testDotProductLengthMatchesFullWhenEqual() {
-        int vectorSize = randomIntBetween(1, 128);
-        float[] a = generateRandomVector(vectorSize);
-        float[] b = generateRandomVector(vectorSize);
-        assertEquals(ESVectorUtil.dotProduct(a, b), ESVectorUtil.dotProduct(a, b, vectorSize), 0f);
+    public void testDotProductRangeByte() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        byte[] a = randomByteArrayOfLength(vectorSize);
+        byte[] b = randomByteArrayOfLength(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
     }
 
     public void testL2NormalizePrefixDefaultEqualsPanama() {

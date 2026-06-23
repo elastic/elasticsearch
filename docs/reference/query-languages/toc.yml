@@ -213,11 +213,11 @@ toc:
                   - file: esql/functions-operators/date-time-functions/day_name.md
                   - file: esql/functions-operators/date-time-functions/month_name.md
                   - file: esql/functions-operators/date-time-functions/now.md
-                  - hidden: esql/functions-operators/date-time-functions/range_max.md
-                  - hidden: esql/functions-operators/date-time-functions/range_min.md
-                  - hidden: esql/functions-operators/date-time-functions/range_within.md
-                  - hidden: esql/functions-operators/date-time-functions/range_contains.md
-                  - hidden: esql/functions-operators/date-time-functions/range_intersects.md
+                  - file: esql/functions-operators/date-time-functions/range_max.md
+                  - file: esql/functions-operators/date-time-functions/range_min.md
+                  - file: esql/functions-operators/date-time-functions/range_within.md
+                  - file: esql/functions-operators/date-time-functions/range_contains.md
+                  - file: esql/functions-operators/date-time-functions/range_intersects.md
                   - file: esql/functions-operators/date-time-functions/trange.md
               - file: esql/functions-operators/ip-functions.md
                 children:
@@ -344,6 +344,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_dateperiod.md
                   - file: esql/functions-operators/type-conversion-functions/to_datetime.md
                   - file: esql/functions-operators/type-conversion-functions/to_date_nanos.md
+                  - file: esql/functions-operators/type-conversion-functions/to_date_range.md
                   - file: esql/functions-operators/type-conversion-functions/to_degrees.md
                   - file: esql/functions-operators/type-conversion-functions/to_dense_vector.md
                   - file: esql/functions-operators/type-conversion-functions/to_double.md

@@ -22,6 +22,9 @@
 * [`TO_DATE_NANOS`](../../functions-operators/type-conversion-functions/to_date_nanos.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_date_nanos.md
   :::
+* [`TO_DATE_RANGE`](../../functions-operators/type-conversion-functions/to_date_range.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/to_date_range.md
+  :::
 * [`TO_DEGREES`](../../functions-operators/type-conversion-functions/to_degrees.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_degrees.md
   :::

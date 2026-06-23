@@ -9,6 +9,7 @@
 | cartesian_shape | integer |
 | date | integer |
 | date_nanos | integer |
+| date_range | integer |
 | double | integer |
 | geo_point | integer |
 | geo_shape | integer |

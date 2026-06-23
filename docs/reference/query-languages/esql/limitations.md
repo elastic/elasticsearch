@@ -65,10 +65,6 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
    * `gauge`
    * `aggregate_metric_double`
 
-* Date/time
-
-    * `date_range`
-
 * Other types
 
     * `binary`

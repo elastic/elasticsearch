@@ -102,10 +102,10 @@ public class CountApproximate extends AggregateFunction implements ToAggregator 
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM && dt != DataType.DATE_RANGE,
+            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM,
             sourceText(),
             DEFAULT,
-            "any type except counter types, histogram, or date_range"
+            "any type except counter types or histogram"
         );
     }
 }

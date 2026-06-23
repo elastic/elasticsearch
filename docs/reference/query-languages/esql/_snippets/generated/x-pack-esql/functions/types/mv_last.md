@@ -9,6 +9,7 @@
 | cartesian_shape | cartesian_shape |
 | date | date |
 | date_nanos | date_nanos |
+| date_range | date_range |
 | double | double |
 | geo_point | geo_point |
 | geo_shape | geo_shape |

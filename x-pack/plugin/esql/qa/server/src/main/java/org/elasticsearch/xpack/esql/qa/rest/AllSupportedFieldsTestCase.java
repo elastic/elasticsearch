@@ -350,7 +350,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     public final void testFetchAllEnrich() throws IOException {
         assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
-        assumeFalse("Test currently not working on snapshot because of range fields", Build.current().isSnapshot());
         // The ENRICH is a no-op because it overwrites columns with the same identical data (except that it messes with
         // the order of the columns, but we don't assert that).
         doTestFetchAll(fromAllQuery(LoggerMessageFormat.format(null, """
@@ -729,7 +728,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testRowEnrich() throws IOException {
         assumeTrue("Test only requires the enrich policy (made from a lookup index)", indexMode == IndexMode.LOOKUP);
-        assumeFalse("Test currently not working on snapshot because of range fields", Build.current().isSnapshot());
         String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | ENRICH " + ENRICH_POLICY_NAME + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
         var responseAndCoordinatorVersion = runQuery(query);
         Map<String, Object> response = responseAndCoordinatorVersion.v1();
@@ -1127,17 +1125,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             case DATE_RANGE -> {
                 if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
-                    // Older nodes in snapshot-to-snapshot BWC
-                    // had a bug: they leaked the doc-value upper bound (last millisecond before
-                    // `to` in `from..to`)
-                    // into the output instead of `to` itself. Accept the buggy form too while the
-                    // feature is still under construction.
-                    if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false) == false) {
-                        yield anyOf(
-                            equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
-                            equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z")
-                        );
-                    }
                     yield equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z");
                 }
                 yield nullValue();

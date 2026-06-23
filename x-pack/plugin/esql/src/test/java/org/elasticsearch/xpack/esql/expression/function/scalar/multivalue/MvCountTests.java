@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvCountTests extends AbstractMultivalueFunctionTestCase {
@@ -38,6 +40,7 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
         unsignedLongs(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         dateTimes(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         dateNanos(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        dateRanges(cases);
         geoPoints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         cartesianPoints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         geoShape(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
@@ -56,5 +59,26 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataType.INTEGER;
+    }
+
+    private static void dateRanges(List<TestCaseSupplier> cases) {
+        cases.add(new TestCaseSupplier("mv_count(date_range)", List.of(DataType.DATE_RANGE), () -> {
+            LongRangeBlockBuilder.LongRange value = TestCaseSupplier.randomDateRange();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(value), DataType.DATE_RANGE, "field")),
+                "MvCount[field=Attribute[channel=0]]",
+                DataType.INTEGER,
+                equalTo(1)
+            );
+        }));
+        cases.add(new TestCaseSupplier("mv_count(<date_ranges>)", List.of(DataType.DATE_RANGE), () -> {
+            List<LongRangeBlockBuilder.LongRange> mvData = randomList(1, 10, TestCaseSupplier::randomDateRange);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(mvData, DataType.DATE_RANGE, "field")),
+                "MvCount[field=Attribute[channel=0]]",
+                DataType.INTEGER,
+                equalTo(mvData.size())
+            );
+        }));
     }
 }

@@ -113,6 +113,30 @@ public class LongRangeBlockTests extends ESTestCase {
         }
     }
 
+    public void testGetTotalValueCount() {
+        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofMb(16));
+        try (LongRangeBlockBuilder builder = blockFactory.newLongRangeBlockBuilder(3)) {
+            // Position 0: single value
+            builder.appendLongRange(10L, 20L);
+            // Position 1: two values
+            builder.from().beginPositionEntry();
+            builder.from().appendLong(30L);
+            builder.from().appendLong(50L);
+            builder.from().endPositionEntry();
+            builder.to().beginPositionEntry();
+            builder.to().appendLong(40L);
+            builder.to().appendLong(60L);
+            builder.to().endPositionEntry();
+            // Position 2: single value
+            builder.appendLongRange(100L, 200L);
+
+            try (LongRangeBlock block = builder.build()) {
+                // 1 + 2 + 1 = 4 total values, not 8 (which the bug would return by summing from+to counts)
+                assertThat(block.getTotalValueCount(), equalTo(4));
+            }
+        }
+    }
+
     public void testLongRangeValueSemantics() {
         var a = new LongRangeBlockBuilder.LongRange(1L, 2L);
         var b = new LongRangeBlockBuilder.LongRange(1L, 2L);

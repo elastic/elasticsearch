@@ -324,6 +324,7 @@ import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMapper;
+import org.elasticsearch.xpack.security.authz.ActionRestrictionRulesChecker;
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
@@ -1165,6 +1166,12 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
         final var authorizedProjectsResolver = getCustomAuthorizedProjectsResolverOrDefault(extensionComponents);
+        final ActionRestrictionRulesChecker actionRestrictionRulesChecker = new ActionRestrictionRulesChecker(
+            () -> clusterService.localNode(),
+            projectResolver,
+            settings,
+            clusterService.getClusterSettings()
+        );
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1185,7 +1192,8 @@ public class Security extends Plugin
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            actionRestrictionRulesChecker
         );
 
         components.add(nativeRolesStore); // used by roles actions

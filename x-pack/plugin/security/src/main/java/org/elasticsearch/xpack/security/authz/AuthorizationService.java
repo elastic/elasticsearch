@@ -156,6 +156,7 @@ public class AuthorizationService {
     private final RestrictedIndices restrictedIndices;
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
+    private final ActionRestrictionRulesChecker actionRestrictionRulesChecker;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -183,7 +184,8 @@ public class AuthorizationService {
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver
+        ProjectRoutingResolver projectRoutingResolver,
+        ActionRestrictionRulesChecker actionRestrictionRulesChecker
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -216,6 +218,7 @@ public class AuthorizationService {
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
         this.authorizedProjectsResolver = authorizedProjectsResolver;
+        this.actionRestrictionRulesChecker = actionRestrictionRulesChecker;
     }
 
     public void checkPrivileges(
@@ -347,6 +350,13 @@ public class AuthorizationService {
                 return;
             }
 
+            try {
+                checkActionRestrictions(authentication, action, auditId, originalRequest);
+            } catch (ElasticsearchSecurityException e) {
+                listener.onFailure(e);
+                return;
+            }
+
             if (SystemUser.is(authentication.getEffectiveSubject().getUser())) {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
@@ -446,6 +456,15 @@ public class AuthorizationService {
             throw actionDenied(authentication, null, action, originalRequest, "because it requires operator privileges", operatorException);
         }
         operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
+    }
+
+    private void checkActionRestrictions(Authentication authentication, String action, String auditId, TransportRequest request)
+        throws ElasticsearchSecurityException {
+        String restrictionMessage = actionRestrictionRulesChecker.check(authentication, action);
+        if (restrictionMessage != null) {
+            auditTrailService.get().accessDenied(auditId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
+            throw actionDenied(authentication, null, action, request, "because " + restrictionMessage, null);
+        }
     }
 
     private void maybeAuthorizeRunAs(
@@ -1264,5 +1283,6 @@ public class AuthorizationService {
     public static void addSettings(List<Setting<?>> settings) {
         settings.add(ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING);
         settings.addAll(LoadAuthorizedIndicesTimeChecker.Factory.getSettings());
+        ActionRestrictionRules.addSettings(settings);
     }
 }

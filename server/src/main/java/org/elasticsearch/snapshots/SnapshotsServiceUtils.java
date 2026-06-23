@@ -69,6 +69,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 import static org.elasticsearch.snapshots.SnapshotsService.FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION;
@@ -971,13 +972,31 @@ public class SnapshotsServiceUtils {
         for (IndexId index : indices) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
-            IndexMetadata indexMetadata = currentState.metadata().index(indexName);
+            final IndexMetadata indexMetadata = currentState.metadata().index(indexName);
+
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
                 builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), SnapshotsInProgress.ShardSnapshotStatus.MISSING);
             } else {
                 final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexName);
+                if (indexMetadata.getState() == CLOSE && indexRoutingTable == null) {
+                    for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+                        ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+                        builder.put(
+                            shardId,
+                            new SnapshotsInProgress.ShardSnapshotStatus(
+                                null,
+                                SnapshotsInProgress.ShardState.MISSING,
+                                null,
+                                "legacy closed index has no routing table"
+                            )
+                        );
+                    }
+
+                    continue;
+                }
                 assert indexRoutingTable != null;
+
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                     final ShardId shardId = indexRoutingTable.shard(i).shardId();
                     final ShardGeneration shardRepoGeneration;

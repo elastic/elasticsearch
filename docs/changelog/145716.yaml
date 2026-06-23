@@ -1,0 +1,6 @@
+pr: 145716
+summary: Handle snapshots of legacy closed indices without routing entries
+area: Snapshot/Restore
+type: bug
+issues:
+  - 70676

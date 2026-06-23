@@ -25,6 +25,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
 
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin
+
     WireMockServer wireMock
 
     def setup() {

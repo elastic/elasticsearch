@@ -224,7 +224,7 @@ public class MergedSegmentCacheEvictionIT extends AbstractStatelessPluginIntegTe
         assertThat(closeResponse.status(), equalTo(RestStatus.OK));
 
         // After PIT close, trigger a new commit so the search node processes retainFilesAndEvict without the PIT reader
-        // TODO Fix this, it would be better to have immediate realase/eviction after a reader is closed
+        // TODO Fix this, it would be better to have immediate release/eviction after a reader is closed
         flush(indexName);
         refresh(indexName);
 

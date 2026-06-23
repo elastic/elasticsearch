@@ -61,7 +61,7 @@ public class OpenAiOAuth2ApplierTests extends ESTestCase {
             }
 
             @Override
-            public void invalidateLocal(String inferenceId) {}
+            public void invalidateOnlLocalNode(String inferenceId) {}
         };
         var applier = new OpenAiOAuth2Applier(INFERENCE_ID, cache, listener -> fail(FAILURE_MESSAGE));
 
@@ -87,7 +87,7 @@ public class OpenAiOAuth2ApplierTests extends ESTestCase {
             }
 
             @Override
-            public void invalidateLocal(String inferenceId) {
+            public void invalidateOnlLocalNode(String inferenceId) {
                 invalidatedIds.add(inferenceId);
             }
         };
@@ -112,7 +112,7 @@ public class OpenAiOAuth2ApplierTests extends ESTestCase {
             }
 
             @Override
-            public void invalidateLocal(String inferenceId) {}
+            public void invalidateOnlLocalNode(String inferenceId) {}
         };
     }
 }

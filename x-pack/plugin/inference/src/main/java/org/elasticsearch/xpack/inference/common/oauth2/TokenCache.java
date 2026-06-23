@@ -30,5 +30,5 @@ public interface TokenCache {
     /**
      * Removes any cached entry for {@code inferenceId} on this node only.
      */
-    void invalidateLocal(String inferenceId);
+    void invalidateOnlLocalNode(String inferenceId);
 }

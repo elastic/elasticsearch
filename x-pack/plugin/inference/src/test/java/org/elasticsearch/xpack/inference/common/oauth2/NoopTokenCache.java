@@ -25,5 +25,5 @@ public class NoopTokenCache implements TokenCache {
     }
 
     @Override
-    public void invalidateLocal(String inferenceId) {}
+    public void invalidateOnlLocalNode(String inferenceId) {}
 }

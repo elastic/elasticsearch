@@ -179,7 +179,7 @@ public class OAuth2TokenCacheTests extends ESTestCase {
         assertThat(fetchCount.get(), is(2));
     }
 
-    public void testInvalidateLocal_RemovesEntry() {
+    public void testInvalidateOnlLocal_Node_RemovesEntry() {
         var cache = createEnabledCache();
         var token = new CachedToken(BEARER, Instant.now().plus(ONE_HOUR));
         var fetchCount = new AtomicInteger();
@@ -202,7 +202,7 @@ public class OAuth2TokenCacheTests extends ESTestCase {
         assertThat(fetchCount.get(), is(2));
     }
 
-    public void testInvalidateLocal_WithInferenceId_RemovesEntry() {
+    public void testInvalidateOnlLocal_Node_WithInferenceId_RemovesEntry() {
         var cache = createEnabledCache();
         var token = new CachedToken(BEARER, Instant.now().plus(ONE_HOUR));
         var fetchCount = new AtomicInteger();
@@ -216,7 +216,7 @@ public class OAuth2TokenCacheTests extends ESTestCase {
         future1.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(fetchCount.get(), is(1));
 
-        cache.invalidateLocal(INFERENCE_ID);
+        cache.invalidateOnlLocalNode(INFERENCE_ID);
 
         // After invalidation the entry is gone, supplier is invoked again
         var future2 = new TestPlainActionFuture<CachedToken>();

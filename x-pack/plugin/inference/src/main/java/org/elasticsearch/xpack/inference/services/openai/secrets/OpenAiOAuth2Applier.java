@@ -57,6 +57,6 @@ public record OpenAiOAuth2Applier(String inferenceId, TokenCache cache, OAuth2To
 
     @Override
     public void onAuthenticationFailure() {
-        cache.invalidateLocal(inferenceId);
+        cache.invalidateOnlLocalNode(inferenceId);
     }
 }

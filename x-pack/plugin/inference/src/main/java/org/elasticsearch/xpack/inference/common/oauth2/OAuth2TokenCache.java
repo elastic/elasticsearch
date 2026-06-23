@@ -230,7 +230,7 @@ public class OAuth2TokenCache extends DiagnosticsCache<CachedToken> implements T
      * <p>Node-local only — does not broadcast to other nodes.
      */
     @Override
-    public void invalidateLocal(String inferenceId) {
+    public void invalidateOnlLocalNode(String inferenceId) {
         invalidateLocal(new InferenceIdAndProject(inferenceId, projectResolver.getProjectId()));
     }
 

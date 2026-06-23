@@ -225,19 +225,20 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     }
 
     /**
-     * Opt-in to checking for direct usage of {@code java.lang.foreign} APIs that
-     * should go through the adapter classes in {@code org.elasticsearch.foreign.adapter}.
+     * Opt-in to checking for direct usage of {@code java.lang.foreign} APIs that should go
+     * through the adapter classes in {@code org.elasticsearch.foreign.adapter}.
      *
-     * <p>On JDK 21 this adds the {@code jdk-foreign-signatures} file (with preview-era
-     * method names like {@code getUtf8String}) and configures a child-first classloader
-     * with the de-previewed foreign API stub JAR so the checker can resolve them.
-     * On JDK 22+ it adds {@code jdk-foreign-signatures22} (with the renamed methods
-     * like {@code getString}) which resolve against the standard JDK.
+     * <p> When {@code targetVersion} is 21 this adds the {@code jdk-foreign-signatures} file
+     * (with preview-era method names like {@code getUtf8String}) and configures a child-first
+     * classloader with the de-previewed foreign API stub JAR so the checker can resolve them.
+     * On 22+ it adds {@code jdk-foreign-signatures22} (with the renamed methods like
+     * {@code getString}) which resolve against the standard JDK.
      *
      * @param jarFile the stub JAR produced by {@code ExtractForeignApiTask}
+     * @param targetVersion the minimum runtime Java version the project targets
      */
-    public void checkForeignApiUsage(Provider<RegularFile> jarFile) {
-        if (Runtime.version().feature() == 21) {
+    public void checkForeignApiUsage(Provider<RegularFile> jarFile, int targetVersion) {
+        if (targetVersion == 21) {
             addSignatureFiles("jdk-foreign-signatures");
             this.foreignApiJar = jarFile;
         } else {

@@ -81,7 +81,7 @@ public class ForeignApiPlugin implements Plugin<Project> {
             }
         });
 
-        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(jarFile));
+        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(jarFile, minRuntime));
     }
 
     private static int minimumRuntimeVersion(Project project) {

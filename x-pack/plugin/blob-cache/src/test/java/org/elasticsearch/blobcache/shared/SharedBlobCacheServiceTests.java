@@ -70,9 +70,20 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.AllFrequencies;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.LowestFrequency;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.Evicted;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.Free;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.None;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.telemetry.InstrumentType.DOUBLE_HISTOGRAM;
+import static org.elasticsearch.telemetry.InstrumentType.LONG_HISTOGRAM;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -1527,6 +1538,577 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
             assertThat(cacheService.freeRegionCount(), equalTo(zeroFrequencyCacheEntries));
         }
+    }
+
+    /**
+     * Drives the lowest-frequency eviction scanner ({@link SharedBlobCacheService#maybeEvictLeastUsed}) directly and asserts that
+     * each invocation records the right {@code mode}, {@code outcome} and {@code entriesScanned}. The clock advances by a fixed amount
+     * on every read, and the scanner reads it exactly twice per call (start + end), so the recorded scan time is deterministic.
+     */
+    public void testEvictionScanMetricsLowestFrequency() throws Exception {
+        final int numRegions = 10;
+        final long regionSize = size(1L);
+        final long freqScanTimeTakenMicros = randomLongBetween(1, 10_000);
+        final long freqScanTimeTakenNanos = TimeUnit.MICROSECONDS.toNanos(freqScanTimeTakenMicros);
+        final AtomicLong clock = new AtomicLong();
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recording),
+                () -> clock.addAndGet(freqScanTimeTakenNanos),
+                new DefaultEvictionPolicy<>()
+            )
+        ) {
+            // fill the cache: every entry lands at frequency 1, leaving the lowest-frequency (0) list empty
+            for (int i = 0; i < numRegions; i++) {
+                var entry = cacheService.get(generateCacheKey(), regionSize, 0);
+                entry.populate(
+                    ByteRange.of(0L, regionSize),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
+                        () -> progressUpdater.accept(length)
+                    ),
+                    taskQueue.getThreadPool().generic(),
+                    ActionListener.noop()
+                );
+                assertThat(cacheService.getFreq(entry), equalTo(1));
+            }
+            taskQueue.runAllRunnableTasks();
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+
+            // the lowest-frequency list is empty, so the scan walks nothing and frees nothing
+            assertThat(cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0), is(false));
+
+            var none = evictionScanMeasurements(recording, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency, None);
+            assertThat(none, hasSize(1));
+            assertThat(none.get(0).getLong(), is(0L));
+            var noneTime = evictionScanMeasurements(recording, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency, None);
+            assertThat(noneTime, hasSize(1));
+            assertThat(noneTime.get(0).getDouble(), is((double) freqScanTimeTakenMicros));
+
+            // a decay moves every entry down to frequency 0, making them eligible for the lowest-frequency scan
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+
+            // each call evicts the head of the lowest-frequency list
+            for (int i = 0; i < numRegions; i++) {
+                assertThat(cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0), is(true));
+            }
+
+            var evicted = evictionScanMeasurements(
+                recording,
+                LONG_HISTOGRAM,
+                BLOB_CACHE_EVICTION_SCANNED_ENTRIES,
+                LowestFrequency,
+                Evicted
+            );
+            assertThat(evicted, hasSize(numRegions));
+            for (Measurement measurement : evicted) {
+                assertThat(measurement.getLong(), is(1L));
+            }
+            var evictedTime = evictionScanMeasurements(
+                recording,
+                DOUBLE_HISTOGRAM,
+                BLOB_CACHE_EVICTION_SCAN_TIME,
+                LowestFrequency,
+                Evicted
+            );
+            assertThat(evictedTime, hasSize(numRegions));
+            for (Measurement measurement : evictedTime) {
+                assertThat(measurement.getDouble(), is((double) freqScanTimeTakenMicros));
+            }
+
+            // every eviction scan reached through this path is a lowest-frequency scan
+            for (Measurement measurement : recording.getRecorder().getMeasurements(LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES)) {
+                assertThat(measurement.attributes().get(BlobCacheMetrics.EVICTION_SCAN_MODE_ATTRIBUTE_KEY), is(LowestFrequency.name()));
+            }
+        }
+    }
+
+    /**
+     * Drives the all-frequencies eviction scanner ({@code maybeEvictAndTake}, reached via {@link SharedBlobCacheService#get} when no free
+     * region is available) and asserts the {@code mode}, {@code outcome} and {@code entriesScanned} for both an evicting policy and a
+     * policy that never evicts (forcing the scan to walk every cached entry before failing the allocation).
+     */
+    public void testEvictionScanMetricsAllFrequencies() throws Exception {
+        final int numRegions = randomIntBetween(4, 20);
+        final long regionSize = size(1L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+
+        // scenario 1 (Evicted): the default policy evicts the head of the lowest non-empty frequency bucket
+        final RecordingMeterRegistry recordingEvicted = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingEvicted)
+            )
+        ) {
+            // fill the cache: every entry lands at frequency 1, leaving the lowest-frequency (0) list empty
+            for (int i = 0; i < numRegions; i++) {
+                cacheService.get(generateCacheKey(), regionSize, 0);
+            }
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+
+            // get() of a new key has no free region: the scan walks frequency 0 (empty) then evicts the frequency-1 head
+            cacheService.get(generateCacheKey(), regionSize, 0);
+
+            var evicted = evictionScanMeasurements(
+                recordingEvicted,
+                LONG_HISTOGRAM,
+                BLOB_CACHE_EVICTION_SCANNED_ENTRIES,
+                AllFrequencies,
+                Evicted
+            );
+            assertThat(evicted, hasSize(1));
+            assertThat(evicted.get(0).getLong(), is(1L));
+            assertThat(
+                evictionScanMeasurements(recordingEvicted, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, AllFrequencies, Evicted),
+                hasSize(1)
+            );
+            assertThat(
+                evictionScanMeasurementsByMode(recordingEvicted, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency),
+                empty()
+            );
+            assertThat(
+                evictionScanMeasurementsByMode(recordingEvicted, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency),
+                empty()
+            );
+            assertThat(recordingEvicted.getRecorder().getMeasurements(LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES), hasSize(1));
+            assertThat(recordingEvicted.getRecorder().getMeasurements(DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME), hasSize(1));
+        }
+
+        // scenario 2 (None): a policy that never evicts walks every cached entry across every frequency bucket and frees nothing
+        final RecordingMeterRegistry recordingNone = new RecordingMeterRegistry();
+        final EvictionPolicy<TestCacheKey> neverEvict = new EvictionPolicy<>() {
+            @Override
+            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
+                return false;
+            }
+
+            @Override
+            public void onCached(CacheRegion<TestCacheKey> region) {}
+
+            @Override
+            public void onEvicted(CacheRegion<TestCacheKey> region) {}
+        };
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingNone),
+                neverEvict
+            )
+        ) {
+            for (int i = 0; i < numRegions; i++) {
+                cacheService.get(generateCacheKey(), regionSize, 0);
+            }
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+
+            // no entry is evictable: the scan walks every cached entry once across all frequency buckets and the allocation fails
+            expectThrows(AlreadyClosedException.class, () -> cacheService.get(generateCacheKey(), regionSize, 0));
+
+            var none = evictionScanMeasurements(recordingNone, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, AllFrequencies, None);
+            assertThat(none, hasSize(1));
+            assertThat(none.get(0).getLong(), is((long) numRegions));
+            assertThat(
+                evictionScanMeasurements(recordingNone, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, AllFrequencies, None),
+                hasSize(1)
+            );
+            assertThat(
+                evictionScanMeasurementsByMode(recordingNone, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency),
+                empty()
+            );
+            assertThat(
+                evictionScanMeasurementsByMode(recordingNone, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency),
+                empty()
+            );
+            assertThat(recordingNone.getRecorder().getMeasurements(LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES), hasSize(1));
+            assertThat(recordingNone.getRecorder().getMeasurements(DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME), hasSize(1));
+        }
+    }
+
+    /// Drives the all-frequency scanner to the rarely-hit `Free` outcome and asserts the recorded `mode`, `outcome` and `entriesScanned`.
+    ///
+    /// The `Free` outcome fires when a region appears in `freeRegions` *during* the scan's poll, rather than being produced by the
+    /// scan's own eviction. To trigger it deterministically, we install a policy that never evicts, but on its first `canEvict`
+    /// consultation force-evicts a victim that has been parked in a higher frequency bucket. `forceEvict` bypasses `canEvict` (so the
+    /// side effect fires exactly once) and re-enters the same reentrant monitor already held by the in-flight scan, freeing one region
+    /// into `freeRegions` which the scan's next poll then picks up.
+    ///
+    /// The victim must live in a *different* frequency bucket than the one being scanned: `maybeEvictAndTakeForFrequency` walks its
+    /// bucket's linked list in place, so force-evicting an entry from that same bucket would unlink the cursor (or a later node)
+    /// mid-traversal, making `entriesScanned` and the outcome non-deterministic with no exception to flag it. We therefore fill the
+    /// cache, decay everything to frequency 0, then promote the victim to frequency 2 via a cache hit, so `forceEvict` only mutates
+    /// `freqs[2]` and the freq-0 walk of the remaining `numRegions - 1` entries stays intact.
+    public void testEvictionScanMetricsFreeOutcome() throws Exception {
+        final int numRegions = randomIntBetween(4, 20);
+        final long regionSize = size(1L);
+        final long freqScanTimeTakenMicros = randomLongBetween(1, 10_000);
+        final long freqScanTimeTakenNanos = TimeUnit.MICROSECONDS.toNanos(freqScanTimeTakenMicros);
+        final AtomicLong clock = new AtomicLong();
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
+        final AtomicReference<SharedBlobCacheService<TestCacheKey>> serviceRef = new AtomicReference<>();
+        final TestCacheKey victimKey = generateCacheKey();
+
+        // never evicts, but on its first consultation force-evicts the victim
+        final EvictionPolicy<TestCacheKey> freeingPolicy = new EvictionPolicy<>() {
+            final AtomicBoolean forcedOnce = new AtomicBoolean(false);
+
+            @Override
+            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
+                if (forcedOnce.compareAndSet(false, true)) {
+                    serviceRef.get().forceEvict(victimKey::equals);
+                }
+                return false;
+            }
+
+            @Override
+            public void onCached(CacheRegion<TestCacheKey> region) {}
+
+            @Override
+            public void onEvicted(CacheRegion<TestCacheKey> region) {}
+        };
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recording),
+                () -> clock.addAndGet(freqScanTimeTakenNanos),
+                freeingPolicy
+            )
+        ) {
+            serviceRef.set(cacheService);
+
+            // fill the cache: the victim plus numRegions - 1 other keys, all landing at frequency 1
+            cacheService.get(victimKey, regionSize, 0);
+            for (int i = 0; i < numRegions - 1; i++) {
+                cacheService.get(generateCacheKey(), regionSize, 0);
+            }
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+
+            // decay moves every entry to frequency 0 and advances the epoch, so the victim can be promoted on its next access
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+
+            // a cache hit promotes the victim to frequency 2, parking it in a bucket the freq-0 scan never walks
+            var victimEntry = cacheService.get(victimKey, regionSize, 0);
+            assertThat(cacheService.getFreq(victimEntry), equalTo(2));
+
+            // the cache is still full, so the only way a region can land in freeRegions mid-scan is the in-scan force-evict below
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+
+            // get() of a new key has no free region: the freq-0 scan walks all numRegions - 1 entries (canEvict false), the first of
+            // which force-evicts the freq-2 victim; the freq-1 poll then picks up that freed region, giving the Free outcome
+            cacheService.get(generateCacheKey(), regionSize, 0);
+
+            var scanned = evictionScanMeasurements(recording, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, AllFrequencies, Free);
+            assertThat(scanned, hasSize(1));
+            assertThat(scanned.get(0).getLong(), is((long) numRegions - 1));
+
+            var time = evictionScanMeasurements(recording, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, AllFrequencies, Free);
+            assertThat(time, hasSize(1));
+            assertThat(time.get(0).getDouble(), is((double) freqScanTimeTakenMicros));
+
+            // exactly one scan was recorded in the whole test, and none of it on the lowest-frequency path
+            assertThat(recording.getRecorder().getMeasurements(LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES), hasSize(1));
+            assertThat(recording.getRecorder().getMeasurements(DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME), hasSize(1));
+            assertThat(
+                evictionScanMeasurementsByMode(recording, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency),
+                empty()
+            );
+            assertThat(
+                evictionScanMeasurementsByMode(recording, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency),
+                empty()
+            );
+            assertThat(cacheService.countCachedRegions(victimKey::equals), equalTo(0L));
+        }
+    }
+
+    /// Drives the lowest-frequency scanner and asserts that `entriesScanned` counts the protected (non-evictable) entries it walks past
+    /// before reaching an evictable one, landing strictly between 1 and `numRegions`.
+    ///
+    /// We fill the cache, protect the first `skip` inserted keys via the policy, then decay everything to frequency 0 (which preserves
+    /// insertion order, so the protected keys sit at the head). A single scan then walks those `skip` protected head entries (counted
+    /// but skipped), evicts the `(skip+1)`-th, and stops, so `entriesScanned == skip + 1`.
+    public void testEvictionScanMetricsSkipsNonEvictableEntries() throws Exception {
+        final int numRegions = randomIntBetween(4, 20);
+        final int skip = randomIntBetween(1, numRegions - 1);
+        final long regionSize = size(1L);
+        final long freqScanTimeTakenMicros = randomLongBetween(1, 10_000);
+        final long freqScanTimeTakenNanos = TimeUnit.MICROSECONDS.toNanos(freqScanTimeTakenMicros);
+        final AtomicLong clock = new AtomicLong();
+        final Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
+        // Protection is keyed, not positional: eviction physically removes head entries, so protecting "the first N still present" would
+        // shift the target as scans proceed. A fixed key set keeps the `(skip+1)`-th inserted key as the deterministic victim.
+        final Set<TestCacheKey> protectedKeys = new HashSet<>();
+        final EvictionPolicy<TestCacheKey> protectFirstSkip = new EvictionPolicy<>() {
+            @Override
+            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
+                return protectedKeys.contains(region.key()) == false;
+            }
+
+            @Override
+            public void onCached(CacheRegion<TestCacheKey> region) {}
+
+            @Override
+            public void onEvicted(CacheRegion<TestCacheKey> region) {}
+        };
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recording),
+                () -> clock.addAndGet(freqScanTimeTakenNanos),
+                protectFirstSkip
+            )
+        ) {
+            // fill the cache in insertion order; every entry lands at frequency 1
+            final List<TestCacheKey> keys = new ArrayList<>();
+            for (int i = 0; i < numRegions; i++) {
+                final var key = generateCacheKey();
+                var entry = cacheService.get(key, regionSize, 0);
+                entry.populate(
+                    ByteRange.of(0L, regionSize),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
+                        () -> progressUpdater.accept(length)
+                    ),
+                    taskQueue.getThreadPool().generic(),
+                    ActionListener.noop()
+                );
+                assertThat(cacheService.getFreq(entry), equalTo(1));
+                keys.add(key);
+            }
+            taskQueue.runAllRunnableTasks();
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+
+            // protect the first skip inserted keys: they sit at the head once decayed and are walked-but-skipped
+            protectedKeys.addAll(keys.subList(0, skip));
+
+            // decay moves every entry to frequency 0, preserving insertion order (so protected keys stay at the head)
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+
+            // one scan: walks the skip protected head entries (counted), then evicts the (skip+1)-th and stops
+            assertThat(cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0), is(true));
+
+            var evicted = evictionScanMeasurements(
+                recording,
+                LONG_HISTOGRAM,
+                BLOB_CACHE_EVICTION_SCANNED_ENTRIES,
+                LowestFrequency,
+                Evicted
+            );
+            assertThat(evicted, hasSize(1));
+            assertThat(evicted.get(0).getLong(), is((long) skip + 1));
+
+            var evictedTime = evictionScanMeasurements(
+                recording,
+                DOUBLE_HISTOGRAM,
+                BLOB_CACHE_EVICTION_SCAN_TIME,
+                LowestFrequency,
+                Evicted
+            );
+            assertThat(evictedTime, hasSize(1));
+            assertThat(evictedTime.get(0).getDouble(), is((double) freqScanTimeTakenMicros));
+
+            assertThat(recording.getRecorder().getMeasurements(LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES), hasSize(1));
+            assertThat(recording.getRecorder().getMeasurements(DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME), hasSize(1));
+            assertThat(
+                evictionScanMeasurementsByMode(recording, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, AllFrequencies),
+                empty()
+            );
+            assertThat(evictionScanMeasurementsByMode(recording, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, AllFrequencies), empty());
+        }
+    }
+
+    /// Drives the all-frequencies scanner and asserts that `entriesScanned` accumulates across two frequency buckets in a single scan.
+    ///
+    /// We place `freq0Regions` protected entries at frequency 0 (filled then decayed) and `freq1Regions` entries at frequency 1
+    /// (filled afterwards, no decay), protecting all of the freq-0 entries plus the first `skipFreq1Regions` of the freq-1 entries.
+    /// A single scan then walks every protected freq-0 entry, finds nothing freed at the freq-1 boundary,
+    /// skips the `skipB` protected freq-1 entries, and evicts the first eligible one,
+    /// so `entriesScanned == freq0Regions + skipFreq1Regions + 1` (strictly greater than 1, spanning both buckets).
+    /// As in the lowest-frequency variant, protection is keyed so the victim stays put as the scan proceeds.
+    public void testEvictionScanMetricsSkipsAcrossFrequencyBuckets() throws Exception {
+        final int numRegions = randomIntBetween(6, 30);
+        final int freq0Regions = randomIntBetween(1, numRegions - 2);
+        final int freq1Regions = numRegions - freq0Regions; // always >= 2
+        // protected prefix within freq 1. victim is freq1Keys.get(skipFreq1Regions)
+        final int skipFreq1Regions = randomIntBetween(1, freq1Regions - 1);
+        final long regionSize = size(1L);
+        final long freqScanTimeTakenMicros = randomLongBetween(1, 10_000);
+        final long freqScanTimeTakenNanos = TimeUnit.MICROSECONDS.toNanos(freqScanTimeTakenMicros);
+        final AtomicLong clock = new AtomicLong();
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
+        final Set<TestCacheKey> protectedKeys = new HashSet<>();
+        final EvictionPolicy<TestCacheKey> protectByKey = new EvictionPolicy<>() {
+            @Override
+            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
+                return protectedKeys.contains(region.key()) == false;
+            }
+
+            @Override
+            public void onCached(CacheRegion<TestCacheKey> region) {}
+
+            @Override
+            public void onEvicted(CacheRegion<TestCacheKey> region) {}
+        };
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recording),
+                () -> clock.addAndGet(freqScanTimeTakenNanos),
+                protectByKey
+            )
+        ) {
+            // fill the freq-0 set at frequency 1, leaving freq1Regions free slots
+            final List<TestCacheKey> freq0Keys = new ArrayList<>();
+            for (int i = 0; i < freq0Regions; i++) {
+                final var key = generateCacheKey();
+                cacheService.get(key, regionSize, 0);
+                freq0Keys.add(key);
+            }
+
+            // decay moves the freq-0 set down to frequency 0
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+
+            // fill the freq-1 set at frequency 1, filling the remaining slots
+            final List<TestCacheKey> freq1Keys = new ArrayList<>();
+            for (int i = 0; i < freq1Regions; i++) {
+                final var key = generateCacheKey();
+                cacheService.get(key, regionSize, 0);
+                freq1Keys.add(key);
+            }
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+            final TestCacheKey victim = freq1Keys.get(skipFreq1Regions);
+
+            // protect the whole freq-0 set plus the first N of the freq-1 set; the victim is the first eligible entry reached
+            protectedKeys.addAll(freq0Keys);
+            protectedKeys.addAll(freq1Keys.subList(0, skipFreq1Regions));
+
+            // get() of a new key has no free region: the freq-0 scan walks all freq0Regions protected entries; the free-region poll at
+            // the freq-1 boundary returns nothing (the cache is full and the scan has freed nothing, so this is not the Free path);
+            // then the freq-1 scan skips the `skipFreq1Regions` protected entries and evicts freq1Keys.get(skipFreq1Regions)
+            cacheService.get(generateCacheKey(), regionSize, 0);
+
+            var evicted = evictionScanMeasurements(recording, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, AllFrequencies, Evicted);
+            assertThat(evicted, hasSize(1));
+            assertThat(evicted.get(0).getLong(), is((long) freq0Regions + skipFreq1Regions + 1));
+
+            var evictedTime = evictionScanMeasurements(recording, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, AllFrequencies, Evicted);
+            assertThat(evictedTime, hasSize(1));
+            assertThat(evictedTime.get(0).getDouble(), is((double) freqScanTimeTakenMicros));
+
+            assertThat(recording.getRecorder().getMeasurements(LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES), hasSize(1));
+            assertThat(recording.getRecorder().getMeasurements(DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME), hasSize(1));
+            assertThat(
+                evictionScanMeasurementsByMode(recording, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency),
+                empty()
+            );
+            assertThat(
+                evictionScanMeasurementsByMode(recording, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency),
+                empty()
+            );
+            assertThat(cacheService.countCachedRegions(victim::equals), equalTo(0L));
+        }
+    }
+
+    private static List<Measurement> evictionScanMeasurements(
+        RecordingMeterRegistry recording,
+        InstrumentType instrumentType,
+        String histogramName,
+        BlobCacheMetrics.EvictionScanMode mode,
+        BlobCacheMetrics.EvictionScanOutcome outcome
+    ) {
+        return recording.getRecorder()
+            .getMeasurements(instrumentType, histogramName)
+            .stream()
+            .filter(m -> mode.name().equals(m.attributes().get(BlobCacheMetrics.EVICTION_SCAN_MODE_ATTRIBUTE_KEY)))
+            .filter(m -> outcome.name().equals(m.attributes().get(BlobCacheMetrics.EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY)))
+            .toList();
+    }
+
+    private static List<Measurement> evictionScanMeasurementsByMode(
+        RecordingMeterRegistry recording,
+        InstrumentType instrumentType,
+        String histogramName,
+        BlobCacheMetrics.EvictionScanMode mode
+    ) {
+        return recording.getRecorder()
+            .getMeasurements(instrumentType, histogramName)
+            .stream()
+            .filter(m -> mode.name().equals(m.attributes().get(BlobCacheMetrics.EVICTION_SCAN_MODE_ATTRIBUTE_KEY)))
+            .toList();
     }
 
     public void testMaybeFetchRegion() throws Exception {

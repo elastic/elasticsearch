@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeTrue;
 
 public class DatafeedCrossProjectIT extends MlSingleNodeTestCase {
 
@@ -61,6 +62,7 @@ public class DatafeedCrossProjectIT extends MlSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
+        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
         datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry(), getInstanceFromNode(ClusterService.class));
         waitForMlTemplates();
         dummyAuthenticationHeader = Authentication.newRealmAuthentication(

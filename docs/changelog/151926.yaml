@@ -1,0 +1,6 @@
+area: Search
+issues:
+  - 151331
+pr: 151926
+summary: "Add `project_routing` support to the `_terms_enum` API"
+type: enhancement

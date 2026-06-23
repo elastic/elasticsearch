@@ -212,6 +212,26 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
+# Sorting on a highlight_* column forces HIGHLIGHT to run before the final TopN, so it is
+# pushed down to the data nodes; this exercises HighlightExec serialization end-to-end.
+highlightPushedToDataNodes
+required_capability: highlight_v1
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT "return" ON title
+| SORT highlight_title
+| LIMIT 1000
+| KEEP book_no, highlight_title
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+;
+
+
 # HIGHLIGHT runs after the final SORT ... LIMIT (TopN), like Query DSL's post-fetch highlight.
 highlightAfterSortLimit
 required_capability: highlight_v1

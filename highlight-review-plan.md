@@ -50,7 +50,7 @@ the config/query-building code must live).
   and `requires org.apache.lucene.memory;`. Operator must use `IllegalArgumentException`
   (not the esql-only `EsqlIllegalArgumentException`).
 
-## 4. Add a test where HIGHLIGHT is pushed to data nodes
+## 4. Add a test where HIGHLIGHT is pushed to data nodes — DONE
 - **Source:** ioanatia — `highlight.csv-spec:207`
 - **Comment:** Existing query gets an implicit `SORT ... LIMIT` so HIGHLIGHT runs on the
   coordinator. Add a query that forces pushdown (sort on `highlight_*` after HIGHLIGHT) so
@@ -58,3 +58,9 @@ the config/query-building code must live).
 - **Verdict:** AGREE. Especially valuable now that the plan nodes carry generated fields.
 - **Action:** Add a csv-spec test using the suggested shape (`... | HIGHLIGHT ... | SORT
   highlight_title | LIMIT 1000 | KEEP ...`).
+- **Resolution:** Added `highlightPushedToDataNodes` to `highlight.csv-spec`. Sorting on the
+  `highlight_title` column forces HIGHLIGHT to execute before the final TopN, so it is pushed
+  down to the data nodes. Verified end-to-end with the distributed `CsvIT` runner:
+  `./gradlew :x-pack:plugin:esql:internalClusterTest --tests
+  "org.elasticsearch.xpack.esql.CsvIT.*highlightPushedToDataNodes*"` (passes,
+  exercising `HighlightExec` serialization/deserialization).

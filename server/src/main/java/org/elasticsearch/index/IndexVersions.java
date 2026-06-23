@@ -263,7 +263,9 @@ public class IndexVersions {
     public static final IndexVersion MAPPING_ID_MODE_DEFAULT = def(9_101_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG = def(9_102_0_00, Version.LUCENE_10_4_0);
 
+    // TODO replace from main when eventually updated there
     public static final IndexVersion UPGRADE_TO_LUCENE_10_5_0 = def(9_200_00_0, Version.LUCENE_10_5_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_6_0 = def(9_300_00_0, Version.LUCENE_10_6_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -656,6 +656,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             metadataContainsReplicatedRanges.set(blobStoreCacheDirectory.metadataContainsReplicatedRanges());
         });
 
+        // Block until warming completes so that the recovery thread's engine.refresh("unhollowing") cannot race
+        // a concurrent cache fill against the warming tasks, which would leave the prewarmed bytes metric at zero.
+        getSharedBlobCacheWarmingService(indexNodeB).setAwaitWarmingForIndexingRecovery(true);
+
         // Trigger unhollowing
         final int moreDocs = randomIntBetween(6, 10);
         logger.info("--> ingesting {} more docs to unhollow the shard", moreDocs);

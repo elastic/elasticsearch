@@ -13,6 +13,8 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -51,6 +53,8 @@ import java.util.function.LongFunction;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
 public class SearchDirectory extends BlobStoreCacheDirectory {
+    private static final Logger logger = LogManager.getLogger(SearchDirectory.class);
+
     private final CacheBlobReaderService cacheBlobReaderService;
     private final LongAdder totalBytesReadFromIndexing = new LongAdder();
     private final LongAdder totalBytesWarmedFromIndexing = new LongAdder();
@@ -245,11 +249,32 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
                     long bccGeneration = StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
                     if (bccGeneration < maxBccGen) {
+                        logger.debug(
+                            "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}] < max [{}]) for [{}]",
+                            shardId,
+                            region,
+                            blobName,
+                            bccGeneration,
+                            maxBccGen,
+                            shardId
+                        );
                         return true; // BCC is older and region is not active, evict
                     }
                     if (bccGeneration == maxBccGen) {
                         int maxKnownRegion = maxKnownRegionByBlob.getOrDefault(blobName, -1);
-                        return region <= maxKnownRegion; // region is known, evict
+                        if (region <= maxKnownRegion) {
+                            logger.debug(
+                                "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}], max known region [{}]) for [{}]",
+                                shardId,
+                                region,
+                                blobName,
+                                bccGeneration,
+                                maxKnownRegion,
+                                shardId
+                            );
+                            return true;
+                        }
+                        return false;
                     }
                     return false;
                 });

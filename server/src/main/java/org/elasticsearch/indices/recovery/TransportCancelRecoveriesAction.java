@@ -120,6 +120,12 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         final IndexShard indexShard = indexService.getShard(shardId.id());
 
         if (indexShard.routingEntry().allocationId().getId().equals(allocationId) == false) {
+            logger.debug(
+                "allocation ID mismatch for shard {}, requested={}, actual={}. Ignoring cancellation request",
+                shardId,
+                allocationId,
+                indexShard.routingEntry().allocationId().getId()
+            );
             return;
         }
         final IndexShardState state = indexShard.state();

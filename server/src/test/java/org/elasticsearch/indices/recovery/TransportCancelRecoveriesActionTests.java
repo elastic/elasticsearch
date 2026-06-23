@@ -240,6 +240,52 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         indexShard.ensureRecoveryNotCancelled();
     }
 
+    public void testCancellationIgnoredWhenAllocationIdDoesNotMatch() {
+        final var shardId0 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var allocationId0 = UUIDs.randomBase64UUID();
+        final var shardId1 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
+        final var allocationId1 = UUIDs.randomBase64UUID();
+
+        // running recovery
+        final var recoveryState0 = newRecoveryState(shardId0);
+        throttlingRecoveryService.enqueue(
+            RecoveryListener.NOOP,
+            recoveryState0,
+            allocationId0,
+            new RecoveryStats(),
+            l -> taskQueue.scheduleAt(
+                taskQueue.getCurrentTimeMillis() + 100,
+                () -> l.onRecoveryDone(recoveryState0, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            )
+        );
+
+        // queued recovery
+        final var recoveryState1 = newRecoveryState(shardId1);
+        throttlingRecoveryService.enqueue(RecoveryListener.NOOP, recoveryState1, allocationId1, new RecoveryStats(), ignored -> {});
+
+        taskQueue.runAllRunnableTasks();
+        assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(1));
+
+        final var indexShard = mockIndexShard(shardId0, allocationId0);
+        final var indexService = mockIndexServiceForShard(indexShard);
+        when(indicesService.indexServiceSafe(shardId0.getIndex())).thenReturn(indexService);
+
+        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
+        final var request = new CancelRecoveriesAction.Request(
+            0L,
+            List.of(
+                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId0, UUIDs.randomBase64UUID(), true),
+                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId1, UUIDs.randomBase64UUID(), false)
+            )
+        );
+        action.execute(mock(Task.class), request, responseFuture);
+        final var response = responseFuture.actionGet();
+        assertTrue(response.cancelledInQueue().isEmpty());
+        indexShard.ensureRecoveryNotCancelled();
+        assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(1));
+        taskQueue.runAllTasks();
+    }
+
     public void testExceptionInOneCancellationDoesNotAffectOthers() {
         final var shardId0 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var allocationId0 = UUIDs.randomBase64UUID();

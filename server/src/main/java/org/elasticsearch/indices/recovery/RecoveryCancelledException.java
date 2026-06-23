@@ -20,9 +20,7 @@ import java.io.IOException;
 /// Exception indicating that a recovery was cancelled by request from the master node.
 public class RecoveryCancelledException extends RecoveryFailedException {
 
-    public static final TransportVersion RECOVERY_CANCELLED_EXCEPTION_VERSION = TransportVersion.fromName(
-        "recovery_store_and_target_queued_stats"
-    );
+    public static final TransportVersion RECOVERY_CANCELLED_EXCEPTION_VERSION = TransportVersion.fromName("recovery_cancelled_exception");
 
     public RecoveryCancelledException(ShardId shardId, @Nullable DiscoveryNode sourceNode, DiscoveryNode targetNode) {
         super(shardId, sourceNode, targetNode, "recovery cancelled by master node", null);

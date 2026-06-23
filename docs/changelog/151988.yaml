@@ -1,0 +1,5 @@
+area: Downsampling
+issues: []
+pr: 151988
+summary: Fix delta counter downsampling generating documents for empty buckets
+type: bug

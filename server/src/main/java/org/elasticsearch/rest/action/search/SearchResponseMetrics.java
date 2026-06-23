@@ -46,27 +46,19 @@ public class SearchResponseMetrics {
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
     public static final String STORE_BYTES_READ_HISTOGRAM_NAME = "es.search_response.store_bytes_read.histogram";
     private static final String SEARCH_PHASE_METRIC_FORMAT = "es.search_response.took_durations.%s.histogram";
-    public static final String CAN_MATCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME =
-        "es.search.coordinator.phases.can_match.shard_result_bytes.histogram";
-    public static final String DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coordinator.phases.dfs.shard_result_bytes.histogram";
-    public static final String DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME =
-        "es.search.coordinator.phases.dfs_query.shard_result_bytes.histogram";
-    public static final String QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coordinator.phases.query.shard_result_bytes.histogram";
-    public static final String RANK_FEATURE_SHARD_RESULT_BYTES_HISTOGRAM_NAME =
-        "es.search.coordinator.phases.rank-feature.shard_result_bytes.histogram";
-    public static final String FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coordinator.phases.fetch.shard_result_bytes.histogram";
+    public static final String CAN_MATCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.can_match.result.bytes.histogram";
+    public static final String DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.dfs.result.bytes.histogram";
+    public static final String DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.dfs_query.result.bytes.histogram";
+    public static final String QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.query.result.bytes.histogram";
+    public static final String RANK_FEATURE_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.rank_feature.result.bytes.histogram";
+    public static final String FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.fetch.result.bytes.histogram";
 
-    public static final String CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME =
-        "es.search.coordinator.phases.can_match.shard_request_bytes.histogram";
-    public static final String DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coordinator.phases.dfs.shard_request_bytes.histogram";
-    public static final String DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME =
-        "es.search.coordinator.phases.dfs_query.shard_request_bytes.histogram";
-    public static final String QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME =
-        "es.search.coordinator.phases.query.shard_request_bytes.histogram";
-    public static final String RANK_FEATURE_SHARD_REQUEST_BYTES_HISTOGRAM_NAME =
-        "es.search.coordinator.phases.rank-feature.shard_request_bytes.histogram";
-    public static final String FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME =
-        "es.search.coordinator.phases.fetch.shard_request_bytes.histogram";
+    public static final String CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.can_match.request.bytes.histogram";
+    public static final String DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.dfs.request.bytes.histogram";
+    public static final String DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.dfs_query.request.bytes.histogram";
+    public static final String QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.query.request.bytes.histogram";
+    public static final String RANK_FEATURE_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.rank_feature.request.bytes.histogram";
+    public static final String FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME = "es.search.coord.fetch.request.bytes.histogram";
 
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;

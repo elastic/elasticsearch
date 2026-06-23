@@ -4102,11 +4102,10 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         // Production order (EsqlSession#execute then #analyzedPlan): resolve IN subqueries into
         // SemiJoin/AntiJoin first, then rewrite FROM <dataset> targets into external relations.
         LogicalPlan afterInSubquery = InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query));
-        LogicalPlan rewritten = DatasetRewriter.rewrite(
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             afterInSubquery,
             projectMetadata,
-            TestIndexNameExpressionResolver.newInstance(),
-            DatasetRewriter.allDatasets(projectMetadata)
+            TestIndexNameExpressionResolver.newInstance()
         );
         ExternalSourceResolution resolution = new ExternalSourceResolution(
             Map.of(

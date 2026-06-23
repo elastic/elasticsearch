@@ -2113,11 +2113,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             .datasets(Map.of(EXTERNAL_DATASET, dataset))
             .build();
         // FROM <dataset> -> UnresolvedExternalRelation, the same shape the EXTERNAL command would parse to.
-        LogicalPlan rewritten = DatasetRewriter.rewrite(
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
-            TestIndexNameExpressionResolver.newInstance(),
-            DatasetRewriter.allDatasets(projectMetadata)
+            TestIndexNameExpressionResolver.newInstance()
         );
         List<Attribute> externalSchema = List.of(
             referenceAttribute("emp_no", DataType.INTEGER),

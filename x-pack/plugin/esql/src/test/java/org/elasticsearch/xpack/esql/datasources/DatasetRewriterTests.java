@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -121,7 +122,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("some_idx,logs"), project));
         assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), containsString("1 non-dataset(s)"));
+        assertThat(ex.getMessage(), containsString("non-dataset target(s)"));
         assertThat(ex.getMessage(), containsString("1 dataset(s)"));
         assertThat(ex.getMessage(), not(containsString("some_idx")));
         assertThat(ex.getMessage(), not(containsString("[logs]")));
@@ -262,7 +263,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("my_closed_index,logs"), project));
         assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), containsString("1 non-dataset(s)"));
+        assertThat(ex.getMessage(), containsString("non-dataset target(s)"));
         assertThat(ex.getMessage(), containsString("1 dataset(s)"));
     }
 
@@ -276,7 +277,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*"), project));
         assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), containsString("1 non-dataset(s)"));
+        assertThat(ex.getMessage(), containsString("non-dataset target(s)"));
         assertThat(ex.getMessage(), containsString("1 dataset(s)"));
         // The caller may not have access to the matched index name — must not be exfiltrated.
         assertThat(ex.getMessage(), not(containsString("logs_index")));
@@ -526,7 +527,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
-        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER, Set.of("logs_a"));
+        LogicalPlan rewritten = rewriteWithAuthorized(relationOf("logs_*"), project, Set.of("logs_a"));
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
     }
@@ -539,26 +540,26 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a));
 
         UnresolvedRelation relation = relationOf("logs_*");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER, Set.of()));
+        assertSame(relation, rewriteWithAuthorized(relation, project, Set.of()));
     }
 
     public void testExplicitUnauthorizedDatasetIsUnknownIndex() {
-        // An explicitly named unauthorized dataset must produce the same error a missing index
-        // produces — no existence oracle, no silent drop.
+        // An explicitly named unauthorized dataset must produce the same error a missing index produces — Unknown index
+        // (400) — so an unauthorized dataset is indistinguishable from a nonexistent name (no existence oracle).
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         VerificationException ex = expectThrows(
             VerificationException.class,
-            () -> DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER, Set.of())
+            () -> rewriteWithAuthorized(relationOf("logs"), project, Set.of())
         );
         assertThat(ex.getMessage(), containsString("Unknown index [logs]"));
     }
 
     public void testExplicitUnauthorizedAmongAuthorizedThrows() {
-        // Multi-target FROM with one authorized and one unauthorized dataset errors instead of
-        // silently returning partial data for the authorized one.
+        // Multi-target FROM with one authorized and one unauthorized dataset errors instead of silently returning
+        // partial data for the authorized one — same Unknown index (400) error as above.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset a = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
         Dataset b = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
@@ -566,49 +567,80 @@ public class DatasetRewriterTests extends ESTestCase {
 
         VerificationException ex = expectThrows(
             VerificationException.class,
-            () -> DatasetRewriter.rewrite(relationOf("ds1,ds2"), project, RESOLVER, Set.of("ds1"))
+            () -> rewriteWithAuthorized(relationOf("ds1,ds2"), project, Set.of("ds1"))
         );
         assertThat(ex.getMessage(), containsString("Unknown index [ds2]"));
     }
 
-    public void testCandidateDatasetsEmptyWithoutDatasets() {
-        assertThat(DatasetRewriter.candidateDatasets(relationOf("logs"), projectWith(Map.of(), Map.of()), RESOLVER), equalTo(List.of()));
-        assertThat(DatasetRewriter.candidateDatasets(relationOf("logs"), null, RESOLVER), equalTo(List.of()));
+    // ---- resolve(): the engine-side, per-relation expansion that the action body runs ----
+
+    public void testResolveEmptyWithoutDatasets() {
+        // No datasets registered: an explicit name resolves to no authorized datasets and no non-dataset targets.
+        DatasetRewriter.DatasetResolution r = resolve("logs", projectWith(Map.of(), Map.of()), Set.of());
+        assertThat(r.authorizedDatasets(), equalTo(Set.of()));
+        assertFalse(r.hasNonDatasetTargets());
     }
 
-    public void testCandidateDatasetsResolvesToConcreteNames() {
+    public void testResolveExpandsToAuthorizedDatasetNames() {
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
         Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
-        assertThat(DatasetRewriter.candidateDatasets(relationOf("logs_a"), project, RESOLVER), equalTo(List.of("logs_a")));
-        assertThat(DatasetRewriter.candidateDatasets(relationOf("logs_*"), project, RESOLVER), containsInAnyOrder("logs_a", "logs_b"));
-        // Exclusions apply within their own relation.
-        assertThat(DatasetRewriter.candidateDatasets(relationOf("logs_*,-logs_b"), project, RESOLVER), equalTo(List.of("logs_a")));
-        // No pattern can match a dataset name → no candidates.
-        assertThat(DatasetRewriter.candidateDatasets(relationOf("metrics"), project, RESOLVER), equalTo(List.of()));
-        // Remote-prefixed relations never participate in dataset rewriting.
-        assertThat(DatasetRewriter.candidateDatasets(relationOf("cluster-1:remote,logs_a"), project, RESOLVER), equalTo(List.of()));
+        // Explicit single dataset.
+        assertThat(resolve("logs_a", project, Set.of("logs_a")).authorizedDatasets(), equalTo(Set.of("logs_a")));
+        // Wildcard, all authorized.
+        assertThat(resolve("logs_*", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), containsInAnyOrder("logs_a", "logs_b"));
+        // Wildcard with exclusion, applied within the relation.
+        assertThat(resolve("logs_*,-logs_b", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of("logs_a")));
+        // No pattern can match a dataset name → empty.
+        assertThat(resolve("metrics", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of()));
     }
 
-    public void testCandidateDatasetsExclusionStaysPerRelation() {
-        // Two relations in one plan: the second excludes logs_a, the first includes it via a wildcard.
-        // Per-relation resolution means the exclusion never shadows the other relation's expansion.
+    public void testResolveExclusionStaysPerRelation() {
+        // The exclusion in one relation must not shadow another relation's expansion — each relation is resolved on its
+        // own raw patterns. Here the second relation excludes logs_a; resolving the first still yields it.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
         Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
-        LogicalPlan plan = new UnionAll(Source.EMPTY, List.of(relationOf("logs_*"), relationOf("logs_*,-logs_a")), List.of());
-        assertThat(DatasetRewriter.candidateDatasets(plan, project, RESOLVER), containsInAnyOrder("logs_a", "logs_b"));
+        assertThat(resolve("logs_*", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), containsInAnyOrder("logs_a", "logs_b"));
+        assertThat(resolve("logs_*,-logs_a", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of("logs_b")));
+    }
+
+    public void testResolveFlagsNonDatasetTargets() {
+        // A wildcard spanning a dataset and a real index reports hasNonDatasetTargets, driving the mixed-FROM rejection.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("logs_index"));
+
+        DatasetRewriter.DatasetResolution r = resolve("logs_*", project, Set.of("logs_dataset"));
+        assertThat(r.authorizedDatasets(), equalTo(Set.of("logs_dataset")));
+        assertTrue(r.hasNonDatasetTargets());
     }
 
     // --
 
     /** Rewrite with every registered dataset authorized — the unsecured-cluster behavior. */
     private static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata project) {
-        return DatasetRewriter.rewrite(parsed, project, RESOLVER, DatasetRewriter.allDatasets(project));
+        return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER);
+    }
+
+    /**
+     * Rewrite one relation with only {@code authorized} datasets readable — the secured-cluster behavior. Models the
+     * security filter narrowing the request indices to the authorized subset by passing {@code authorized} as the
+     * relation's (filter-narrowed) indices, while the raw FROM pattern stays the un-narrowed mixed-FROM signal.
+     */
+    private static LogicalPlan rewriteWithAuthorized(UnresolvedRelation relation, ProjectMetadata project, Set<String> authorized) {
+        DatasetRewriter.DatasetResolution resolution = resolve(relation.indexPattern().indexPattern(), project, authorized);
+        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution));
+    }
+
+    /** Engine-side resolve of {@code rawPattern} with {@code authorized} as the (filter-narrowed) request indices. */
+    private static DatasetRewriter.DatasetResolution resolve(String rawPattern, ProjectMetadata project, Set<String> authorized) {
+        String[] raw = Strings.splitStringByCommaToArray(rawPattern);
+        return DatasetRewriter.resolve(authorized.toArray(String[]::new), raw, project, RESOLVER);
     }
 
     private static UnresolvedRelation relationOf(String pattern) {

@@ -8,26 +8,40 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 /**
- * Owns the security round-trip for {@code FROM <dataset>}, the companion of {@link DatasetRewriter}: the dataset
- * names the query would read are pushed through {@link EsqlResolveDatasetAction} (which read-authorizes each name
- * via the index {@code read} privilege and rejects DLS/FLS-restricted datasets), then only the authorized names are
- * rewritten into external relations. Mirrors how {@code ViewResolver} routes view names through
+ * Owns the security round-trip for {@code FROM <dataset>}, the companion of {@link DatasetRewriter}: each FROM relation
+ * the query reads is dispatched — one {@link EsqlResolveDatasetAction} per relation, with that relation's RAW patterns —
+ * so the authorization engine read-authorizes the names (index {@code read} privilege) and rejects DLS/FLS-restricted
+ * datasets, then narrows wildcard expansion to the authorized abstractions. The per-relation results feed a synchronous
+ * {@link DatasetRewriter#rewrite} that turns authorized datasets into external relations.
+ *
+ * <p>Per-relation dispatch (rather than one request for the whole plan) is required because exclusion semantics are
+ * per-relation: {@code -logs_test} in one FROM must not drop {@code logs_test} from a different FROM in the same plan.
+ * Mirrors how {@code ViewResolver} routes each {@code UnresolvedRelation}'s raw patterns through
  * {@code EsqlResolveViewAction}.
  *
- * <p>When no FROM pattern can match a registered dataset, the listener completes synchronously and no request is sent.
+ * <p>When no dataset is registered in cluster state, or no FROM pattern can match a registered dataset, the listener
+ * completes synchronously and no request is sent.
  */
 public class DatasetResolver {
 
@@ -40,9 +54,11 @@ public class DatasetResolver {
     }
 
     /**
-     * Replaces every authorized {@code FROM <dataset>} target in {@code parsed} via
-     * {@link DatasetRewriter#rewrite}, completing {@code listener} with the (possibly untouched) plan.
-     * Authorization failures from the resolve action (e.g. DLS/FLS rejection) propagate to the listener as-is.
+     * Dispatches one {@link EsqlResolveDatasetAction} per dataset-candidate relation in {@code parsed}, collects the
+     * per-relation {@link DatasetResolution}s, then completes {@code listener} with {@link DatasetRewriter#rewrite}
+     * applied to those results (or the untouched plan when nothing qualifies). Authorization failures from the resolve
+     * action (DLS/FLS rejection, and the {@code Unknown index} a rewrite raises for an explicit unauthorized dataset)
+     * propagate to the listener as-is.
      */
     public void replaceDatasets(
         LogicalPlan parsed,
@@ -50,19 +66,57 @@ public class DatasetResolver {
         IndexNameExpressionResolver indexNameExpressionResolver,
         ActionListener<LogicalPlan> listener
     ) {
-        List<String> candidates = DatasetRewriter.candidateDatasets(parsed, projectMetadata, indexNameExpressionResolver);
-        if (candidates.isEmpty()) {
+        // Cheap short-circuit: no datasets registered → the CRUD layer (gated by the external-datasources feature flag)
+        // never put any into cluster state, so no FROM can target one. No dispatch, no walk cost on the common path.
+        Set<String> datasetNames = projectMetadata == null ? Set.of() : DatasetMetadata.get(projectMetadata).datasets().keySet();
+        if (datasetNames.isEmpty()) {
             listener.onResponse(parsed);
             return;
         }
-        var request = new EsqlResolveDatasetAction.Request(REST_MASTER_TIMEOUT_DEFAULT, candidates.toArray(String[]::new));
-        client.execute(
-            EsqlResolveDatasetAction.TYPE,
-            request,
-            new ThreadedActionListener<>(
-                executor,
-                listener.map(response -> DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver, response.datasets()))
-            )
-        );
+
+        // Collect the relations worth a round-trip: skip remote-prefixed (datasets are local-only, CCS sees the original
+        // FROM) and skip any relation whose patterns could not match a registered dataset name (ordinary FROM <index>).
+        List<UnresolvedRelation> relations = new ArrayList<>();
+        parsed.forEachUp(UnresolvedRelation.class, r -> {
+            List<String> patterns = DatasetRewriter.patternsOf(r);
+            if (DatasetRewriter.hasRemotePattern(patterns)
+                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames) == false) {
+                return;
+            }
+            relations.add(r);
+        });
+        if (relations.isEmpty()) {
+            listener.onResponse(parsed);
+            return;
+        }
+
+        // One request per relation, async fan-out chained so each result lands in the identity-keyed map. (forEachUp may
+        // visit the same relation instance more than once in a degenerate tree; the map dedups by identity.)
+        Map<UnresolvedRelation, DatasetResolution> resolutions = new IdentityHashMap<>();
+        SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
+        for (UnresolvedRelation relation : relations) {
+            chain = chain.andThen((l, ignored) -> {
+                if (resolutions.containsKey(relation)) {
+                    l.onResponse(null);
+                    return;
+                }
+                var request = new EsqlResolveDatasetAction.Request(
+                    REST_MASTER_TIMEOUT_DEFAULT,
+                    DatasetRewriter.patternsOf(relation).toArray(String[]::new)
+                );
+                client.execute(
+                    EsqlResolveDatasetAction.TYPE,
+                    request,
+                    new ThreadedActionListener<>(executor, l.delegateFailureAndWrap((delegate, response) -> {
+                        resolutions.put(
+                            relation,
+                            new DatasetResolution(response.datasets(), response.hasNonDatasetTargets(), response.explicitUnauthorized())
+                        );
+                        delegate.onResponse(null);
+                    }))
+                );
+            });
+        }
+        chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions)).addListener(listener);
     }
 }

@@ -430,3 +430,20 @@ ds_dataset_query_dls:
     - names: [ 'security_it_ds_*' ]
       privileges: [ 'read' ]
       query: '{"match_all": {}}'
+
+# read on the dataset names carrying a field_security grant — FROM <dataset> must be rejected as DLS/FLS-incompatible.
+ds_dataset_query_fls:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ 'value' ]
+
+# read on security_it_ds_keep_* only — used to test partial wildcard authorization and an explicitly-unauthorized
+# dataset (security_it_ds_drop_*) in the same FROM.
+ds_dataset_query_partial:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_keep_*' ]
+      privileges: [ 'read' ]

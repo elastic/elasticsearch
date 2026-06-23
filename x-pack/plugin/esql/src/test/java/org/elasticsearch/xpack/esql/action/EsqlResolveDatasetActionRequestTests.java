@@ -39,6 +39,25 @@ public class EsqlResolveDatasetActionRequestTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining("ds1"));
     }
 
+    public void testRawPatternsSurviveIndicesNarrowing() {
+        // rawPatterns() must keep the ORIGINAL FROM patterns even after the filter narrows indices() to the authorized
+        // subset — the action body needs them to classify whether the relation also targets non-dataset abstractions.
+        var request = request("logs_*", "-logs_test");
+        assertThat(request.rawPatterns(), arrayContaining("logs_*", "-logs_test"));
+        request.indices("logs_a");
+        assertThat(request.indices(), arrayContaining("logs_a"));
+        assertThat("rawPatterns is unaffected by indices() narrowing", request.rawPatterns(), arrayContaining("logs_*", "-logs_test"));
+    }
+
+    public void testUnavailableTargetsAreLenient() {
+        // Lenient options: the security filter silently narrows an unauthorized concrete dataset to nothing rather than
+        // throwing a 403 (which would be an existence oracle). The explicit-unauthorized → Unknown index (400) is
+        // surfaced by the rewrite instead.
+        var options = request("ds1").indicesOptions();
+        assertThat(options.ignoreUnavailable(), is(true));
+        assertThat(options.allowNoIndices(), is(true));
+    }
+
     public void testValidateAcceptsRequest() {
         assertThat(request("ds1").validate(), nullValue());
     }

@@ -97,6 +97,28 @@ public class AllocationArrayPreCheckTests extends ESTestCase {
         assertTripsLimit("int[][] a = new int[10][1000000000]; return \"x\";");
     }
 
+    public void testHighDimensionalArrayCharged() {
+        // 100-dim array: new int[2][1][1]...[1] — product = 2, verifies the dim-product loop handles many dims.
+        int dims = 100;
+        StringBuilder type = new StringBuilder("int");
+        for (int i = 0; i < dims; i++) type.append("[]");
+        StringBuilder src = new StringBuilder(type).append(" a = new int[2]");
+        for (int i = 1; i < dims; i++) src.append("[1]");
+        src.append("; return \"x\";");
+        assertEquals(AllocSizes.arraySize(int.class, 2), allocatedBytes(src.toString()));
+    }
+
+    public void testHighDimensionalArrayPreemptsHugeAllocation() {
+        // 100-dim array with a large outer dimension trips the limit before MULTIANEWARRAY.
+        int dims = 100;
+        StringBuilder type = new StringBuilder("int");
+        for (int i = 0; i < dims; i++) type.append("[]");
+        StringBuilder src = new StringBuilder(type).append(" a = new int[Integer.MAX_VALUE]");
+        for (int i = 1; i < dims; i++) src.append("[1]");
+        src.append("; return \"x\";");
+        assertTripsLimit(src.toString());
+    }
+
     public void testTwoDimVariableLengthsCharged() {
         assertEquals(
             AllocSizes.arraySize(int.class, 3 * 4),

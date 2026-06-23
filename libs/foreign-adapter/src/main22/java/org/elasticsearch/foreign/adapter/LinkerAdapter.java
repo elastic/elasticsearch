@@ -13,7 +13,7 @@ import java.lang.foreign.Linker;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles.Lookup;
 
-public class LinkerAdapter {
+public final class LinkerAdapter {
 
     static final Linker.Option[] ALLOW_HEAP_ACCESS = new Linker.Option[] { Linker.Option.critical(true) };
 

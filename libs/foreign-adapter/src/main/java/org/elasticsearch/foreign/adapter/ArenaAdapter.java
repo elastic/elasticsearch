@@ -19,7 +19,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 /**
  * Adapts Arena APIs that changed between JDK 21 and 22+.
  */
-public class ArenaAdapter {
+public final class ArenaAdapter {
 
     /**
      * Allocate an array of the given memory layout.

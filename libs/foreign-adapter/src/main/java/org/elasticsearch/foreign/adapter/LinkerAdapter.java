@@ -18,7 +18,7 @@ import java.lang.invoke.MethodType;
 /**
  * Adapts Linker APIs that changed between JDK 21 and 22+.
  */
-public class LinkerAdapter {
+public final class LinkerAdapter {
 
     static final Linker.Option[] NONE = new Linker.Option[0];
 

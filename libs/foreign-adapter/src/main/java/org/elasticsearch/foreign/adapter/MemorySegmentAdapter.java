@@ -17,7 +17,7 @@ import java.lang.invoke.VarHandle;
 /**
  * Adapts MemorySegment APIs that changed between JDK 21 and 22+.
  */
-public class MemorySegmentAdapter {
+public final class MemorySegmentAdapter {
 
     public static String getString(MemorySegment segment, long offset) {
         return segment.getUtf8String(offset);
@@ -33,9 +33,10 @@ public class MemorySegmentAdapter {
 
     /**
      * Return a {@link VarHandle} to access an element within the given memory layout.
+     *
      * Note: This is no-op in Java 21, see the Java 22 implementation.
      *
-     * @param layout  The layout of a struct to access
+     * @param layout The layout of a struct to access
      * @param element The element within the struct to access
      * @return A {@link VarHandle} that accesses the element with a fixed offset of 0
      */

@@ -18,7 +18,7 @@ import java.lang.invoke.VarHandle;
 /**
  * Adapts MemorySegment APIs that changed between JDK 21 and 22+.
  */
-public class MemorySegmentAdapter {
+public final class MemorySegmentAdapter {
 
     public static String getString(MemorySegment segment, long offset) {
         return segment.getString(offset);

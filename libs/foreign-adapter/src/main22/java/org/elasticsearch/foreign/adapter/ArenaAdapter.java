@@ -14,7 +14,7 @@ import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.nio.charset.Charset;
 
-public class ArenaAdapter {
+public final class ArenaAdapter {
 
     /**
      * Allocate an array of the given memory layout.

@@ -1156,7 +1156,10 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         var clusterService = mock(ClusterService.class);
         var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(Transform.NUM_FAILURE_RETRIES_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState(projectId));
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.builder("test-node-id").build());
+        when(clusterService.getClusterName()).thenReturn(new ClusterName("test-cluster"));
         return clusterService;
     }
 }

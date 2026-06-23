@@ -190,6 +190,15 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Setting.Property.NodeScope
     );
 
+    // Whether transform stamps its data-plane and validation requests with trace headers
+    // (X-Opaque-Id = "<nodeId>:transform:<id>", X-elastic-product-origin = cluster name) so that
+    // hot threads / task-list / audit output can be attributed back to a specific transform.
+    public static final Setting<Boolean> TRACE_HEADERS_ENABLED_SETTING = Setting.boolSetting(
+        "xpack.transform.trace_headers_enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     public Transform(Settings settings) {
         this.settings = settings;
     }
@@ -430,7 +439,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(NUM_FAILURE_RETRIES_SETTING, SCHEDULER_FREQUENCY, TransformCrossProjectMetrics.POLL_INTERVAL_SETTING);
+        return List.of(
+            NUM_FAILURE_RETRIES_SETTING,
+            SCHEDULER_FREQUENCY,
+            TRACE_HEADERS_ENABLED_SETTING,
+            TransformCrossProjectMetrics.POLL_INTERVAL_SETTING
+        );
     }
 
     @Override

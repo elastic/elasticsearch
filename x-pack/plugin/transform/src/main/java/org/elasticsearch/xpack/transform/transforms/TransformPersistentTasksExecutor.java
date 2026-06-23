@@ -239,7 +239,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         final String transformId = params.getId();
         final TransformTask buildTask = (TransformTask) task;
-        final ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, buildTask.getParentTaskId());
+        final Client tracedClient = TransformTraceHeaderClient.create(client, clusterService, transformId);
+        final ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(tracedClient, buildTask.getParentTaskId());
         // NOTE: TransformPersistentTasksExecutor#createTask pulls in the stored task state from the ClusterState when the object
         // is created. TransformTask#ctor takes into account setting the task as failed if that is passed in with the
         // persisted state.

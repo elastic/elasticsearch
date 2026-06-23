@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Res
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
+import org.elasticsearch.xpack.transform.transforms.TransformTraceHeaderClient;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.util.Map;
@@ -135,7 +136,10 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         var function = FunctionFactory.create(config);
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
-        var parentClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, request.cloudCredential());
+        var uiamClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, request.cloudCredential());
+        // Stamp the validation search + field_caps requests with the transform's trace headers (unless already set,
+        // or disabled via xpack.transform.trace_headers_enabled) so they can be attributed like the data-plane requests.
+        var parentClient = TransformTraceHeaderClient.create(uiamClient, clusterService, config.getId());
 
         // <6> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {

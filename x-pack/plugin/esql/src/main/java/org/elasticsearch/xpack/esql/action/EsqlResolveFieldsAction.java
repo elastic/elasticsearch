@@ -186,7 +186,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         return new IndexAbstractionSchema(
             indexAbstraction.getName(),
             indexAbstraction.getType(),
-            Map.of("type", indexAbstraction.getType().name())
+            Map.of("f1", "keyword")
         );
     }
 

@@ -739,6 +739,82 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * A partially-unmapped small-numeric field (e.g. SHORT) must surface its widened ES|QL type (INTEGER) through a FORK output,
+     * matching the widened branch attributes; otherwise Fork#checkFork rejects the query with a [INTEGER] vs [SHORT] conflict.
+     */
+    public void testLoadModeForkWidensSingleTypePartiallyUnmappedShortField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("test1", fieldResponseMap("message", "short")),
+                fieldCapabilitiesIndexResponse("test2", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("test1,test2", caps, true));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var forkPlan = ta.statement(
+            setUnmappedLoad(
+                "FROM test1, test2 | KEEP message"
+                    + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork"
+            )
+        );
+        var forkMsg = forkPlan.output().stream().filter(a -> a.name().equals("message")).findFirst().orElseThrow();
+        assertThat(forkMsg.dataType(), is(DataType.INTEGER));
+    }
+
+    /**
+     * Every small-numeric ES type that lacks a KEYWORD converter (byte, short, float, half_float, scaled_float) stays a two-legged PUNK
+     * and must surface its widened ES|QL type (INTEGER or DOUBLE) on the FORK output, matching the widened branch attributes; this guards
+     * the whole widened family through FORK, not just SHORT.
+     */
+    public void testLoadModeForkWidensSmallNumericPartiallyUnmappedFields() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        Map<String, DataType> smallNumericToWidened = Map.of(
+            "byte",
+            DataType.INTEGER,
+            "short",
+            DataType.INTEGER,
+            "float",
+            DataType.DOUBLE,
+            "half_float",
+            DataType.DOUBLE,
+            "scaled_float",
+            DataType.DOUBLE
+        );
+
+        for (var entry : smallNumericToWidened.entrySet()) {
+            String esType = entry.getKey();
+            DataType widened = entry.getValue();
+            FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("test1", fieldResponseMap("message", esType)),
+                    fieldCapabilitiesIndexResponse("test2", Map.of())
+                ),
+                List.of()
+            );
+            var resolutions = indexResolutions(mergedResolution("test1,test2", caps, true));
+            TestAnalyzer ta = analyzer();
+            for (var e : resolutions.entrySet()) {
+                ta.addIndex(e.getKey().indexPattern(), e.getValue());
+            }
+            var forkPlan = ta.statement(
+                setUnmappedLoad(
+                    "FROM test1, test2 | KEEP message"
+                        + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork"
+                )
+            );
+            var forkMsg = forkPlan.output().stream().filter(a -> a.name().equals("message")).findFirst().orElseThrow();
+            assertThat("ES type [" + esType + "] should widen to " + widened, forkMsg.dataType(), is(widened));
+        }
+    }
+
+    /**
      * There is no function that converts to AGGREGATE_METRIC_DOUBLE. The field is therefore not re-written as UnionTypeEsField,
      * and Verifier rejects the query.
      */

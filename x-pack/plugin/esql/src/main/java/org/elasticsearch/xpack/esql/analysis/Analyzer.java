@@ -2995,10 +2995,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static Attribute cleanTypeConflicts(FieldAttribute fa) {
             EsField field = fa.field();
-            if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
+            if (field instanceof TypeConflictedField tcf && tcf.isSingleTypePotentiallyUnmapped()) {
                 // IndexResolver records the field's actual mapped type (e.g., SHORT); widen it here so the implicit path surfaces the
                 // ESQL type (e.g., INTEGER), matching what an explicit cast would produce.
-                DataType type = tcf.types().iterator().next().widenSmallNumeric();
+                DataType type = tcf.singleMappedTypeWidened();
                 var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
                 // TODO: add test where not passing on the parent name fails the test
                 // TODO: add TS tests and tests with different time series field types
@@ -3109,8 +3109,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 return esRelation.transformExpressionsOnly(FieldAttribute.class, fa -> {
                     // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
-                    if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                        DataType mappedType = tcf.types().iterator().next();
+                    if (fa.field() instanceof TypeConflictedField tcf && tcf.isSingleTypePotentiallyUnmapped()) {
+                        DataType mappedType = tcf.singleMappedType();
 
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         if (convertFactory == null) {

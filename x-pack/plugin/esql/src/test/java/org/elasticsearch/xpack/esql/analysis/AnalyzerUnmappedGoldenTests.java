@@ -448,6 +448,52 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // id is short in apps_short and unmapped in partial_mapping_sample_data, so it is a single-type partially-unmapped (two-legged PUNK)
+    // small numeric
+    public void testForkWidensSingleTypePartiallyUnmappedShortField() throws Exception {
+        runTests("""
+            FROM apps_short, partial_mapping_sample_data
+            | KEEP id
+            | FORK (WHERE true)
+                   (WHERE true)
+            | KEEP _fork, id
+            | SORT _fork
+            """);
+    }
+
+    // Subquery (UnionAll) counterpart of testForkWidensSingleTypePartiallyUnmappedShortField: the first branch is a multi-index
+    // relation where id is a two-legged short PUNK (short in apps_short, unmapped in partial_mapping_sample_data). It must surface as
+    // INTEGER on the UnionAll output so checkUnionAll does not reject it with an [INTEGER] vs [SHORT] conflict (the widening fix must
+    // apply to UnionAll/views, not only Fork).
+    public void testSubqueryWidensSingleTypePartiallyUnmappedShortField() throws Exception {
+        // Both branches make id a two-legged short PUNK (short in apps_short, unmapped in partial_mapping_sample_data) and only KEEP it
+        // (a non-KEYWORD PUNK may be projected but not used in an expression under load). Under load the branches and the UnionAll
+        // output must agree on the widened INTEGER type; without the widening fix on the UnionAll output path, checkUnionAll would
+        // report an [INTEGER] vs [SHORT] conflict. (A plain non-PUNK short branch is intentionally avoided: subqueries do not auto-widen
+        // numerics, so unioning a loaded PUNK short with a plain short legitimately conflicts as [short, integer] under load.)
+        runTests("""
+            FROM (FROM apps_short, partial_mapping_sample_data | KEEP id),
+                 (FROM apps_short, partial_mapping_sample_data | KEEP id)
+            | KEEP id
+            | SORT id NULLS LAST
+            | LIMIT 5
+            """);
+    }
+
+    // A genuine multi-type conflict (short in all_types, long in all_types_short_as_long, unmapped in all_types_no_short) is NOT a
+    // two-legged PUNK (types().size() > 1), so it must stay UNSUPPORTED through the FORK output. KEEP-only is tolerated; checkFork
+    // skips the UNSUPPORTED column rather than reporting a spurious conflict.
+    public void testForkThreeWayTypeConflictShortLongUnmappedStaysUnsupported() throws Exception {
+        runTests("""
+            FROM all_types, all_types_short_as_long, all_types_no_short
+            | KEEP short
+            | FORK (WHERE true)
+                   (WHERE true)
+            | KEEP _fork, short
+            | SORT _fork
+            """);
+    }
+
     public void testForkWithEval() throws Exception {
         runTests("""
             FROM employees

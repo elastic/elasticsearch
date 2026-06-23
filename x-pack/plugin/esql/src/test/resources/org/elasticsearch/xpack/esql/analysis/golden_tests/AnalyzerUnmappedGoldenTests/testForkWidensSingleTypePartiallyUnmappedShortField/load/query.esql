@@ -1,0 +1,6 @@
+SET unmapped_fields="load"; FROM apps_short, partial_mapping_sample_data
+| KEEP id
+| FORK (WHERE true)
+       (WHERE true)
+| KEEP _fork, id
+| SORT _fork

@@ -62,6 +62,29 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
     /** Source data types observed for this field across all indices. */
     public abstract Set<DataType> types();
 
+    /**
+     * A "two-legged PUNK": a field that is mapped to a single type in some indices and unmapped in others. Under
+     * {@code unmapped_fields="load"} this is not a genuine type conflict — values are loaded where the field is mapped and are null
+     * where it is unmapped.
+     */
+    public boolean isSingleTypePotentiallyUnmapped() {
+        return isPotentiallyUnmapped() && types().size() == 1;
+    }
+
+    /** The single mapped source type (e.g. {@code SHORT}). Only valid when {@link #isSingleTypePotentiallyUnmapped()}. */
+    public DataType singleMappedType() {
+        return types().iterator().next();
+    }
+
+    /**
+     * The ES|QL surface type for a two-legged PUNK: its single mapped type widened (e.g. {@code SHORT -> INTEGER}). This is the type
+     * the field must carry once it surfaces in the analyzed plan, so that the implicit load path matches an explicit cast and so that
+     * the branch attributes agree with the Fork/UnionAll output type. Only valid when {@link #isSingleTypePotentiallyUnmapped()}.
+     */
+    public DataType singleMappedTypeWidened() {
+        return singleMappedType().widenSmallNumeric();
+    }
+
     abstract Map<String, Sample> samples();
 
     record Sample(Collection<String> kept, int total) {}

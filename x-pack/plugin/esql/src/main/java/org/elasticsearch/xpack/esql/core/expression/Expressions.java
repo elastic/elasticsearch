@@ -77,12 +77,12 @@ public final class Expressions {
                     // A potentially-unmapped field with a single mapped type (a "two-legged PUNK", e.g. a TEXT field that has no
                     // auto-cast converter) is not a genuine type conflict: it loads from the indices where it is mapped and is null
                     // where unmapped
-                    if (tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
+                    if (tcf.isSingleTypePotentiallyUnmapped()) {
                         yield new ReferenceAttribute(
                             fa.source(),
                             null,
                             fa.name(),
-                            tcf.types().iterator().next(),
+                            tcf.singleMappedTypeWidened(),
                             fa.nullable(),
                             id,
                             fa.synthetic()

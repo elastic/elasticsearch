@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -1076,7 +1077,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
      * {@code text} only (no {@code .keyword} multi-field) and does not index a separate keyword subfield.
      */
     public void testDynamicFieldWithoutAutoTextSubfield() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createMapperService(withoutDynamicStringsAutoText(), mapping(b -> {})).documentMapper();
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "bar")));
         assertNotNull(doc.dynamicMappingsUpdate());
@@ -1093,7 +1094,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
      * other properties are already mapped; the dynamically added field must still omit the automatic keyword subfield.
      */
     public void testDynamicFieldWithoutAutoTextSubfieldWithExistingMapping() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper defaultMapper = createMapperService(
             withoutDynamicStringsAutoText(),
             dynamicMapping("true", b -> b.startObject("field1").field("type", "text").endObject())
@@ -1120,7 +1121,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
      * strings under a sibling {@code dynamic: runtime} object continue to become runtime keyword fields as usual.
      */
     public void testDynamicFieldWithoutAutoTextSubfieldWithRuntimeField() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createMapperService(
             withoutDynamicStringsAutoText(),
             dynamicMapping("true", b -> b.startObject("runtime_object").field("type", "object").field("dynamic", "runtime").endObject())

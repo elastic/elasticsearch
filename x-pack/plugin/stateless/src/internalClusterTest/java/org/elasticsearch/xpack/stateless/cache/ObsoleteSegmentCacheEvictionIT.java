@@ -76,11 +76,11 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
      * After the search node picks up the post-merge commit, the cache regions for the now-obsolete pre-merge
      * segments should be evicted by {@code retainFilesAndEvict}.
      */
-    public void testMergedSegmentRegionsAreEvicted() throws Exception {
+    public void testObsoleteSegmentRegionsAreEvicted() throws Exception {
         startMasterAndIndexNode();
         startSearchNode();
 
-        final String indexName = "test-merge-eviction";
+        final String indexName = "test-obsolete-eviction";
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE).build());
         ensureGreen(indexName);
 
@@ -147,15 +147,15 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
     }
 
     /**
-     * Similar to {@link #testMergedSegmentRegionsAreEvicted} but with an open PIT (Point in Time) that holds
+     * Similar to {@link #testObsoleteSegmentRegionsAreEvicted} but with an open PIT (Point in Time) that holds
      * a reader on the pre-merge segments. The old segments' cache regions should be retained while the PIT is
      * open and evicted after it is closed and a subsequent commit is processed.
      */
-    public void testMergedSegmentRegionsRetainedByPIT() throws Exception {
+    public void testObsoleteSegmentRegionsRetainedByPIT() throws Exception {
         startMasterAndIndexNode();
         startSearchNode();
 
-        final String indexName = "test-merge-pit-eviction";
+        final String indexName = "test-obsolete-pit-eviction";
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE).build());
         ensureGreen(indexName);
 
@@ -494,15 +494,15 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
 
     /**
      * Creates multiple segments within a single BCC, then force-merges them. After the merge, the old segment regions within the same BCC
-     * blob should be evicted while the new merged segment's regions are retained.
+     * blob should be evicted while the new segment's regions are retained.
      */
-    public void testMergedSegmentRegionsEvictedWithinSameBCC() throws Exception {
+    public void testObsoleteSegmentRegionsEvictedWithinSameBCC() throws Exception {
         startMasterAndIndexNode(
             Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE).build()
         );
         startSearchNode();
 
-        final String indexName = "test-merge-same-bcc-eviction";
+        final String indexName = "test-obsolete-same-bcc-eviction";
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE).build());
         ensureGreen(indexName);
 

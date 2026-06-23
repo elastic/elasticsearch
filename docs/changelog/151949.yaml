@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 151949
+summary: Make `date_range` tech preview
+type: enhancement

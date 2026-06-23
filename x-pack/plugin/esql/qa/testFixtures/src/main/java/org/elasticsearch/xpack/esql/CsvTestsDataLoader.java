@@ -22,6 +22,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
@@ -849,15 +850,12 @@ public class CsvTestsDataLoader {
         // _execute is synchronous but only guarantees the enrich index is created, not that its searchable copy
         // is active on search nodes. In a stateless cluster the backing index follows the same stateless race as
         // lookup indices: health green before the search-node copy is active. Subsequent ENRICH queries fail with
-        // NoShardAvailableActionException. Poll until a search succeeds on the backing index.
-        // The .enrich-* index is a system index; accessing it via _search triggers a deprecation warning that the
-        // test RestClient treats as an error. Suppress it explicitly — this warning is expected and harmless here.
-        Request enrichProbe = new Request(
-            "GET",
-            "/.enrich-" + policy.policyName() + "-*/_search?size=0&allow_partial_search_results=false"
+        // NoShardAvailableActionException. Poll until a search succeeds on the backing index. Accessing the .enrich-*
+        // system index emits a deprecation warning; awaitSearchable tolerates it (a warned 2xx still means searchable).
+        awaitSearchable(
+            client,
+            new Request("GET", "/.enrich-" + policy.policyName() + "-*/_search?size=0&allow_partial_search_results=false")
         );
-        enrichProbe.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> false).build());
-        awaitSearchable(client, enrichProbe);
     }
 
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
@@ -1286,17 +1284,29 @@ public class CsvTestsDataLoader {
     private static void awaitSearchable(RestClient client, Request probe) throws IOException {
         try {
             ESTestCase.assertBusy(() -> {
+                Response response;
                 try {
-                    client.performRequest(probe);
+                    response = client.performRequest(probe);
+                } catch (WarningFailureException e) {
+                    // RestClient throws this only for an otherwise-successful (2xx) response that carried unexpected
+                    // warnings, e.g. the system-index access warning when probing .enrich-*. Re-check the status below
+                    // so the success path stays explicit and a non-2xx can never slip through as "searchable". This
+                    // also keeps the probe robust regardless of which warnings handler a harness imposes (e.g.
+                    // MultiClusterSpecIT#twoClients overwrites per-request options).
+                    response = e.getResponse();
                 } catch (ResponseException e) {
-                    int status = e.getResponse().getStatusLine().getStatusCode();
-                    if (status >= 500 && status <= 599) {
-                        // HTTP 5xx: transient shard unavailability (e.g. NoShardAvailableActionException → 503,
-                        // "all shards failed" → 500). Retry until the searchable copy is active.
-                        throw new AssertionError("not yet searchable (HTTP " + status + ")", e);
-                    }
-                    throw e;
+                    response = e.getResponse();
                 }
+                int status = response.getStatusLine().getStatusCode();
+                if (status >= 200 && status < 300) {
+                    return; // a (possibly warned) success means a searchable copy answered
+                }
+                if (status >= 500 && status <= 599) {
+                    // HTTP 5xx: transient shard unavailability (e.g. NoShardAvailableActionException → 503,
+                    // "all shards failed" → 500). Retry until the searchable copy is active.
+                    throw new AssertionError("[" + probe.getEndpoint() + "] not yet searchable (HTTP " + status + ")");
+                }
+                throw new IOException("unexpected response probing [" + probe.getEndpoint() + "]: HTTP " + status);
             }, 60, TimeUnit.SECONDS);
         } catch (IOException e) {
             throw e;

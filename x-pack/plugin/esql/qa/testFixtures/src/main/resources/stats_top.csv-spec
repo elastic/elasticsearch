@@ -433,7 +433,7 @@ shortest_employee:integer | tallest_employee:integer
 ;
 
 fieldNumericOutputFieldKeyword
-required_capability: agg_top_with_output_field_string
+required_capability: fn_top_output_field_string
 
 FROM employees
 | STATS top_names = TOP(salary, 3, "desc", first_name)
@@ -444,7 +444,7 @@ top_names:keyword
 ;
 
 fieldKeywordOutputFieldNumeric
-required_capability: agg_top_with_output_field_string
+required_capability: fn_top_output_field_string
 
 FROM employees
 | STATS top_salaries = TOP(first_name, 3, "asc", salary)
@@ -455,7 +455,7 @@ top_salaries:integer
 ;
 
 fieldKeywordOutputFieldKeyword
-required_capability: agg_top_with_output_field_string
+required_capability: fn_top_output_field_string
 
 FROM employees
 | STATS top_last_names = TOP(first_name, 3, "desc", last_name)
@@ -466,7 +466,7 @@ top_last_names:keyword
 ;
 
 fieldNumericOutputFieldKeywordGrouping
-required_capability: agg_top_with_output_field_string
+required_capability: fn_top_output_field_string
 
 FROM employees
 | STATS top_names = TOP(salary, 3, "desc", first_name) BY gender
@@ -481,7 +481,7 @@ null           | [Lillian, Kazuhito, Cristinel]
 ;
 
 fieldKeywordOutputFieldNumericGrouping
-required_capability: agg_top_with_output_field_string
+required_capability: fn_top_output_field_string
 
 FROM employees
 | STATS top_salaries = TOP(first_name, 3, "desc", salary) BY gender
@@ -496,7 +496,7 @@ null           | [48942, 31120, 73717]
 ;
 
 fieldKeywordOutputFieldKeywordGrouping
-required_capability: agg_top_with_output_field_string
+required_capability: fn_top_output_field_string
 
 FROM employees
 | STATS top_last_names = TOP(first_name, 3, "desc", last_name) BY gender

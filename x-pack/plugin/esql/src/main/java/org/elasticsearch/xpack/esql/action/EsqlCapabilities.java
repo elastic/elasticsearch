@@ -3194,11 +3194,6 @@ public class EsqlCapabilities {
          */
         FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
 
-        /**
-         * Support for {@code keyword} and {@code text} fields in {@code TOP} aggregation with outputField.
-         */
-        AGG_TOP_WITH_OUTPUT_FIELD_STRING,
-
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

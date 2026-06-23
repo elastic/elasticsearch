@@ -87,7 +87,10 @@ public class Top extends AggregateFunction
         SurrogateExpression,
         PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Top.class).quaternary(Top::new).name("top");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Top.class)
+        .quaternary(Top::new)
+        .capabilities("output_field_string")
+        .name("top");
 
     private static final String ORDER_ASC = "ASC";
     private static final String ORDER_DESC = "DESC";

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -806,6 +807,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 return new ToCounter(source, expression(parseTree));
             } else if (DataType.GAUGE_CAST_NAME.equals(typeName)) {
                 return new ToGauge(source, expression(parseTree));
+            } else if (DataType.TEXT.typeName().equals(typeName) || "text".equals(typeName)) {
+                return new ToText(source, expression(parseTree));
             }
         }
         DataType dataType = typedParsing(this, dataTypeCtx, DataType.class);

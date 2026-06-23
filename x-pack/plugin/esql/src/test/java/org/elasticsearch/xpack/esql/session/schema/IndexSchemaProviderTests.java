@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.session;
+package org.elasticsearch.xpack.esql.session.schema;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
@@ -24,11 +24,11 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class EsqlSessionTests extends ESTestCase {
+public class IndexSchemaProviderTests extends ESTestCase {
 
     public void testShouldRetryConcreteTimeSeriesResolution() {
         assertTrue(
-            EsqlSession.shouldRetryConcreteTimeSeriesResolution(
+            IndexSchemaProvider.shouldRetryConcreteTimeSeriesResolution(
                 IndexMode.TIME_SERIES,
                 IndexResolution.empty("logs"),
                 new IndexPattern(EMPTY, "logs")
@@ -38,7 +38,7 @@ public class EsqlSessionTests extends ESTestCase {
 
     public void testShouldNotRetryWildcardTimeSeriesResolution() {
         assertFalse(
-            EsqlSession.shouldRetryConcreteTimeSeriesResolution(
+            IndexSchemaProvider.shouldRetryConcreteTimeSeriesResolution(
                 IndexMode.TIME_SERIES,
                 IndexResolution.empty("logs*"),
                 new IndexPattern(EMPTY, "logs*")
@@ -47,7 +47,7 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     public void testRefineConcreteTimeSeriesResolutionReturnsHelpfulError() {
-        IndexResolution resolution = EsqlSession.refineConcreteTimeSeriesResolution(
+        IndexResolution resolution = IndexSchemaProvider.refineConcreteTimeSeriesResolution(
             new IndexPattern(EMPTY, "logs"),
             IndexResolution.empty("logs"),
             resolvedIndex("logs")
@@ -65,7 +65,7 @@ public class EsqlSessionTests extends ESTestCase {
             Map.of("remote", List.of(failure))
         );
 
-        IndexResolution resolution = EsqlSession.refineConcreteTimeSeriesResolution(
+        IndexResolution resolution = IndexSchemaProvider.refineConcreteTimeSeriesResolution(
             new IndexPattern(EMPTY, "logs"),
             originalResolution,
             IndexResolution.empty("logs")

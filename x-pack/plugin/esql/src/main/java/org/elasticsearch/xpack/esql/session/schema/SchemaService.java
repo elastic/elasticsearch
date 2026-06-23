@@ -7,22 +7,22 @@
 
 package org.elasticsearch.xpack.esql.session.schema;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
-import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiFunction;
 
 /**
@@ -43,9 +43,21 @@ public final class SchemaService {
         IndexResolver indexResolver,
         ViewResolver viewResolver,
         ExternalSourceResolver externalSourceResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        RemoteClusterService remoteClusterService,
+        CrossProjectModeDecider crossProjectModeDecider,
+        IndicesExpressionGrouper indicesExpressionGrouper,
+        PlanTelemetry planTelemetry,
+        Verifier verifier
     ) {
-        this.indexProvider = new IndexSchemaProvider(indexResolver);
+        this.indexProvider = new IndexSchemaProvider(
+            indexResolver,
+            remoteClusterService,
+            crossProjectModeDecider,
+            indicesExpressionGrouper,
+            planTelemetry,
+            verifier
+        );
         this.viewProvider = new ViewSchemaProvider(viewResolver);
         this.datasetProvider = new DatasetSchemaProvider(externalSourceResolver, indexNameExpressionResolver);
     }
@@ -70,70 +82,16 @@ public final class SchemaService {
         datasetProvider.resolveExternalSources(plan, icebergPaths, listener);
     }
 
-    public void resolveMainIndicesVersioned(
-        String indexPattern,
-        Set<String> fieldNames,
-        QueryBuilder requestFilter,
-        boolean includeAllDimensions,
-        TransportVersion minimumVersion,
-        boolean useAggregateMetricDoubleWhenNotSupported,
-        boolean useDenseVectorWhenNotSupported,
-        boolean hasTimeSeriesAggregation,
-        boolean trackUnmappedFieldIndices,
-        IndicesExpressionGrouper indicesExpressionGrouper,
-        ActionListener<Versioned<IndexResolution>> listener
-    ) {
-        indexProvider.resolveMainIndicesVersioned(
-            indexPattern,
-            fieldNames,
-            requestFilter,
-            includeAllDimensions,
-            minimumVersion,
-            useAggregateMetricDoubleWhenNotSupported,
-            useDenseVectorWhenNotSupported,
-            hasTimeSeriesAggregation,
-            trackUnmappedFieldIndices,
-            indicesExpressionGrouper,
-            listener
-        );
+    /**
+     * Resolve the main index patterns of the query: run the field-caps fetch for each pattern, init cross-cluster
+     * state, and accumulate the resolution (plus the minimum transport version) into {@code result}.
+     */
+    public void resolveMainIndices(SchemaContext ctx, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
+        indexProvider.resolveMainIndices(ctx, result, listener);
     }
 
-    public void resolveFlatIndicesVersioned(
-        boolean lenient,
-        String indexPattern,
-        String projectRouting,
-        Set<String> fieldNames,
-        QueryBuilder requestFilter,
-        boolean includeAllDimensions,
-        TransportVersion minimumVersion,
-        boolean useAggregateMetricDoubleWhenNotSupported,
-        boolean useDenseVectorWhenNotSupported,
-        boolean hasTimeSeriesAggregation,
-        boolean trackUnmappedFieldIndices,
-        ActionListener<Versioned<IndexResolution>> listener
-    ) {
-        indexProvider.resolveFlatIndicesVersioned(
-            lenient,
-            indexPattern,
-            projectRouting,
-            fieldNames,
-            requestFilter,
-            includeAllDimensions,
-            minimumVersion,
-            useAggregateMetricDoubleWhenNotSupported,
-            useDenseVectorWhenNotSupported,
-            hasTimeSeriesAggregation,
-            trackUnmappedFieldIndices,
-            listener
-        );
-    }
-
-    public void resolveLookupIndices(
-        String indexPattern,
-        Set<String> fieldNames,
-        TransportVersion minimumVersion,
-        ActionListener<IndexResolution> listener
-    ) {
-        indexProvider.resolveLookupIndices(indexPattern, fieldNames, minimumVersion, listener);
+    /** Resolve every lookup index referenced by the query, validating each resolves to a single lookup-mode index. */
+    public void resolveLookupIndices(SchemaContext ctx, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
+        indexProvider.resolveLookupIndices(ctx, result, listener);
     }
 }

@@ -168,7 +168,7 @@ public class EsqlCCSUtils {
         }
     }
 
-    static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
+    public static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
         if (executionInfo.getClusters().isEmpty()) {
             return localPattern;
         }
@@ -177,7 +177,7 @@ public class EsqlCCSUtils {
             .collect(joining(","));
     }
 
-    static void updateExecutionInfoWithUnavailableClusters(
+    public static void updateExecutionInfoWithUnavailableClusters(
         EsqlExecutionInfo execInfo,
         Map<String, List<FieldCapabilitiesFailure>> failures
     ) {
@@ -202,7 +202,7 @@ public class EsqlCCSUtils {
      * so any such error must fail the entire query regardless of whether other clusters succeeded.
      * Collects all view errors across all clusters and merges them into a single exception.
      */
-    static void checkForViewErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
+    public static void checkForViewErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
         RemoteViewNotSupportedException merged = null;
         for (var entry : failures.entrySet()) {
             for (FieldCapabilitiesFailure failure : entry.getValue()) {
@@ -327,7 +327,7 @@ public class EsqlCCSUtils {
     }
 
     // visible for testing
-    static boolean concreteIndexRequested(String indexExpression) {
+    public static boolean concreteIndexRequested(String indexExpression) {
         if (Strings.isNullOrBlank(indexExpression)) {
             return false;
         }

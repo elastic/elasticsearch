@@ -25,6 +25,9 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -93,6 +96,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                 return;
             }
         }
+
+        var schema = Maps.transformValues(resolveIndexAbstractions(request), list -> list.stream().map(this::resolveSchema).toList());
 
         fieldCapsAction.executeRequest(task, request, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
@@ -174,5 +179,31 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
             );
         }
         return result;
+    }
+
+    private IndexAbstractionSchema resolveSchema(IndexAbstraction indexAbstraction) {
+        // TODO implement
+        return new IndexAbstractionSchema(
+            indexAbstraction.getName(),
+            indexAbstraction.getType(),
+            Map.of("type", indexAbstraction.getType().name())
+        );
+    }
+
+    public record IndexAbstractionSchema(String name, IndexAbstraction.Type type, Map<String, String> attributes) implements Writeable {
+        public static IndexAbstractionSchema readFrom(StreamInput in) throws IOException {
+            return new IndexAbstractionSchema(
+                in.readString(),
+                IndexAbstraction.Type.valueOf(in.readString()),
+                in.readMap(StreamInput::readString)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeString(type.name());
+            out.writeMap(attributes, StreamOutput::writeString);
+        }
     }
 }

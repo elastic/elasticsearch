@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.session.schema;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 import java.util.Map;
@@ -31,8 +32,13 @@ public sealed interface ResolvedSchema permits ResolvedSchema.Index, ResolvedSch
     /** An index / alias / data stream — the field-caps result behind the index provider. */
     record Index(String name, IndexResolution resolution) implements ResolvedSchema {}
 
-    /** A view — its result schema (the output of its stored query). Remote-exec handle to follow. */
-    record View(String name, List<Attribute> schema) implements ResolvedSchema {}
+    /**
+     * A view — its result schema (the contract callers plan against) plus the unwrapped plan of its stored query
+     * (the implementation; produced by reusing the existing view rewrite so we never unwrap twice, and what
+     * execution runs). Splitting schema from implementation here is what decouples schema resolution from the
+     * view-into-query rewrite while keeping that rewrite as the optimization.
+     */
+    record View(String name, List<Attribute> schema, LogicalPlan implementation) implements ResolvedSchema {}
 
     /** A dataset — the external-source config the coordinator turns into an external relation. */
     record Dataset(String name, Map<String, Object> config) implements ResolvedSchema {}

@@ -21,8 +21,6 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     Class<? extends Plugin> pluginClassUnderTest = ForeignApiPlugin
 
     def setup() {
-        configureBwcVersions()
-
         buildFile << """
             apply plugin: 'java'
         """.stripIndent()

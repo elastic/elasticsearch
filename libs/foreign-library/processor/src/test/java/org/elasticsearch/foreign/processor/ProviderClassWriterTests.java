@@ -55,11 +55,13 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
     }
 
     /**
-     * A library with {@code unavailableOn} listing all five platforms must generate a {@code load()}
-     * that returns {@code null} regardless of the current platform, without attempting to construct
-     * the {@code $Impl} (which would require a live native library).
+     * A library with {@code unavailableOn} listing two platforms, one of which is the current platform,
+     * must generate a {@code load()} that returns {@code null} without constructing the {@code $Impl}.
      */
-    public void testUnavailableOnAllPlatformsLoadReturnsNull() throws Exception {
+    public void testUnavailableOnTwoPlatformsIncludingCurrentLoadReturnsNull() throws Exception {
+        Platform current = Platform.current();
+        Platform other = java.util.Arrays.stream(Platform.values()).filter(p -> p != current).findFirst().get();
+
         String source = """
             package test;
             import org.elasticsearch.foreign.LibrarySpecification;
@@ -67,32 +69,24 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
             import org.elasticsearch.foreign.Platform;
             @LibrarySpecification(
                 name = "testlib",
-                unavailableOn = {
-                    Platform.LINUX_X64,
-                    Platform.LINUX_AARCH64,
-                    Platform.DARWIN_X64,
-                    Platform.DARWIN_AARCH64,
-                    Platform.WINDOWS_X64
-                }
+                unavailableOn = { Platform.%s, Platform.%s }
             )
             public interface MyLib {
                 @Function("native_fn")
                 int fn(int x);
             }
-            """;
+            """.formatted(current.name(), other.name());
 
         CompilationResult result = compile("test.MyLib", source);
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
 
-        // Load with initialization: load() will return null before $Impl is ever constructed,
-        // so the $Impl <clinit> (which would require a native library) is never triggered.
         Class<?> providerClass = result.loadClass("test.MyLib$Provider");
         assertNotNull("Generated MyLib$Provider class not found", providerClass);
 
         java.lang.reflect.Method loadMethod = providerClass.getMethod("load");
         Object providerInstance = providerClass.getConstructor().newInstance();
         Object loadResult = loadMethod.invoke(providerInstance);
-        assertNull("load() must return null when current platform is in unavailableOn", loadResult);
+        assertNull("load() must return null when current platform (" + current.name() + ") is in unavailableOn", loadResult);
     }
 
     /**

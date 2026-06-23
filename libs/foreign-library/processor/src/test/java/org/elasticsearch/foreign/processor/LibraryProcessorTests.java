@@ -217,9 +217,10 @@ public class LibraryProcessorTests extends ProcessorTestCase {
     }
 
     /**
-     * A library with {@code unavailableOn} listing all five platforms should emit a {@link javax.tools.Diagnostic.Kind#WARNING}.
+     * A library with {@code unavailableOn} listing all five platforms must fail compilation — a library
+     * that can never load natively is a mistake, not a valid configuration.
      */
-    public void testUnavailableOnAllPlatformsEmitsWarning() {
+    public void testUnavailableOnAllPlatformsFailsCompilation() {
         String source = """
             package test;
             import org.elasticsearch.foreign.LibrarySpecification;
@@ -243,8 +244,8 @@ public class LibraryProcessorTests extends ProcessorTestCase {
 
         CompilationResult result = compile("test.MyLib", source);
 
-        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
-        boolean hasWarning = result.warnings().stream().anyMatch(msg -> msg.contains("never be natively loaded"));
-        assertTrue("Expected warning about all platforms listed but got: " + result.warnings(), hasWarning);
+        assertFalse("Expected compilation to fail when all platforms are listed in unavailableOn", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("never be natively loaded"));
+        assertTrue("Expected error about all platforms listed but got: " + result.errors(), hasError);
     }
 }

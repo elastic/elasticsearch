@@ -108,7 +108,9 @@ public record LibraryModel(
             }
         }
 
-        return hasError ? null : new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods, unavailableOn);
+        return (hasError || unavailableOn == null)
+            ? null
+            : new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods, unavailableOn);
     }
 
     /**
@@ -116,7 +118,7 @@ public record LibraryModel(
      * as a list of enum constant names. Uses annotation mirror APIs to avoid loading the {@code Platform}
      * class at processing time.
      *
-     * <p>Emits a {@link Kind#WARNING} if every known platform is listed (the library would never load natively).
+     * <p>Emits a {@link Kind#ERROR} if every known platform is listed (the library would never load natively).
      */
     private static List<String> extractUnavailableOn(TypeElement element, Messager messager) {
         AnnotationMirror specMirror = findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
@@ -141,11 +143,12 @@ public record LibraryModel(
             }
             if (platformNames.containsAll(ALL_PLATFORM_NAMES)) {
                 messager.printMessage(
-                    Kind.WARNING,
+                    Kind.ERROR,
                     "@LibrarySpecification.unavailableOn lists all known platforms; the library will never be natively loaded",
                     element,
                     specMirror
                 );
+                return null;
             }
             return List.copyOf(platformNames);
         }

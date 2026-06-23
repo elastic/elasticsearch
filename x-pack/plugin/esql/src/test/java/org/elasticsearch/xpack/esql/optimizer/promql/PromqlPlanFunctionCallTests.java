@@ -15,12 +15,14 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -86,6 +89,48 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             as(percentile.percentile().fold(FoldContext.small()), Double.class),
             equalTo(expectedPercentile)
         );
+    }
+
+    public void testAbsentOverTimePromqlReturnsNullWhenRangeIsPresent() {
+        var window = Literal.timeDuration(Source.EMPTY, Duration.ofMinutes(5));
+        var ctx = new PromqlFunctionRegistry.PromqlContext(Literal.NULL, window, Literal.NULL, EsqlTestUtils.TEST_CFG);
+        Expression built = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            "absent_over_time",
+            Source.EMPTY,
+            Literal.fromDouble(Source.EMPTY, 1.0),
+            ctx,
+            List.of()
+        );
+
+        Case absentOrNull = as(built, Case.class);
+        assertThat(absentOrNull.children(), hasSize(2));
+        AbsentOverTime absent = as(absentOrNull.children().get(0), AbsentOverTime.class);
+        assertThat(absent.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+        assertThat(as(absentOrNull.children().get(1), Literal.class).value(), equalTo(1.0));
+    }
+
+    public void testAbsentOverTimePromqlFiltersNullOutput() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.bytes_in[10m])))",
+            false
+        );
+        assertTrue(plan.resolved());
+
+        IsNotNull valueFilter = plan.collect(Filter.class)
+            .stream()
+            .map(Filter::condition)
+            .filter(IsNotNull.class::isInstance)
+            .map(IsNotNull.class::cast)
+            .filter(notNull -> notNull.field() instanceof Attribute attr && attr.name().equals("is_absent"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(as(valueFilter.field(), Attribute.class).name(), equalTo("is_absent"));
+
+        List<Case> cases = new ArrayList<>();
+        plan.forEachExpressionDown(Case.class, cases::add);
+        assertThat(cases, hasSize(1));
+        assertThat(cases.getFirst().children(), hasSize(2));
+        assertThat(as(cases.getFirst().children().get(1), Literal.class).value(), equalTo(1.0));
     }
 
     public void testRound() {

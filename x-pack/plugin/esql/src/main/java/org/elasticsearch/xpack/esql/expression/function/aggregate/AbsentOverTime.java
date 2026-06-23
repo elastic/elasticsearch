@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
         .binary(AbsentOverTime::new)
         .name("absent_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeriesOverTime(AbsentOverTime::new)
+        .withinSeriesOverTime(AbsentOverTime::promqlAbsentOverTime)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns 1 if the range vector has no elements, otherwise returns an empty vector.")
         .example("absent_over_time(nonexistent_metric[5m])")
@@ -98,6 +99,10 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
 
     public AbsentOverTime(Source source, Expression field, Expression filter, Expression window) {
         super(source, field, filter, window, List.of());
+    }
+
+    private static Expression promqlAbsentOverTime(Source source, Expression field, Expression filter, Expression window) {
+        return new Case(source, new AbsentOverTime(source, field, filter, window), List.of(Literal.fromDouble(source, 1.0)));
     }
 
     private AbsentOverTime(StreamInput in) throws IOException {

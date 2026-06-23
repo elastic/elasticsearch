@@ -2317,6 +2317,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT_LABEL_MATCHING,
 
         /**
+         * Fix PromQL {@code absent_over_time()} to return {@code 1.0} only for absent ranges and no row when samples exist.
+         * https://github.com/elastic/elasticsearch/issues/151973
+         */
+        FIX_PROMQL_ABSENT_OVER_TIME_OUTPUT,
+
+        /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
          * into one multi-valued row per series.
          */

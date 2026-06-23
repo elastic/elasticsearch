@@ -173,10 +173,7 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
             ProjectEncryptionKeyHealthIndicatorService.MISSING_WRAP_CREDENTIALS_DEFINITION,
             result.diagnosisList().get(0).definition()
         );
-        assertEquals(
-            ProjectEncryptionKeyHealthIndicatorService.WRAP_FAILURE_IMPACTS,
-            result.impacts()
-        );
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.WRAP_FAILURE_IMPACTS, result.impacts());
     }
 
     public void testStateDisplayValueAppearsInDetails() {

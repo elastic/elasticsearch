@@ -18,12 +18,18 @@ public class EsqlDataTypeRegistry {
 
     public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
         DataType type = DataType.fromEs(typeName);
+        if (metricType != TimeSeriesParams.MetricType.COUNTER) {
+            return type;
+        }
         /*
          * If we're handling a time series COUNTER type field then convert it
          * into it's counter. But *first* we have to widen it because we only
          * have time series counters for `double`, `long` and `int`, not `float`
-         * and `half_float`, etc.
+         * and `half_float`, etc. If the widened type still has no counter
+         * variant (e.g. `unsigned_long`, which mappers happily accept as a
+         * counter), treat it as unsupported rather than returning `null`.
          */
-        return metricType == TimeSeriesParams.MetricType.COUNTER ? type.widenSmallNumeric().counter() : type;
+        DataType counter = type.widenSmallNumeric().counter();
+        return counter != null ? counter : DataType.UNSUPPORTED;
     }
 }

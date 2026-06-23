@@ -50,9 +50,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
     public void testBuilder() {
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, false, false, null, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, false, false, null, Collections.emptyMap());
-        builder.add(new String[] { "index3" }, false, true, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, true, false, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, false, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index3" }, false, true, false, false, false, null, Collections.emptyMap());
 
         {
             FieldCapabilities cap1 = builder.build(false);
@@ -80,9 +80,18 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, false, true, true, null, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, false, false, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index3" }, false, false, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, false, true, false, true, null, Collections.emptyMap());
+        builder.add(
+            new String[] { "index2" },
+            false,
+            true,
+            false,
+            false,
+            false,
+            TimeSeriesParams.MetricType.COUNTER,
+            Collections.emptyMap()
+        );
+        builder.add(new String[] { "index3" }, false, false, false, false, false, null, Collections.emptyMap());
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(false));
@@ -109,9 +118,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, false, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, false, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, false, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -138,9 +147,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.GAUGE, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, false, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, false, true, TimeSeriesParams.MetricType.GAUGE, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, false, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -190,7 +199,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             if (isDimension == false) {
                 nonDimensionIndices.addAll(Arrays.asList(groupIndices));
             }
-            builder.add(groupIndices, false, searchable, aggregatable, isDimension, null, Map.of());
+
+            // TODO: Randomize isInference value
+            builder.add(groupIndices, false, searchable, aggregatable, false, isDimension, null, Map.of());
             i += bulkSize;
         }
         boolean withIndices = randomBoolean();
@@ -241,7 +252,16 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         TimeSeriesParams.MetricType metric = randomBoolean() ? null : randomFrom(TimeSeriesParams.MetricType.values());
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
         for (String index : indices) {
-            builder.add(new String[] { index }, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), metric, Map.of());
+            builder.add(
+                new String[] { index },
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                metric,
+                Map.of()
+            );
         }
         FieldCapabilities fieldCaps = builder.build(randomBoolean());
         assertThat(fieldCaps.getMetricType(), equalTo(metric));
@@ -260,6 +280,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         for (String index : indices) {
             builder.add(
                 new String[] { index },
+                randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
@@ -291,6 +312,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
+                randomBoolean(),
                 randomFrom(TimeSeriesParams.MetricType.values()),
                 Map.of()
             );
@@ -299,6 +321,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         AssertionError error = expectThrows(AssertionError.class, () -> {
             builder.add(
                 new String[] { outOfOrderIndex },
+                randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
@@ -333,6 +356,14 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             }
         }
 
+        String[] nonInferenceIndices = null;
+        if (randomBoolean()) {
+            nonInferenceIndices = new String[randomIntBetween(0, 5)];
+            for (int i = 0; i < nonInferenceIndices.length; i++) {
+                nonInferenceIndices[i] = randomAlphaOfLengthBetween(5, 20);
+            }
+        }
+
         String[] nonDimensionIndices = null;
         if (randomBoolean()) {
             nonDimensionIndices = new String[randomIntBetween(0, 5)];
@@ -362,10 +393,12 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
             randomFrom(TimeSeriesParams.MetricType.values()),
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
+            nonInferenceIndices,
             nonDimensionIndices,
             metricConflictsIndices,
             meta
@@ -379,15 +412,17 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         boolean isMetadataField = instance.isMetadataField();
         boolean isSearchable = instance.isSearchable();
         boolean isAggregatable = instance.isAggregatable();
+        boolean isInference = instance.isInference();
         boolean isDimension = instance.isDimension();
         TimeSeriesParams.MetricType metricType = instance.getMetricType();
         String[] indices = instance.indices();
         String[] nonSearchableIndices = instance.nonSearchableIndices();
         String[] nonAggregatableIndices = instance.nonAggregatableIndices();
+        String[] nonInferenceIndices = instance.nonInferenceIndices();
         String[] nonDimensionIndices = instance.nonDimensionIndices();
         String[] metricConflictsIndices = instance.metricConflictsIndices();
         Map<String, Set<String>> meta = instance.meta();
-        switch (between(0, 12)) {
+        switch (between(0, 14)) {
             case 0:
                 name += randomAlphaOfLengthBetween(1, 10);
                 break;
@@ -401,6 +436,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 isAggregatable = isAggregatable == false;
                 break;
             case 4:
+                isInference = isInference == false;
+                break;
+            case 5:
                 String[] newIndices;
                 int startIndicesPos = 0;
                 if (indices == null) {
@@ -414,7 +452,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 indices = newIndices;
                 break;
-            case 5:
+            case 6:
                 String[] newNonSearchableIndices;
                 int startNonSearchablePos = 0;
                 if (nonSearchableIndices == null) {
@@ -428,7 +466,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 nonSearchableIndices = newNonSearchableIndices;
                 break;
-            case 6:
+            case 7:
                 String[] newNonAggregatableIndices;
                 int startNonAggregatablePos = 0;
                 if (nonAggregatableIndices == null) {
@@ -442,7 +480,21 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 nonAggregatableIndices = newNonAggregatableIndices;
                 break;
-            case 7:
+            case 8:
+                String[] newNonInferenceIndices;
+                int startNonInferencePos = 0;
+                if (nonInferenceIndices == null) {
+                    newNonInferenceIndices = new String[between(1, 10)];
+                } else {
+                    newNonInferenceIndices = Arrays.copyOf(nonInferenceIndices, nonInferenceIndices.length + between(1, 10));
+                    startNonInferencePos = nonInferenceIndices.length;
+                }
+                for (int i = startNonInferencePos; i < newNonInferenceIndices.length; i++) {
+                    newNonInferenceIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                nonInferenceIndices = newNonInferenceIndices;
+                break;
+            case 9:
                 Map<String, Set<String>> newMeta;
                 if (meta.isEmpty()) {
                     newMeta = Map.of("foo", Set.of("bar"));
@@ -451,13 +503,13 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 meta = newMeta;
                 break;
-            case 8:
+            case 10:
                 isMetadataField = isMetadataField == false;
                 break;
-            case 9:
+            case 11:
                 isDimension = isDimension == false;
                 break;
-            case 10:
+            case 12:
                 if (metricType == null) {
                     metricType = randomFrom(TimeSeriesParams.MetricType.values());
                 } else {
@@ -468,7 +520,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                     }
                 }
                 break;
-            case 11:
+            case 13:
                 String[] newTimeSeriesDimensionsConflictsIndices;
                 int startTimeSeriesDimensionsConflictsPos = 0;
                 if (nonDimensionIndices == null) {
@@ -485,7 +537,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 }
                 nonDimensionIndices = newTimeSeriesDimensionsConflictsIndices;
                 break;
-            case 12:
+            case 14:
                 String[] newMetricConflictsIndices;
                 int startMetricConflictsPos = 0;
                 if (metricConflictsIndices == null) {
@@ -508,11 +560,13 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             isMetadataField,
             isSearchable,
             isAggregatable,
+            isInference,
             isDimension,
             metricType,
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
+            nonInferenceIndices,
             nonDimensionIndices,
             metricConflictsIndices,
             meta

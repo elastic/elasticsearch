@@ -806,7 +806,23 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     diff = null;
                 }
-                return new FieldCapabilities(field, "unmapped", false, false, false, false, null, diff, null, null, null, null, Map.of());
+                return new FieldCapabilities(
+                    field,
+                    "unmapped",
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    null,
+                    diff,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of()
+                );
             };
         }
         return null;
@@ -837,6 +853,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),
+                fieldCap.isInference(),
                 fieldCap.isDimension(),
                 fieldCap.metricType(),
                 fieldCap.meta()

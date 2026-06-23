@@ -47,9 +47,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Verifies that cache regions belonging to merged (obsolete) segments are evicted on the search node.
+ * Verifies that cache regions belonging to obsolete segments are evicted on the search node.
  */
-public class MergedSegmentCacheEvictionIT extends AbstractStatelessPluginIntegTestCase {
+public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofKb(4);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(2);
@@ -358,7 +358,7 @@ public class MergedSegmentCacheEvictionIT extends AbstractStatelessPluginIntegTe
         );
         startSearchNode();
 
-        final String indexName = "test-gen-rollover-eviction";
+        final String indexName = "test-fully-deleted";
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE).build());
         ensureGreen(indexName);
 

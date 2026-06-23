@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.RerankRequest;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -21,7 +22,31 @@ import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDoc
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class QueryAndDocsInputsTests extends ESTestCase {
+public class QueryAndDocsInputsTests extends InferenceObjectRamBytesUsedTest<QueryAndDocsInputs> {
+
+    private static final String QUERY_VALUE = "query";
+    private static final InferenceString QUERY = new InferenceString(DataType.TEXT, QUERY_VALUE);
+
+    private static final String DOC_VALUE = "doc";
+    private static final InferenceString DOC = new InferenceString(DataType.TEXT, DOC_VALUE);
+
+    @Override
+    public QueryAndDocsInputs objectToEstimate() {
+        return new QueryAndDocsInputs(QUERY, List.of(DOC));
+    }
+
+    @Override
+    public List<QueryAndDocsInputs> objectsToEstimateWithLargerInput() {
+        return List.of(
+            // Larger query
+            new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE.repeat(5)), List.of(DOC)),
+            // More docs
+            new QueryAndDocsInputs(QUERY, List.of(DOC, DOC)),
+            // Larger doc
+            new QueryAndDocsInputs(QUERY, List.of(new InferenceString(DataType.TEXT, DOC_VALUE.repeat(5))))
+        );
+    }
+
     public void testMinimalConstructor() {
         var query = createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES);
         var inputs = randomList(5, () -> createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES));

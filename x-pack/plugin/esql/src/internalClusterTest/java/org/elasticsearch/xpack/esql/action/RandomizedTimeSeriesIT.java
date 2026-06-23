@@ -357,7 +357,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     /** Aggregated rate statistics (count, max, avg, min, sum) computed across timeseries in a window. */
     record RateStats(Long count, RateRange max, RateRange avg, RateRange min, RateRange sum) {}
 
-
     @Nullable
     private static TimestampedValue findLastPoint(List<Map<String, List<TimestampedValue>>> allWindows, int idx, String tsId) {
         if (idx < 0 || idx >= allWindows.size()) return null;
@@ -402,30 +401,29 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         double totalIncrease = computeCounterIncreaseBetween(currentWindow, temporality);
 
         if (lastInPrevWindow != null) {
-            totalIncrease += getInterpolatedIncreaseBetween(lastInPrevWindow, firstInWindow, timebucketStart, temporality);
+            totalIncrease += getInterpolatedIncreaseBetween(lastInPrevWindow, firstInWindow, timebucketStart, temporality, true);
             startTs = timebucketStart;
         } else if (currentWindow.size() > 1) {
-            totalIncrease += getExtrapolatedIncreaseAtBorder(currentWindow, temporality, secondsInWindow,true);
+            totalIncrease += getExtrapolatedIncreaseAtBorder(currentWindow, temporality, secondsInWindow, true);
             startTs = timebucketStart;
         }
         if (firstInNextWindow != null) {
-            totalIncrease += getInterpolatedIncreaseBetween(lastInWindow, firstInNextWindow, timebucketEnd, temporality);
+            totalIncrease += getInterpolatedIncreaseBetween(lastInWindow, firstInNextWindow, timebucketEnd, temporality, false);
             endTs = timebucketEnd;
         } else if (currentWindow.size() > 1) {
-            totalIncrease += getExtrapolatedIncreaseAtBorder(currentWindow, temporality, secondsInWindow,false);
+            totalIncrease += getExtrapolatedIncreaseAtBorder(currentWindow, temporality, secondsInWindow, false);
             endTs = timebucketEnd;
         }
 
-        if (startTs == endTs && lastInPrevWindow != null) {
-            // special case: The only value falsl exactly on the start border
-            // our rate implementation in this case returns the rate between the point in this window and the point in the last window
-            if (isRate) {
+        if (startTs == endTs) {
+            if (lastInPrevWindow != null && isRate) {
+                // special case: The only value falls exactly on the start border
+                // our rate implementation in this case returns the rate between the point in this window and the point in the last window
                 List<TimestampedValue> values = List.of(lastInPrevWindow, firstInWindow);
-                double rangeSeconds = (firstInWindow.timestamp().toEpochMilli() - lastInPrevWindow.timestamp().toEpochMilli()) * 1000.0;
+                double rangeSeconds = (firstInWindow.timestamp().toEpochMilli() - lastInPrevWindow.timestamp().toEpochMilli()) / 1000.0;
                 return computeCounterIncreaseBetween(values, temporality) / rangeSeconds;
-            } else {
-                return null;
             }
+            return null;
         }
         return isRate ? totalIncrease / ((endTs - startTs) / 1000.0) : totalIncrease;
     }
@@ -433,24 +431,36 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     private static double computeCounterIncreaseBetween(List<TimestampedValue> currentWindow, Temporality temporality) {
         double increaseInWindow = 0.0;
 
-        for (int i = 1; i < currentWindow.size(); i++) {
-            if (temporality == Temporality.DELTA) {
+        if (temporality == Temporality.DELTA) {
+            // Intentionally skip the first value: It's increase belongs to
+            // the timespan before the timestamp of the first value!
+            for (int i = 1; i < currentWindow.size(); i++) {
                 increaseInWindow += currentWindow.get(i).value();
-            } else {
-                double prevValue = currentWindow.get(i-1).value();
+            }
+        } else {
+            if (currentWindow.isEmpty()) {
+                return 0;
+            }
+            double resets = 0;
+            for (int i = 1; i < currentWindow.size(); i++) {
+                double prevValue = currentWindow.get(i - 1).value();
                 double currValue = currentWindow.get(i).value();
-                if (currValue >= prevValue) {
-                    increaseInWindow += currValue - prevValue;
-                } else {
-                    // reset, don't subtract previous cumulative value
-                    increaseInWindow += currValue;
+                if (currValue < prevValue) {
+                    resets += prevValue;
                 }
             }
+            increaseInWindow = currentWindow.getLast().value + resets - currentWindow.getFirst().value();
         }
         return increaseInWindow;
     }
 
-    static double getInterpolatedIncreaseBetween(TimestampedValue left, TimestampedValue right, long targetTimestamp, Temporality temporality) {
+    static double getInterpolatedIncreaseBetween(
+        TimestampedValue left,
+        TimestampedValue right,
+        long targetTimestamp,
+        Temporality temporality,
+        boolean isLowerBound
+    ) {
         long leftTs = left.timestamp().toEpochMilli();
         long rightTs = right.timestamp().toEpochMilli();
         assert targetTimestamp >= leftTs : "Target timestamp must be greater than or equal to left timestamp";
@@ -459,11 +469,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
         long timespan = rightTs - leftTs;
         double interpolationWeight = (targetTimestamp - leftTs) * 1.0 / timespan;
+        if (isLowerBound) {
+            interpolationWeight = 1.0 - interpolationWeight;
+        }
 
         double totalIncrease;
         if (temporality == Temporality.DELTA) {
             // For delta, only the counter value of the right point matters. It represents the total increase between the two points
-            totalIncrease = right.value() ;
+            totalIncrease = right.value();
         } else {
             if (right.value() >= left.value()) {
                 // no reset
@@ -508,7 +521,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             if (gap > averageSampleInterval * 1.1) {
                 gap = averageSampleInterval / 2.0;
             }
-            return gap * slope;
+            // the extrapolated increase cannot exceed the first counter value for the lower boundary
+            double extrapolatedIncrease = gap * slope;
+            if (isLowerBoundary) {
+                extrapolatedIncrease = Math.min(extrapolatedIncrease, values.getFirst().value());
+            }
+            return extrapolatedIncrease;
         }
         return 0.0;
     }
@@ -534,43 +552,33 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Computes a reference delta matching {@code DeltaAggregator#evaluateFinal} with PromQL-style
-     * in-bucket extrapolation to bucket boundaries. No adjacent-window data.
+     * Computes a reference delta range for a single timeseries in a time window.
+     * The raw delta is {@code lastValue - firstValue}. The ES DeltaAggregator applies PromQL-style
+     * extrapolation that scales the delta up to cover the full bucket width, so the actual result
+     * falls between the raw delta and {@code delta * windowSizeFactor}.
+     *
+     * @return a {@code [lower, upper]} range, or {@code null} if fewer than 2 points
      */
-    static Double computeReferenceDelta(List<TimestampedValue> currentWindow, int secondsInWindow) {
+    static double[] computeReferenceDelta(List<TimestampedValue> currentWindow, int secondsInWindow) {
         if (currentWindow == null || currentWindow.size() < 2) {
             return null;
         }
-        long firstTs = currentWindow.getFirst().timestamp().toEpochMilli();
         double firstValue = currentWindow.getFirst().value();
-        long lastTs = currentWindow.getLast().timestamp().toEpochMilli();
         double lastValue = currentWindow.getLast().value();
+        long firstTs = currentWindow.getFirst().timestamp().toEpochMilli();
+        long lastTs = currentWindow.getLast().timestamp().toEpochMilli();
         if (lastTs == firstTs) {
             return null;
         }
 
-        long bucketStartMs = (firstTs / (secondsInWindow * 1000L)) * (secondsInWindow * 1000L);
-        long bucketEndMs = bucketStartMs + secondsInWindow * 1000L;
-        double averageSampleInterval = (double) (lastTs - firstTs) / currentWindow.size();
-        double slope = (lastValue - firstValue) / (lastTs - firstTs);
-
-        double calculatedFirst = firstValue;
-        double startGap = firstTs - bucketStartMs;
-        if (startGap > 0) {
-            if (startGap > averageSampleInterval * 1.1) {
-                startGap = averageSampleInterval / 2.0;
-            }
-            calculatedFirst = firstValue - startGap * slope;
+        double delta = lastValue - firstValue;
+        double tsDurationSeconds = (lastTs - firstTs) / 1000.0;
+        double windowSizeFactor = secondsInWindow / tsDurationSeconds;
+        if (delta < 0) {
+            return new double[] { delta * windowSizeFactor, delta };
+        } else {
+            return new double[] { delta, delta * windowSizeFactor };
         }
-        double calculatedLast = lastValue;
-        double endGap = bucketEndMs - lastTs;
-        if (endGap > 0) {
-            if (endGap > averageSampleInterval * 1.1) {
-                endGap = averageSampleInterval / 2.0;
-            }
-            calculatedLast = lastValue + endGap * slope;
-        }
-        return calculatedLast - calculatedFirst;
     }
 
     /**
@@ -599,15 +607,45 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             points.sort(Comparator.comparing(TimestampedValue::timestamp));
             Temporality temporality = getCounterTemporality(timeseriesId);
 
+            long millisInWindow = secondsInWindow * 1000L;
+            long currentBucketStartMs = points.getFirst().timestamp().toEpochMilli() / millisInWindow * millisInWindow;
+
             TimestampedValue lastInPrev = findLastPoint(allWindows, offset - 1, timeseriesId);
             TimestampedValue firstInNext = findFirstPoint(allWindows, offset + 1, timeseriesId);
+
+            // The allWindows list only contains entries for non-empty buckets, so offset-1 / offset+1
+            // may point to a non-adjacent time bucket when there are gaps in the data. ES only
+            // interpolates with the immediately adjacent bucket, so discard points from distant buckets.
+            if (lastInPrev != null) {
+                long prevBucket = lastInPrev.timestamp().toEpochMilli() / millisInWindow * millisInWindow;
+                if (prevBucket != currentBucketStartMs - millisInWindow) {
+                    lastInPrev = null;
+                }
+            }
+            if (firstInNext != null) {
+                long nextBucket = firstInNext.timestamp().toEpochMilli() / millisInWindow * millisInWindow;
+                if (nextBucket != currentBucketStartMs + millisInWindow) {
+                    firstInNext = null;
+                }
+            }
+
+            if (deltaAgg == DeltaAgg.DELTA) {
+                double[] deltaRange = computeReferenceDelta(points, secondsInWindow);
+                if (deltaRange == null) {
+                    return null;
+                }
+                double tol = 0.001;
+                double lo = deltaRange[0] < 0 ? deltaRange[0] * (1 + tol) : deltaRange[0] * (1 - tol);
+                double hi = deltaRange[1] < 0 ? deltaRange[1] * (1 - tol) : deltaRange[1] * (1 + tol);
+                return new RateRange(lo, hi);
+            }
 
             Double value = switch (deltaAgg) {
                 case RATE -> computeReferenceRateOrIncrease(lastInPrev, points, firstInNext, temporality, secondsInWindow, true);
                 case INCREASE -> computeReferenceRateOrIncrease(lastInPrev, points, firstInNext, temporality, secondsInWindow, false);
                 case IRATE -> computeReferenceIrate(points, temporality);
-                case DELTA -> computeReferenceDelta(points, secondsInWindow);
                 case IDELTA -> computeReferenceIdelta(points);
+                default -> throw new IllegalStateException("Unexpected delta agg: " + deltaAgg);
             };
             if (value == null || value.isNaN()) {
                 return null;

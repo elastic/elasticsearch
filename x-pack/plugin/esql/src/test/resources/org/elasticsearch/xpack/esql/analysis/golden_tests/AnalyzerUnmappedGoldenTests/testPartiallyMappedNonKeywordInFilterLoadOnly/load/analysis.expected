@@ -1,4 +1,4 @@
 Limit[1000[INTEGER],false,false]
-\_Project[[event_duration{f(MultiTypeEsField)}#0]]
-  \_Filter[event_duration{f(MultiTypeEsField)}#0 > 0[INTEGER]]
-    \_EsRelation[sample_data,no_mapping_sample_data][@timestamp{f(MultiTypeEsField)}#1, client_ip{f(MultiTypeEsField)}#2, event_duration{f(MultiTypeEsField)}#0, message{f(PotentiallyUnmappedKeywordEsField)}#3]
+\_Project[[event_duration{f(CompactMultiTypeEsField)}#0]]
+  \_Filter[event_duration{f(CompactMultiTypeEsField)}#0 > 0[INTEGER]]
+    \_EsRelation[sample_data,no_mapping_sample_data][@timestamp{f(CompactMultiTypeEsField)}#1, client_ip{f(CompactMultiTypeEsField)}#2, event_duration{f(CompactMultiTypeEsField)}#0, message{f(PotentiallyUnmappedKeywordEsField)}#3]

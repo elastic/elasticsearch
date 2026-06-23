@@ -757,7 +757,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | WHERE event_duration > 0
             | KEEP event_duration
-            """, STAGES);
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testPartiallyMappedNonKeywordInSortLoadOnly() throws Exception {
@@ -765,7 +765,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | SORT event_duration
             | KEEP event_duration
-            """, STAGES);
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testPartiallyMappedNonKeywordInMvExpandLoadOnly() throws Exception {
@@ -773,7 +773,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | MV_EXPAND event_duration
             | KEEP event_duration
-            """, STAGES);
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testPartiallyMappedNonKeywordInChangePointLoadOnly() throws Exception {
@@ -782,7 +782,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | CHANGE_POINT event_duration ON @timestamp AS type, pvalue
             | KEEP @timestamp, event_duration, type, pvalue
-            """, STAGES);
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testPartiallyMappedNonKeywordDottedPathInSortLoadOnly() throws Exception {
@@ -790,7 +790,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM k8s, k8s_unmapped
             | SORT network.bytes_in
             | KEEP network.bytes_in
-            """, STAGES);
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testSingleTypeTextUnmappedNoCastLoadOnly() throws Exception {

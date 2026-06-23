@@ -9,13 +9,18 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
@@ -88,7 +93,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType(
             "field",
-            IndexType.terms(false, true),
+            IndexType.NONE,
             "key",
             false,
             Collections.emptyMap(),
@@ -115,6 +120,90 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         Query actual = ft.termsQuery(terms, null);
 
         assertEquals(expected, actual);
+    }
+
+    public void testTermQueryWithBinaryDocValuesOnly() {
+        KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            true,
+            false,
+            null,
+            IndexVersion.current(),
+            false
+        );
+
+        Query expected = new SlowCustomBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"));
+        assertEquals(expected, ft.termQuery("value", null));
+    }
+
+    public void testTermQueryWithSortedSetDocValuesOnly() {
+        KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            false,
+            false,
+            null,
+            IndexVersion.current(),
+            false
+        );
+
+        Query expected = SortedSetDocValuesField.newSlowExactQuery(ft.name(), new BytesRef("key\0value"));
+        assertEquals(expected, ft.termQuery("value", null));
+    }
+
+    public void testTermsQueryWithBinaryDocValuesOnly() {
+        KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            true,
+            false,
+            null,
+            IndexVersion.current(),
+            false
+        );
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(new SlowCustomBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value")), BooleanClause.Occur.SHOULD);
+        Query expected = new ConstantScoreQuery(builder.build());
+        assertEquals(expected, ft.termsQuery(List.of("value"), null));
+    }
+
+    public void testTermsQueryWithSortedSetDocValuesOnly() {
+        KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            false,
+            false,
+            null,
+            IndexVersion.current(),
+            false
+        );
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(SortedSetDocValuesField.newSlowExactQuery(ft.name(), new BytesRef("key\0value")), BooleanClause.Occur.SHOULD);
+        Query expected = new ConstantScoreQuery(builder.build());
+        assertEquals(expected, ft.termsQuery(List.of("value"), null));
     }
 
     public void testExistsQuery() {

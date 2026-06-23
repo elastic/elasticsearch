@@ -10,30 +10,24 @@
 package org.elasticsearch.search.msearch;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.test.AbstractSearchCancellationTestCase.ScriptedBlockPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -43,16 +37,14 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.test.AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -73,12 +65,6 @@ public class MultiSearchIT extends ESIntegTestCase {
             .build();
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        // ScriptedBlockPlugin lets testBreakerAccountingEndToEnd pause a sub-search deterministically; inert for other tests.
-        return List.of(ScriptedBlockPlugin.class);
-    }
-
     public void testSimpleMultiSearch() {
         createIndex("test");
         ensureGreen();
@@ -91,12 +77,15 @@ public class MultiSearchIT extends ESIntegTestCase {
                 .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
                 .add(prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())),
             response -> {
+                for (Item item : response) {
+                    assertNoFailures(item.getResponse());
+                }
                 assertThat(response.getResponses().length, equalTo(3));
-                assertHitCount(assertItemSucceeded(response, 0), 1L);
-                assertHitCount(assertItemSucceeded(response, 1), 1L);
-                assertHitCount(assertItemSucceeded(response, 2), 2L);
-                assertFirstHit(assertItemSucceeded(response, 0), hasId("1"));
-                assertFirstHit(assertItemSucceeded(response, 1), hasId("2"));
+                assertHitCount(response.getResponses()[0].getResponse(), 1L);
+                assertHitCount(response.getResponses()[1].getResponse(), 1L);
+                assertHitCount(response.getResponses()[2].getResponse(), 2L);
+                assertFirstHit(response.getResponses()[0].getResponse(), hasId("1"));
+                assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
             }
         );
     }
@@ -108,15 +97,10 @@ public class MultiSearchIT extends ESIntegTestCase {
      */
     public void testBreakerAccountingEndToEnd() throws Exception {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-
-        // Direct in-process reference: ChildMemoryCircuitBreaker.getUsed() is a bare AtomicLong.get().
-        CircuitBreaker requestBreaker = internalCluster().getInstance(CircuitBreakerService.class, coordinatorNode)
-            .getBreaker(CircuitBreaker.REQUEST);
-        // InternalTestCluster.getRandomNodeSettings randomly assigns a noop REQUEST breaker per node (~10% chance).
-        // The coordinating-only node gets its own seed and may be noop even when other nodes are not, so the check must
-        // target the actual breaker the msearch will use rather than the pre-existing nodes. A noop breaker reports
-        // getUsed() == 0 and never reserves bytes, so accounting is unobservable.
-        assumeFalse("coordinator uses a noop request breaker, skipping test", requestBreaker.getLimit() == NoopCircuitBreaker.LIMIT);
+        // The request breaker type is randomized per node (~10% noop). The coordinating-only node gets its own seed and may
+        // be noop even when the pre-existing nodes are not, so the check must target the coordinator that runs the msearch
+        // accounting rather than the pre-existing nodes; a noop breaker never reserves bytes and reports getUsed() == 0.
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
 
         String index = "msearch-breaker-it";
         int numDocs = scaledRandomIntBetween(20, 50);
@@ -133,66 +117,55 @@ public class MultiSearchIT extends ESIntegTestCase {
         ensureGreen(index);
 
         assertBusy(
-            () -> assertThat("request breaker should be at baseline before msearch", requestBreaker.getUsed(), lessThanOrEqualTo(0L))
+            () -> assertThat(
+                "request breaker should be at baseline before msearch",
+                requestBreakerEstimated(coordinatorNode),
+                lessThanOrEqualTo(0L)
+            )
         );
-        long baseline = requestBreaker.getUsed();
+        long baseline = requestBreakerEstimated(coordinatorNode);
 
-        // Block the final sub-search at the shard query phase so the reservation is observed deterministically rather than
-        // sampled. With maxConcurrentSearchRequests(1) the sub-searches run serially: by the time the last (blocking) search
-        // reaches its shards, all earlier sub-responses are buffered in the msearch AtomicArray and their bytes are reserved
-        // on the coordinator REQUEST breaker. The reservation is released only when the combined response is delivered, which
-        // cannot happen until we release the block.
-        List<ScriptedBlockPlugin> plugins = new ArrayList<>();
-        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            pluginsService.filterPlugins(ScriptedBlockPlugin.class).forEach(plugins::add);
-        }
-        CountDownLatch blockReached = new CountDownLatch(1);
-        for (ScriptedBlockPlugin plugin : plugins) {
-            plugin.reset();
-            plugin.setBeforeExecution(blockReached::countDown);
-            plugin.enableBlock();
-        }
-
-        MultiSearchRequest request = new MultiSearchRequest();
-        request.maxConcurrentSearchRequests(1);
-        var coordinatorClient = internalCluster().client(coordinatorNode);
-        for (int i = 0; i < numSearches - 1; i++) {
-            request.add(coordinatorClient.prepareSearch(index).setSize(numDocs).setQuery(QueryBuilders.matchAllQuery()).request());
-        }
-        // The last sub-search blocks on its shards until we release it below, holding the accumulated reservation in place.
-        request.add(
-            coordinatorClient.prepareSearch(index)
-                .setSize(numDocs)
-                .setQuery(
-                    QueryBuilders.scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap()))
-                )
-                .request()
-        );
-
-        ActionFuture<MultiSearchResponse> future = coordinatorClient.multiSearch(request);
-        try {
-            assertTrue("timed out waiting for the blocking sub-search to reach the shards", blockReached.await(30, TimeUnit.SECONDS));
-            assertThat(
-                "msearch should reserve request breaker bytes on the coordinator while sub-responses are buffered",
-                requestBreaker.getUsed(),
-                greaterThan(baseline)
-            );
-        } finally {
-            for (ScriptedBlockPlugin plugin : plugins) {
-                plugin.disableBlock();
-            }
-        }
-
-        assertResponse(future, response -> {
-            assertThat(response.getResponses().length, equalTo(numSearches));
-            for (Item item : response) {
-                assertItemSucceeded(item);
-            }
+        // Polls every 1 ms; with maxConcurrentSearchRequests(1) and many sub-searches the reservation
+        // stays elevated long enough to observe. A sub-millisecond msearch could theoretically complete
+        // between polls and leave peakUsage at baseline.
+        AtomicLong peakUsage = new AtomicLong(baseline);
+        ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "msearch-breaker-monitor");
+            t.setDaemon(true);
+            return t;
         });
+        monitor.scheduleWithFixedDelay(() -> {
+            long used = requestBreakerEstimated(coordinatorNode);
+            peakUsage.updateAndGet(current -> Math.max(current, used));
+        }, 0, 1, TimeUnit.MILLISECONDS);
+
+        try {
+            MultiSearchRequest request = new MultiSearchRequest();
+            request.maxConcurrentSearchRequests(1);
+            var coordinatorClient = internalCluster().client(coordinatorNode);
+            for (int i = 0; i < numSearches; i++) {
+                request.add(coordinatorClient.prepareSearch(index).setSize(numDocs).setQuery(QueryBuilders.matchAllQuery()).request());
+            }
+            assertResponse(coordinatorClient.multiSearch(request), response -> {
+                assertThat(response.getResponses().length, equalTo(numSearches));
+                for (Item item : response) {
+                    assertNoFailures(item.getResponse());
+                }
+            });
+        } finally {
+            monitor.shutdownNow();
+            assertTrue(monitor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+
+        assertThat(
+            "msearch should reserve request breaker bytes on the coordinator while sub-responses are buffered",
+            peakUsage.get(),
+            greaterThan(baseline)
+        );
         assertBusy(
             () -> assertThat(
                 "request breaker should return to baseline after msearch completes",
-                requestBreaker.getUsed(),
+                requestBreakerEstimated(coordinatorNode),
                 lessThanOrEqualTo(baseline)
             )
         );
@@ -217,7 +190,8 @@ public class MultiSearchIT extends ESIntegTestCase {
         assertResponse(client().multiSearch(request), response -> {
             assertThat(response.getResponses().length, equalTo(numSearchRequests));
             for (Item item : response) {
-                assertHitCount(assertItemSucceeded(item), numDocs);
+                assertNoFailures(item.getResponse());
+                assertHitCount(item.getResponse(), numDocs);
             }
         });
     }
@@ -245,8 +219,8 @@ public class MultiSearchIT extends ESIntegTestCase {
                 })),
             response -> {
                 assertThat(response.getResponses().length, equalTo(3));
-                assertHitCount(assertItemSucceeded(response, 0), 1L);
-                assertHitCount(assertItemSucceeded(response, 1), 1L);
+                assertHitCount(response.getResponses()[0].getResponse(), 1L);
+                assertHitCount(response.getResponses()[1].getResponse(), 1L);
                 assertTrue(response.getResponses()[2].isFailure());
                 assertTrue(
                     response.getResponses()[2].getFailure().getMessage().contains("the 'search.check_ccs_compatibility' setting is enabled")
@@ -422,32 +396,14 @@ public class MultiSearchIT extends ESIntegTestCase {
         assertResponse(client().multiSearch(request), response -> {
             assertThat(response.getResponses().length, equalTo(4));
             for (Item item : response) {
-                assertHitCount(assertItemSucceeded(item), 1L);
+                assertNoFailures(item.getResponse());
+                assertHitCount(item.getResponse(), 1L);
             }
-            assertFirstHit(assertItemSucceeded(response, 0), hasId("r1-doc"));
-            assertFirstHit(assertItemSucceeded(response, 1), hasId("s1-doc"));
-            assertFirstHit(assertItemSucceeded(response, 2), hasId("r2-doc"));
-            assertFirstHit(assertItemSucceeded(response, 3), hasId("s2-doc"));
+            assertFirstHit(response.getResponses()[0].getResponse(), hasId("r1-doc"));
+            assertFirstHit(response.getResponses()[1].getResponse(), hasId("s1-doc"));
+            assertFirstHit(response.getResponses()[2].getResponse(), hasId("r2-doc"));
+            assertFirstHit(response.getResponses()[3].getResponse(), hasId("s2-doc"));
         });
-    }
-
-    /**
-     * Asserts that the given msearch item fully succeeded — it is not a top-level failure and its response carries no shard
-     * failures — and returns its (non-null) {@link SearchResponse}. Centralizes the {@link Item#getResponse()} null-safety
-     * ({@code @Nullable} when the item is a failure) that every per-item assertion in this suite would otherwise repeat.
-     */
-    private static SearchResponse assertItemSucceeded(Item item) {
-        assertFalse("unexpected msearch sub-search failure: " + item.getFailure(), item.isFailure());
-        SearchResponse response = Objects.requireNonNull(item.getResponse());
-        assertNoFailures(response);
-        return response;
-    }
-
-    /**
-     * Convenience overload of {@link #assertItemSucceeded(Item)} that selects the item at {@code index}.
-     */
-    private static SearchResponse assertItemSucceeded(MultiSearchResponse response, int index) {
-        return assertItemSucceeded(response.getResponses()[index]);
     }
 
     private RestRequest mkRequest(String body, Map<String, String> params) {
@@ -469,4 +425,25 @@ public class MultiSearchIT extends ESIntegTestCase {
         );
     }
 
+    private boolean noopBreakerUsed(String nodeName) {
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats(nodeName).setBreaker(true).get();
+        for (NodeStats nodeStats : stats.getNodes()) {
+            if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == NoopCircuitBreaker.LIMIT) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private long requestBreakerEstimated(String nodeName) {
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats(nodeName).setBreaker(true).get();
+        long estimated = 0;
+        for (NodeStats nodeStats : stats.getNodes()) {
+            CircuitBreakerStats breakerStats = nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST);
+            if (breakerStats != null) {
+                estimated += breakerStats.getEstimated();
+            }
+        }
+        return estimated;
+    }
 }

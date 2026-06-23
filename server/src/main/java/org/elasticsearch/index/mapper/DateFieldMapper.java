@@ -372,6 +372,13 @@ public final class DateFieldMapper extends FieldMapper {
 
         DateFormatter buildFormatter() {
             try {
+                // Some common literal date layouts (eg "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd") have a fast Iso8601Parser-backed
+                // formatter that avoids the slower, allocation-heavy generic java.time parsing. This speeds up both the row
+                // path (parseCreateField) and the columnar batch path (mapColumnBatch), which both parse via DateFieldType#parse.
+                DateFormatter fast = DateFormatters.fastDateFieldFormatterOrNull(format.getValue());
+                if (fast != null) {
+                    return fast.withLocale(locale.getValue());
+                }
                 return DateFormatter.forPattern(format.getValue(), indexCreatedVersion).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 if (indexCreatedVersion.isLegacyIndexVersion()) {

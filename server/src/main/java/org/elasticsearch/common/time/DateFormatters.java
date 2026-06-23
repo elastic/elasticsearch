@@ -193,6 +193,53 @@ public class DateFormatters {
         new Iso8601DateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT)
     );
 
+    /*
+     * The literal date patterns for which we provide a fast {@link Iso8601Parser}-based parser instead of the slower,
+     * allocation-heavy generic java.time parsing. These are not registered format names, so without these they would
+     * otherwise fall through to the generic path in {@link #forPattern(String)}. See {@link #fastDateFieldFormatterOrNull(String)}.
+     */
+    private static final String FAST_DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
+    private static final String FAST_DATE_PATTERN = "yyyy-MM-dd";
+
+    /*
+     * A fast formatter equivalent to the literal pattern 'yyyy-MM-dd HH:mm:ss'. This is the same as
+     * strict_date_hour_minute_second (uuuu-MM-dd'T'HH:mm:ss) except that the date and time components are separated by a
+     * space instead of 'T'. The printer is built from the literal pattern so format() output is identical to the generic path.
+     */
+    private static final DateFormatter FAST_DATE_TIME = new JavaDateFormatter(
+        FAST_DATE_TIME_PATTERN,
+        new JavaTimeDateTimePrinter(
+            new DateTimeFormatterBuilder().appendPattern(FAST_DATE_TIME_PATTERN)
+                .toFormatter(Locale.ROOT)
+                .withResolverStyle(ResolverStyle.STRICT)
+        ),
+        new Iso8601DateTimeParser(
+            Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
+            false,
+            SECOND_OF_MINUTE,
+            DecimalSeparator.BOTH,
+            TimezonePresence.FORBIDDEN,
+            ' '
+        ).withLocale(Locale.ROOT)
+    );
+
+    /*
+     * A fast formatter equivalent to the literal pattern 'yyyy-MM-dd', a date with no time component or timezone.
+     */
+    private static final DateFormatter FAST_DATE = new JavaDateFormatter(
+        FAST_DATE_PATTERN,
+        new JavaTimeDateTimePrinter(
+            new DateTimeFormatterBuilder().appendPattern(FAST_DATE_PATTERN).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
+        ),
+        new Iso8601DateTimeParser(
+            Set.of(MONTH_OF_YEAR, DAY_OF_MONTH),
+            false,
+            DAY_OF_MONTH,
+            DecimalSeparator.BOTH,
+            TimezonePresence.FORBIDDEN
+        ).withLocale(Locale.ROOT)
+    );
+
     /////////////////////////////////////////
     //
     // BEGIN basic time formatters
@@ -1902,6 +1949,24 @@ public class DateFormatters {
     // end lenient formatters
     //
     /////////////////////////////////////////
+
+    /**
+     * Returns a fast {@link Iso8601Parser}-backed formatter for one of the specially-optimized date-field layouts
+     * ({@code "yyyy-MM-dd HH:mm:ss"} or {@code "yyyy-MM-dd"}), or {@code null} if {@code pattern} is not one of them.
+     * <p>
+     * These literal patterns are not registered format names, so {@link #forPattern(String)} parses them via the generic,
+     * allocation-heavy {@code java.time} path. Routing is intentionally caller-driven (currently only
+     * {@link org.elasticsearch.index.mapper.DateFieldMapper}) so the behaviour of {@link #forPattern(String)} is unchanged.
+     */
+    public static DateFormatter fastDateFieldFormatterOrNull(String pattern) {
+        if (FAST_DATE_TIME_PATTERN.equals(pattern)) {
+            return FAST_DATE_TIME;
+        }
+        if (FAST_DATE_PATTERN.equals(pattern)) {
+            return FAST_DATE;
+        }
+        return null;
+    }
 
     static DateFormatter forPattern(String input) {
         if (Strings.hasLength(input)) {

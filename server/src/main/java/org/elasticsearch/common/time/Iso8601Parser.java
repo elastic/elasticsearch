@@ -66,6 +66,7 @@ class Iso8601Parser {
     private final DecimalSeparator decimalSeparator;
     private final TimezonePresence timezonePresence;
     private final Map<ChronoField, Integer> defaults;
+    private final char dateTimeSeparator;
 
     /**
      * Constructs a new {@code Iso8601Parser} object
@@ -85,6 +86,12 @@ class Iso8601Parser {
      * @param decimalSeparator The decimal separator that is allowed.
      * @param timezonePresence Specifies if the timezone is optional, mandatory, or forbidden.
      * @param defaults         Map of default field values, if they are not present in the parsed string.
+     * @param dateTimeSeparator The character that separates the date and time components (eg {@code 'T'} for
+     *                          standard ISO-8601, or {@code ' '} for {@code yyyy-MM-dd HH:mm:ss}).
+     */
+    /**
+     * Constructs a new {@code Iso8601Parser} using the standard ISO-8601 {@code 'T'} date/time separator.
+     * See {@link #Iso8601Parser(Set, boolean, ChronoField, DecimalSeparator, TimezonePresence, Map, char)}.
      */
     Iso8601Parser(
         Set<ChronoField> mandatoryFields,
@@ -93,6 +100,18 @@ class Iso8601Parser {
         DecimalSeparator decimalSeparator,
         TimezonePresence timezonePresence,
         Map<ChronoField, Integer> defaults
+    ) {
+        this(mandatoryFields, optionalTime, maxAllowedField, decimalSeparator, timezonePresence, defaults, 'T');
+    }
+
+    Iso8601Parser(
+        Set<ChronoField> mandatoryFields,
+        boolean optionalTime,
+        @Nullable ChronoField maxAllowedField,
+        DecimalSeparator decimalSeparator,
+        TimezonePresence timezonePresence,
+        Map<ChronoField, Integer> defaults,
+        char dateTimeSeparator
     ) {
         checkChronoFields(mandatoryFields, VALID_SPECIFIED_FIELDS);
         if (maxAllowedField != null && VALID_SPECIFIED_FIELDS.contains(maxAllowedField) == false) {
@@ -107,6 +126,7 @@ class Iso8601Parser {
         this.decimalSeparator = Objects.requireNonNull(decimalSeparator);
         this.timezonePresence = Objects.requireNonNull(timezonePresence);
         this.defaults = defaults.isEmpty() ? Map.of() : new EnumMap<>(defaults);
+        this.dateTimeSeparator = dateTimeSeparator;
     }
 
     private static void checkChronoFields(Set<ChronoField> fields, Set<ChronoField> validFields) {
@@ -137,6 +157,10 @@ class Iso8601Parser {
 
     TimezonePresence timezonePresence() {
         return timezonePresence;
+    }
+
+    char dateTimeSeparator() {
+        return dateTimeSeparator;
     }
 
     private boolean isOptional(ChronoField field) {
@@ -266,7 +290,7 @@ class Iso8601Parser {
                 : ParseResult.error(10);
         }
 
-        if (str.charAt(10) != 'T' || maxAllowedField == ChronoField.DAY_OF_MONTH) return ParseResult.error(10);
+        if (str.charAt(10) != dateTimeSeparator || maxAllowedField == ChronoField.DAY_OF_MONTH) return ParseResult.error(10);
         if (len == 11) {
             return isOptional(ChronoField.HOUR_OF_DAY)
                 ? new ParseResult(

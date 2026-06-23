@@ -1513,6 +1513,46 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(input));
     }
 
+    public void testFastDateFieldFormatterSelection() {
+        assertThat(DateFormatters.fastDateFieldFormatterOrNull("yyyy-MM-dd HH:mm:ss"), notNullValue());
+        assertThat(DateFormatters.fastDateFieldFormatterOrNull("yyyy-MM-dd"), notNullValue());
+        // anything else (other layouts, combined patterns, registered names) is not fast-pathed
+        assertThat(DateFormatters.fastDateFieldFormatterOrNull("yyyy-MM-dd HH:mm:ss||epoch_millis"), nullValue());
+        assertThat(DateFormatters.fastDateFieldFormatterOrNull("yyyy-MM-dd'T'HH:mm:ss"), nullValue());
+        assertThat(DateFormatters.fastDateFieldFormatterOrNull("strict_date"), nullValue());
+        assertThat(DateFormatters.fastDateFieldFormatterOrNull("yyyy-MM-dd HH:mm"), nullValue());
+    }
+
+    public void testFastDateFieldFormatterEquivalence() {
+        // The fast Iso8601Parser-backed formatters must behave identically to the generic java.time path they replace.
+        for (String pattern : List.of("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd")) {
+            DateFormatter fast = DateFormatters.fastDateFieldFormatterOrNull(pattern);
+            // forPattern does not fast-path these literal patterns, so this is the generic reference formatter
+            DateFormatter reference = DateFormatter.forPattern(pattern);
+
+            List<String> valid = pattern.equals("yyyy-MM-dd")
+                ? List.of("2013-07-15", "2024-02-29", "0001-01-01", "9999-12-31")
+                : List.of("2013-07-15 03:39:00", "2013-07-15 03:39:59", "2024-02-29 23:59:59", "0001-01-01 00:00:00");
+
+            for (String input : valid) {
+                assertThat("parseMillis mismatch for [" + input + "]", fast.parseMillis(input), equalTo(reference.parseMillis(input)));
+                // format (the production path always formats a zoned date-time, not the raw parsed value) is identical,
+                // and round-trips back to the original string
+                ZonedDateTime zdt = Instant.ofEpochMilli(fast.parseMillis(input)).atZone(ZoneOffset.UTC);
+                assertThat("format mismatch for [" + input + "]", fast.format(zdt), equalTo(reference.format(zdt)));
+                assertThat(fast.format(zdt), equalTo(input));
+            }
+
+            // malformed values throw, just as the generic formatter does
+            List<String> invalid = pattern.equals("yyyy-MM-dd")
+                ? List.of("2013-13-15", "2013-07-32", "2013-07-15 03:39:00", "not-a-date")
+                : List.of("2013-07-15T03:39:00", "2013-07-15 24:00:00", "2013-07-15 03:39", "2013-07-15");
+            for (String input : invalid) {
+                expectThrows(IllegalArgumentException.class, () -> fast.parse(input));
+            }
+        }
+    }
+
     public void testXContentElasticsearchExtensionDefaultFormatter() {
         final var formatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
         assertSame(XContentElasticsearchExtension.DEFAULT_FORMATTER, formatter);

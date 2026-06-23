@@ -32,7 +32,32 @@ class Iso8601DateTimeParser implements DateTimeParser {
         DecimalSeparator decimalSeparator,
         TimezonePresence timezonePresence
     ) {
-        parser = new Iso8601Parser(mandatoryFields, optionalTime, maxAllowedField, decimalSeparator, timezonePresence, Map.of());
+        // standard ISO-8601 uses 'T' to separate the date and time components
+        this(mandatoryFields, optionalTime, maxAllowedField, decimalSeparator, timezonePresence, 'T');
+    }
+
+    /**
+     * As {@link #Iso8601DateTimeParser(Set, boolean, ChronoField, DecimalSeparator, TimezonePresence)}, but with a configurable
+     * character separating the date and time components. This allows parsing formats such as {@code yyyy-MM-dd HH:mm:ss},
+     * which use a space instead of the standard ISO-8601 {@code 'T'}.
+     */
+    Iso8601DateTimeParser(
+        Set<ChronoField> mandatoryFields,
+        boolean optionalTime,
+        ChronoField maxAllowedField,
+        DecimalSeparator decimalSeparator,
+        TimezonePresence timezonePresence,
+        char dateTimeSeparator
+    ) {
+        parser = new Iso8601Parser(
+            mandatoryFields,
+            optionalTime,
+            maxAllowedField,
+            decimalSeparator,
+            timezonePresence,
+            Map.of(),
+            dateTimeSeparator
+        );
         timezone = null;
         locale = null;
     }
@@ -71,7 +96,8 @@ class Iso8601DateTimeParser implements DateTimeParser {
                 parser.maxAllowedField(),
                 parser.decimalSeparator(),
                 parser.timezonePresence(),
-                defaults
+                defaults,
+                parser.dateTimeSeparator()
             ),
             timezone,
             locale

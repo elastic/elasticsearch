@@ -515,7 +515,13 @@ public class PersistedClusterStateService {
                             logger.debug("cluster state commit user data: {}", indexCommit.getUserData());
 
                             for (final var segmentCommitInfo : SegmentInfos.readCommit(directory, segmentsFileName)) {
-                                logger.debug("loading cluster state from segment: {}", segmentCommitInfo);
+                                logger.debug(
+                                    "loading cluster state from segment: {} indexSort={}, diagnostics={}, attributes={}",
+                                    segmentCommitInfo,
+                                    segmentCommitInfo.info.getIndexSort(),
+                                    segmentCommitInfo.info.getDiagnostics(),
+                                    segmentCommitInfo.info.getAttributes()
+                                );
                             }
                         }
 

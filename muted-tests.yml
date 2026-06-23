@@ -361,6 +361,9 @@ tests:
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWorks
   issue: https://github.com/elastic/elasticsearch/issues/151960
+- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
+  method: testHAProxyModeConnectionWithSNIToCluster1Works
+  issue: https://github.com/elastic/elasticsearch/issues/139170
 
 # Examples:
 #

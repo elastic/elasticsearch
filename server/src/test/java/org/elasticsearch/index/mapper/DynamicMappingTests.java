@@ -1086,6 +1086,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapper foo = update.getRoot().getMapper("foo");
         assertThat(foo, instanceOf(KeywordFieldMapper.class));
         assertFalse(((KeywordFieldMapper) foo).multiFields().iterator().hasNext());
+        assertTrue(((KeywordFieldMapper) foo).fieldType().hasDocValues());
         assertFalse(((KeywordFieldMapper) foo).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("foo.keyword"));
     }

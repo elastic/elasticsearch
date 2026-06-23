@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+ - 149681
 pr: 151697
 summary: Call Project.output() if all Project.expressionsResolved() is true
 type: bug

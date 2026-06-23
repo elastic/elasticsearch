@@ -33,7 +33,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
         public static Request parseRequest(String datafeedId, IndicesOptions indicesOptions, XContentParser parser) {
             DatafeedConfig.Builder datafeed = DatafeedConfig.STRICT_PARSER.apply(parser, null);
-            if (datafeed.getIndicesOptions() == null) {
+            if (datafeed.getIndicesOptions() == null && datafeed.getEsqlQuery() == null) {
                 datafeed.setIndicesOptions(indicesOptions);
             }
             datafeed.setId(datafeedId);

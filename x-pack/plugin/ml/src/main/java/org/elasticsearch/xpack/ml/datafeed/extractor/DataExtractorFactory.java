@@ -70,11 +70,6 @@ public interface DataExtractorFactory {
         );
 
         ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
-            if (hasEsqlQuery) {
-                EsqlDataExtractorFactory.create(client, datafeed, job, timingStatsReporter, factoryHandler);
-                return;
-            }
-
             final boolean hasRollup = response.getJobs().isEmpty() == false;
             if (hasRollup && hasAggs == false) {
                 listener.onFailure(new IllegalArgumentException("Aggregations are required when using Rollup indices"));
@@ -153,7 +148,9 @@ public interface DataExtractorFactory {
             }
         });
 
-        if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
+        if (hasEsqlQuery) {
+            EsqlDataExtractorFactory.create(client, datafeed, job, timingStatsReporter, factoryHandler);
+        } else if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
             // If we have remote indices in the data feed, don't bother checking for rollup support
             // Rollups + CCS is not supported
             getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());

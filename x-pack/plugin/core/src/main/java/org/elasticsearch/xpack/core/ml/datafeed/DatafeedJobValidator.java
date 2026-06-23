@@ -78,12 +78,6 @@ public final class DatafeedJobValidator {
         }
     }
 
-    /**
-     * The delayed data check for an ES|QL datafeed re-runs the user's ES|QL query and sums the
-     * configured summary count field per bucket to compare against what the job already saw. That
-     * comparison is only meaningful when the job folds a summary count field into its bucket
-     * event counts, so the field is mandatory in this combination.
-     */
     private static void checkSummaryCountFieldNameIsSetForEsqlDelayedDataCheck(AnalysisConfig analysisConfig) {
         if (Strings.isNullOrEmpty(analysisConfig.getSummaryCountFieldName())) {
             throw ExceptionsHelper.badRequestException(
@@ -140,6 +134,9 @@ public final class DatafeedJobValidator {
     private static void checkTimeFieldIsNotASearchRuntimeField(DatafeedConfig datafeedConfig, String timeField) {
         // check the search RT mappings defined in the datafeed
         Map<String, Object> runtimeMappings = datafeedConfig.getRuntimeMappings();
+        if (runtimeMappings == null) {
+            return;
+        }
         for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
             // top level objects are fields
             String fieldName = entry.getKey();

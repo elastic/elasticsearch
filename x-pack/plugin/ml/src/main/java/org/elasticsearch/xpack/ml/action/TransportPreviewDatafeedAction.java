@@ -201,7 +201,10 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
     private void isDateNanos(DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0]));
+        if (datafeed.getIndicesOptions() != null) {
+            fieldCapabilitiesRequest.indicesOptions(datafeed.getIndicesOptions());
+        }
         fieldCapabilitiesRequest.fields(timeField);
         executeWithHeadersAsync(
             datafeed.getHeaders(),

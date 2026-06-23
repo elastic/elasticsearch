@@ -46,11 +46,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     /**
      * Target row count per chunk for ESQL datafeeds when chunk span is not specified.
      * Matches the default value of {@code esql.query.result_truncation_default_size} (1000), which ES|QL silently injects as
-     * {@code LIMIT 1000} when the query has no explicit LIMIT. Targeting more rows per chunk means each chunk gets silently truncated.
-     *
-     * <p>Note: this heuristic sub-chunks by time and will produce incorrect results for queries that aggregate or sort across
-     * the whole window (STATS, INLINESTATS, SORT, explicit LIMIT) because each chunk computes independently. A follow-up should
-     * detect those constructs and fall back to a single chunk for the whole window.
+     * {@code LIMIT 1000} when the query has no explicit LIMIT.
      */
     private static final long DEFAULT_ESQL_CHUNK_DOCS = 1_000L;
 
@@ -115,8 +111,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 if (timeSpread <= 0) {
                     chunkSpan = context.end() - currentEnd;
                 } else {
-                    // Target roughly DEFAULT_ESQL_CHUNK_DOCS rows per chunk, sized off the data summary's
-                    // uniform-density estimate. ESQL has no scroll_size analogue, so we use a fixed default.
+                    // Target roughly DEFAULT_ESQL_CHUNK_DOCS rows per chunk assuming data is evenly distributed over time.
                     chunkSpan = Math.max(MIN_CHUNK_SPAN, DEFAULT_ESQL_CHUNK_DOCS * timeSpread / dataSummary.totalHits());
                 }
             } else {

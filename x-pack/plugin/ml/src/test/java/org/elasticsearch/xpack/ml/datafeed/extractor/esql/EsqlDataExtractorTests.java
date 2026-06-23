@@ -7,23 +7,12 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
-import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.metrics.Max;
-import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -33,7 +22,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -54,13 +42,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class EsqlDataExtractorTests extends ESTestCase {
+
+    private static final String DEFAULT_QUERY = "FROM logs";
+    private static final String TIME_FIELD = "ts";
+    private static final String SUMMARY_COUNT_FIELD = "doc_count";
+    private static final String JOB_ID = "test-job";
+    private static final String DATE = "date";
+    private static final String DATE_NANOS = "date_nanos";
+    private static final String LONG = "long";
+    private static final String KEYWORD = "keyword";
 
     private Client client;
     private DatafeedTimingStatsReporter timingStatsReporter;
@@ -73,148 +69,133 @@ public class EsqlDataExtractorTests extends ESTestCase {
         timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
     }
 
-    // -------------------------------------------------------------------------
-    // next() — query shape
-    // -------------------------------------------------------------------------
-
     public void testNextGivenSortIsInjected() throws IOException {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, "FROM logs", "timestamp");
-        extractor.enqueueResponse(
-            wrapResponse(
-                mockEsqlResponse(List.of(column("timestamp", "date"), column("value", "long")), singleRow("2000-01-01T00:00:00.100Z", 42L))
-            )
-        );
+        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, "timestamp");
+        extractor.enqueueRow(List.of(column("timestamp", DATE), column("value", LONG)), "2000-01-01T00:00:00.100Z", 42L);
 
         assertThat(extractor.hasNext(), is(true));
         extractor.next();
 
-        // SORT is appended using backtick-quoting, regardless of existing query content
-        assertThat(extractor.capturedOrderedQuery, equalTo("FROM logs | SORT `timestamp` ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(DEFAULT_QUERY + " | SORT `timestamp` ASC"));
     }
 
     public void testNextGivenSortIsInjectedEvenWhenUserQueryAlreadyHasSort() throws IOException {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, "FROM logs | SORT value DESC", "timestamp");
-        extractor.enqueueResponse(
-            wrapResponse(
-                mockEsqlResponse(List.of(column("timestamp", "date"), column("value", "long")), singleRow("2000-01-01T00:00:00.100Z", 1L))
-            )
-        );
+        String esqlQuery = "FROM logs | SORT value DESC";
+        TestDataExtractor extractor = createExtractor(1000L, 2000L, esqlQuery, "timestamp");
+        extractor.enqueueRow(List.of(column("timestamp", DATE), column("value", LONG)), "2000-01-01T00:00:00.100Z", 1L);
 
         extractor.next();
 
-        // The trailing SORT overrides any user-supplied SORT
-        assertThat(extractor.capturedOrderedQuery, equalTo("FROM logs | SORT value DESC | SORT `timestamp` ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(esqlQuery + " | SORT `timestamp` ASC"));
     }
 
     public void testNextGivenTimeFilterIsHalfOpen() throws IOException {
-        TestDataExtractor extractor = createExtractor(1000L, 2000L, "FROM logs", "timestamp");
-        extractor.enqueueResponse(
-            wrapResponse(mockEsqlResponse(List.of(column("timestamp", "date")), singleRow("2000-01-01T00:00:01.000Z")))
-        );
+        TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, "timestamp");
+        extractor.enqueueRow(List.of(column("timestamp", DATE)), "2000-01-01T00:00:01.000Z");
 
         extractor.next();
 
         assertThat(extractor.capturedTimeFilter, equalTo(new RangeQueryBuilder("timestamp").gte(1000L).lt(2000L).format("epoch_millis")));
     }
 
-    // -------------------------------------------------------------------------
-    // next() — toNdjson data conversion
-    // -------------------------------------------------------------------------
-
     public void testNextGivenStringAndLongFieldsPassThrough() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 5000L, "FROM logs", "ts");
-        extractor.enqueueResponse(
-            wrapResponse(
-                mockEsqlResponse(
-                    List.of(column("ts", "date"), column("host", "keyword"), column("count", "long")),
-                    singleRow("1970-01-01T00:00:01.500Z", "web-1", 7L)
-                )
-            )
+        TestDataExtractor extractor = createExtractor(0L, 5000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRow(
+            List.of(column(TIME_FIELD, DATE), column("host", KEYWORD), column("count", LONG)),
+            "1970-01-01T00:00:01.500Z",
+            "web-1",
+            7L
         );
 
         DataExtractor.Result result = extractor.next();
 
         assertThat(result.searchInterval(), equalTo(new SearchInterval(0L, 5000L)));
         String ndjson = asString(result.data().get());
-        // ts is a date column → epoch millis; host and count pass through unchanged
-        assertThat(ndjson, containsString("\"ts\":1500"));
+        assertThat(ndjson, containsString("\"" + TIME_FIELD + "\":1500"));
         assertThat(ndjson, containsString("\"host\":\"web-1\""));
         assertThat(ndjson, containsString("\"count\":7"));
     }
 
     public void testNextGivenDateColumnConvertedToEpochMillis() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, "FROM logs", "ts");
+        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         String isoDate = "2000-01-01T00:00:00.500Z";
-        long expectedMillis = Instant.parse(isoDate).toEpochMilli();
+        long expectedMillis = epochMillis(isoDate);
 
-        extractor.enqueueResponse(wrapResponse(mockEsqlResponse(List.of(column("ts", "date")), singleRow(isoDate))));
+        extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), isoDate);
 
-        assertThat(asString(extractor.next().data().get()), equalTo("{\"ts\":" + expectedMillis + "}"));
+        assertThat(asString(extractor.next().data().get()), equalTo("{\"" + TIME_FIELD + "\":" + expectedMillis + "}"));
     }
 
-    public void testNextGivenDateNanosColumnIsAlsoConverted() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, "FROM logs", "ts");
+    public void testNextGivenDateNanosColumnConvertedToEpochMillis() throws IOException {
+        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         String isoDate = "2000-01-01T00:00:00.123456789Z";
-        long expectedMillis = Instant.parse(isoDate).toEpochMilli();
+        long expectedMillis = epochMillis(isoDate);
 
-        extractor.enqueueResponse(wrapResponse(mockEsqlResponse(List.of(column("ts", "date_nanos")), singleRow(isoDate))));
+        extractor.enqueueRow(List.of(column(TIME_FIELD, DATE_NANOS)), isoDate);
 
-        assertThat(asString(extractor.next().data().get()), equalTo("{\"ts\":" + expectedMillis + "}"));
+        assertThat(asString(extractor.next().data().get()), equalTo("{\"" + TIME_FIELD + "\":" + expectedMillis + "}"));
     }
 
     public void testNextGivenMultiValuedDateColumnConvertedElementWise() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, "FROM logs", "ts");
+        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
         String iso1 = "2000-01-01T00:00:00.100Z";
         String iso2 = "2000-01-01T00:00:00.200Z";
-        long millis1 = Instant.parse(iso1).toEpochMilli();
-        long millis2 = Instant.parse(iso2).toEpochMilli();
+        long millis1 = epochMillis(iso1);
+        long millis2 = epochMillis(iso2);
 
-        // The column value is itself a List (multi-value); pass it as a single Object
-        extractor.enqueueResponse(wrapResponse(mockEsqlResponse(List.of(column("ts", "date")), singleRow((Object) List.of(iso1, iso2)))));
+        extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), List.of(iso1, iso2));
 
-        assertThat(asString(extractor.next().data().get()), equalTo("{\"ts\":[" + millis1 + "," + millis2 + "]}"));
+        assertThat(asString(extractor.next().data().get()), equalTo("{\"" + TIME_FIELD + "\":[" + millis1 + "," + millis2 + "]}"));
     }
 
     public void testNextGivenMultiValuedNonDateColumnPassedThrough() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, "FROM logs", "ts");
-        extractor.enqueueResponse(
-            wrapResponse(
-                mockEsqlResponse(
-                    List.of(column("ts", "date"), column("tags", "keyword")),
-                    singleRow("2000-01-01T00:00:00.100Z", (Object) List.of("a", "b"))
-                )
-            )
-        );
+        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRow(List.of(column(TIME_FIELD, DATE), column("tags", KEYWORD)), "2000-01-01T00:00:00.100Z", List.of("a", "b"));
 
         assertThat(asString(extractor.next().data().get()), containsString("\"tags\":[\"a\",\"b\"]"));
     }
 
     public void testNextGivenNullFieldIsOmittedFromRow() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, "FROM logs", "ts");
-        // Arrays.asList permits null; List.of does not
-        List<Object> rowWithNull = Arrays.asList("2000-01-01T00:00:00.100Z", null);
-        extractor.enqueueResponse(
-            wrapResponse(mockEsqlResponseFromRows(List.of(column("ts", "date"), column("optional_field", "keyword")), List.of(rowWithNull)))
+        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRows(
+            List.of(column(TIME_FIELD, DATE), column("optional_field", KEYWORD)),
+            List.of(Arrays.asList("2000-01-01T00:00:00.100Z", null))
         );
 
         String ndjson = asString(extractor.next().data().get());
-        assertThat(ndjson, containsString("\"ts\":"));
+        assertThat(ndjson, containsString("\"" + TIME_FIELD + "\":"));
         assertThat(ndjson, not(containsString("optional_field")));
     }
 
     public void testNextGivenMissingTimeFieldThrowsIllegalArgument() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, "FROM logs", "ts");
-        // Response has no column named "ts" — the configured time field is absent
-        extractor.enqueueResponse(wrapResponse(mockEsqlResponse(List.of(column("other_field", "keyword")), singleRow("some-value"))));
+        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRow(List.of(column("other_field", KEYWORD)), "some-value");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, extractor::next);
-        assertThat(e.getMessage(), containsString("ts"));
-        assertThat(e.getMessage(), containsString("ESQL query response is missing the configured time field"));
+        assertThat(e.getMessage(), containsString("ESQL query response is missing the required columns: " + TIME_FIELD));
+    }
+
+    public void testNextGivenMissingSummaryCountFieldThrowsIllegalArgument() throws IOException {
+        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD, SUMMARY_COUNT_FIELD);
+        extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), "2000-01-01T00:00:00.000Z");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, extractor::next);
+        assertThat(e.getMessage(), containsString("ESQL query response is missing the required columns: " + SUMMARY_COUNT_FIELD));
+    }
+
+    public void testNextGivenSummaryCountFieldPresentSucceeds() throws IOException {
+        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD, SUMMARY_COUNT_FIELD);
+        extractor.enqueueRow(List.of(column(TIME_FIELD, DATE), column(SUMMARY_COUNT_FIELD, LONG)), "2000-01-01T00:00:00.000Z", 5L);
+
+        DataExtractor.Result result = extractor.next();
+
+        String ndjson = asString(result.data().get());
+        assertThat(ndjson, containsString("\"" + SUMMARY_COUNT_FIELD + "\":5"));
     }
 
     public void testNextGivenNoRowsReturnsEmptyOptional() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, "FROM logs", "ts");
-        extractor.enqueueResponse(wrapResponse(mockEsqlResponse(List.of(column("ts", "date")), Collections.emptyList())));
+        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRows(List.of(column(TIME_FIELD, DATE)), List.of());
 
         DataExtractor.Result result = extractor.next();
 
@@ -223,19 +204,15 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextGivenMalformedDateThrows() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 10000L, "FROM logs", "ts");
-        extractor.enqueueResponse(wrapResponse(mockEsqlResponse(List.of(column("ts", "date")), singleRow("not-a-valid-iso-date"))));
+        TestDataExtractor extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRow(List.of(column(TIME_FIELD, DATE)), "not-a-valid-iso-date");
 
         expectThrows(Exception.class, extractor::next);
     }
 
-    // -------------------------------------------------------------------------
-    // next() — iteration protocol
-    // -------------------------------------------------------------------------
-
     public void testHasNextIsTrueThenFalseAfterSingleCall() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 1000L, "FROM logs", "ts");
-        extractor.enqueueResponse(wrapResponse(mockEsqlResponse(List.of(column("ts", "date")), Collections.emptyList())));
+        TestDataExtractor extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRows(List.of(column(TIME_FIELD, DATE)), List.of());
 
         assertThat(extractor.hasNext(), is(true));
         extractor.next();
@@ -243,40 +220,33 @@ public class EsqlDataExtractorTests extends ESTestCase {
     }
 
     public void testNextAfterExhaustionThrowsNoSuchElement() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 1000L, "FROM logs", "ts");
-        extractor.enqueueResponse(wrapResponse(mockEsqlResponse(List.of(column("ts", "date")), Collections.emptyList())));
+        TestDataExtractor extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRows(List.of(column(TIME_FIELD, DATE)), List.of());
 
         extractor.next();
         expectThrows(NoSuchElementException.class, extractor::next);
     }
 
     public void testGetEndTimeReturnsContextEnd() {
-        TestDataExtractor extractor = createExtractor(500L, 9999L, "FROM logs", "ts");
+        TestDataExtractor extractor = createExtractor(500L, 9999L, DEFAULT_QUERY, TIME_FIELD);
         assertThat(extractor.getEndTime(), equalTo(9999L));
     }
 
-    // -------------------------------------------------------------------------
-    // cancel / destroy
-    // -------------------------------------------------------------------------
-
     public void testCancelReturnsEmptyResultWithoutExecutingQuery() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 1000L, "FROM logs", "ts");
+        TestDataExtractor extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
 
         assertThat(extractor.isCancelled(), is(false));
         extractor.cancel();
         assertThat(extractor.isCancelled(), is(true));
 
-        // hasNext() is still true (extractor has not run yet), but next() short-circuits
         assertThat(extractor.hasNext(), is(true));
         DataExtractor.Result result = extractor.next();
         assertThat(result.data().isPresent(), is(false));
-
-        // runEsqlQuery was never called — no response was enqueued and none was consumed
         assertThat(extractor.capturedOrderedQuery, equalTo(null));
     }
 
     public void testDestroyAlsoCancels() throws IOException {
-        TestDataExtractor extractor = createExtractor(0L, 1000L, "FROM logs", "ts");
+        TestDataExtractor extractor = createExtractor(0L, 1000L, DEFAULT_QUERY, TIME_FIELD);
 
         extractor.destroy();
         assertThat(extractor.isCancelled(), is(true));
@@ -286,44 +256,69 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.capturedOrderedQuery, equalTo(null));
     }
 
-    // -------------------------------------------------------------------------
-    // getSummary
-    // -------------------------------------------------------------------------
+    public void testGetSummaryBuildsEsqlStatsQueryAndConvertsDateColumns() {
+        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
+        String earliestIso = "1970-01-01T00:00:01.500Z";
+        String latestIso = "1970-01-01T00:00:08.500Z";
+        long expectedEarliest = epochMillis(earliestIso);
+        long expectedLatest = epochMillis(latestIso);
 
-    public void testGetSummaryUsesMatchAllQueryAndReportsSearchDuration() {
-        TestDataExtractor extractor = createExtractor(1000L, 9000L, "FROM logs", "ts");
-
-        ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
-        ActionFuture<SearchResponse> future = toActionFuture(createSummarySearchResponse(1500L, 8500L, 100L));
-        when(client.execute(eq(TransportSearchAction.TYPE), captor.capture())).thenReturn(future);
+        extractor.enqueueRow(
+            List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
+            earliestIso,
+            latestIso,
+            100L
+        );
 
         DataExtractor.DataSummary summary = extractor.getSummary();
 
-        assertThat(summary.earliestTime(), equalTo(1500L));
-        assertThat(summary.latestTime(), equalTo(8500L));
+        assertThat(summary.earliestTime(), equalTo(expectedEarliest));
+        assertThat(summary.latestTime(), equalTo(expectedLatest));
         assertThat(summary.totalHits(), equalTo(100L));
+        assertThat(summary.hasData(), is(true));
 
-        // Uses a match_all query — not the esql_query string
-        String searchRequestStr = captor.getValue().toString().replaceAll("\\s", "");
-        assertThat(searchRequestStr, containsString("match_all"));
+        assertThat(
+            extractor.capturedOrderedQuery,
+            equalTo(
+                DEFAULT_QUERY
+                    + " | STATS earliest_time = MIN(`"
+                    + TIME_FIELD
+                    + "`), latest_time = MAX(`"
+                    + TIME_FIELD
+                    + "`), total_hits = COUNT(*)"
+            )
+        );
+        assertThat(extractor.capturedTimeFilter, equalTo(new RangeQueryBuilder(TIME_FIELD).gte(1000L).lt(9000L).format("epoch_millis")));
 
-        verify(timingStatsReporter).reportSearchDuration(any(TimeValue.class));
+        verify(timingStatsReporter).reportSearchDuration(any());
     }
 
-    // -------------------------------------------------------------------------
-    // Helper factories
-    // -------------------------------------------------------------------------
+    public void testGetSummaryReturnsNoDataWhenStatsRowHasNullMinMax() {
+        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRows(
+            List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
+            List.of(Arrays.asList(null, null, 0L))
+        );
+
+        DataExtractor.DataSummary summary = extractor.getSummary();
+
+        assertThat(summary.hasData(), is(false));
+        assertThat(summary.totalHits(), equalTo(0L));
+    }
 
     private TestDataExtractor createExtractor(long start, long end, String esqlQuery, String timeField) {
+        return createExtractor(start, end, esqlQuery, timeField, null);
+    }
+
+    private TestDataExtractor createExtractor(long start, long end, String esqlQuery, String timeField, String requiredSummaryCountField) {
         EsqlDataExtractorContext context = new EsqlDataExtractorContext(
-            "test-job",
+            JOB_ID,
             esqlQuery,
             timeField,
             start,
             end,
             Collections.emptyMap(),
-            List.of("test-index"),
-            IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED
+            requiredSummaryCountField
         );
         return new TestDataExtractor(context);
     }
@@ -335,26 +330,16 @@ public class EsqlDataExtractorTests extends ESTestCase {
         return col;
     }
 
-    /**
-     * Wraps the given column values into a single-row {@code Iterable<Iterable<Object>>} that
-     * mirrors what {@link EsqlResponse#rows()} returns. Each argument is one column value in the row.
-     */
-    private static Iterable<Iterable<Object>> singleRow(Object... columnValues) {
+    private static long epochMillis(String iso) {
+        return Instant.parse(iso).toEpochMilli();
+    }
+
+    private static List<List<Object>> singleRow(Object... columnValues) {
         return List.of(Arrays.asList(columnValues));
     }
 
-    private EsqlResponse mockEsqlResponse(List<ColumnInfo> columns, Iterable<Iterable<Object>> rows) {
-        EsqlResponse response = mock(EsqlResponse.class);
-        doReturn(columns).when(response).columns();
-        when(response.rows()).thenReturn(rows);
-        return response;
-    }
-
-    /**
-     * Variant for cases where rows are pre-built as {@code List<List<Object>>} (e.g. rows containing nulls).
-     */
     @SuppressWarnings("unchecked")
-    private EsqlResponse mockEsqlResponseFromRows(List<ColumnInfo> columns, List<List<Object>> rows) {
+    private EsqlResponse mockEsqlResponse(List<ColumnInfo> columns, List<List<Object>> rows) {
         EsqlResponse response = mock(EsqlResponse.class);
         doReturn(columns).when(response).columns();
         when(response.rows()).thenReturn((Iterable<Iterable<Object>>) (Iterable<?>) rows);
@@ -365,34 +350,11 @@ public class EsqlDataExtractorTests extends ESTestCase {
         return new TestEsqlQueryResponse(esqlResponse);
     }
 
-    private <T> ActionFuture<T> toActionFuture(T value) {
-        @SuppressWarnings("unchecked")
-        ActionFuture<T> future = mock(ActionFuture.class);
-        when(future.actionGet()).thenReturn(value);
-        return future;
-    }
-
-    private SearchResponse createSummarySearchResponse(long earliest, long latest, long totalHits) {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(
-            new SearchHits(SearchHits.EMPTY, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1)
-        );
-        when(searchResponse.getAggregations()).thenReturn(
-            InternalAggregations.from(List.of(new Min("earliest_time", earliest, null, null), new Max("latest_time", latest, null, null)))
-        );
-        when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
-        return searchResponse;
-    }
-
     private static String asString(InputStream inputStream) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
             return reader.lines().collect(Collectors.joining("\n"));
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Test infrastructure
-    // -------------------------------------------------------------------------
 
     /**
      * Test subclass of {@link EsqlDataExtractor} that overrides {@link #runEsqlQuery} to avoid the
@@ -409,6 +371,14 @@ public class EsqlDataExtractorTests extends ESTestCase {
             super(client, context, timingStatsReporter);
         }
 
+        void enqueueRow(List<ColumnInfo> columns, Object... columnValues) {
+            enqueueResponse(wrapResponse(mockEsqlResponse(columns, singleRow(columnValues))));
+        }
+
+        void enqueueRows(List<ColumnInfo> columns, List<List<Object>> rows) {
+            enqueueResponse(wrapResponse(mockEsqlResponse(columns, rows)));
+        }
+
         void enqueueResponse(EsqlQueryResponse response) {
             responses.add(response);
         }
@@ -421,10 +391,6 @@ public class EsqlDataExtractorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Minimal concrete {@link EsqlQueryResponse} used in tests. {@code writeTo} is not needed and
-     * intentionally unsupported.
-     */
     private static class TestEsqlQueryResponse extends EsqlQueryResponse {
 
         private final EsqlResponse esqlResponse;

@@ -70,7 +70,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_CHUNKING_OFF;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS;
@@ -1116,50 +1116,40 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE));
     }
 
-    public void testBuild_GivenEsqlQueryWithChunkingOffThrows() {
+    public void testBuild_GivenEsqlQueryWithChunkingOffSucceeds() {
         DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
         builder.setChunkingConfig(ChunkingConfig.newOff());
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_CHUNKING_OFF));
+        DatafeedConfig config = builder.build();
+        assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newOff()));
     }
 
-    public void testBuild_GivenEsqlQueryAloneSucceeds() {
-        // Verify that an ESQL datafeed with no conflicting fields builds successfully
+    public void testDefaults_GivenEsqlQuery() {
         DatafeedConfig config = createEsqlDatafeedBuilder().build();
         assertThat(config.getEsqlQuery(), equalTo("FROM logs"));
-        // chunking should default to AUTO for ESQL
         assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
-    }
-
-    public void testDefaultChunkingConfig_GivenEsqlQuery() {
-        DatafeedConfig config = createEsqlDatafeedBuilder().build();
-        // ESQL responses are size-capped; default is always AUTO to avoid missing data on long lookbacks
-        assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
+        assertThat(config.getScrollSize(), nullValue());
+        assertThat(config.getQuery(), nullValue());
+        assertThat(config.getParsedQuery(xContentRegistry()), nullValue());
+        assertThat(config.getRuntimeMappings(), nullValue());
+        assertThat(config.getIndicesOptions(), nullValue());
+        assertThat(config.getQueryDelay().seconds(), greaterThanOrEqualTo(60L));
+        assertThat(config.getQueryDelay().seconds(), lessThan(120L));
+        assertThat(config.getDelayedDataCheckConfig(), equalTo(DelayedDataCheckConfig.defaultDelayedDataCheckConfig()));
+        assertThat(config.getMaxEmptySearches(), nullValue());
+        assertThat(config.getFrequency(), nullValue());
     }
 
     public void testToXContent_GivenEsqlQuery() throws IOException {
         DatafeedConfig config = createEsqlDatafeedBuilder().build();
 
-        // Serialise to XContent and round-trip
         BytesReference bytes = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         DatafeedConfig parsedConfig = DatafeedConfig.STRICT_PARSER.apply(parser(bytes), null).build();
 
-        assertThat(parsedConfig.getEsqlQuery(), equalTo(config.getEsqlQuery()));
-        // query field should NOT be present for an ESQL config (queryProvider is null)
-        String json = bytes.utf8ToString();
-        assertThat(json, containsString("\"esql_query\""));
-        assertThat(json, not(containsString("\"query\"")));
+        assertEquals(config, parsedConfig);
     }
 
-    /**
-     * Wire serialization round-trip for an ESQL datafeed.
-     *
-     * <p>ESQL datafeeds have a null {@code queryProvider} and a non-null {@code esqlQuery}.
-     * The serialization uses a version gate on {@code ML_DATAFEED_ESQL_QUERY} to write both
-     * fields as optional, so both must survive the round-trip correctly.
-     */
-    public void testWireRoundTrip_GivenEsqlQuery() throws IOException {
+    public void testSerialization_GivenEsqlQuery() throws IOException {
         DatafeedConfig original = createEsqlDatafeedBuilder().build();
         assertThat(original.getQuery(), nullValue());
 
@@ -1172,6 +1162,75 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
                 assertThat(roundTripped.getEsqlQuery(), equalTo(original.getEsqlQuery()));
                 assertThat(roundTripped.getId(), equalTo(original.getId()));
                 assertThat(roundTripped.getQuery(), nullValue());
+            }
+        }
+    }
+
+    public void testBuild_GivenEsqlQueryWithIndicesOptionsThrows() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS));
+    }
+
+    public void testBuild_GivenEsqlQueryWithManualChunkingSucceeds() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        ChunkingConfig chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueHours(1));
+        builder.setChunkingConfig(chunkingConfig);
+
+        DatafeedConfig config = builder.build();
+        assertThat(config.getChunkingConfig(), equalTo(chunkingConfig));
+    }
+
+    public void testBuild_GivenEsqlQueryWithAllConfigurableValuesSucceeds() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        TimeValue queryDelay = TimeValue.timeValueSeconds(90);
+        TimeValue frequency = TimeValue.timeValueMinutes(5);
+        ChunkingConfig chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueHours(1));
+        DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2));
+        int maxEmptySearches = 42;
+
+        builder.setQueryDelay(queryDelay);
+        builder.setFrequency(frequency);
+        builder.setChunkingConfig(chunkingConfig);
+        builder.setDelayedDataCheckConfig(delayedDataCheckConfig);
+        builder.setMaxEmptySearches(maxEmptySearches);
+
+        DatafeedConfig config = builder.build();
+
+        assertThat(config.getEsqlQuery(), equalTo("FROM logs"));
+        assertThat(config.getQueryDelay(), equalTo(queryDelay));
+        assertThat(config.getFrequency(), equalTo(frequency));
+        assertThat(config.getChunkingConfig(), equalTo(chunkingConfig));
+        assertThat(config.getDelayedDataCheckConfig(), equalTo(delayedDataCheckConfig));
+        assertThat(config.getMaxEmptySearches(), equalTo(maxEmptySearches));
+    }
+
+    /**
+     * Verifies that an ESQL datafeed serialized to a pre-ESQL transport version degrades gracefully:
+     * the {@code esql_query} field is dropped and a match-all DSL query is substituted, allowing the
+     * older node to deserialize the datafeed without error.
+     */
+    public void testSerialization_GivenEsqlQueryBetweenVersions() throws IOException {
+        DatafeedConfig.Builder original = createEsqlDatafeedBuilder();
+        // The version immediately before ml_datafeed_esql_query was added
+        TransportVersion preEsqlVersion = TransportVersion.fromName("histogram_blocks_multivalue_support");
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(preEsqlVersion);
+            original.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(preEsqlVersion);
+                DatafeedConfig.Builder deserialized = new DatafeedConfig.Builder(in);
+
+                // esql_query is unknown at this transport version and must be dropped
+                assertThat(deserialized.getEsqlQuery(), nullValue());
+
+                // A match-all DSL query must be substituted so the older node gets a valid datafeed
+                DatafeedConfig config = deserialized.build();
+                assertThat(config.getEsqlQuery(), nullValue());
+                assertThat(config.getQuery(), not(nullValue()));
             }
         }
     }

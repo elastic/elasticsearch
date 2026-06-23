@@ -38,15 +38,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 /**
  * Delayed data detector for datafeeds that use an ES|QL query.
  *
- * <p>The {@link DatafeedDelayedDataDetector} cannot be used for ES|QL datafeeds because they have no DSL query or aggregation to feed a
- * date-histogram, and because the unit of a bucket's {@code event_count} is "ES|QL output rows" rather than raw documents. Instead, this
- * detector answers "what's in the index now" by re-running the datafeed's own ES|QL query over the check window (via the datafeed's
- * {@link DataExtractorFactory}) and summing the job's {@code summary_count_field_name} per bucket. Because the job folds that same field
- * into each bucket's {@code event_count} as a count multiplier, both sides of the comparison speak in the same unit, giving a true
- * apples-to-apples check of what the job saw versus what it would see if re-run now.
- *
- * <p>Reusing the datafeed's extractor means the re-run inherits the exact query, time filtering and chunking the datafeed uses, so a wide
- * window does not silently truncate at the ES|QL row cap.
+ * The {@link DatafeedDelayedDataDetector} cannot be used for ES|QL datafeeds because they have no DSL query or aggregation to feed a
+ * date-histogram, and because the unit of a bucket's {@code event_count} is the number of ES|QL query output rows which may or may not
+ * equal the number of raw documents processed (depending on aggregations used). As such, users with ES|QL datafeeds wanting to use the
+ * delayed data check feature must configure the {@code summary_count_field_name} mapping to a field that tracks the number of documents
+ * processed by their ES|QL query. This detector will re-run the ES|QL query against current the data in the index and will compare the
+ * sum of the summary_count_field_name per bucket with the sum's of the summary_count_field_name values that were seen when the datafeed
+ * originally ran.
  */
 public class EsqlDelayedDataDetector implements DelayedDataDetector {
 

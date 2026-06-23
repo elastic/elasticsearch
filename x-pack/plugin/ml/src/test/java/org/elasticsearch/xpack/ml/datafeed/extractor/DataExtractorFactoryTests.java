@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.junit.Before;
 
@@ -627,6 +628,33 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
+        );
+
+        DataExtractorFactory.create(
+            client,
+            datafeedConfig,
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            timingStatsReporter,
+            listener
+        );
+    }
+
+    public void testCreateDataExtractorFactoryGivenEsqlQueryWithChunkingOffRoutesToBareEsqlFactory() {
+        // When chunking_config.mode is off, the EsqlDataExtractorFactory should be returned unwrapped.
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+
+        DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("esql-datafeed", "foo");
+        datafeedConfigBuilder.setIndices(Collections.singletonList("myIndex"));
+        datafeedConfigBuilder.setEsqlQuery("FROM myIndex");
+        datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newOff());
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(EsqlDataExtractorFactory.class))
         );
 
         DataExtractorFactory.create(

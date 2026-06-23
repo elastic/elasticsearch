@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
@@ -32,6 +33,7 @@ public record EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, J
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
+        String summaryCountField = job.getAnalysisConfig().getSummaryCountFieldName();
         EsqlDataExtractorContext ctx = new EsqlDataExtractorContext(
             job.getId(),
             datafeed.getEsqlQuery(),
@@ -39,8 +41,7 @@ public record EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, J
             start,
             end,
             datafeed.getHeaders(),
-            datafeed.getIndices(),
-            datafeed.getIndicesOptions()
+            Strings.hasText(summaryCountField) ? summaryCountField : null
         );
         return new EsqlDataExtractor(client, ctx, timingStatsReporter);
     }

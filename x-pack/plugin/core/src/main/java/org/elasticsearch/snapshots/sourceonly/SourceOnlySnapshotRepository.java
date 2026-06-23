@@ -129,7 +129,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/
             // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
             MappingMetadata mmd = index.mapping();
-            if (mmd != null) {
+            final String indexMode = index.getSettings().get("index.mode");
+            final boolean strictColumnar = "columnar".equals(indexMode) || "logsdb_columnar".equals(indexMode);
+            if (mmd != null && strictColumnar == false) {
                 // we don't need to obey any routing here stuff is read-only anyway and get is disabled
                 final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
                 indexMetadataBuilder.putMapping(mapping);

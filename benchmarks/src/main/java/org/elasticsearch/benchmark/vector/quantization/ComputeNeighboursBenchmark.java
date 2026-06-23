@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+@Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
@@ -39,8 +40,6 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 1, time = 1)
 // real iterations. not useful to spend tons of time here, better to fork more
 @Measurement(iterations = 3, time = 1)
-// engage some noise reduction
-@Fork(value = 1)
 public class ComputeNeighboursBenchmark {
 
     static {
@@ -79,7 +78,6 @@ public class ComputeNeighboursBenchmark {
     }
 
     @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public void bruteForce(Blackhole bh) {
         bh.consume(NeighborHood.computeNeighborhoodsBruteForce(vectors, clusterPerNeighbour));
     }

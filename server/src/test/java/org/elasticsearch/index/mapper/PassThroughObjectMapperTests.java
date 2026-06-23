@@ -289,7 +289,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
     /**
      * In columnar/logsdb_columnar mode passthrough objects are auto-flattened: their child fields are
      * stored as flat dotted names at root level and the passthrough's prefix+priority are captured in
-     * {@code prefix_properties.passthrough}. {@link FieldTypeLookup} then reconstructs root-level
+     * {@code prefix_properties}. {@link FieldTypeLookup} then reconstructs root-level
      * aliases so that queries can omit the passthrough prefix.
      */
     public void testPassThroughAliasesInColumnarMode() throws IOException {
@@ -309,12 +309,12 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             // The concrete dotted path must be reachable
             assertNotNull("attributes.env should be a concrete field [" + indexMode + "]", mapperService.fieldType("attributes.env"));
 
-            // The root-level alias must exist via prefix_properties.passthrough
+            // The root-level alias must exist via prefix_properties
             assertNotNull("root alias 'env' should exist via passthrough [" + indexMode + "]", mapperService.fieldType("env"));
 
-            // The passthroughByPrefix map must be populated on the root
-            Map<String, Integer> ptByPrefix = mapperService.mappingLookup().getMapping().getRoot().getPassthroughByPrefix();
-            assertEquals(Integer.valueOf(1), ptByPrefix.get("attributes"));
+            // The prefixProperties map must be populated on the root
+            Map<String, PrefixProperties> pp = mapperService.mappingLookup().getMapping().getRoot().getPrefixProperties();
+            assertEquals(Integer.valueOf(1), pp.get("attributes").passthrough());
         }
     }
 

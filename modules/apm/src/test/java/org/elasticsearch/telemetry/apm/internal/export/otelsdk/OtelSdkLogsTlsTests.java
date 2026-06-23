@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import javax.net.ssl.X509TrustManager;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
 /**

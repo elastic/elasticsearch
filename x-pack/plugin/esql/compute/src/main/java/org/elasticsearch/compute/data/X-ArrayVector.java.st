@@ -32,7 +32,7 @@ $if(BytesRef)$
 $endif$
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
+public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.

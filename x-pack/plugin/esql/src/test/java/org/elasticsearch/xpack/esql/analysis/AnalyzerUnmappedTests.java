@@ -678,7 +678,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
-    public void testSingleTypeLongUnmappedNoCast() {
+    public void testSingleTypeLongUnmappedAutoCast() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
@@ -695,7 +695,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             var plan = ta.statement(setUnmappedLoad("FROM foo, bar " + suffix));
-            assertOutputContainsType(plan, "message", DataType.LONG);
+            assertTwoLeggedPunkResolution(plan, "message", DataType.LONG);
         }
     }
 
@@ -755,7 +755,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(attr.dataType(), is(DataType.LONG));
     }
 
-    public void testSameMappingHashWithUnmappedIndex() {
+    public void testSameMappingHashWithUnmappedIndexAutoCast() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
@@ -772,7 +772,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
         }
         var plan = ta.statement(setUnmappedLoad("FROM foo, bar, baz | SORT message"));
-        assertOutputContainsType(plan, "message", DataType.LONG);
+        assertTwoLeggedPunkResolution(plan, "message", DataType.LONG);
     }
 
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;

@@ -99,6 +99,20 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     }
 
     /**
+     * Get the {@link System#nanoTime()} when the task completed.
+     * <p>
+     * Note that this method will return -1 if the task has not yet completed, but it could also
+     * return -1 if the task has completed, because the Java standard library makes no guarantees about
+     * the {@link System#nanoTime()} origin (it can be in the future). It is therefore not reliable to use the
+     * returned value to determine if the task has completed.
+     *
+     * @return The time in nanoseconds or -1 if the task has not yet completed
+     */
+    public long getFinishTimeNanos() {
+        return finishTimeNanos;
+    }
+
+    /**
      * If the task was failed or rejected, return true.
      * Otherwise, false.
      */

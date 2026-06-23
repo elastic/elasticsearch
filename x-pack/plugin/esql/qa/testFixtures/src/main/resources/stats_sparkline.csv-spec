@@ -44,7 +44,7 @@ sparkline:double
 ;
 
 avgAndSparklineWithWeightedAvg
-required_capability: fn_sparkline
+required_capability: fn_sparkline_duplicate_surrogates
 FROM employees
 | STATS avg = AVG(salary),
         sparkline = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
@@ -66,7 +66,7 @@ weighted_avg:double | sparkline:long
 ;
 
 weightedAvgAndSparklineWithSameWeightedAvg
-required_capability: fn_sparkline
+required_capability: fn_sparkline_duplicate_surrogates
 FROM employees
 | STATS weighted_avg = WEIGHTED_AVG(salary, height),
         sparkline = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
@@ -75,6 +75,19 @@ FROM employees
 weighted_avg:double | sparkline:double
 48473.84130754439   | [0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0]
 ;
+
+weightedAvgAndTwoSparklinesWithSameWeightedAvg
+required_capability: fn_sparkline_duplicate_surrogates
+FROM employees
+| STATS sparkline1 = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        weighted_avg = WEIGHTED_AVG(salary, height),
+        sparkline2 = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline1:double                                                                                                   | weighted_avg:double | sparkline2:double
+[0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0] | 48473.84130754439   | [0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0]
+;
+
 
 sparklineWithGrouping
 required_capability: fn_sparkline

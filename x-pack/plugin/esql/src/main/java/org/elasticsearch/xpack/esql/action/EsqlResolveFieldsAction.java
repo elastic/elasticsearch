@@ -18,6 +18,8 @@ import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -33,7 +35,10 @@ import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -54,6 +59,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     private final ClusterService clusterService;
     private final ViewResolutionService viewResolutionService;
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public EsqlResolveFieldsAction(
@@ -70,6 +76,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         this.clusterService = clusterService;
         this.viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -138,5 +145,34 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     private RemoteViewNotSupportedException remoteViewDetectedException(String clusterAlias, Set<String> detectedViews) {
         List<String> qualifiedViews = detectedViews.stream().sorted().map(v -> clusterAlias + ":" + v).toList();
         return new RemoteViewNotSupportedException(qualifiedViews);
+    }
+
+    private Map<String, List<IndexAbstraction>> resolveIndexAbstractions(FieldCapabilitiesRequest request) {
+        var projectState = projectResolver.getProjectState(clusterService.state());
+        var indicesLookup = projectState.metadata().getIndicesLookup();
+        var indicesOptions = IndicesOptions.builder(request.indicesOptions())
+            .indexAbstractionOptions(
+                IndicesOptions.IndexAbstractionOptions.builder(request.indicesOptions().indexAbstractionOptions())
+                    .resolveViews(true)
+                    .resolveDatasets(true)
+            )
+            .build();
+        var indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+        var resolvedExpressions = indexAbstractionResolver.resolveIndexAbstractions(
+            List.of(request.indices()),
+            indicesOptions,
+            projectState.metadata(),
+            componentSelector -> indicesLookup.keySet(),
+            (index, selector) -> true,
+            true
+        );
+        Map<String, List<IndexAbstraction>> result = new LinkedHashMap<>();
+        for (var expression : resolvedExpressions.expressions()) {
+            result.put(
+                expression.original(),
+                expression.localExpressions().indices().stream().map(indicesLookup::get).filter(Objects::nonNull).toList()
+            );
+        }
+        return result;
     }
 }

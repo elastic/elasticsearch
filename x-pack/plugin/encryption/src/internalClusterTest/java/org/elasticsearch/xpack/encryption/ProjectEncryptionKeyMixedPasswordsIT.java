@@ -147,10 +147,7 @@ public class ProjectEncryptionKeyMixedPasswordsIT extends ESIntegTestCase {
             secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, nodePasswordId);
             // Each node has its own active password plus all the other nodes' passwords.
             for (int j = 0; j < nodeNames.length; j++) {
-                secure.setString(
-                    ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "id-" + j,
-                    BASE_PASSWORD + "-id-" + j
-                );
+                secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "id-" + j, BASE_PASSWORD + "-id-" + j);
             }
             Settings reloadSettings = Settings.builder().setSecureSettings(secure).build();
             internalCluster().getInstance(EncryptionPlugin.class, nodeNames[i]).reload(reloadSettings);
@@ -193,10 +190,7 @@ public class ProjectEncryptionKeyMixedPasswordsIT extends ESIntegTestCase {
             MockSecureSettings secure = new MockSecureSettings();
             secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, nodePasswordId);
             for (int j = 0; j < nodeNames.length; j++) {
-                secure.setString(
-                    ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "id-" + j,
-                    BASE_PASSWORD + "-id-" + j
-                );
+                secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "id-" + j, BASE_PASSWORD + "-id-" + j);
             }
             Settings reloadSettings = Settings.builder().setSecureSettings(secure).build();
             internalCluster().getInstance(EncryptionPlugin.class, nodeNames[i]).reload(reloadSettings);

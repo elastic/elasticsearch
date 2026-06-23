@@ -876,3 +876,58 @@ setup:
             enabled: false
   - match: { error.type: "mapper_parsing_exception" }
   - match: { error.reason: "/\\[enabled\\].cannot.be.set.to.\\[false\\].on.the.root.object/" }
+
+---
+"columnar: nested enabled:false disables only the child prefix, parent prefix unaffected":
+  - do:
+      indices.create:
+        index: test_columnar_nested_enabled_false
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              resource:
+                properties:
+                  attributes:
+                    enabled: false
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_nested_enabled_false
+  # Only the nested disabled prefix is tracked — resource.attributes is disabled
+  - match: { test_columnar_nested_enabled_false.mappings.prefix_properties.resource\.attributes.enabled: false }
+  # The parent prefix (resource) is not in prefix_properties (it is enabled by default)
+  - is_false: test_columnar_nested_enabled_false.mappings.prefix_properties.resource
+
+  # Index a document with fields both under the disabled subtree and directly under resource
+  - do:
+      index:
+        index: test_columnar_nested_enabled_false
+        refresh: true
+        body:
+          resource:
+            name: "my-service"
+            attributes:
+              host: "es-node-1"
+              region: "us-east"
+
+  # resource.name is directly under resource (not under attributes) — it IS indexed
+  - do:
+      search:
+        index: test_columnar_nested_enabled_false
+        body:
+          query:
+            term:
+              resource.name: "my-service"
+  - match: { hits.total.value: 1 }
+
+  # resource.attributes.host is under the disabled prefix — it is dropped
+  - do:
+      search:
+        index: test_columnar_nested_enabled_false
+        body:
+          query:
+            term:
+              resource.attributes.host: "es-node-1"
+  - match: { hits.total.value: 0 }

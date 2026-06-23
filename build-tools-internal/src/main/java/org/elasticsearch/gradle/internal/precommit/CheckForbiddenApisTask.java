@@ -239,7 +239,8 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
      * @param jarFile the stub JAR produced by {@code ExtractForeignApiTask}
      */
     public void checkForeignApiUsage(Provider<RegularFile> jarFile) {
-        int targetVersion = Integer.parseInt(getTargetCompatibility());
+        String compat = getTargetCompatibility();
+        int targetVersion = compat != null ? Integer.parseInt(compat) : Runtime.version().feature();
         if (targetVersion == 21) {
             addSignatureFiles("jdk-foreign-signatures");
             this.foreignApiJar = jarFile;

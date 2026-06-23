@@ -46,13 +46,10 @@ configurations {
 dependencies {
   compileOnly project(":x-pack:plugin:core")
 
-  implementation "com.microsoft.graph:microsoft-graph:6.36.0"
-  implementation "com.microsoft.graph:microsoft-graph-core:3.6.1"
+  implementation "com.microsoft.graph:microsoft-graph:6.65.0"
+  implementation "com.microsoft.graph:microsoft-graph-core:3.6.6"
   implementation project(path: "kiota-merged", configuration: 'shadow')
-  implementation "com.azure:azure-identity:1.15.4"
-  implementation "com.azure:azure-core:1.55.3"
-  implementation "com.azure:azure-json:1.5.0"
-  implementation "com.azure:azure-xml:1.2.0"
+  implementation "com.azure:azure-identity:1.18.4"
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"

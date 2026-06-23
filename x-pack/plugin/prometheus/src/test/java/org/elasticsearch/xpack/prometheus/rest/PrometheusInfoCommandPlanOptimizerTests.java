@@ -79,7 +79,7 @@ public class PrometheusInfoCommandPlanOptimizerTests extends ESTestCase {
         plan = new Filter(
             org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
             plan,
-            PrometheusPlanBuilderUtils.filterExpression(List.of(), START, END)
+            PrometheusPlanBuilderUtils.buildTimeCondition(START, END)
         );
         return new MetricsInfo(org.elasticsearch.xpack.esql.core.tree.Source.EMPTY, plan);
     }

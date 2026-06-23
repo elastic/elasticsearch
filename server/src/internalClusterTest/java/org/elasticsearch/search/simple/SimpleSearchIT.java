@@ -16,9 +16,9 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -124,7 +124,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testHighCardinalityIp() throws Exception {
-        assumeTrue("cardinality option is available", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("cardinality option is available", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         createIndex("test");
 
         indicesAdmin().preparePutMapping("test")
@@ -212,7 +212,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testIpCidrHighCardinality() throws Exception {
-        assumeTrue("cardinality option is available", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("cardinality option is available", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         testIpCidr(
             XContentFactory.jsonBuilder()
                 .startObject()

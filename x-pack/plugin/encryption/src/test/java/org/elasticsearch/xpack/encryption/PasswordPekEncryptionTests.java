@@ -43,7 +43,7 @@ public class PasswordPekEncryptionTests extends ESTestCase {
 
     public void testWrappedBytesAreDifferentEachCall() {
         String passwordId = "v1";
-        Settings settings = settingsWithPassword(passwordId, "pass");
+        Settings settings = settingsWithPassword(passwordId, "correct-horse-battery-staple");
         PasswordPekEncryption enc = new PasswordPekEncryption(() -> settings);
 
         byte[] plaintext = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
@@ -79,7 +79,7 @@ public class PasswordPekEncryptionTests extends ESTestCase {
 
     public void testUnwrapThrowsWhenPasswordMissing() {
         String passwordId = "v1";
-        Settings settings = settingsWithPassword(passwordId, "pass");
+        Settings settings = settingsWithPassword(passwordId, "correct-horse-battery-staple");
         PasswordPekEncryption enc = new PasswordPekEncryption(() -> settings);
 
         byte[] plaintext = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];

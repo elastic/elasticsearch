@@ -95,6 +95,15 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     }
 
     /**
+     * Returns whether this node can wrap the PEK for its next on-disk cluster-state persist, i.e., an active password id is configured
+     * and the matching password material is present in the current settings snapshot.
+     */
+    boolean canWrapForDisk() {
+        String id = getActivePasswordId();
+        return id != null && ProjectEncryptionKeyPasswordSettings.hasPassword(settingsSupplier.get(), id);
+    }
+
+    /**
      * Returns the current {@link EncryptionServiceState} of this node based on the cached cluster-state metadata and secure settings.
      * This is a read-only snapshot — it does not trigger key unwrapping.
      */

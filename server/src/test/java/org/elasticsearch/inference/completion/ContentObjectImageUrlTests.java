@@ -19,14 +19,20 @@ public class ContentObjectImageUrlTests extends InferenceObjectRamBytesUsedTest<
 
     @Override
     public ContentObject.ContentObjectImage.ContentObjectImageUrl objectToEstimate() {
-        return new ContentObject.ContentObjectImage.ContentObjectImageUrl(URL, ContentObject.ContentObjectImage.ContentObjectImageUrl.ImageUrlDetail.AUTO);
+        return new ContentObject.ContentObjectImage.ContentObjectImageUrl(
+            URL,
+            ContentObject.ContentObjectImage.ContentObjectImageUrl.ImageUrlDetail.AUTO
+        );
     }
 
     @Override
     public List<ContentObject.ContentObjectImage.ContentObjectImageUrl> objectsToEstimateWithLargerInput() {
         return List.of(
             // Larger URL
-            new ContentObject.ContentObjectImage.ContentObjectImageUrl(URL.repeat(5), ContentObject.ContentObjectImage.ContentObjectImageUrl.ImageUrlDetail.AUTO)
+            new ContentObject.ContentObjectImage.ContentObjectImageUrl(
+                URL.repeat(5),
+                ContentObject.ContentObjectImage.ContentObjectImageUrl.ImageUrlDetail.AUTO
+            )
         );
     }
 }

@@ -16,7 +16,12 @@ import java.util.List;
 public class ContentObjectImageTests extends InferenceObjectRamBytesUsedTest<ContentObject.ContentObjectImage> {
     @Override
     public ContentObject.ContentObjectImage objectToEstimate() {
-        return new ContentObject.ContentObjectImage(new ContentObject.ContentObjectImage.ContentObjectImageUrl("url", ContentObject.ContentObjectImage.ContentObjectImageUrl.ImageUrlDetail.AUTO));
+        return new ContentObject.ContentObjectImage(
+            new ContentObject.ContentObjectImage.ContentObjectImageUrl(
+                "url",
+                ContentObject.ContentObjectImage.ContentObjectImageUrl.ImageUrlDetail.AUTO
+            )
+        );
     }
 
     @Override

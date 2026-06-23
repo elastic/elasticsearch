@@ -2130,7 +2130,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testValidateAndResolveSearchSliceRoutingRequiresSliceWhenEnabled() {
+    public void testValidateAndResolveSearchSliceRoutingDefaultsToAllWhenEnabled() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index");
         IndexMetadata metadata = IndexMetadata.builder("slice-enabled-index")
@@ -2141,16 +2141,13 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put("index.slice.enabled", true)
             )
             .build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
-                request,
-                Map.of(metadata.getIndex(), metadata),
-                request.indices(),
-                false
-            )
+        TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(metadata.getIndex(), metadata),
+            request.indices(),
+            false
         );
-        assertThat(e.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+        assertNull("omitting _slice on a slice-enabled index should default to _all (null routing)", request.routing());
     }
 
     public void testValidateAndResolveSearchSliceRoutingRejectsRoutingWhenSliceEnabled() {

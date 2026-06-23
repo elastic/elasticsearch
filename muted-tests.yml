@@ -680,3 +680,21 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultipleIndicesAccumulateBytesRead
   issue: https://github.com/elastic/elasticsearch/issues/151874
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testDeleteIndexAfterRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/151884
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageThirdPartyTests
+  method: testStorageClassPerOperationPurpose
+  issue: https://github.com/elastic/elasticsearch/issues/151924
+- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
+  method: testFetchingMixedTextAndImageChunks
+  issue: https://github.com/elastic/elasticsearch/issues/151928
+- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
+  method: testFetchingMixedTextAndImageValues
+  issue: https://github.com/elastic/elasticsearch/issues/151929
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:ip_location.*}
+  issue: https://github.com/elastic/elasticsearch/issues/151950
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
+  issue: https://github.com/elastic/elasticsearch/issues/151992

@@ -12,6 +12,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -388,6 +390,37 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         if (values == null || values.isEmpty()) {
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
+
+        // Sort terms as BytesRef once on the coordinator so each shard's termsQuery receives
+        // pre-sorted values and can skip Lucene's packTerms sort via the SortedSet path.
+        // Guard: convertToSearchExecutionContext() is non-null only on shards, so this block
+        // executes exactly once per query, not once per shard.
+        if (values.isSorted() == false && queryRewriteContext.convertToSearchExecutionContext() == null) {
+            Values sortedValues = values.trySortedCopy();
+            if (sortedValues != null) {
+                return new TermsQueryBuilder(fieldName, sortedValues);
+            }
+        }
+
+        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
+        if (context != null) {
+            MappedFieldType fieldType = context.getFieldType(this.fieldName);
+            if (fieldType == null) {
+                return new MatchNoneQueryBuilder();
+            } else if (fieldType instanceof ConstantFieldType) {
+                // This logic is correct for all field types, but by only applying it to constant
+                // fields we also have the guarantee that it doesn't perform I/O, which is important
+                // since rewrites might happen on a network thread.
+                Query query = fieldType.termsQuery(values, context);
+                if (query instanceof MatchAllDocsQuery) {
+                    return new MatchAllQueryBuilder();
+                } else if (query instanceof MatchNoDocsQuery) {
+                    return new MatchNoneQueryBuilder();
+                } else {
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query;
+                }
+            }
+        }
         return super.doRewrite(queryRewriteContext);
     }
 
@@ -435,12 +468,31 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     public static final class BinaryValues extends AbstractCollection implements Writeable {
 
         @Nullable
-        private BytesReference valueRef;
+        private final BytesReference valueRef;
+        private final int size;
+        // True when values are already in BytesRef natural order (set by coordinator during doRewrite).
+        // Shards use an O(N) isSorted check in termsQuery() instead of relying on this flag,
+        // since it is not included in serialization.
+        private final boolean sorted;
 
         private final boolean convert;
 
         private final Collection<?> values;
 
+        private BinaryValues(BytesReference bytesRef) {
+            this(bytesRef, false);
+        }
+
+        private BinaryValues(BytesReference bytesRef, boolean sorted) {
+            this.valueRef = bytesRef;
+            this.sorted = sorted;
+            try (StreamInput in = valueRef.streamInput()) {
+                size = consumerHeadersAndGetListSize(in);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+      
         private BinaryValues(StreamInput in) throws IOException {
             this.valueRef = null;
             this.convert = false;
@@ -527,6 +579,21 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
                 valueRef = ref;
             }
             return ref;
+        }
+
+        @Override
+        Values trySortedCopy() {
+            BytesRef[] arr = new BytesRef[values.size()];
+            int i = 0;
+            for (Object v : values) {
+                if (v instanceof BytesRef br) {
+                    arr[i++] = br;
+                } else {
+                    return null;
+                }
+            }
+            BytesRefs.radixSort(arr);
+            return new BinaryValues(serialize(Arrays.asList(arr), false), true);
         }
 
         @Override

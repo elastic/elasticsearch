@@ -108,7 +108,8 @@ public class SnappyDecompressionCodecTests extends ESTestCase {
     }
 
     public void testEmptyStreamThrows() {
-        // A zero-byte input matches no framing; the xerial reader correctly reports EOF.
+        // A zero-byte input routes to the xerial reader (the empty-stream branch); its constructor
+        // rejects the input because the 10-byte stream identifier chunk is missing.
         SnappyDecompressionCodec codec = new SnappyDecompressionCodec();
         expectThrows(IOException.class, () -> codec.decompress(new ByteArrayInputStream(new byte[0])));
     }
@@ -170,6 +171,37 @@ public class SnappyDecompressionCodecTests extends ESTestCase {
         });
         assertThat(e.getMessage(), containsString("malformed Hadoop-snappy stream at offset"));
         assertNotNull(e.getCause());
+        assertEquals("io.airlift.compress.MalformedInputException", e.getCause().getClass().getName());
+    }
+
+    /**
+     * Reads via the single-argument {@code read(byte[])} path. {@link java.io.FilterInputStream}'s
+     * default implementation of that method delegates straight to {@code in.read(b, 0, b.length)},
+     * which would bypass the overridden three-argument read and let aircompressor's unchecked
+     * {@code MalformedInputException} escape. Our wrapper overrides the single-argument form to
+     * route through the overridden three-argument form, so the translation applies here too.
+     */
+    public void testMalformedHadoopPayloadTranslatedOnReadByteArrayPath() throws IOException {
+        byte[] block = new byte[] { 0x10, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff };
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (DataOutputStream dos = new DataOutputStream(out)) {
+            dos.writeInt(16);
+            dos.writeInt(block.length);
+            dos.write(block);
+        }
+
+        SnappyDecompressionCodec codec = new SnappyDecompressionCodec();
+        IOException e = expectThrows(IOException.class, () -> {
+            try (InputStream decompressed = codec.decompress(new ByteArrayInputStream(out.toByteArray()))) {
+                byte[] buf = new byte[64];
+                // Use the single-arg read(byte[]) form explicitly, not readAllBytes() (which goes
+                // through read(byte[], int, int)).
+                while (decompressed.read(buf) != -1) {
+                    // drain
+                }
+            }
+        });
+        assertThat(e.getMessage(), containsString("malformed Hadoop-snappy stream at offset"));
         assertEquals("io.airlift.compress.MalformedInputException", e.getCause().getClass().getName());
     }
 

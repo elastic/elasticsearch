@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -48,6 +50,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.FilterUnsupportedTemporality;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -63,6 +67,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -109,9 +114,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -120,6 +129,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRule
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -1373,25 +1383,104 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s"));
 
-        // TopN[[Order[s{r}#5,DESC,FIRST]],1[INTEGER],false]
-        var topN = as(project.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1));
-
+        // s is null (missing field), so the sort is dropped.
         // Evaluates expression as null, as the field is missing
-        var eval = as(topN.child(), Eval.class);
+        var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("s"));
         var alias = as(eval.fields().getFirst(), Alias.class);
         var literal = as(alias.child(), Literal.class);
         assertThat(literal.value(), is(nullValue()));
         assertThat(literal.dataType(), is(DataType.DOUBLE));
 
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
+
         // EsRelation[test_all] - does not contain a FunctionEsField
-        var esRelation = as(eval.child(), EsRelation.class);
+        var esRelation = as(limit.child(), EsRelation.class);
         assertFalse(
             esRelation.output()
                 .stream()
                 .anyMatch(att -> (att instanceof FieldAttribute fieldAttr) && fieldAttr.field() instanceof FunctionEsField)
         );
+    }
+
+    /**
+     * Multi-index partial-presence: FROM a, b where `value` exists in `a` and is missing from `b`.
+     * Globally, `value` has a real keyword type (it's mapped in `a`), so PruneConstantSortKeysFromOrderBy
+     * does NOT fire on the coordinator and the TopN keeps both sort keys.
+     * Locally on a shard from `b`, ReplaceFieldWithConstantOrNull replaces `value` with null and
+     * PruneConstantSortKeysFromOrderBy then strips the now-null sort key, leaving only `id`.
+     */
+    public void testTopNSortKeyOnPartiallyMappedFieldPrunedLocally() {
+        var optimizer = EsqlTestUtils.optimizer().addIndex(buildPartiallyMappedIndex().get());
+        var plan = optimizer.coordinatorPlan("""
+              FROM a, b
+            | KEEP id, value
+            | SORT value, id
+            | LIMIT 20
+            """);
+
+        // Coordinator-side TopN keeps both sort keys (partial-presence is not pruned globally).
+        var coordinatorTopN = findFirstTopN(plan);
+        assertThat(coordinatorTopN.order(), hasSize(2));
+
+        // Simulate a shard from `b` where `value` is missing.
+        var localPlan = localPlan(plan, statsForMissingField("value"));
+
+        // Local-side TopN keeps only `id`; `value` was nullified and pruned.
+        var topN = findFirstTopN(localPlan);
+        var fa = as(singleValue(topN.order()).child(), FieldAttribute.class);
+        assertThat(fa.name(), equalTo("id"));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(20));
+    }
+
+    /**
+     * Same multi-index setup as {@link #testTopNSortKeyOnPartiallyMappedFieldPrunedLocally()},
+     * but `value` is the only sort key. Locally, after pruning the only (now-null) sort key,
+     * TopN collapses to a bare Limit.
+     */
+    public void testTopNAllSortKeysOnPartiallyMappedFieldsCollapseToLimitLocally() {
+        var optimizer = EsqlTestUtils.optimizer().addIndex(buildPartiallyMappedIndex().get());
+        var plan = optimizer.coordinatorPlan("""
+              FROM a, b
+            | KEEP id, value
+            | SORT value
+            | LIMIT 20
+            """);
+
+        // Coordinator-side: TopN[value] is preserved.
+        assertThat(findFirstTopN(plan).order(), hasSize(1));
+
+        // Simulate a shard from `b` where `value` is missing.
+        var localPlan = localPlan(plan, statsForMissingField("value"));
+
+        // No TopN should remain — all sort keys were pruned and TopN became a Limit.
+        assertThat(localPlan.collect(p -> p instanceof TopN), empty());
+        var limit = findFirstLimit(localPlan);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(20));
+    }
+
+    /**
+     * Builds an EsIndex for {@code FROM a, b} where {@code value} is keyword in {@code a} and absent from {@code b};
+     * {@code id} is a long present in both indices.
+     */
+    private static IndexResolution buildPartiallyMappedIndex() {
+        var caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("a", fieldResponseMap(Map.of("value", "keyword", "id", "long"))),
+                fieldCapabilitiesIndexResponse("b", fieldResponseMap("id", "long"))
+            ),
+            List.of()
+        );
+        return mergedResolution("a,b", caps);
+    }
+
+    private static TopN findFirstTopN(LogicalPlan plan) {
+        return as(singleValue(plan.collectFirstChildren(p -> p instanceof TopN)), TopN.class);
+    }
+
+    private static Limit findFirstLimit(LogicalPlan plan) {
+        return as(singleValue(plan.collectFirstChildren(p -> p instanceof Limit)), Limit.class);
     }
 
     private record SimilarityFunctionTestCase(String esqlFunction, String fieldName, float[] vector, String functionName) {
@@ -1858,7 +1947,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var alias = as(optimizedEval.fields().get(0), Alias.class);
         var optimizedAttr = as(alias.child(), TimeSeriesMetadataAttribute.class);
         assertThat(MetadataAttribute.isTimeSeriesAttribute(optimizedAttr), is(true));
-        assertThat(optimizedAttr.withoutFields(), equalTo(Set.of()));
+        assertThat(optimizedAttr.excludedFields(), equalTo(Set.of()));
     }
 
     public void testTemporalityInjection() {
@@ -1882,7 +1971,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                 new Alias(EMPTY, "i", new Increase(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null))
             ),
             null,
-            timestampAttr
+            timestampAttr,
+            TimeSeriesAggregate.Origin.TS_COMMAND
         );
 
         var searchStats = new EsqlTestUtils.TestSearchStats() {
@@ -1930,7 +2020,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             List.of(),
             List.of(new Alias(EMPTY, "merged", new HistogramMerge(EMPTY, histogramAttr, Literal.TRUE, AggregateFunction.NO_WINDOW))),
             null,
-            timestampAttr
+            timestampAttr,
+            TimeSeriesAggregate.Origin.TS_COMMAND
         );
 
         var searchStats = new EsqlTestUtils.TestSearchStats() {
@@ -1950,5 +2041,58 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(mergeOverTime.field(), equalTo(histogramAttr));
         assertThat(mergeOverTime.temporality(), notNullValue());
         assertThat(mergeOverTime.temporality(), instanceOf(TemporalityAttribute.class));
+    }
+
+    public void testExtractHistogramComponentPatchedWithFilterUnsupportedTemporality() {
+        var histogramAttr = getFieldAttribute("histogram_field", DataType.EXPONENTIAL_HISTOGRAM);
+        var timestampAttr = getFieldAttribute("@timestamp", DataType.DATETIME);
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.TIME_SERIES),
+            List.of(histogramAttr, timestampAttr)
+        );
+
+        var extractSum = ExtractHistogramComponent.create(EMPTY, histogramAttr, ExponentialHistogramBlock.Component.SUM);
+        var extractCount = ExtractHistogramComponent.create(EMPTY, histogramAttr, ExponentialHistogramBlock.Component.COUNT);
+        var sumAlias = new Alias(EMPTY, "sum_component", extractSum);
+        var countAlias = new Alias(EMPTY, "count_component", extractCount);
+        var eval = new Eval(EMPTY, relation, List.of(sumAlias, countAlias));
+
+        var tsAggregate = new TimeSeriesAggregate(
+            EMPTY,
+            eval,
+            List.of(),
+            List.of(new Alias(EMPTY, "total", new Max(EMPTY, sumAlias.toAttribute()))),
+            null,
+            timestampAttr,
+            TimeSeriesAggregate.Origin.TS_COMMAND
+        );
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals(histogramAttr.name()) || field.string().equals(timestampAttr.name());
+            }
+        };
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(tsAggregate);
+
+        var optimizedTsAgg = as(optimizedPlan, TimeSeriesAggregate.class);
+        LogicalPlan current = optimizedTsAgg.child();
+        while (current instanceof Eval == false && current.children().isEmpty() == false) {
+            current = current.children().get(0);
+        }
+        var optimizedEval = as(current, Eval.class);
+
+        for (Alias field : optimizedEval.fields()) {
+            var extract = as(Alias.unwrap(field), ExtractHistogramComponent.class);
+            var filter = as(extract.field(), FilterUnsupportedTemporality.class);
+            assertThat(filter.histogram(), equalTo(histogramAttr));
+            assertThat(filter.temporality(), instanceOf(TemporalityAttribute.class));
+        }
     }
 }

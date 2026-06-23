@@ -124,6 +124,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSubquery(EsqlBaseParser.SubqueryContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#subquerySourceCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -503,6 +509,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -520,6 +544,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitUserAgentCommand(EsqlBaseParser.UserAgentCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#ipLocationCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree

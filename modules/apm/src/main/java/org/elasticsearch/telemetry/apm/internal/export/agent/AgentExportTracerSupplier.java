@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.export.agent;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
@@ -42,7 +43,10 @@ public final class AgentExportTracerSupplier implements TraceSupplier {
     }
 
     @Override
-    public void attemptFlushTraces() {
+    public CompletableResultCode attemptFlushTraces() {
+        // Blocks the calling thread: the APM agent has no async flush API, so this sleeps for
+        // the configured interval. The result is already complete when this method returns.
         flushFn.run();
+        return CompletableResultCode.ofSuccess();
     }
 }

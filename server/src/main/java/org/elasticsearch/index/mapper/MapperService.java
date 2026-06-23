@@ -141,7 +141,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final Setting<Long> INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.array_objects.limit",
-        20000L,
+        50000L,
         1,
         Property.Dynamic,
         Property.IndexScope
@@ -831,6 +831,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
         return mappingLookup().indexAnalyzer(field, unindexedFieldAnalyzer);
+    }
+
+    /**
+     * Determines whether the columnar ID mode is enabled for the index.
+     *
+     * @return true if columnar ID mode is enabled, either explicitly via the provided ID field mapper
+     *         or by default in the index settings; false otherwise.
+     */
+    public boolean isUseColumnarId() {
+        if (this.mapper == null) {
+            return indexSettings.isUseColumnarIdByDefault();
+        }
+
+        return mappingLookup().isColumnarId();
     }
 
     @Override

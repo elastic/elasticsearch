@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.OS
-
+apply plugin: 'java'
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -72,12 +72,7 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named('javaRestTest') {
-  enabled = buildParams.snapshotBuild
-
-  if (OS.current() == OS.WINDOWS) {
-    // Not supported
-    enabled = false
-  }
+  enabled = buildParams.snapshotBuild && parent.testsEnabled
 
   dependsOn parquetQaProject.tasks.named('generateParquetFixtures')
   usesDefaultDistribution("to be triaged")
@@ -90,14 +85,5 @@ tasks.named('javaRestTest') {
     events = ["passed", "skipped", "failed"]
     exceptionFormat = "full"
     showStandardStreams = false
-  }
-}
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
-  }
-  restTests {
-    includeXpack 'esql'
   }
 }

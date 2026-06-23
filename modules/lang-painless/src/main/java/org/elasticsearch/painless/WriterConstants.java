@@ -201,13 +201,55 @@ public final class WriterConstants {
     public static final Method RUNNABLE_RUN = getAsmMethod(void.class, "run");
 
     /**
-     * Iterations between cancellation polls. The runnable returned by
-     * {@link org.elasticsearch.painless.PainlessScript#_getCancellationCheck()} runs once every
-     * {@code CANCELLATION_POLL_INTERVAL} iters to amortize the check cost.
+     * Decrement interval for the persistent cancellation poll counter.  The counter is stored in
+     * {@link #CANCEL_POLL_FIELD} on the generated script instance and is decremented at every
+     * function entry and loop back-edge.  The cancellation runnable fires (and the counter resets)
+     * once every {@code CANCELLATION_POLL_INTERVAL} decrements, amortising the check cost.
      */
     public static final int CANCELLATION_POLL_INTERVAL = 1000;
 
+    /** Name of the synthetic {@code int} field added to opted-in generated script classes. */
+    public static final String CANCEL_POLL_FIELD = "$cancelPoll";
+
     public static final Method GET_CANCELLATION_CHECK = getAsmMethod(Runnable.class, "_getCancellationCheck");
+
+    /**
+     * Method generated on opted-in script classes that performs one decrement-and-check against
+     * {@link #CANCEL_POLL_FIELD}, letting {@code @script_aware} augmentations poll the script's
+     * persistent counter directly instead of maintaining their own — so the count is shared with the
+     * compiler's inline loop/entry decrements and stays amortised across all script work.
+     */
+    public static final Method POLL_CANCELLATION = getAsmMethod(void.class, "_pollCancellation");
+
+    /**
+     * Name of the synthetic {@code long} field added to generated script classes when allocation tracking is enabled
+     * (a positive per-context limit). Holds the running heuristic allocation total, reset at every {@code execute} entry.
+     */
+    public static final String ALLOC_BYTES_FIELD = "$allocBytes";
+
+    /** Generated override of {@link org.elasticsearch.painless.PainlessScript#$incAllocBytes(long)}. */
+    public static final Method INC_ALLOC_BYTES = getAsmMethod(long.class, "$incAllocBytes", long.class);
+
+    /** Generated override of {@link org.elasticsearch.painless.PainlessScript#getAllocBytes()}. */
+    public static final Method GET_ALLOC_BYTES = getAsmMethod(long.class, "getAllocBytes");
+
+    /**
+     * {@link org.elasticsearch.painless.PainlessScript#$checkAllocBytes(long)} — invoked (via the script interface) at every
+     * compile-time-known allocation site to charge and check the running total against the per-context limit.
+     */
+    public static final Method CHECK_ALLOC_BYTES = getAsmMethod(void.class, "$checkAllocBytes", long.class);
+
+    /** ASM {@link Type} for {@link AllocationGuard}, the log-and-throw helper called on a limit breach. */
+    public static final Type ALLOCATION_GUARD_TYPE = Type.getType(AllocationGuard.class);
+
+    /** {@link AllocationGuard#allocationLimitExceeded(long, long, long)} — called from {@code $checkAllocBytes} on breach. */
+    public static final Method ALLOCATION_LIMIT_EXCEEDED = getAsmMethod(
+        void.class,
+        "allocationLimitExceeded",
+        long.class,
+        long.class,
+        long.class
+    );
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

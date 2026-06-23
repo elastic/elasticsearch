@@ -81,7 +81,7 @@ def orcFixtureOutputDir = file("${buildDir}/orc-fixtures/iceberg-fixtures")
 def orcFixtureDir = file("${orcFixtureOutputDir}/standalone")
 
 // Add CSV base names here to generate ORC fixtures; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
-def csvToOrcFixtures = ['employees', 'web_logs', 'books']
+def csvToOrcFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv']
 
 def generateOrcTasks = []
 csvToOrcFixtures.each { baseName ->
@@ -97,9 +97,28 @@ csvToOrcFixtures.each { baseName ->
     inputs.file(csvFile)
     outputs.file(orcFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateOrcTasks.add(tasks.named(taskName))
 }
+
+// Multifile-split fixtures: 3-way split of employees.csv into multifile_split/employees_{00,01,02}.orc.
+// Used by the shared external-multifile.csv-spec and external-multifile-resolution.csv-spec, which the
+// OrcFormatSpecIT picks up via the readExternalSpecTests("/external-*.csv-spec") glob.
+def multifileSplitDir = file("${orcFixtureOutputDir}/multifile_split")
+def multifileSplitCsv = project(xpackModule('esql:qa:testFixtures')).file("src/main/resources/data/employees.csv")
+tasks.register('generateMultifileSplitOrc_employees', JavaExec) {
+  dependsOn serverProject.tasks.named('compileOrcFixtureGeneratorJava')
+  dependsOn project(xpackModule('esql:qa:testFixtures')).tasks.named('processResources')
+  classpath = serverProject.configurations.orcFixtureGenerator + serverProject.sourceSets.orcFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.OrcFixtureGenerator'
+  args = [multifileSplitCsv.absolutePath, multifileSplitDir.absolutePath, '3']
+  inputs.file(multifileSplitCsv)
+  outputs.dir(multifileSplitDir)
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
+}
+generateOrcTasks.add(tasks.named('generateMultifileSplitOrc_employees'))
 
 tasks.register('generateOrcFixtures') {
   dependsOn generateOrcTasks
@@ -128,14 +147,5 @@ tasks.named('javaRestTest') {
     events = ["passed", "skipped", "failed"]
     exceptionFormat = "full"
     showStandardStreams = false
-  }
-}
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
-  }
-  restTests {
-    includeXpack 'esql'
   }
 }

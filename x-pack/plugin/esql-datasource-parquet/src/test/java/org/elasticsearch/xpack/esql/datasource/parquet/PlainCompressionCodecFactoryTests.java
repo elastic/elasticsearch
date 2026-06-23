@@ -14,10 +14,13 @@ import org.apache.parquet.compression.CompressionCodecFactory.BytesInputCompress
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.compress.PanamaZstd;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class PlainCompressionCodecFactoryTests extends ESTestCase {
 
@@ -377,6 +380,75 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
 
         BytesInput decompressed = decompressor.decompress(directBufferInput, original.length);
         assertArrayEquals(original, decompressed.toByteArray());
+    }
+
+    /**
+     * Exercises the Panama FFI Zstd path with non-zero {@code position()} on both buffers, modeling
+     * how parquet-mr feeds page slices that start inside larger column-chunk buffers. The Panama
+     * call must use the absolute offsets passed by the codec (i.e. {@code input.position()} and
+     * {@code output.position()}) without double-counting them. Regression test for the addressing
+     * semantics of {@link org.elasticsearch.nativeaccess.Zstd#decompress(ByteBuffer, int, int, ByteBuffer, int, int)}.
+     */
+    public void testZstdDirectByteBufferDecompressionWithNonZeroPosition() throws IOException {
+        assumeTrue("Panama Zstd binding required for this test", PanamaZstd.instance().isAvailable());
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.ZSTD);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.ZSTD);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressedBytes = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        int srcLeading = between(1, 64);
+        int srcTrailing = between(0, 64);
+        ByteBuffer input = ByteBuffer.allocateDirect(srcLeading + compressedBytes.length + srcTrailing);
+        input.position(srcLeading);
+        input.put(compressedBytes);
+        input.position(srcLeading);
+        input.limit(srcLeading + compressedBytes.length);
+
+        int dstLeading = between(1, 64);
+        int dstTrailing = between(0, 64);
+        ByteBuffer output = ByteBuffer.allocateDirect(dstLeading + original.length + dstTrailing);
+        output.position(dstLeading);
+        output.limit(dstLeading + original.length);
+
+        decompressor.decompress(input, compressedBytes.length, output, original.length);
+
+        // After decompression the codec advances position by the consumed/produced bytes.
+        assertEquals(srcLeading + compressedBytes.length, input.position());
+        assertEquals(dstLeading + original.length, output.position());
+
+        // Decompressed payload must land at the original dstLeading offset.
+        byte[] result = new byte[original.length];
+        for (int i = 0; i < original.length; i++) {
+            result[i] = output.get(dstLeading + i);
+        }
+        assertArrayEquals(original, result);
+    }
+
+    /**
+     * The Panama Zstd path validates the decompressed length equals the parquet page header's
+     * {@code decompressedSize}. Inflating that claimed size beyond what the compressed frame holds
+     * must surface as a clean {@link IOException} rather than partial/incorrect output.
+     */
+    public void testZstdDirectByteBufferRejectsLengthMismatch() throws IOException {
+        assumeTrue("Panama Zstd binding required for this test", PanamaZstd.instance().isAvailable());
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.ZSTD);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.ZSTD);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressedBytes = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        ByteBuffer input = ByteBuffer.allocateDirect(compressedBytes.length);
+        input.put(compressedBytes).flip();
+        ByteBuffer output = ByteBuffer.allocateDirect(original.length + 1);
+
+        // Inflate decompressedSize beyond the actual frame payload; libzstd writes exactly
+        // original.length bytes and our wrapper must reject the mismatch.
+        IOException ex = expectThrows(
+            IOException.class,
+            () -> decompressor.decompress(input, compressedBytes.length, output, original.length + 1)
+        );
+        assertThat(ex.getMessage(), containsString("Zstd decompression"));
     }
 
     public void testHeapByteBufferDecompression() throws IOException {

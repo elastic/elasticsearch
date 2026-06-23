@@ -14,6 +14,7 @@ import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -54,7 +55,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
     public ICUCollationKeywordFieldMapperIT(boolean binaryDocValues) {
         this.binaryDocValues = binaryDocValues;
         if (binaryDocValues) {
-            assumeTrue("cardinality option must be available", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+            assumeTrue("cardinality option must be available", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         }
     }
 

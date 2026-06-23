@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Parameterized integration tests for compressed CSV files (.csv.gz, .csv.zst, .csv.zstd, .csv.bz2, .csv.bz).
@@ -49,11 +50,26 @@ public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
         return cluster.getHttpAddresses();
     }
 
+    // Migrated specs run via FROM <dataset> on S3 (the anonymous-capable fixture backs a dataset without
+    // a cluster encryption key) and via the rebuilt EXTERNAL query on the other backends, so none are skipped.
+    @Override
+    protected Set<StorageBackend> datasetModeBackends() {
+        return Set.of(StorageBackend.S3);
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        // csv-headerless.csv-spec covers the read-schema multi-file glob test that exercises
-        // StreamingParallelParsingCoordinator on compressed inputs — the path that previously
-        // crashed with "Expected [BYTES_REF] but was [INT]" on gzip multi-file globs.
-        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/external-basic.csv-spec", "/csv-headerless.csv-spec");
+        // external-basic / external-multifile read the multi-value employees fixture, which does not
+        // parse as CSV under the default multi_value_syntax: none. Use the scalar twin (csv-basic),
+        // csv-headerless, and csv-multifile (both opt into brackets explicitly where they read bracket
+        // data) to restore the equivalent coverage.
+        return readExternalSpecTestsWithFormats(
+            COMPRESSED_FORMATS,
+            "/csv-basic.csv-spec",
+            "/csv-headerless.csv-spec",
+            "/csv-multifile.csv-spec",
+            "/csv-multifile-resolution.csv-spec",
+            "/csv-multivalue.csv-spec"
+        );
     }
 }

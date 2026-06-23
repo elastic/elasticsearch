@@ -9,6 +9,8 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
+
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;

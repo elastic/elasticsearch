@@ -108,7 +108,7 @@ ROW key=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
 Finally include this file in the `CHANGE_POINT` command file [`_snippets/commands/layout/change_point.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/commands/layout/change_point.md):
 
 ```
-**Examples**
+## Examples
 
 The following example shows the detection of a step change:
 
@@ -232,6 +232,27 @@ To mark a specific map entry as preview:
 ```
 
 We updated [`DocsV3Support.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/qa/testFixtures/src/main/java/org/elasticsearch/xpack/esql/expression/function/DocsV3Support.java) to generate the `applies_to` metadata correctly for functions and operators.
+
+### Annotate supported types
+
+When a function adds support for a new data type in a specific version, the **Supported types** table in the docs needs `applies_to` metadata on those type rows. This is done by annotating the type's `TypedDataSupplier` in the function's `*Tests.java` class.
+
+Use `withAppliesTo(...)` to tag which version introduced the type, and `withPreview()` if the function has `preview = true` on its `@FunctionInfo` annotation:
+
+```java
+FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+
+// In the suppliers list:
+MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+    .stream()
+    .map(s -> s.withAppliesTo(histogramAppliesTo).withPreview())  // withPreview() because the function has preview=true
+    .toList()
+```
+
+- Call `withAppliesTo(...)` on `TypedDataSupplier` entries for any type that was added after the function's initial release
+- Call `withPreview()` only if the data types function's `@FunctionInfo` has `preview = true`
+
+This ensures the generated **Supported types** table includes the correct `{applies_to}` and `serverless: preview` annotations per type row.
 
 ### Use inline applies_to metadata
 

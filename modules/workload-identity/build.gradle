@@ -1,0 +1,74 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
+esplugin {
+  description = 'Client for the workload-identity-issuer service, which mints short-lived OIDC JWTs used to authenticate to customer-owned cloud resources.'
+  classname = 'org.elasticsearch.workloadidentity.WorkloadIdentityPlugin'
+}
+
+// Mirrors modules/lang-painless's spi arrangement: the api jar at :modules:workload-identity:spi
+// is bundled into the plugin zip's `spi/` directory so that PluginsLoader exposes only those
+// types (WorkloadIdentityIssuerClient and WorkloadIdentityRegistry) on the classloader chain of
+// extending plugins. The Apache HC / commons-logging impl jars below stay private to this
+// module's own pluginClassLoader, which avoids jar-hell with x-pack-core (which already ships
+// httpclient et al. through the existing extendedPlugins chain reaching x-pack-esql).
+configurations {
+  spi
+  compileOnlyApi.extendsFrom(spi)
+  if (isEclipse) {
+    api.extendsFrom(spi)
+  }
+}
+
+dependencies {
+  spi project('spi')
+
+  // Apache HttpComponents 4.x is the transport for the workload-identity-issuer mTLS connection.
+  // We declare these libraries directly rather than going through :client:rest because we do not
+  // use the LLRC's RestClient API; pulling :client:rest in just for its transitive Apache HC chain
+  // would put the published REST client on our runtime classpath for no functional reason.
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+
+  api project(":libs:ssl-config")
+}
+
+esplugin.bundleSpec.into("spi") {
+  from(configurations.spi)
+}
+
+tasks.withType(AbstractDependenciesTask).configureEach {
+  mapping from: /httpcore|httpcore-nio|httpasyncclient/, to: 'httpclient'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // commons-logging optional logging backends; not present at runtime.
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    'org.apache.log4j.Level',
+    'org.apache.log4j.Logger',
+    'org.apache.log4j.Priority',
+    // commons-logging optional servlet shims; not present at runtime.
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+  )
+}
+
+tasks.named('forbiddenPatterns').configure {
+  // Test PEM key material can incidentally contain the regex "nocommit" inside its base64 payload.
+  // (*.crt is already excluded by the task's built-in default list.)
+  exclude '**/*.key'
+}

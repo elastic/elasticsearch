@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -26,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 
 /**
  * Registry for StorageProvider implementations, keyed by URI scheme.
@@ -65,11 +68,44 @@ public class StorageProviderRegistry implements Closeable {
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
+    private final BooleanSupplier workloadIdentityEnabled;
+    /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
+    @Nullable
+    private final DataSourceCredentials credentials;
     private volatile int maxConcurrentRequests;
     private volatile int throttleMaxRetryDurationSeconds;
+    /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
+    private final RetryScheduler retryScheduler;
 
     public StorageProviderRegistry(Settings settings) {
+        this(settings, null);
+    }
+
+    /**
+     * Test-only convenience constructor. The default {@code workloadIdentityEnabled} supplier reads the cluster
+     * setting directly and does <b>not</b> apply the stateless gate that production wiring enforces in
+     * {@code EsqlPlugin} (where the boolean is forced to {@code false} when {@code DiscoveryNode.isStateless}).
+     * Production always goes through the four-argument constructor via {@code DataSourceModule}.
+     */
+    public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials) {
+        this(
+            settings,
+            credentials,
+            () -> ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings != null ? settings : Settings.EMPTY),
+            RetryScheduler.DIRECT
+        );
+    }
+
+    public StorageProviderRegistry(
+        Settings settings,
+        @Nullable DataSourceCredentials credentials,
+        BooleanSupplier workloadIdentityEnabled,
+        RetryScheduler retryScheduler
+    ) {
         this.settings = settings != null ? settings : Settings.EMPTY;
+        this.credentials = credentials;
+        this.workloadIdentityEnabled = workloadIdentityEnabled;
+        this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
         this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
     }
@@ -129,6 +165,12 @@ public class StorageProviderRegistry implements Closeable {
     public Configured<StorageProvider> createProviderTrackingConsumedKeys(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
 
+        // Flatten the _datasource sub-map and decrypt any encrypted secrets here, so every provider
+        // construction path gets plaintext credentials regardless of how it assembled its config.
+        config = ExternalSourceResolver.storageConfig(config);
+        if (credentials != null) {
+            config = credentials.decryptInPlace(config);
+        }
         Map<String, Object> storageConfig = stripFrameworkKeys(config);
         if (storageConfig == null || storageConfig.isEmpty()) {
             StorageProvider provider = providers.get(normalizedScheme);
@@ -141,6 +183,13 @@ public class StorageProviderRegistry implements Closeable {
         StorageProviderFactory factory = factories.get(normalizedScheme);
         if (factory == null) {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
+        }
+
+        // Gate auth=workload_identity on the cluster setting before constructing the provider. This covers the
+        // inline-WITH path where no PUT-datasource validation runs.
+        if (FileDataSourceConfiguration.isWorkloadIdentityAuth(storageConfig.get("auth"))
+            && workloadIdentityEnabled.getAsBoolean() == false) {
+            throw new IllegalArgumentException(FileDataSourceConfiguration.WORKLOAD_IDENTITY_DISABLED_MESSAGE);
         }
 
         // Cache providers by (scheme, storageConfig) so queries with the same configuration map
@@ -197,7 +246,7 @@ public class StorageProviderRegistry implements Closeable {
         AdaptiveBackoff backoff = backoffForScheme(scheme);
         RetryPolicy retryPolicy = buildRetryPolicy(backoff);
         StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
-        return new RetryableStorageProvider(limited, retryPolicy);
+        return new RetryableStorageProvider(limited, retryPolicy, retryScheduler);
     }
 
     /**

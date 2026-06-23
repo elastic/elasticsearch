@@ -136,6 +136,9 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
 
     @After
     public void cleanup() {
+        if (cluster().size() == 0) {
+            return;
+        }
         // Clear the default repository setting before teardown so that the repository can be deleted
         try {
             updateClusterSettings(Settings.builder().putNull(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey()));
@@ -175,8 +178,6 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
      * </ol>
      */
     public void testEndToEndFrozenTransition() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         // --- Setup: start nodes, register repo, configure default repo ---
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
@@ -241,51 +242,182 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
         logger.info("--> waiting for frozen index [{}] to appear in data stream", expectedFrozenIndexName);
 
+        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
+
         assertBusy(() -> {
-            // Verify the frozen index is now part of the data stream
+            // Fetch fresh cluster state and data stream state on every retry
+            ClusterStateResponse stateResp = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
+            var projectMetadata = stateResp.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+            assertThat("Project metadata should not be null", projectMetadata, notNullValue());
+
             GetDataStreamAction.Response dsResp = client().execute(
                 GetDataStreamAction.INSTANCE,
                 new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
             ).actionGet();
             assertThat(dsResp.getDataStreams().size(), equalTo(1));
-
             List<Index> backingIndices = dsResp.getDataStreams().getFirst().getDataStream().getIndices();
+
+            // Frozen index must be in the data stream
             boolean frozenInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(expectedFrozenIndexName));
             assertThat("Frozen index should be in the data stream's backing indices", frozenInDataStream, is(true));
-        }, 300, TimeUnit.SECONDS);
 
-        logger.info("--> frozen index [{}] is now in the data stream, verifying cleanup", expectedFrozenIndexName);
+            // Original and clone must be fully deleted (all three cleanup steps complete)
+            assertThat(
+                "Original index [" + candidateIndex + "] should have been deleted",
+                projectMetadata.index(candidateIndex),
+                nullValue()
+            );
+            assertThat("Clone index [" + cloneIndexName + "] should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
+            boolean originalInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(candidateIndex));
+            assertThat("Original index should no longer be in the data stream", originalInDataStream, is(false));
+        }, 60, TimeUnit.SECONDS);
 
-        // --- Verify cleanup of original and clone indices ---
+        logger.info("--> frozen index [{}] is now in the data stream and cleanup is complete", expectedFrozenIndexName);
+
+        // Verify the frozen index exists in project metadata and has the DLM-created setting.
+        // These properties are stable once the frozen index is in the data stream, so a one-shot read is safe.
         ClusterStateResponse resp = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
         var projectMetadata = resp.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
-        assertThat("Project metadata should not be null", projectMetadata, notNullValue());
-
-        // Verify the original index has been cleaned up (removed from cluster state)
-        assertThat("Original index [" + candidateIndex + "] should have been deleted", projectMetadata.index(candidateIndex), nullValue());
-
-        // Verify the clone index has been cleaned up
-        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
-        assertThat("Clone index [" + cloneIndexName + "] should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
-
-        // Verify the original index is no longer in the data stream
-        GetDataStreamAction.Response dsResp = client().execute(
-            GetDataStreamAction.INSTANCE,
-            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
-        ).actionGet();
-        List<Index> backingIndices = dsResp.getDataStreams().getFirst().getDataStream().getIndices();
-        boolean originalInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(candidateIndex));
-        assertThat("Original index should no longer be in the data stream", originalInDataStream, is(false));
-
-        // Verify the frozen index exists in project metadata and has the DLM-created setting
         IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
         assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
         assertThat(
             "Frozen index should have the DLM-created setting",
-            DLMConvertToFrozen.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
+            DataStreamLifecycleService.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
             is(true)
         );
 
         logger.info("--> end-to-end DLM frozen transition test completed successfully");
+    }
+
+    /**
+     * Verifies that a DLM-created frozen index is not re-marked for frozen transition on a subsequent
+     * DLM run. The discriminating assertion is that the frozen index never acquires the
+     * {@code dlm_freeze_with} custom metadata (i.e.,
+     * {@link DataStreamLifecycleService#indexMarkedForFrozen} stays false), even after the index
+     * becomes older than {@code frozen_after}. Without the guard added in
+     * {@link DataStreamLifecycleService#candidatesForFrozen}, DLM would mark the frozen index again
+     * within one poll cycle of it becoming eligible — so asserting the marker is absent after multiple
+     * cycles proves the fix.
+     */
+    public void testAlreadyTransitionedIndexIsNotReMarkedForFrozen() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        // --- Setup: start nodes, register repo, configure default repo ---
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        startFrozenOnlyNode();
+
+        assertAcked(
+            client().execute(
+                TransportPutRepositoryAction.TYPE,
+                new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPO_NAME).type("fs")
+                    .settings(Settings.builder().put("location", randomRepoPath()))
+            ).actionGet()
+        );
+        updateClusterSettings(Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), REPO_NAME));
+
+        // --- Create data stream with frozen_after: 1s so indices are quickly eligible ---
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .frozenAfter(TimeValue.timeValueSeconds(1))
+            .buildTemplate();
+
+        TransportPutComposableIndexTemplateAction.Request templateRequest = new TransportPutComposableIndexTemplateAction.Request(
+            TEMPLATE_NAME
+        );
+        Settings templateSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        templateRequest.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(DATA_STREAM_NAME + "*"))
+                .template(Template.builder().settings(templateSettings).lifecycle(lifecycle))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, templateRequest).actionGet());
+
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME)
+            ).actionGet()
+        );
+
+        // --- Index a doc so the backing index has data, then roll over ---
+        BulkRequest bulkRequest = new BulkRequest();
+        String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+        bulkRequest.add(
+            new IndexRequest(DATA_STREAM_NAME).opType(DocWriteRequest.OpType.CREATE)
+                .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+        );
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(1));
+        client().admin().indices().refresh(new RefreshRequest(DATA_STREAM_NAME)).actionGet();
+        assertAcked(client().admin().indices().prepareRolloverIndex(DATA_STREAM_NAME).get());
+
+        String candidateIndex = getDataStreamBackingIndexNames(DATA_STREAM_NAME).getFirst();
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
+        logger.info("--> waiting for initial frozen transition of [{}] to [{}]", candidateIndex, expectedFrozenIndexName);
+
+        // --- Wait for the initial frozen transition to complete ---
+        assertBusy(() -> {
+            ClusterStateResponse stateResp = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
+            var projectMetadata = stateResp.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+            assertThat(projectMetadata, notNullValue());
+
+            GetDataStreamAction.Response dsResp = client().execute(
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
+            ).actionGet();
+            assertThat(dsResp.getDataStreams().size(), equalTo(1));
+            List<Index> backingIndices = dsResp.getDataStreams().getFirst().getDataStream().getIndices();
+
+            assertThat(
+                "Frozen index should be in the data stream's backing indices",
+                backingIndices.stream().anyMatch(idx -> idx.getName().equals(expectedFrozenIndexName)),
+                is(true)
+            );
+            assertThat("Original index should have been deleted", projectMetadata.index(candidateIndex), nullValue());
+            assertThat("Clone index should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
+        }, 60, TimeUnit.SECONDS);
+
+        logger.info("--> initial transition complete; frozen index [{}] is in the data stream", expectedFrozenIndexName);
+
+        // Confirm the frozen index carries the DLM_CREATED_SETTING and record its creation date.
+        ClusterStateResponse afterTransition = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
+        var pmAfterTransition = afterTransition.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        IndexMetadata frozenMeta = pmAfterTransition.index(expectedFrozenIndexName);
+        assertThat(frozenMeta, notNullValue());
+        assertThat(
+            "Frozen index should have the DLM-created setting",
+            DataStreamLifecycleService.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
+            is(true)
+        );
+        long frozenCreationDate = frozenMeta.getCreationDate();
+
+        // Wait until the frozen index is definitively past frozen_after (1s), giving DLM multiple
+        // poll cycles (1s each) to run. Without the candidatesForFrozen guard, DLM would mark the
+        // frozen index within one of these cycles; with the guard, it is never marked.
+        assertBusy(
+            () -> assertTrue(
+                "Frozen index must be older than frozen_after for the guard to be testable",
+                System.currentTimeMillis() - frozenCreationDate > TimeValue.timeValueSeconds(2).millis()
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        // The discriminating assertion: the frozen index must NOT carry the dlm_freeze_with marker.
+        // If candidatesForFrozen lacked the DLM_CREATED_SETTING guard, DLM would have set this
+        // marker within the window above, and this assertion would fail.
+        ClusterStateResponse finalState = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
+        var finalPm = finalState.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        IndexMetadata finalFrozenMeta = finalPm.index(expectedFrozenIndexName);
+        assertThat(finalFrozenMeta, notNullValue());
+        assertFalse(
+            "DLM-created frozen index [" + expectedFrozenIndexName + "] must not be re-marked for frozen transition",
+            DataStreamLifecycleService.indexMarkedForFrozen(finalFrozenMeta)
+        );
+
+        logger.info("--> confirmed frozen index [{}] was not re-marked for transition", expectedFrozenIndexName);
     }
 }

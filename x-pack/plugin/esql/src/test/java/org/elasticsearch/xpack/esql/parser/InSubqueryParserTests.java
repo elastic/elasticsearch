@@ -1390,16 +1390,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
 
     // ---- WHERE IN subquery negative tests ----
 
-    public void testWhereInSubqueryRejectsTsSourceCommand() {
-        var e = expectThrows(ParsingException.class, () -> query("FROM main | WHERE x IN (TS sub_index)"));
-        assertThat(e.getMessage(), containsString("no viable alternative at input 'x IN (TS'"));
-    }
-
-    public void testWhereInSubqueryRejectsRowSourceCommand() {
-        var e = expectThrows(ParsingException.class, () -> query("FROM main | WHERE x IN (ROW a = 1)"));
-        assertThat(e.getMessage(), containsString("no viable alternative at input 'x IN (ROW'"));
-    }
-
     public void testWhereInSubqueryRejectsShowSourceCommand() {
         var e = expectThrows(ParsingException.class, () -> query("FROM main | WHERE x IN (SHOW INFO)"));
         assertThat(e.getMessage(), containsString("no viable alternative at input 'x IN (SHOW'"));

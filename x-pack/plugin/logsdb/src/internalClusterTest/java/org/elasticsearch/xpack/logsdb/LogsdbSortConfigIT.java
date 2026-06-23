@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Sort;
@@ -76,6 +77,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put("cluster.logsdb.enabled", "true")
+            .put("cluster.logsdb_columnar.enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean())
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .build();
     }
@@ -93,6 +95,8 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testHostnameMessageTimestampSortConfig() throws IOException {
+        assumeTrue("test uses cardinality option", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
         final String dataStreamName = "test-logsdb-sort-hostname-message-timestamp";
 
         final String mapping = """
@@ -109,8 +113,10 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "pattern_text"
                   },
                   "test_id": {
-                    "type": "text",
-                    "store": true
+                    "type": "keyword",
+                    "doc_values": {
+                      "cardinality": "low"
+                    }
                   }
                 }
               }
@@ -176,6 +182,8 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testHostnameTimestampSortConfig() throws Exception {
+        assumeTrue("test uses cardinality option", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
         final String dataStreamName = "test-logsdb-sort-hostname-timestamp";
 
         final String MAPPING = """
@@ -189,8 +197,10 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "keyword"
                   },
                   "test_id": {
-                    "type": "text",
-                    "store": true
+                    "type": "keyword",
+                    "doc_values": {
+                      "cardinality": "low"
+                    }
                   }
                 }
               }
@@ -234,6 +244,8 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testTimestampOnlySortConfig() throws IOException {
+        assumeTrue("test uses cardinality option", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
         final String dataStreamName = "test-logsdb-sort-timestamp-only";
 
         final String MAPPING = """
@@ -247,8 +259,10 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "keyword"
                   },
                   "test_id": {
-                    "type": "text",
-                    "store": true
+                    "type": "keyword",
+                    "doc_values": {
+                      "cardinality": "low"
+                    }
                   }
                 }
               }
@@ -527,13 +541,15 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
             var segment = segments.getFirst();
             var reader = segment.reader();
-            var storedFields = reader.storedFields();
+            SortedSetDocValues dvs = reader.getSortedSetDocValues("test_id");
+            assertNotNull(dvs);
 
             int expectedDocIdx = 0;
 
             for (int docId = 0; docId < reader.maxDoc(); docId++) {
                 String expectedId = orderedDocs[expectedDocIdx++].id;
-                String actualId = storedFields.document(docId).get("test_id");
+                assertTrue(dvs.advanceExact(docId));
+                String actualId = dvs.lookupOrd(dvs.nextOrd()).utf8ToString();
                 assertEquals(expectedId, actualId);
             }
         }

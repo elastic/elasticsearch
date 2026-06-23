@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
+import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import java.io.IOException;
@@ -255,7 +256,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 }
 
                 @Override
-                ActionListener<BatchedCompoundCommit> newUploadTaskListener(
+                ActionListener<BccUploadResult> newUploadTaskListener(
                     ShardCommitState commitState,
                     VirtualBatchedCompoundCommit virtualBcc,
                     ShardCommitState.BlobReference blobReference
@@ -923,8 +924,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             var blobsAfterReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsUsedForScroll, blobsAfterReleasingScroll), empty());
         });
-        // responses from newCommitNotification must be received
-        assertThat(countNewCommitNotifications.get(), greaterThan(newCommitNotificationsBeforeReleasingScroll));
+
+        // For most cases we expect at least one additional newCommitNotification response after releasing the scroll.
+        // Except for the close/open case, where notifications induced by the forced flush (in
+        // TransportVerifyShardBeforeCloseAction.executeShardOperation) may race with the search shard closing and may not be counted.
+        if (testCase != TestSearchScrollCase.COMMITS_OF_SCROLL_DELETED_AFTER_INDEX_CLOSED_AND_OPENED) {
+            assertThat(countNewCommitNotifications.get(), greaterThan(newCommitNotificationsBeforeReleasingScroll));
+        }
 
         if (testCase == TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY) {
             // The last notification response should no longer contain blobs used for scroll
@@ -969,12 +975,17 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:WARN"
     )
     public void testDeleteIndexWhileNodeStopping() {
-        var indexNode = startMasterAndIndexNode();
+        // Make the fail-over happen fast enough after the master node stops
+        final Settings heartbeatSettings = Settings.builder()
+            .put(HEARTBEAT_FREQUENCY.getKey(), "1s")
+            .put(MAX_MISSED_HEARTBEATS.getKey(), 2)
+            .build();
+        var indexNode = startMasterAndIndexNode(heartbeatSettings);
         var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
-        startMasterAndIndexNode(Settings.builder().put(HEARTBEAT_FREQUENCY.getKey(), "1s").put(MAX_MISSED_HEARTBEATS.getKey(), 1).build());
+        startMasterAndIndexNode(heartbeatSettings);
 
         indexDocsAndFlush(indexName);
         indexDocsAndFlush(indexName);
@@ -1040,7 +1051,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
     public void testDeleteIndexAfterRecovery() throws Exception {
         startMasterOnlyNode();
-        final var indexNodeA = startIndexNode();
+        // This test exposes a race between index deletion and relocation described in #150474.
+        // In production commit files are eventually deleted by `StaleIndicesGCService` so we enable it in the test too.
+        final var indexNodeSettings = nodeSettings().put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+
+        final var indexNodeA = startIndexNode(indexNodeSettings);
         final var searchNodeA = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
@@ -1048,7 +1064,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         var totalIndexedDocs = indexDocsAndFlush(indexName);
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
 
-        startIndexNode();
+        startIndexNode(indexNodeSettings);
         startSearchNode();
         ensureStableCluster(5);
         final var excludeIndexOrSearchNode = randomBoolean();
@@ -1513,7 +1529,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         ensureStableCluster(3);
 
         var indexName = randomIdentifier();
-        createIndex(indexName, 1, 1);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
 
         var stateless = internalCluster().getInstance(PluginsService.class, indexNode)
             .filterPlugins(TestStatelessPlugin.class)

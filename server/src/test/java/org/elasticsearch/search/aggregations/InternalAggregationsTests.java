@@ -280,11 +280,14 @@ public class InternalAggregationsTests extends ESTestCase {
             StringTermsTests stringTermsTests = new StringTermsTests();
             stringTermsTests.init();
             stringTermsTests.setUp();
+            stringTermsTests.initializeSubAggregations();
             aggsList.add(stringTermsTests.createTestInstance());
         }
         if (randomBoolean()) {
             InternalDateHistogramTests dateHistogramTests = new InternalDateHistogramTests();
             dateHistogramTests.setUp();
+            dateHistogramTests.initializeDateHistogramParams();
+            dateHistogramTests.initializeSubAggregations();
             aggsList.add(dateHistogramTests.createTestInstance());
         }
         if (randomBoolean()) {
@@ -299,10 +302,10 @@ public class InternalAggregationsTests extends ESTestCase {
         writeToAndReadFrom(aggregations, TransportVersion.current(), 0);
     }
 
-    public void testSerializedSize() throws Exception {
+    public void testUncompressedSerializedSize() throws Exception {
         InternalAggregations aggregations = createTestInstance();
         assertThat(
-            DelayableWriteable.getSerializedSize(aggregations),
+            DelayableWriteable.getUncompressedSerializedSize(aggregations),
             equalTo((long) serialize(aggregations, TransportVersion.current()).length)
         );
     }

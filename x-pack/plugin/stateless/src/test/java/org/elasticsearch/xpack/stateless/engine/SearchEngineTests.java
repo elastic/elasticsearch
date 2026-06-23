@@ -26,6 +26,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.engine.Engine.SearcherSupplier;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequestTests;
@@ -119,6 +120,38 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 // schema with stable DV gens.
                 assertTrue("expected at least one SearchEngine leaf to see FieldInfoCachingDirectory via SegmentInfo.dir", sawCachingDir);
             }
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testShardFieldStatsComputedFromCurrentReader() throws IOException {
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            // On the seed commit no segments have been indexed yet, so the field count is zero.
+            ShardFieldStats initial = searchEngine.shardFieldStats();
+            assertNotNull("shardFieldStats() should never be null on SearchEngine", initial);
+            assertEquals(0, initial.numSegments());
+            assertEquals(0, initial.totalFields());
+
+            for (int i = 0; i < 3; i++) {
+                indexEngine.index(randomDoc(String.valueOf(i)));
+                indexEngine.flush();
+            }
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            ShardFieldStats after = searchEngine.shardFieldStats();
+            assertNotNull("expected shard field stats after commits processed", after);
+            assertTrue("expected at least one segment after indexing/flushing", after.numSegments() >= 1);
+            assertTrue("expected non-zero total fields after indexing", after.totalFields() > 0);
         }
         assertWarnings(
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
@@ -865,9 +898,11 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             }; // no-op wrapper
 
             ActionListener<SearcherSupplier> listener = ActionListener.wrap(supplier -> {
-                try (Searcher searcher = supplier.acquireSearcher("test")) {
-                    assertEquals("my_wrapper", searcher.source());
-                    assertThat(searcher.getDirectoryReader().numDocs(), equalTo(numDocs));
+                try (supplier) {
+                    try (Searcher searcher = supplier.acquireSearcher("test")) {
+                        assertEquals("my_wrapper", searcher.source());
+                        assertThat(searcher.getDirectoryReader().numDocs(), equalTo(numDocs));
+                    }
                 }
             }, e -> { fail("listener should not have failed: " + e.getMessage()); });
 

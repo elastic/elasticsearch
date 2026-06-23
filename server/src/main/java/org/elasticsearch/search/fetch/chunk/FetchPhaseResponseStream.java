@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 
 /**
  * Accumulates {@link SearchHit} chunks sent from a data node during a chunked fetch operation.
@@ -53,6 +54,10 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong totalBreakerBytes = new AtomicLong(0);
 
+    // Counts raw bytes of intermediate chunks arriving from the data node via BytesTransportRequest.
+    // Set to a no-op for local (same-node) requests where no bytes cross the wire.
+    private volatile LongConsumer chunkBytesConsumer = l -> {};
+
     /**
      * Creates a new response stream for accumulating hits from a single shard.
      *
@@ -65,6 +70,22 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
         this.shardIndex = shardIndex;
         this.expectedTotalDocs = expectedTotalDocs;
         this.circuitBreaker = circuitBreaker;
+    }
+
+    /**
+     * Registers the consumer that will be notified of raw byte lengths for each intermediate
+     * chunk message ({@link org.elasticsearch.transport.BytesTransportRequest}) that arrives
+     * from the data node. Must be called before any chunks arrive.
+     */
+    void setChunkBytesConsumer(LongConsumer consumer) {
+        this.chunkBytesConsumer = consumer;
+    }
+
+    /**
+     * Notifies the registered consumer of the raw bytes transferred for one intermediate chunk.
+     */
+    void consumeChunkBytes(long bytes) {
+        chunkBytesConsumer.accept(bytes);
     }
 
     /**

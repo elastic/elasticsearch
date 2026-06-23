@@ -130,7 +130,7 @@ class DfsQueryPhase extends SearchPhase {
                             }
                         }
                     }
-                });
+                }, context::trackPhaseResultBytesRead, context::trackPhaseRequestBytesWritten);
         }
     }
 

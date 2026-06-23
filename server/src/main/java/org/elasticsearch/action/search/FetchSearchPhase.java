@@ -257,7 +257,9 @@ class FetchSearchPhase extends SearchPhase {
                 ),
                 context,
                 shardTarget,
-                listener
+                listener,
+                context::trackPhaseResultBytesRead,
+                context::trackPhaseRequestBytesWritten
             );
     }
 

@@ -60,6 +60,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -121,6 +122,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
     private final Supplier<DiscoveryNodes> discoveryNodes;
+    private final LongAdder phaseResultBytesRead = new LongAdder();
+    private final LongAdder phaseRequestBytesWritten = new LongAdder();
 
     AbstractSearchAsyncAction(
         String name,
@@ -377,6 +380,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
                 return;
             }
+            long resultBytes = phaseResultBytesRead.sumThenReset();
+            long requestBytes = phaseRequestBytesWritten.sumThenReset();
+            assert (requestBytes == 0 && resultBytes == 0) || (requestBytes > 0 && resultBytes > 0)
+                : "inconsistent request and result bytes tracking";
+            // bytes tracked are 0 when all requests were local, or for the expand phase which is tracked separately
+            if (resultBytes > 0) {
+                searchResponseMetrics.recordSearchPhaseShardResultBytes(currentPhase, resultBytes, searchRequestAttributes);
+            }
+            if (requestBytes > 0) {
+                searchResponseMetrics.recordSearchPhaseShardRequestBytes(currentPhase, requestBytes, searchRequestAttributes);
+            }
             var nextPhase = nextPhaseSupplier.get();
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()
@@ -532,6 +546,22 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             successfulOps.incrementAndGet();
             finishOneShard();
         });
+    }
+
+    /**
+     * Adds the wire-format byte count of a shard result to the running total for the current phase.
+     * Called once per shard result, from the transport response handler's read path.
+     */
+    void trackPhaseResultBytesRead(long bytes) {
+        phaseResultBytesRead.add(bytes);
+    }
+
+    /**
+     * Adds the wire-format byte count of a shard request to the running total for the current phase.
+     * Called once per shard request, before sending it to the data node.
+     */
+    void trackPhaseRequestBytesWritten(long bytes) {
+        phaseRequestBytesWritten.add(bytes);
     }
 
     /**

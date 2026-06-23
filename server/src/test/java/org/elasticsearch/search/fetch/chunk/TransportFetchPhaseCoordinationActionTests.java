@@ -141,7 +141,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             shardFetchRequest,
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {}
         );
 
         long taskId = 123L;
@@ -180,7 +182,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {}
         );
 
         TaskId parentTaskId = new TaskId("parent-node", 999L);
@@ -217,7 +221,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Map.of("X-Test-Header", "test-value", "X-Another-Header", "another-value")
+            Map.of("X-Test-Header", "test-value", "X-Another-Header", "another-value"),
+            l -> {},
+            l -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -242,7 +248,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -273,7 +281,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -310,7 +320,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -343,7 +355,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -375,7 +389,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {}
         );
 
         long taskId = 456L;
@@ -420,7 +436,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -473,7 +491,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
             createShardFetchSearchRequest(),
             transportService.getLocalNode(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            l -> {},
+            l -> {}
         );
 
         long taskId = 789L;

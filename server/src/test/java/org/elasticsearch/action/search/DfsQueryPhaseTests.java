@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -81,7 +82,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -179,7 +182,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -262,7 +267,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -361,7 +368,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 QuerySearchResult queryResult = new QuerySearchResult(
                     request.contextId(),

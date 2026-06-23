@@ -170,7 +170,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             trackTotalHitsUpTo,
             super.buildShardSearchRequest(shardIt, listener.requestIndex)
         );
-        getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
+        getSearchTransport().sendExecuteQuery(
+            connection,
+            request,
+            getTask(),
+            listener,
+            this::trackPhaseResultBytesRead,
+            this::trackPhaseRequestBytesWritten
+        );
     }
 
     @Override
@@ -535,11 +542,20 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 return;
             }
             final ActionListener<? super SearchPhaseResult> statsCollector = searchTransportService.newStatsCollector(connection);
+            final Writeable.Reader<NodeQueryResponse> nodeQueryReader = SearchTransportService.countingReader(
+                NodeQueryResponse::new,
+                this::trackPhaseResultBytesRead
+            );
+            AbstractTransportRequest wrapper = searchTransportService.countingRequestForConnection(
+                request,
+                connection,
+                this::trackPhaseRequestBytesWritten
+            );
             searchTransportService.transportService()
-                .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, request, task, new TransportResponseHandler<NodeQueryResponse>() {
+                .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, wrapper, task, new TransportResponseHandler<NodeQueryResponse>() {
                     @Override
                     public NodeQueryResponse read(StreamInput in) throws IOException {
-                        return new NodeQueryResponse(in);
+                        return nodeQueryReader.read(in);
                     }
 
                     @Override

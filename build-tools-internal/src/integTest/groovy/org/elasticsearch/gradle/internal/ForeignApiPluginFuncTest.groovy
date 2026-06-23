@@ -15,7 +15,7 @@ import org.gradle.testkit.runner.TaskOutcome
 import static org.junit.Assume.assumeFalse
 import static org.junit.Assume.assumeTrue
 
-class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
+class ForeignApiPluginFuncTest extends AbstractJavaGradleFuncTest {
 
     def setup() {
         internalBuild()
@@ -90,7 +90,7 @@ class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
 
     // --- ForeignAccessArgumentProvider / --patch-module tests ---
 
-    def "compileJava succeeds with enableForeignAccess"() {
+    def "compileJava succeeds with foreign-api plugin"() {
         given:
         clazz('org.acme.Dummy')
 

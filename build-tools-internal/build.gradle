@@ -394,14 +394,14 @@ tasks.register("integTest", Test) {
 tasks.named("check").configure { dependsOn("integTest") }
 
 tasks.register("integTestJdk21", Test) {
-  description = "Runs integTest with JDK 21 to exercise preview-API code paths"
+  description = "Runs integTest with JDK 21 to exercise preview foreign API code paths"
   testClassesDirs = sourceSets.integTest.output.classesDirs
   classpath = sourceSets.integTest.runtimeClasspath
   useJUnitPlatform()
   javaLauncher = javaToolchains.launcherFor {
     languageVersion = JavaLanguageVersion.of(21)
   }
-  include '**/ElasticsearchForeignAccessFuncTest*'
+  include '**/ForeignApiPluginFuncTest*'
   systemProperty 'test.version_under_test', version
 }
 tasks.named("check").configure { dependsOn("integTestJdk21") }

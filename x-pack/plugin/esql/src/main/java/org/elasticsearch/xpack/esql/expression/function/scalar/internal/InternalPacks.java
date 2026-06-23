@@ -7,19 +7,17 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.internal;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.topn.TopNEncoder;
 
 final class InternalPacks {
-    private static final TopNEncoder ENCODER = TopNEncoder.DEFAULT_UNSORTABLE;
     public static final int INITIAL_SIZE_IN_BYTES = 6 * 1024;
 
     static int estimateForBytesBuilder(int positionCount) {
@@ -42,9 +40,15 @@ final class InternalPacks {
         int positionCount = raw.getPositionCount();
         try (
             var builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
-            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dimensions", 1024)
+            var work = new PagedBytesBuilder(
+                driverContext.blockFactory().bigArrays().recycler(),
+                driverContext.breaker(),
+                "pack_dimensions",
+                1024
+            )
         ) {
-            BytesRef scratch = new BytesRef();
+            PagedBytesCursor valueCursor = new PagedBytesCursor();
+            PagedBytesCursor scratch = new PagedBytesCursor();
             for (int p = 0; p < positionCount; p++) {
                 int valueCount = raw.getValueCount(p);
                 if (valueCount == 0) {
@@ -55,10 +59,10 @@ final class InternalPacks {
                 int first = raw.getFirstValueIndex(p);
                 int end = first + valueCount;
                 for (int i = first; i < end; i++) {
-                    raw.getBytesRef(i, scratch);
-                    ENCODER.encodeBytesRef(scratch, work);
+                    raw.get(i, valueCursor);
+                    work.appendLengthPrefixed(valueCursor);
                 }
-                builder.appendBytesRef(work.bytesRefView());
+                builder.append(work.view(scratch));
             }
             return builder.build();
         }
@@ -68,12 +72,19 @@ final class InternalPacks {
         int positionCount = encode.getPositionCount();
         try (
             var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
-            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_values", 1024)
+            var work = new PagedBytesBuilder(
+                driverContext.blockFactory().bigArrays().recycler(),
+                driverContext.breaker(),
+                "pack_values",
+                1024
+            )
         ) {
-            BytesRef scratch = new BytesRef();
+            PagedBytesCursor valueCursor = new PagedBytesCursor();
+            PagedBytesCursor scratch = new PagedBytesCursor();
             for (int p = 0; p < positionCount; p++) {
-                ENCODER.encodeBytesRef(encode.getBytesRef(p, scratch), work);
-                builder.appendBytesRef(work.bytesRefView());
+                encode.get(p, valueCursor);
+                work.appendLengthPrefixed(valueCursor);
+                builder.append(work.view(scratch));
                 work.clear();
             }
             return builder.build();
@@ -83,23 +94,23 @@ final class InternalPacks {
     static BytesRefBlock unpackBytesValues(DriverContext driverContext, BytesRefBlock encoded) {
         int positionCount = encoded.getPositionCount();
         try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-            BytesRef inScratch = new BytesRef();
-            BytesRef outScratch = new BytesRef();
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            PagedBytesCursor sliceScratch = new PagedBytesCursor();
             for (int p = 0; p < positionCount; p++) {
                 if (encoded.isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
-                BytesRef row = encoded.getBytesRef(p, inScratch);
-                var v = ENCODER.decodeBytesRef(row, outScratch);
-                if (row.length == 0) {
-                    builder.appendBytesRef(v);
+                encoded.get(p, cursor);
+                PagedBytesCursor slice = cursor.readLengthPrefixed(sliceScratch);
+                if (cursor.remaining() == 0) {
+                    builder.append(slice);
                 } else {
                     builder.beginPositionEntry();
-                    builder.appendBytesRef(v);
-                    while (row.length > 0) {
-                        v = ENCODER.decodeBytesRef(row, outScratch);
-                        builder.appendBytesRef(v);
+                    builder.append(slice);
+                    while (cursor.remaining() > 0) {
+                        slice = cursor.readLengthPrefixed(sliceScratch);
+                        builder.append(slice);
                     }
                     builder.endPositionEntry();
                 }
@@ -112,8 +123,14 @@ final class InternalPacks {
         int positionCount = raw.getPositionCount();
         try (
             var builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
-            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_values", 32)
+            var work = new PagedBytesBuilder(
+                driverContext.blockFactory().bigArrays().recycler(),
+                driverContext.breaker(),
+                "pack_values",
+                32
+            )
         ) {
+            PagedBytesCursor scratch = new PagedBytesCursor();
             for (int p = 0; p < positionCount; p++) {
                 int valueCount = raw.getValueCount(p);
                 if (valueCount == 0) {
@@ -123,14 +140,14 @@ final class InternalPacks {
                 work.clear();
                 int first = raw.getFirstValueIndex(p);
                 if (valueCount == 1) {
-                    ENCODER.encodeLong(raw.getLong(first), work);
+                    work.append(raw.getLong(first));
                 } else {
                     int end = first + valueCount;
                     for (int i = first; i < end; i++) {
-                        ENCODER.encodeLong(raw.getLong(i), work);
+                        work.append(raw.getLong(i));
                     }
                 }
-                builder.appendBytesRef(work.bytesRefView());
+                builder.append(work.view(scratch));
             }
             return builder.build();
         }
@@ -139,21 +156,21 @@ final class InternalPacks {
     static LongBlock unpackLongValues(DriverContext driverContext, BytesRefBlock encoded) {
         int positionCount = encoded.getPositionCount();
         try (var builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-            BytesRef inScratch = new BytesRef();
+            PagedBytesCursor cursor = new PagedBytesCursor();
             for (int p = 0; p < positionCount; p++) {
                 if (encoded.isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
-                BytesRef row = encoded.getBytesRef(p, inScratch);
-                var v = ENCODER.decodeLong(row);
-                if (row.length == 0) {
+                encoded.get(p, cursor);
+                long v = cursor.readLong();
+                if (cursor.remaining() == 0) {
                     builder.appendLong(v);
                 } else {
                     builder.beginPositionEntry();
                     builder.appendLong(v);
-                    while (row.length > 0) {
-                        builder.appendLong(ENCODER.decodeLong(row));
+                    while (cursor.remaining() > 0) {
+                        builder.appendLong(cursor.readLong());
                     }
                     builder.endPositionEntry();
                 }
@@ -166,8 +183,14 @@ final class InternalPacks {
         int positionCount = raw.getPositionCount();
         try (
             var builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
-            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_values", 32)
+            var work = new PagedBytesBuilder(
+                driverContext.blockFactory().bigArrays().recycler(),
+                driverContext.breaker(),
+                "pack_values",
+                32
+            )
         ) {
+            PagedBytesCursor scratch = new PagedBytesCursor();
             for (int p = 0; p < positionCount; p++) {
                 int valueCount = raw.getValueCount(p);
                 if (valueCount == 0) {
@@ -177,14 +200,14 @@ final class InternalPacks {
                 work.clear();
                 int first = raw.getFirstValueIndex(p);
                 if (valueCount == 1) {
-                    ENCODER.encodeInt(raw.getInt(first), work);
+                    work.append(raw.getInt(first));
                 } else {
                     int end = first + valueCount;
                     for (int i = first; i < end; i++) {
-                        ENCODER.encodeInt(raw.getInt(i), work);
+                        work.append(raw.getInt(i));
                     }
                 }
-                builder.appendBytesRef(work.bytesRefView());
+                builder.append(work.view(scratch));
             }
             return builder.build();
         }
@@ -193,21 +216,21 @@ final class InternalPacks {
     static IntBlock unpackIntValues(DriverContext driverContext, BytesRefBlock encoded) {
         int positionCount = encoded.getPositionCount();
         try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-            BytesRef inScratch = new BytesRef();
+            PagedBytesCursor cursor = new PagedBytesCursor();
             for (int p = 0; p < positionCount; p++) {
                 if (encoded.isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
-                BytesRef row = encoded.getBytesRef(p, inScratch);
-                int v = ENCODER.decodeInt(row);
-                if (row.length == 0) {
+                encoded.get(p, cursor);
+                int v = cursor.readInt();
+                if (cursor.remaining() == 0) {
                     builder.appendInt(v);
                 } else {
                     builder.beginPositionEntry();
                     builder.appendInt(v);
-                    while (row.length > 0) {
-                        builder.appendInt(ENCODER.decodeInt(row));
+                    while (cursor.remaining() > 0) {
+                        builder.appendInt(cursor.readInt());
                     }
                     builder.endPositionEntry();
                 }
@@ -220,8 +243,14 @@ final class InternalPacks {
         int positionCount = raw.getPositionCount();
         try (
             var builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount);
-            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_values", 32)
+            var work = new PagedBytesBuilder(
+                driverContext.blockFactory().bigArrays().recycler(),
+                driverContext.breaker(),
+                "pack_values",
+                32
+            )
         ) {
+            PagedBytesCursor scratch = new PagedBytesCursor();
             for (int p = 0; p < positionCount; p++) {
                 work.clear();
                 int valueCount = raw.getValueCount(p);
@@ -231,14 +260,14 @@ final class InternalPacks {
                 }
                 int first = raw.getFirstValueIndex(p);
                 if (valueCount == 1) {
-                    ENCODER.encodeBoolean(raw.getBoolean(first), work);
+                    work.append(raw.getBoolean(first) ? (byte) 1 : (byte) 0);
                 } else {
                     int end = first + valueCount;
                     for (int i = first; i < end; i++) {
-                        ENCODER.encodeBoolean(raw.getBoolean(i), work);
+                        work.append(raw.getBoolean(i) ? (byte) 1 : (byte) 0);
                     }
                 }
-                builder.appendBytesRef(work.bytesRefView());
+                builder.append(work.view(scratch));
             }
             return builder.build();
         }
@@ -247,21 +276,21 @@ final class InternalPacks {
     static BooleanBlock unpackBooleanValues(DriverContext driverContext, BytesRefBlock encoded) {
         int positionCount = encoded.getPositionCount();
         try (var builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-            BytesRef inScratch = new BytesRef();
+            PagedBytesCursor cursor = new PagedBytesCursor();
             for (int p = 0; p < positionCount; p++) {
                 if (encoded.isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
-                BytesRef row = encoded.getBytesRef(p, inScratch);
-                boolean v = ENCODER.decodeBoolean(row);
-                if (row.length == 0) {
+                encoded.get(p, cursor);
+                boolean v = cursor.readByte() == 1;
+                if (cursor.remaining() == 0) {
                     builder.appendBoolean(v);
                 } else {
                     builder.beginPositionEntry();
                     builder.appendBoolean(v);
-                    while (row.length > 0) {
-                        builder.appendBoolean(ENCODER.decodeBoolean(row));
+                    while (cursor.remaining() > 0) {
+                        builder.appendBoolean(cursor.readByte() == 1);
                     }
                     builder.endPositionEntry();
                 }

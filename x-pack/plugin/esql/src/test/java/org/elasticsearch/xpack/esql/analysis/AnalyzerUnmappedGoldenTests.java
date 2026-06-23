@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
 import java.util.EnumSet;
@@ -401,6 +404,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees METADATA _score, _index, _id
             | FORK (WHERE does_not_exist::LONG > 0)
                    (WHERE emp_no > 0)
+            | LIMIT 100
             | FUSE
             """, STAGES);
     }
@@ -410,6 +414,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees METADATA _score, _index, _id
             | FORK (EVAL x = does_not_exist::DOUBLE + 1)
                    (EVAL y = emp_no + 1)
+            | LIMIT 100
             | FUSE RRF
             """, STAGES);
     }
@@ -419,6 +424,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees METADATA _score, _index, _id
             | FORK (WHERE does_not_exist::LONG > 0 | EVAL x = 1)
                    (WHERE emp_no > 0 | EVAL y = 2)
+            | LIMIT 100
             | FUSE LINEAR
             """, STAGES);
     }
@@ -464,7 +470,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTestsNullifyOnly("""
             TS k8s
             | STATS r = RATE(does_not_exist) BY tbucket(1 hour)
-            """, STAGES);
+            """, STAGES, DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     public void testRow() throws Exception {
@@ -479,7 +485,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             TS k8s
             | STATS f = FIRST_OVER_TIME(does_not_exist::DOUBLE) BY tbucket(1 hour)
-            """);
+            """, DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     public void testSubqueryOnly() throws Exception {
@@ -623,6 +629,52 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    public void testTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | EVAL bytes = network.bytes_in::long
+            | KEEP bytes
+            """);
+    }
+
+    public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
+        runTests("""
+            TS k8s, k8s_unmapped
+            | EVAL bytes = network.bytes_in::long
+            | KEEP bytes
+            """, DimensionValues.DIMENSION_VALUES_VERSION);
+    }
+
+    public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | EVAL cost = network.cost::double
+            | KEEP cost
+            """);
+    }
+
+    public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | STATS s = SUM(network.bytes_in::long) BY cluster
+            """);
+    }
+
+    public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
+        runTests("""
+            TS k8s, k8s_unmapped
+            | STATS s = SUM(network.bytes_in::long) BY cluster
+            """, DimensionValues.DIMENSION_VALUES_VERSION);
+    }
+
+    public void testTypeConflictTimeseriesWhereWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | WHERE network.cost::double > 10.0
+            | KEEP cluster, network.cost
+            """);
+    }
+
     public void testPartiallyMappedField() throws Exception {
         runTests("""
             FROM sample_data, partial_mapping_sample_data
@@ -634,20 +686,129 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP message
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testMappedInOneIndexOnlyCast() throws Exception {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | EVAL x = message :: LONG
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testMappedToNonKeywordInOneIndexOnly() throws Exception {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    public void testTypeConflictMappedAndUnmappedWithCast() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | EVAL event_duration = event_duration::long
+            | KEEP event_duration
+            """);
+    }
+
+    public void testTypeConflictMappedTimesTwoAndUnmapped() throws Exception {
+        runTests("""
+            FROM sample_data_ts_long, sample_data, no_mapping_sample_data
+            | EVAL ts = @timestamp::date
+            | KEEP ts
+            """);
+    }
+
+    public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | WHERE message::keyword LIKE "Connected*"
+            | KEEP message
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    // All fields are partially unmapped (no_mapping_sample_data has no mapped fields).
+    // Keyword fields should become PotentiallyUnmappedKeywordEsField; non-keyword fields should become InvalidMappedField.
+    // No explicit field reference — all fields come from the implicit output of FROM.
+    public void testPartiallyMappedFieldsAutomaticallyFound() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    // Same as testPartiallyMappedFieldsAutomaticallyFound, but with an explicit KEEP * to verify wildcard expansion
+    // handles partially-mapped fields correctly.
+    public void testPartiallyMappedFieldsAutomaticallyFoundKeepStar() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | KEEP *
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | KEEP @timestamp, event_duration
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).
+    // They should appear as PotentiallyUnmappedKeywordEsField in the EsRelation without being explicitly referenced.
+    public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference() throws Exception {
+        runTests("""
+            FROM employees, employees_no_names
+            | SORT emp_no
+            | LIMIT 1
+            """);
+    }
+
+    // first_name (keyword, partially unmapped) should become PotentiallyUnmappedKeywordEsField.
+    // gender (keyword, fully mapped in both indices) should remain a regular KeywordEsField.
+    public void testNonPartiallyMappedKeywordFieldNotLoadedFromSource() throws Exception {
+        runTests("""
+            FROM employees, employees_no_names
+            | KEEP first_name, gender
+            """);
+    }
+
+    // gender is text in employees_gender_text but missing in employees_no_gender.
+    // It should appear as InvalidMappedField (unsupported) in the EsRelation.
+    public void testPartiallyMappedTextFieldMarkedAsPotentiallyUnmapped() throws Exception {
+        runTests("""
+            FROM employees_gender_text, employees_no_gender
+            | KEEP gender
+            """);
+    }
+
+    // DROP a single partially-mapped keyword field (message), leaving only non-keyword fields.
+    public void testPartiallyMappedFieldsDropOnePartiallyMapped() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | DROP message
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    // DROP a single partially-mapped non-keyword field (event_duration), leaving message and the other non-keyword fields.
+    public void testPartiallyMappedFieldsDropOnePartiallyMappedNonKeyword() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | DROP event_duration
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    // DROP with wildcards on partially-mapped non-keyword fields, leaving only the keyword field (message).
+    public void testPartiallyMappedFieldsDropNonKeywordWithWildcards() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | DROP *_ip, *_duration, @timestamp
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    // DROP with wildcards on partially-mapped keyword fields, leaving only a few non-keyword fields.
+    public void testPartiallyMappedFieldsDropKeywordWithWildcards() throws Exception {
+        runTests("""
+            FROM employees, employees_no_names
+            | DROP *date*, gender, height*, languages*, *_hired, *_seconds, *_positions, salary_change*
             """);
     }
 
@@ -789,10 +950,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     private void runTests(String query) {
-        runTestsNullifyAndLoad(query, STAGES);
+        runTestsNullifyAndLoad(query, STAGES, null);
     }
 
     private void runTests(String query, String... nestedPaths) {
-        runTestsNullifyAndLoad(query, STAGES, nestedPaths);
+        runTestsNullifyAndLoad(query, STAGES, null, nestedPaths);
+    }
+
+    private void runTests(String query, TransportVersion minimumSupportedVersion, String... nestedPath) {
+        runTestsNullifyAndLoad(query, STAGES, minimumSupportedVersion, nestedPath);
     }
 }

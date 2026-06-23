@@ -1,14 +1,14 @@
 ### Divide `/` [esql-div]
 
-:::{image} ../../../images/operators/div.svg
+:::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/div.svg
 :alt: Embedded
 :class: text-center
 :::
 
 Divide one number by another. If either field is [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) then the result is `null`.
 
-:::{include} ../detailedDescription/div.md
+:::{include} ../../generated/x-pack-esql/operators/detailedDescription/div.md
 :::
 
-:::{include} ../types/div.md
+:::{include} ../../generated/x-pack-esql/operators/types/div.md
 :::

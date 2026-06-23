@@ -285,8 +285,10 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /** Step through all characters of the provided string, and return the
      *  resulting state, or -1 if that did not lead to a valid state. */
     private static int step(CharacterRunAutomaton automaton, String key, int state) {
-        for (int i = 0; state != -1 && i < key.length(); ++i) {
-            state = automaton.step(state, key.charAt(i));
+        for (int i = 0; state != -1 && i < key.length();) {
+            final int cp = key.codePointAt(i);
+            state = automaton.step(state, cp);
+            i += Character.charCount(cp);
         }
         return state;
     }
@@ -372,7 +374,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             this.ignoredSourceFormat = ignoredSourceFormat;
             this.filter = filter;
             // convert incoming binary doc values to reuse the code provided by MultiValuedSortedBinaryDocValues
-            this.multiValues = MultiValuedSortedBinaryDocValues.from(reader, IgnoredSourceFieldMapper.NAME, dv);
+            this.multiValues = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME, dv);
         }
 
         @Override

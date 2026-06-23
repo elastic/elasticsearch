@@ -11,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.junit.Before;
 
@@ -24,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FuseIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPluginWithEnterpriseOrTrialLicense.class);
+        return List.of(EsqlPluginWithEnterpriseOrTrialLicense.class, TestEncryptionServicePlugin.class);
     }
 
     @Before
@@ -37,8 +38,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
@@ -63,8 +64,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE RRF WITH {"weights": { "fork1": 0.4, "fork2": 0.6}}
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
@@ -89,8 +90,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE RRF WITH {"weights": { "fork1": 0.4, "fork2": 0.6}, "rank_constant": 55 }
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
@@ -115,8 +116,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE linear
             | SORT _score DESC
             | EVAL _fork = mv_sort(_fork)
@@ -143,8 +144,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE LINEAR WITH {"weights": { "fork1": 0.4, "fork2": 0.6}, "normalizer": "l2_norm"}
             | SORT _score DESC
             | EVAL _fork = mv_sort(_fork)
@@ -170,7 +171,7 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
                 FROM test METADATA _score, _id, _index
                 | WHERE id > 2
                 | FORK
-                   ( WHERE content:"fox" | SORT _score, _id DESC )
+                   ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
                 | FUSE
                 """ + type.name() + """
                 | SORT _score DESC, _id, _index
@@ -188,20 +189,70 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testFuseWithDenseVector() throws Exception {
+        var query = """
+            FROM test METADATA _id, _index, _score
+            | FORK (WHERE content:"fox"                    | SORT _score DESC | LIMIT 5)
+                   (WHERE knn(embedding, [1.0, 0.0, 0.0]) | SORT _score DESC | LIMIT 5)
+            | FUSE
+            | KEEP _score, content, embedding, _fork
+            | SORT _score DESC
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_score", "content", "embedding", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("double", "keyword", "dense_vector", "keyword"));
+            var values = getValuesList(resp.values());
+            // "This is a brown fox" matches both the lexical and knn branch, so it ranks first
+            assertThat(values.get(0).get(1), equalTo("This is a brown fox"));
+        }
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();
-        var CreateRequest = client.prepareCreate(indexName)
-            .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("id", "type=integer", "content", "type=text");
+        var CreateRequest = client.prepareCreate(indexName).setSettings(Settings.builder().put("index.number_of_shards", 1)).setMapping("""
+            {
+              "properties": {
+                "id":        { "type": "integer" },
+                "content":   { "type": "text" },
+                "embedding": { "type": "dense_vector", "dims": 3, "index": true, "similarity": "l2_norm" }
+              }
+            }
+            """);
         assertAcked(CreateRequest);
+
         client().prepareBulk()
-            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox"))
-            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog"))
-            .add(new IndexRequest(indexName).id("3").source("id", 3, "content", "This dog is really brown"))
-            .add(new IndexRequest(indexName).id("4").source("id", 4, "content", "The dog is brown but this document is very very long"))
-            .add(new IndexRequest(indexName).id("5").source("id", 5, "content", "There is also a white cat"))
-            .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))
+            .add(
+                new IndexRequest(indexName).id("1")
+                    .source("id", 1, "content", "This is a brown fox", "embedding", List.of(1.0f, 0.0f, 0.0f))
+            )
+            .add(
+                new IndexRequest(indexName).id("2")
+                    .source("id", 2, "content", "This is a brown dog", "embedding", List.of(0.0f, 1.0f, 0.0f))
+            )
+            .add(
+                new IndexRequest(indexName).id("3")
+                    .source("id", 3, "content", "This dog is really brown", "embedding", List.of(0.0f, 0.0f, 1.0f))
+            )
+            .add(
+                new IndexRequest(indexName).id("4")
+                    .source(
+                        "id",
+                        4,
+                        "content",
+                        "The dog is brown but this document is very very long",
+                        "embedding",
+                        List.of(0.5f, 0.5f, 0.0f)
+                    )
+            )
+            .add(
+                new IndexRequest(indexName).id("5")
+                    .source("id", 5, "content", "There is also a white cat", "embedding", List.of(0.0f, 0.5f, 0.5f))
+            )
+            .add(
+                new IndexRequest(indexName).id("6")
+                    .source("id", 6, "content", "The quick brown fox jumps over the lazy dog", "embedding", List.of(1.0f, 1.0f, 0.0f))
+            )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow(indexName);

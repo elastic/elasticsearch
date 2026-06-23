@@ -15,9 +15,13 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Extension of {@link LuceneSourceOperator} for time-series aggregation that inserts metadata blocks,
@@ -31,27 +35,39 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         public Factory(
             IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
             int docThresholdForAutoStrategy,
             int taskConcurrency,
             int maxPageSize,
-            int limit
+            int limit,
+            LongSupplier directoryBytesRead
         ) {
             super(
                 contexts,
                 queryFunction,
-                DataPartitioning.SHARD,
-                query -> { throw new UnsupportedOperationException("locked to SHARD partitioning"); },
+                dataPartitioning(dataPartitioning),
+                partitioningStrategy(contexts),
                 docThresholdForAutoStrategy,
                 taskConcurrency,
                 maxPageSize,
                 limit,
-                false
+                false,
+                directoryBytesRead,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE
             );
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new TimeSeriesSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter);
+            return new TimeSeriesSourceOperator(
+                refCounteds,
+                driverContext.blockFactory(),
+                maxPageSize,
+                sliceQueue,
+                limit,
+                limiter,
+                directoryBytesRead
+            );
         }
 
         @Override
@@ -66,9 +82,10 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
         int limit,
-        Limiter limiter
+        Limiter limiter,
+        LongSupplier directoryBytesRead
     ) {
-        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue, limit, limiter, false);
+        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue, limit, limiter, false, directoryBytesRead);
     }
 
     @Override
@@ -94,5 +111,27 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         long numChunks = Math.ceilDiv(maxPageSizeInBytes, chunkSizeInBytes);
         long pageSize = Math.clamp(numChunks * CHUNK_SIZE, CHUNK_SIZE, MAX_TARGET_PAGE_SIZE);
         return Math.toIntExact(pageSize);
+    }
+
+    private static DataPartitioning dataPartitioning(DataPartitioning dataPartitioning) {
+        if (dataPartitioning == DataPartitioning.SHARD) {
+            return DataPartitioning.SHARD;
+        }
+        // Time-series can't run with segment or doc partitioning, so use auto
+        // to resolve to either shard or time-series partitioning.
+        return DataPartitioning.AUTO;
+    }
+
+    private static DataPartitioning.AutoStrategy partitioningStrategy(IndexedByShardId<? extends ShardContext> contexts) {
+        try {
+            for (ShardContext ctx : contexts.iterable()) {
+                if (PartitionedDocValues.canPartitionByTsidPrefix(ctx.searcher()) == false) {
+                    return limit -> q -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return limit -> q -> LuceneSliceQueue.PartitioningStrategy.TIME_SERIES;
     }
 }

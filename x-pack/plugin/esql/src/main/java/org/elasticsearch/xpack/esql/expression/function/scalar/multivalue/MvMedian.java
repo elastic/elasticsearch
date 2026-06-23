@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -40,9 +41,11 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLo
  */
 public class MvMedian extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMedian", MvMedian::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvMedian.class).unary(MvMedian::new).name("mv_median");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Calculates the median of all values in a multi-value field.",
         description = "Converts a multivalued field into a single valued field containing the {wikipedia}/Median[median] value.",
         examples = {
             @Example(file = "math", tag = "mv_median"),

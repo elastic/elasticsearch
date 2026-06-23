@@ -13,13 +13,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
  * Vector implementation that stores a constant boolean value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
+public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
 
@@ -36,13 +38,23 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     }
 
     @Override
+    public void copyTo(int srcPosition, boolean[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public BooleanBlock asBlock() {
         return new BooleanVectorBlock(this);
     }
 
     @Override
-    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantBooleanVector(value, positions.length);
+    public int valueMaxByteSize() {
+        return Byte.BYTES;
+    }
+
+    @Override
+    public BooleanVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantBooleanVector(value, length);
     }
 
     @Override

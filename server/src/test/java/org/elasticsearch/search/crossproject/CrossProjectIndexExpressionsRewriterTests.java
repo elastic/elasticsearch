@@ -306,6 +306,19 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         }
 
         {
+            // Explicit deterministic coverage for linked project index exclusion syntax variants.
+            final var excludeByProjectPrefix = "-P1:logs";
+            final var excludeByIndexPrefix = "P1:-logs";
+            final var byProjectPrefix = rewriteIndexExpressions(origin, linked, "*", excludeByProjectPrefix);
+            final var byIndexPrefix = rewriteIndexExpressions(origin, linked, "*", excludeByIndexPrefix);
+
+            assertThat(byProjectPrefix.keySet(), containsInAnyOrder("*", excludeByProjectPrefix));
+            assertThat(byIndexPrefix.keySet(), containsInAnyOrder("*", excludeByIndexPrefix));
+            assertIndexRewriteResultsContains(byProjectPrefix.get(excludeByProjectPrefix), containsInAnyOrder(excludeByProjectPrefix));
+            assertIndexRewriteResultsContains(byIndexPrefix.get(excludeByIndexPrefix), containsInAnyOrder(excludeByIndexPrefix));
+        }
+
+        {
             // Exclusion on origin project or index throws 404 if origin is filtered out by project routing
             final String excludedIndex = randomFrom("*", "metrics*", "metrics");
             final var excludeExpression = randomBoolean() ? "-_origin:" + excludedIndex : "_origin:-" + excludedIndex;
@@ -332,14 +345,14 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
 
         {
             // Cannot apply exclusion for both the project and the index
-            final var messageMatcher = containsString("Cannot apply exclusion for both the project and the index expression");
+            final var messageMatcher = containsString("cannot apply exclusion for both the project and the index expression");
             expectThrows(
-                IllegalArgumentException.class,
+                InvalidIndexNameException.class,
                 messageMatcher,
                 () -> rewriteIndexExpressions(origin, linked, "-_origin:-metrics*")
             );
-            expectThrows(IllegalArgumentException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P0:-metrics*"));
-            expectThrows(IllegalArgumentException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P1:-metrics*"));
+            expectThrows(InvalidIndexNameException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P0:-metrics*"));
+            expectThrows(InvalidIndexNameException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P1:-metrics*"));
         }
     }
 
@@ -607,6 +620,80 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         );
     }
 
+    public void testIncludedAndExcludedProjects() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        final List<ProjectRoutingInfo> linked = List.of(
+            createRandomProjectWithAlias("P1"),
+            createRandomProjectWithAlias("P2"),
+            createRandomProjectWithAlias("Q1")
+        );
+
+        assertProjectSets(rewrite(origin, linked, "logs"), Set.of("P0", "P1", "P2", "Q1"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "-logs"), Set.of("P0", "P1", "P2", "Q1"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "*:logs"), Set.of("P0", "P1", "P2", "Q1"), Set.of());
+
+        assertProjectSets(rewrite(origin, linked, "_origin:logs"), Set.of("P0"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "P0:logs"), Set.of("P0"), Set.of());
+
+        assertProjectSets(rewrite(origin, linked, "P1:logs"), Set.of("P1"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "P*:logs"), Set.of("P0", "P1", "P2"), Set.of());
+
+        assertProjectSets(rewrite(origin, linked, "-_origin:*"), Set.of(), Set.of("P0"));
+        assertProjectSets(rewrite(origin, linked, "-P0:*"), Set.of(), Set.of("P0"));
+        assertProjectSets(rewrite(origin, linked, "-P1:*"), Set.of(), Set.of("P1"));
+        assertProjectSets(rewrite(origin, linked, "-P*:*"), Set.of(), Set.of("P0", "P1", "P2"));
+        assertProjectSets(rewrite(origin, linked, "-*:*"), Set.of(), Set.of("P0", "P1", "P2", "Q1"));
+
+        assertProjectSets(rewrite(origin, linked, "-_origin:logs"), Set.of("P0"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "_origin:-logs"), Set.of("P0"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "_origin:-*"), Set.of("P0"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "P1:-logs"), Set.of("P1"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "P1:-*"), Set.of("P1"), Set.of());
+
+        assertProjectSets(rewrite(origin, linked, "*:-logs"), Set.of("P0", "P1", "P2", "Q1"), Set.of());
+
+        Set<String> included = new java.util.LinkedHashSet<>();
+        for (var expr : List.of("-_origin:*", "_origin:logs")) {
+            var r = rewriteIndexExpression(expr, origin.projectAlias(), getAllProjectAliases(origin, linked), null);
+            included.addAll(r.includedProjects());
+            included.removeAll(r.excludedProjects());
+        }
+        assertThat(included, containsInAnyOrder("P0"));
+
+        included.clear();
+        for (var expr : List.of("*:logs", "-_origin:*")) {
+            var r = rewriteIndexExpression(expr, origin.projectAlias(), getAllProjectAliases(origin, linked), null);
+            included.addAll(r.includedProjects());
+            included.removeAll(r.excludedProjects());
+        }
+        assertThat(included, containsInAnyOrder("P1", "P2", "Q1"));
+
+        included.clear();
+        for (var expr : List.of("*:logs", "-*:*")) {
+            var r = rewriteIndexExpression(expr, origin.projectAlias(), getAllProjectAliases(origin, linked), null);
+            included.addAll(r.includedProjects());
+            included.removeAll(r.excludedProjects());
+        }
+        assertThat(included, equalTo(Set.of()));
+    }
+
+    private static CrossProjectIndexExpressionsRewriter.IndexRewriteResult rewrite(
+        ProjectRoutingInfo origin,
+        List<ProjectRoutingInfo> linked,
+        String expression
+    ) {
+        return rewriteIndexExpression(expression, origin.projectAlias(), getAllProjectAliases(origin, linked), null);
+    }
+
+    private static void assertProjectSets(
+        CrossProjectIndexExpressionsRewriter.IndexRewriteResult result,
+        Set<String> expectedIncluded,
+        Set<String> expectedExcluded
+    ) {
+        assertThat(result.includedProjects(), equalTo(expectedIncluded));
+        assertThat(result.excludedProjects(), equalTo(expectedExcluded));
+    }
+
     private ProjectRoutingInfo createRandomProjectWithAlias(String alias) {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");
@@ -642,7 +729,7 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
      * @param linkedProjects the list of linked and available projects to consider for a request
      * @param originalIndices the array of index expressions to be rewritten to canonical CCS
      * @return a map from original index expressions to lists of canonical index expressions
-     * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
+     * @throws InvalidIndexNameException if exclusions are applied to both the project and the index expression
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
     private static Map<String, CrossProjectIndexExpressionsRewriter.IndexRewriteResult> rewriteIndexExpressions(

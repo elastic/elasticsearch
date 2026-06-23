@@ -60,7 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -110,7 +110,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             versionType,
             fetchSourceContext,
             forceSyntheticSource,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            false
         );
     }
 
@@ -123,7 +124,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean refresh
     ) throws IOException {
         return doGet(
             id,
@@ -137,12 +139,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext,
             forceSyntheticSource,
             splitShardCountSummary,
+            refresh,
             indexShard::get
         );
     }
 
     public GetResult mget(
         String id,
+        String routing,
         String[] gFields,
         boolean realtime,
         long version,
@@ -150,11 +154,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
         MultiEngineGet mget,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean refresh
     ) throws IOException {
         return doGet(
             id,
-            null,
+            routing,
             gFields,
             realtime,
             version,
@@ -164,6 +169,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext,
             forceSyntheticSource,
             splitShardCountSummary,
+            refresh,
             mget::get
         );
     }
@@ -180,7 +186,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
         SplitShardCountSummary splitShardCountSummary,
-        Function<Engine.Get, Engine.GetResult> engineGetOperator
+        boolean refresh,
+        BiFunction<Engine.Get, SplitShardCountSummary, Engine.GetResult> engineGetOperator
     ) throws IOException {
         currentMetric.inc();
         final long now = System.nanoTime();
@@ -191,7 +198,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 .setIfPrimaryTerm(ifPrimaryTerm);
 
             final GetResult getResult;
-            try (Engine.GetResult get = engineGetOperator.apply(engineGet)) {
+            try (Engine.GetResult get = engineGetOperator.apply(engineGet, splitShardCountSummary)) {
                 if (get == null) {
                     getResult = null;
                 } else if (get.exists() == false) {
@@ -222,7 +229,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             } else {
                 missingMetric.inc(System.nanoTime() - now);
             }
-            if (getResult == null || getResult.isExists() == false || realtime) {
+            if (getResult == null || getResult.isExists() == false || realtime || refresh) {
                 if (splitShardCountSummary.equals(SplitShardCountSummary.UNSET)) {
                     // TODO, this should only be possible temporarily, until we've ensured that all callers provide a valid summary.
                     return getResult;
@@ -252,7 +259,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 // see currentSummary above
                 final var docShard = realtime ? indexRouting.updateShard(id, routing) : indexRouting.getShard(id, routing);
                 if (docShard != shardId().getId()) {
-                    throw new StaleRequestException("stale get request for document [{}]", id);
+                    throw new StaleRequestException(shardId(), splitShardCountSummary);
                 } else {
                     return getResult;
                 }
@@ -271,7 +278,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean refresh
     ) throws IOException {
         return doGet(
             id,
@@ -285,6 +293,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext,
             forceSyntheticSource,
             splitShardCountSummary,
+            refresh,
             indexShard::getFromTranslog
         );
     }
@@ -302,6 +311,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext,
             false,
             SplitShardCountSummary.UNSET,
+            false,
             indexShard::get
         );
     }

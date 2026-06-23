@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -43,7 +44,7 @@ import java.util.Locale;
  */
 public class CsvSchemaInferrer {
 
-    static final int DEFAULT_SAMPLE_SIZE = 100;
+    static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private static final DataType[] TYPE_CANDIDATES = {
         DataType.BOOLEAN,
@@ -92,7 +93,7 @@ public class CsvSchemaInferrer {
         for (int col = 0; col < numCols; col++) {
             String name = columnNames[col].trim();
             DataType type = seenValue[col] ? TYPE_CANDIDATES[candidateIdx[col]] : DataType.KEYWORD;
-            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, type));
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
         }
         return attributes;
     }

@@ -56,7 +56,6 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
-import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -72,8 +71,10 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -295,9 +296,11 @@ public class WildcardFieldMapper extends FieldMapper {
         private final String nullValue;
         private final NamedAnalyzer analyzer;
         private final IgnoreAbove ignoreAbove;
+        private final IndexVersion indexVersion;
 
         private WildcardFieldType(String name, IndexVersion version, Map<String, String> meta, Builder builder) {
             super(name, IndexType.terms(true, true), false, meta);
+            this.indexVersion = version;
             if (version.onOrAfter(IndexVersions.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
@@ -836,22 +839,16 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery ngramQ = approxBuilder.build();
 
                 // Verification query
-                FuzzyQuery fq = rewriteMethod == null
-                    ? new FuzzyQuery(
-                        new Term(name(), searchTerm),
-                        fuzziness.asDistance(searchTerm),
-                        prefixLength,
-                        maxExpansions,
-                        transpositions
-                    )
-                    : new FuzzyQuery(
-                        new Term(name(), searchTerm),
-                        fuzziness.asDistance(searchTerm),
-                        prefixLength,
-                        maxExpansions,
-                        transpositions,
-                        rewriteMethod
-                    );
+                FuzzyQuery fq = FuzzyQueries.create(
+                    new Term(name(), searchTerm),
+                    fuzziness.asDistance(searchTerm),
+                    prefixLength,
+                    maxExpansions,
+                    transpositions,
+                    rewriteMethod,
+                    context,
+                    name()
+                );
                 if (ngramQ.clauses().size() == 0) {
                     return BinaryDvConfirmedQuery.fromFuzzyQuery(Queries.ALL_DOCS_INSTANCE, name(), searchTerm, fq);
                 }
@@ -975,6 +972,9 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
+                if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
+                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
+                }
                 return new BytesRefsFromCustomBinaryBlockLoader(name());
             }
             return null;
@@ -986,7 +986,8 @@ public class WildcardFieldMapper extends FieldMapper {
             return (cache, breakerService) -> new StringBinaryIndexFieldData(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                WildcardDocValuesField::new
+                WildcardDocValuesField::new,
+                indexVersion
             );
         }
 
@@ -1079,13 +1080,13 @@ public class WildcardFieldMapper extends FieldMapper {
                 context.addIgnoredField(fullPath());
                 if (storeIgnored) {
                     if (storeIgnoredFieldsInBinaryDocValues) {
-                        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) parseDoc.getByKey(originalName());
-                        if (field == null) {
-                            // sort to match the behavior of other field mappers
-                            field = new MultiValuedBinaryDocValuesField.IntegratedCount(originalName(), false);
-                            parseDoc.addWithKey(originalName(), field);
-                        }
-                        field.add(new BytesRef(value));
+                        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                            parseDoc,
+                            originalName(),
+                            new BytesRef(value),
+                            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                            indexVersionCreated
+                        );
                     } else {
                         parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
                     }
@@ -1106,13 +1107,13 @@ public class WildcardFieldMapper extends FieldMapper {
         Field ngramField = new Field(fieldType().name(), ngramValue, NGRAM_FIELD_TYPE);
         fields.add(ngramField);
 
-        CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().name());
-        if (dvField == null) {
-            dvField = new CustomBinaryDocValuesField(fieldType().name(), value.getBytes(StandardCharsets.UTF_8));
-            parseDoc.addWithKey(fieldType().name(), dvField);
-        } else {
-            dvField.add(value.getBytes(StandardCharsets.UTF_8));
-        }
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            parseDoc,
+            fieldType().name(),
+            new BytesRef(value.getBytes(StandardCharsets.UTF_8)),
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+            indexVersionCreated
+        );
     }
 
     // Values held in the ngram index are encoded with special characters to denote start and end of values.
@@ -1134,10 +1135,10 @@ public class WildcardFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(() -> {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()));
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexVersionCreated));
             if (ignoreAbove.valuesPotentiallyIgnored()) {
                 if (storeIgnoredFieldsInBinaryDocValues) {
-                    layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(originalName()));
+                    layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(originalName(), indexVersionCreated));
                 } else {
                     layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                         @Override

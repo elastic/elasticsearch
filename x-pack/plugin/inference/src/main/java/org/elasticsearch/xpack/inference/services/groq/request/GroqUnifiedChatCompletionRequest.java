@@ -12,10 +12,12 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.groq.GroqUtils;
 import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModel;
 
@@ -23,9 +25,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
-
-public class GroqUnifiedChatCompletionRequest implements Request {
+public class GroqUnifiedChatCompletionRequest implements OutboundUnifiedCompletionRequest {
 
     private final UnifiedChatInput unifiedChatInput;
     private final GroqChatCompletionModel model;
@@ -44,7 +44,6 @@ public class GroqUnifiedChatCompletionRequest implements Request {
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
         var org = model.getServiceSettings().organizationId();
         if (org != null) {
@@ -57,7 +56,13 @@ public class GroqUnifiedChatCompletionRequest implements Request {
             }
         }
 
-        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+        model.secretsApplier()
+            .applyTo(
+                httpPost,
+                listener.delegateFailureAndWrap(
+                    (requestActionListener, req) -> requestActionListener.onResponse(new HttpRequest(req, getInferenceEntityId()))
+                )
+            );
     }
 
     @Override
@@ -66,7 +71,7 @@ public class GroqUnifiedChatCompletionRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 
@@ -78,6 +83,11 @@ public class GroqUnifiedChatCompletionRequest implements Request {
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 
     @Override

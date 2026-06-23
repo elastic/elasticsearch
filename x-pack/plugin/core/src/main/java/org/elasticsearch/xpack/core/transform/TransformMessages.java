@@ -22,6 +22,8 @@ public class TransformMessages {
     public static final String REST_STOP_TRANSFORM_WITHOUT_CONFIG =
         "Detected transforms with no config [{0}]. Use force to stop/delete them.";
     public static final String REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist transform configuration";
+    public static final String TRANSFORM_WAIT_FOR_INDEX_SHARDS_ACTIVE_TIMEOUT =
+        "Timed out waiting for transform system index shards to become active";
     public static final String REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS = "Failed to deduce dest mappings";
     public static final String REST_PUT_TRANSFORM_INCONSISTENT_ID =
         "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
@@ -34,6 +36,9 @@ public class TransformMessages {
 
     public static final String REST_WARN_NO_TRANSFORM_NODES =
         "Transform requires the transform node role for at least 1 node, found no transform nodes";
+
+    public static final String REST_WARN_DEFER_WITH_NO_SYNC_CONFIG =
+        "Unable to defer scheduling for batch Transform [{0}]. Defaulting to scheduling without defer.";
 
     public static final String CANNOT_STOP_SINGLE_FAILED_TRANSFORM = "Unable to stop transform [{0}] as it is in a failed state. "
         + "Use force stop to stop the transform. More details: [{1}]";

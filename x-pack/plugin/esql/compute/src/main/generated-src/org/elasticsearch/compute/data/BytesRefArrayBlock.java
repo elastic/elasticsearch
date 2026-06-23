@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -91,6 +92,11 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public OrdinalBytesRefBlock asOrdinals() {
         return null;
     }
@@ -101,10 +107,16 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     }
 
     @Override
-    public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return vector.get(valueIndex, scratch);
+    }
+
+    @Override
+    public BytesRefBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         final BytesRef scratch = new BytesRef();
-        try (var builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
-            for (int pos : positions) {
+        try (var builder = blockFactory().newBytesRefBlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;

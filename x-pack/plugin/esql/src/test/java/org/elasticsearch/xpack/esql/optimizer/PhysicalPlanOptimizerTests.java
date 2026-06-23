@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistanc
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -143,6 +145,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -385,6 +388,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             builder.addIndex(lookupIndex);
             builder.addLookupIndex(lookupIndex);
         }
+        builder.addNoFieldsIndex();
         Analyzer analyzer = builder.buildAnalyzer();
         return new TestDataSource(mapping, index, analyzer, stats);
     }
@@ -437,9 +441,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
-                List.of("department"),
+                List.of("department", "description"),
                 Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+                Map.of(
+                    "department",
+                    new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                    "description",
+                    new EsField("description", DataType.TEXT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                )
             )
         );
         builder.addEnrichPolicy(
@@ -694,6 +703,79 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertThat(query.limit(), is(l(42)));
+    }
+
+    /**
+     * Asserts that {@code EVAL TOP_SNIPPETS(...)} is placed on the coordinator side of the
+     * coordinator/data-node split (i.e. <em>above</em> the remote {@link ExchangeExec}).
+     *
+     * Unlike {@link Score} in {@link #testEvalWithScoreImplicitLimit()}, which is pushed down
+     * into the data-node fragment (it needs per-shard Lucene scoring), {@code TOP_SNIPPETS}
+     * has no rule to push it past the exchange and is therefore evaluated on the coordinator
+     * after field values have been streamed up from the shards. Any analyzer resolution that
+     * depends on per-index mappings must happen either (a) pre-planning via the coordinator's
+     * {@code AnalysisRegistry} or (b) by a future rule that pushes {@code TOP_SNIPPETS} into
+     * the fragment; this test guards against accidental silent changes to that placement.
+     *
+     * Expected shape:
+     * EvalExec[[TOP_SNIPPETS(gender{f}#..,foo[KEYWORD]) AS s#..]]
+     * \_LimitExec[1000[INTEGER], ...]
+     *   \_ExchangeExec[...,false]
+     *     \_ProjectExec[...]
+     *       \_FieldExtractExec[...]
+     *         \_EsQueryExec[test], ...
+     */
+    public void testEvalWithTopSnippetsRunsOnCoordinator() {
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL s = TOP_SNIPPETS(gender, "foo")
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var eval = as(optimized, EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(TopSnippets.class));
+        var limit = as(eval.child(), LimitExec.class);
+        assertThat(limit.limit(), is(l(1000)));
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var query = source(fieldExtract.child());
+        assertThat(query.limit(), is(l(1000)));
+    }
+
+    /**
+     * Sibling of {@link #testEvalWithTopSnippetsRunsOnCoordinator()} for the filter path.
+     * Unlike the EVAL case, {@code WHERE mv_count(TOP_SNIPPETS(...)) > 0} is pushed
+     * <em>below</em> the remote {@link ExchangeExec} into the data-node fragment: the
+     * filter predicate references only {@code gender}, so the optimizer treats it like any
+     * other scalar filter and evaluates it on the data node. This means the runtime site
+     * that must resolve {@code TOP_SNIPPETS}' analyzer is
+     * {@code LocalExecutionPlanner.planFilter} on the <em>data node</em>, whose
+     * {@code physicalOperationProviders} carries the node-level {@code AnalysisRegistry}
+     * wired in {@code ComputeService} from {@code searchService.getIndicesService().getAnalysis()}.
+     * This test guards the placement so any future change that moves {@code TOP_SNIPPETS}
+     * through a different planner path is flagged.
+     */
+    public void testWhereWithTopSnippetsPushedToDataNode() {
+        var plan = physicalPlan("""
+            FROM test
+            | WHERE mv_count(TOP_SNIPPETS(gender, "foo")) > 0
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        assertThat(topLimit.limit(), is(l(1000)));
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtractOuter = as(project.child(), FieldExtractExec.class);
+        var innerLimit = as(fieldExtractOuter.child(), LimitExec.class);
+        assertThat(innerLimit.limit(), is(l(1000)));
+        var filter = as(innerLimit.child(), FilterExec.class);
+        assertThat(filter.condition().anyMatch(TopSnippets.class::isInstance), is(true));
+        var fieldExtractInner = as(filter.child(), FieldExtractExec.class);
+        var query = source(fieldExtractInner.child());
+        assertNull(query.limit());
     }
 
     /**
@@ -1473,18 +1555,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort nullsum
             | limit 1
             """));
-        var topN = as(optimized, TopNExec.class);
-        var exchange = asRemoteExchange(topN.child());
+        // nullsum = emp_no + null folds to null → constant sort dropped; PushLimitToSource pushes limit=1
+        // into EsQueryExec (Lucene stops at one doc) instead of a TopN heap.
+        var eval = as(optimized, EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var topNLocal = as(extract.child(), TopNExec.class);
-        // all fields plus nullsum and shards, segments, docs and two extra ints for forwards and backwards map
-        assertThat(topNLocal.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES + Integer.BYTES * 2 + Integer.BYTES * 3));
-
-        var eval = as(topNLocal.child(), EvalExec.class);
-        var source = source(eval.child());
-        // nullsum and doc id are ints. we don't actually load emp_no here because we know we don't need it.
-        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 2));
+        var source = source(extract.child());
+        assertThat(source.limit().fold(FoldContext.small()), is(1));
+        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
     }
 
     public void testProjectAfterTopN() throws Exception {
@@ -1553,7 +1633,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByNotPushedToSource() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | limit 10 by emp_no
@@ -1578,7 +1657,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByMultipleKeys() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | limit 5 by first_name, last_name
@@ -1613,7 +1691,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByAfterStats() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | stats avg_salary = avg(salary) by first_name
@@ -1652,7 +1729,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByAfterEval() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | eval x = salary + 1
@@ -1689,7 +1765,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByWithFilter() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 0
@@ -1722,7 +1797,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByExpressionWithEval() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 0
@@ -1759,7 +1833,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByZero() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = optimizedPlan(physicalPlan("""
             FROM test
             | LIMIT 0 BY emp_no
@@ -2988,6 +3061,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2 + Long.BYTES));
     }
 
+    public void testEnrichEstimateRowSize() {
+        var plan = physicalPlan("""
+                FROM test
+                | ENRICH departments ON emp_no
+                | KEEP emp_no, department, description
+            """);
+        var optimized = optimizedPlan(plan);
+        var source = (EsQueryExec) optimized.collectFirstChildren(e -> e instanceof EsQueryExec).getFirst();
+        assertThat(source.estimatedRowSize(), equalTo(108));
+    }
+
     /**
      * Expects the filter to transform the source into a local relationship
      * LimitExec[10000[INTEGER]]
@@ -3796,6 +3880,45 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * {@snippet lang="text":
+     * LimitExec[1000[INTEGER],8]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
+     * seen{r}#5],8]
+     *   \_MergeExec[[]]
+     *     |_ExchangeExec[[],false]
+     *     | \_ProjectExec[[]]
+     *     |   \_EsQueryExec[no_fields_index], ...]
+     *     \_ExchangeExec[[],false]
+     *       \_ProjectExec[[]]
+     *         \_EsQueryExec[no_fields_index], ...]
+     * }
+     */
+    public void testProjectAwayColumnsWithSubqueryCount() {
+        for (String count : List.of("count()", "count(*)", "count(1)")) {
+            String query = LoggerMessageFormat.format(null, """
+                FROM no_fields_index, (FROM no_fields_index)
+                | STATS {}
+                """, count);
+            var plan = optimizedPlan(physicalPlan(query, testData, false));
+
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec agg = as(limit.child(), AggregateExec.class);
+            MergeExec merge = as(agg.child(), MergeExec.class);
+            assertEquals(0, merge.output().size());
+            assertEquals(2, merge.children().size());
+
+            for (PhysicalPlan child : merge.children()) {
+                ExchangeExec exchange = as(child, ExchangeExec.class);
+                assertEquals(0, exchange.output().size());
+                ProjectExec project = as(exchange.child(), ProjectExec.class);
+                assertEquals(0, project.projections().size());
+                EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
+                assertEquals("no_fields_index", esQuery.indexPattern());
+            }
+        }
+    }
+
+    /**
      * LimitExec[1000[INTEGER],336]
      * \_MvExpandExec[foo_1{r}#4236,foo_1{r}#4253]
      *   \_TopNExec[[Order[emp_no{f}#4242,ASC,LAST]],1000[INTEGER],336]
@@ -4363,6 +4486,40 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Test that ST_BUFFER uses doc values, similarly to ST_SIMPLIFY above
+     */
+    public void testSpatialBufferAndStatsExtentUseDocValues() {
+        String query = """
+            FROM airports
+            | EVAL buffered = ST_BUFFER(location, 0.05)
+            | STATS extent = ST_EXTENT_AGG(location) BY buffered""";
+        for (boolean withDocValues : new boolean[] { false, true }) {
+            var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+            var testData = withDocValues ? airports : airportsNoDocValues;
+            var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+            var optimized = optimizedPlan(plan, testData.stats);
+            var limit = as(optimized, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, FieldExtractPreference.NONE);
+            assertThat(agg.groupings().size(), equalTo(1));
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // below the exchange (in data node) the aggregation is using doc-values.
+            assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, fieldExtractPreference);
+            var evalExec = as(agg.child(), EvalExec.class);
+            var alias = as(evalExec.fields().getFirst(), Alias.class);
+            var spatialFunction = as(alias.child(), SpatialDocValuesFunction.class);
+            assertThat(
+                "Expected spatial doc values to be used for spatial function",
+                spatialFunction.spatialDocValues(),
+                equalTo(withDocValues)
+            );
+            assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+        }
+    }
+
+    /**
      * Before local optimizations:
      * <code>
      * ProjectExec[[abbrev{f}#9, grid{r}#5]]
@@ -4512,6 +4669,66 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     var evalExec = as(agg.child(), EvalExec.class);
                     assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
                 }
+            }
+        }
+    }
+
+    /**
+     * Tests that ST_GEOMETRYTYPE, ST_DIMENSION and ST_ISEMPTY use doc-values when available on geo_point and cartesian_point fields.
+     * The query pattern is: FROM index | EVAL result = FUNCTION(location) | STATS count = COUNT(*) BY result
+     */
+    public void testSpatialTypesAndStatsGeometryIntrospectionUseDocValues() {
+        record TestCase(
+            String functionName,
+            String index,
+            TestDataSource withDocValues,
+            TestDataSource withoutDocValues,
+            DataType locType
+        ) {}
+        var testCases = new TestCase[] {
+            new TestCase("ST_GEOMETRYTYPE", "airports", airports, airportsNoDocValues, GEO_POINT),
+            new TestCase("ST_GEOMETRYTYPE", "airports_web", airportsWeb, null, CARTESIAN_POINT),
+            new TestCase("ST_DIMENSION", "airports", airports, airportsNoDocValues, GEO_POINT),
+            new TestCase("ST_DIMENSION", "airports_web", airportsWeb, null, CARTESIAN_POINT),
+            new TestCase("ST_ISEMPTY", "airports", airports, airportsNoDocValues, GEO_POINT),
+            new TestCase("ST_ISEMPTY", "airports_web", airportsWeb, null, CARTESIAN_POINT), };
+        for (var testCase : testCases) {
+            var query = "FROM "
+                + testCase.index
+                + " | EVAL result = "
+                + testCase.functionName
+                + "(location) | STATS count=COUNT() BY result";
+            for (boolean withDocValues : new boolean[] { true, false }) {
+                if (!withDocValues && testCase.withoutDocValues == null) {
+                    continue; // No no-doc-values variant for this index
+                }
+                var testData = withDocValues ? testCase.withDocValues : testCase.withoutDocValues;
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var plan = physicalPlan(query.replace(testCase.index, testData.index.name()), testData);
+
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                assertAggregation(agg, "count", Count.class);
+
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var fAgg = as(fragment.fragment(), Aggregate.class);
+                var eval = as(fAgg.child(), Eval.class);
+                assertThat(eval.fields().size(), equalTo(1));
+                var alias = as(eval.fields().getFirst(), Alias.class);
+                assertThat(alias.name(), equalTo("result"));
+                as(eval.child(), EsRelation.class);
+
+                // Now optimize the plan and assert the field extraction uses doc-values
+                var optimized = optimizedPlan(plan, testData.stats);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                assertAggregation(agg, "count", Count.class);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                assertAggregation(agg, "count", Count.class);
+                var evalExec = as(agg.child(), EvalExec.class);
+                assertChildIsExtractedAs(evalExec, fieldExtractPreference, testCase.locType);
             }
         }
     }
@@ -8837,7 +9054,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "::long"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -8852,7 +9069,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -8867,7 +9084,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -8882,7 +9099,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "(" + expression + ")"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -8903,7 +9120,38 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(from + prefix + expression + suffix));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_nestedAbs() {
+        int depth = 20000;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query));
+        assertThat(
+            e.getMessage(),
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_nestedAbs_maxAllowed() {
+        // Last depth that succeeds: each abs() adds 1 to the expression depth counter, plus a base
+        // overhead of 2 from the ROW field context (visitField -> expression() then
+        // visitOperatorExpressionDefault -> expression()). So for N calls: depth = N + 2.
+        // At N=MAX_EXPRESSION_DEPTH-2: depth = MAX_EXPRESSION_DEPTH, check is >, so false -> passes.
+        int depth = MAX_EXPRESSION_DEPTH - 2;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        physicalPlan(query); // must not throw
+    }
+
+    public void testMaxExpressionDepth_nestedAbs_minOverflow() {
+        // First depth at which the visitor rejects: at N=MAX_EXPRESSION_DEPTH-1, depth = MAX_EXPRESSION_DEPTH+1.
+        int depth = MAX_EXPRESSION_DEPTH - 1;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query));
+        assertThat(
+            e.getMessage(),
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -8914,7 +9162,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
         physicalPlan(from.toString());
         var e = expectThrows(ParsingException.class, () -> physicalPlan(from + (randomBoolean() ? "| sort a" : " | eval c = 10")));
-        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+        assertThat(e.getMessage(), containsString("ES|QL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
     public void testMaxQueryDepthPlusExpressionDepth() {
@@ -8932,11 +9180,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + "::int"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
 
         e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + " | eval x = 10"));
-        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+        assertThat(e.getMessage(), containsString("ES|QL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
     @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
@@ -9036,13 +9284,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects optimized data node plan of
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[name{r}#25,ASC,LAST], Order[emp_no{f}#14,ASC,LAST]],1000[INTEGER]]
      * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
      *   |_Project[[..., long_noidx{f}#23, salary{f}#19]]
      *   | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
-     * }</pre>
+     * }
      */
     @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupThenTopN() {
@@ -9410,7 +9658,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, PlannerSettings.DEFAULTS),
+            null,
+            null,
+            null,
+            new EsPhysicalOperationProviders(
+                FoldContext.small(),
+                EmptyIndexedByShardId.instance(),
+                null,
+                PlannerSettings.DEFAULTS,
+                () -> 0L
+            ),
             null  // OperatorFactoryRegistry - not needed for these tests
         );
 
@@ -10076,7 +10333,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * ProjectExec[[c{r}#4, n{r}#6]]
      * \_LimitExec[3[INTEGER],null]
      *   \_ExchangeExec[[c{r}#4, n{r}#6],false]
@@ -10089,7 +10346,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_Aggregate[[n{r}#6],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#4, n{r}#6]]
      *       \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
      * nguages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, n{r}#6]]<>]]
-     * }</pre>
+     * }
      */
     public void testInlineStatsGroupByNullFromEmployees() {
         assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
@@ -10173,6 +10430,159 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(sorts.size(), equalTo(1));
         assertThat(as(sorts.getFirst().child(), FieldAttribute.class).field().getName(), equalTo("last_name"));
         var esRelation = as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * {@snippet lang="text":
+     * ProjectExec[[]]
+     * \_LimitExec[1000[INTEGER],1]
+     *   \_MergeExec[[]]
+     *     \_ProjectExec[[]]
+     *       \_LimitExec[1000[INTEGER],1]
+     *         \_ExchangeExec[[],false]
+     *           \_ProjectExec[[]]
+     *             \_EsQueryExec[test], ...]
+     * }
+     */
+    public void testForkWithEmptyOutput() {
+        String query = """
+            from test
+            | FORK (WHERE true)
+            | KEEP first_name
+            | DROP first_name
+            """;
+        var plan = optimizedPlan(physicalPlan(query, testData, false));
+
+        var project = as(plan, ProjectExec.class);
+        assertThat(project.projections().size(), equalTo(0));
+        var limit = as(project.child(), LimitExec.class);
+        var merge = as(limit.child(), MergeExec.class);
+
+        var branchProject = as(merge.children().getFirst(), ProjectExec.class);
+        assertThat(project.projections().size(), equalTo(0));
+        var branchLimit = as(branchProject.child(), LimitExec.class);
+        var branchExchange = as(branchLimit.child(), ExchangeExec.class);
+        assertThat(branchExchange.output().size(), equalTo(0));
+
+        branchProject = as(branchExchange.child(), ProjectExec.class);
+        assertThat(project.projections().size(), equalTo(0));
+
+        var branchEsQuery = as(branchProject.child(), EsQueryExec.class);
+        assertThat(names(branchEsQuery.output()), equalTo(List.of("_doc")));
+    }
+
+    /**
+     * {@snippet lang="text":
+     * LimitExec[10000[INTEGER],8]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#10],SINGLE,[$$y$count{r}#46, $$y$seen{r}#47],8]
+     *   \_MergeExec[[]]
+     *     \_ProjectExec[[]]
+     *       \_TopNExec[[Order[x{r}#4,ASC,LAST]],10[INTEGER],4]
+     *         \_ExchangeExec[[x{r}#4],false]
+     *           \_ProjectExec[[x{r}#4]]
+     *             \_TopNExec[[Order[x{r}#4,ASC,LAST]],10[INTEGER],24]
+     *               \_EvalExec[[1[INTEGER] AS x#4]]
+     *                 \_EsQueryExec[test], ...]
+     * }
+     */
+    public void testForkWithSortAndFinalAggregation() {
+        String query = """
+            FROM test
+            | EVAL x = 1
+            | FORK (SORT x | LIMIT 10) (WHERE true)
+            | WHERE _fork == "fork1"
+            | STATS y = COUNT(*)
+            """;
+        var plan = optimizedPlan(physicalPlan(query, testData, false));
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var merge = as(aggregate.child(), MergeExec.class);
+        assertThat(merge.output().size(), equalTo(0));
+
+        // only the first branch is kept
+        assertThat(merge.children().size(), equalTo(1));
+        var branchProject = as(merge.children().getFirst(), ProjectExec.class);
+        assertThat(branchProject.projections().size(), equalTo(0));
+        var branchTopN = as(branchProject.children().getFirst(), TopNExec.class);
+        assertThat(branchTopN.limit(), is(l(10)));
+        var branchExchange = as(branchTopN.child(), ExchangeExec.class);
+        branchProject = as(branchExchange.child(), ProjectExec.class);
+        assertThat(names(branchProject.projections()), equalTo(List.of("x")));
+
+        // Below the exchange x is the constant 1 → sort pruned, limit pushed to source; above it x is opaque,
+        // so the coordinator TopN keeps its sort.
+        var branchEval = as(branchProject.child(), EvalExec.class);
+        var branchEsQuery = as(branchEval.child(), EsQueryExec.class);
+        assertThat(names(branchEsQuery.output()), equalTo(List.of("_doc")));
+        assertThat(branchEsQuery.limit(), is(l(10)));
+    }
+
+    /**
+     * {@snippet lang="text":
+     * LimitExec[10000[INTEGER],8]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#14],SINGLE,[$$y$count{r}#87, $$y$seen{r}#88],8]
+     *   \_MergeExec[[]]
+     *     |_AggregateExec[[first_name{f}#16],[],FINAL,[first_name{f}#16],1]
+     *     | \_ExchangeExec[[first_name{f}#16],true]
+     *     |   \_AggregateExec[[first_name{f}#16],[first_name{f}#16],INITIAL,[first_name{f}#16],50]
+     *     |     \_FieldExtractExec[first_name{f}#16]<[],[],[]>
+     *     |       \_EsQueryExec[test], ...]
+     *     |_ProjectExec[[]]
+     *     | \_TopNExec[[Order[emp_no{f}#26,ASC,LAST]],10[INTEGER],4]
+     *     |   \_ExchangeExec[[emp_no{f}#26],false]
+     *     |     \_ProjectExec[[emp_no{f}#26]]
+     *     |       \_FieldExtractExec[emp_no{f}#26]<[],[],[]>
+     *     |         \_EsQueryExec[test],...]
+     *     \_ProjectExec[[]]
+     *       \_LocalSourceExec[[x{r}#9],Page{blocks=[ConstantNullBlock[positions=1]]}]
+     * }
+     */
+    public void testForkWithMultipleBranchesAndFinalStats() {
+        String query = """
+             from test
+             | fork (stats z = count(*) by first_name)
+                    (where emp_no > 10000 | SORT emp_no | LIMIT 10)
+                    (stats x = count(*))
+             | stats y = count(*)
+            """;
+        var plan = optimizedPlan(physicalPlan(query, testData, false));
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var merge = as(aggregate.child(), MergeExec.class);
+        assertThat(merge.output().size(), equalTo(0));
+        assertThat(merge.children().size(), equalTo(3));
+
+        // first branch
+        var firstBranchAggregate = as(merge.children().getFirst(), AggregateExec.class);
+        assertThat(firstBranchAggregate.output().size(), equalTo(0));
+        var firstBranchExchange = as(firstBranchAggregate.child(), ExchangeExec.class);
+        firstBranchAggregate = as(firstBranchExchange.child(), AggregateExec.class);
+        var firstBranchFieldExtract = as(firstBranchAggregate.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(firstBranchFieldExtract.attributesToExtract()), equalTo(List.of("first_name")));
+        var firstBranchEsQuery = as(firstBranchFieldExtract.child(), EsQueryExec.class);
+        assertThat(names(firstBranchEsQuery.output()), equalTo(List.of("_doc")));
+
+        // second branch
+        var secondBranchProject = as(merge.children().get(1), ProjectExec.class);
+        assertThat(secondBranchProject.projections().size(), equalTo(0));
+        var secondBranchTopN = as(secondBranchProject.child(), TopNExec.class);
+        var secondBranchExchange = as(secondBranchTopN.child(), ExchangeExec.class);
+        secondBranchProject = as(secondBranchExchange.child(), ProjectExec.class);
+        assertThat(names(secondBranchProject.projections()), equalTo(List.of("emp_no")));
+        var secondBranchFieldExtract = as(secondBranchProject.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(secondBranchFieldExtract.attributesToExtract()), equalTo(List.of("emp_no")));
+        var secondBranchEsQuery = as(secondBranchFieldExtract.child(), EsQueryExec.class);
+        assertThat(names(secondBranchEsQuery.output()), contains("_doc"));
+        assertThat(secondBranchEsQuery.sorts().size(), equalTo(1));
+        assertThat(secondBranchEsQuery.sorts().getFirst().field().name(), equalTo("emp_no"));
+
+        // third branch
+        var thirdBranchProject = as(merge.children().get(2), ProjectExec.class);
+        assertThat(thirdBranchProject.projections().size(), equalTo(0));
+        var thirdBranchLocalSource = as(thirdBranchProject.child(), LocalSourceExec.class);
+        assertThat(names(thirdBranchLocalSource.output()), equalTo(List.of("x")));
     }
 
     @Override

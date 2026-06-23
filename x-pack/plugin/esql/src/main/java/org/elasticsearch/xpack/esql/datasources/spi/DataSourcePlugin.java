@@ -26,8 +26,8 @@ import java.util.concurrent.ExecutorService;
  *   <li>Format readers (Parquet, CSV, ORC) for parsing data files - keyed by format name</li>
  *   <li>Table catalog connectors (Iceberg, Delta Lake) for table metadata - keyed by catalog type</li>
  *   <li>Custom operator factories for complex datasources - keyed by source type</li>
- *   <li>Filter pushdown support for predicate pushdown optimization - keyed by source type</li>
- *   <li>Decompression codecs for compound extensions (e.g. .csv.gz) - via {@link #decompressionCodecs(Settings)}</li>
+ *   <li>Decompression codecs for compound extensions (e.g. .csv.gz) - via {@link #decompressionCodecs(Settings)} or
+ *       {@link #decompressionCodecs(Settings, ExecutorService)}</li>
  * </ul>
  *
  * <p>All methods have default implementations returning empty maps/lists, allowing
@@ -80,6 +80,24 @@ public interface DataSourcePlugin {
         return storageProviders(settings);
     }
 
+    /**
+     * Storage providers with access to node-level services ({@link StorageProviderServices}).
+     * Plugins that need the node {@link org.elasticsearch.env.Environment} or
+     * {@link org.elasticsearch.watcher.ResourceWatcherService} — e.g. to resolve or watch
+     * operator-managed token symlinks under {@code ${ES_PATH_CONF}} — should override this method.
+     *
+     * <p>The default delegates to {@link #storageProviders(Settings, ExecutorService)}, so plugins
+     * with no node-context needs can keep overriding the simpler signatures unchanged.
+     *
+     * <p>Lifecycle: this method may allocate node-level resources (file watchers, clients). The
+     * {@code DataSourceModule} closes every {@link java.io.Closeable} {@code DataSourcePlugin} when it
+     * shuts down, so implementations must release those resources in {@code close()} and tolerate a
+     * {@code close()} that runs without any prior {@code storageProviders} call.
+     */
+    default Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
+        return storageProviders(services.settings(), services.executor());
+    }
+
     default Map<String, FormatReaderFactory> formatReaders(Settings settings) {
         return Map.of();
     }
@@ -92,6 +110,16 @@ public interface DataSourcePlugin {
         return List.of();
     }
 
+    /**
+     * Decompression codecs with access to the datasource module's Elasticsearch-managed
+     * {@link ExecutorService} (typically the {@code generic} thread pool).
+     * Codecs that parallelize work (e.g. scanning compressed block boundaries) should use this executor
+     * instead of creating ad-hoc thread pools.
+     */
+    default List<DecompressionCodec> decompressionCodecs(Settings settings, ExecutorService executor) {
+        return decompressionCodecs(settings);
+    }
+
     // Complete external source factories
     default Map<String, ExternalSourceFactory> sourceFactories(Settings settings) {
         return Map.of();
@@ -99,7 +127,7 @@ public interface DataSourcePlugin {
 
     // FIXME: the methods below are superseded by sourceFactories() and ExternalSourceFactory capabilities.
     // Migrate plugins from connectors()/tableCatalogs() to sourceFactories(),
-    // and from operatorFactories()/filterPushdownSupport() to ExternalSourceFactory methods.
+    // and from operatorFactories() to ExternalSourceFactory methods.
     default Map<String, TableCatalogFactory> tableCatalogs(Settings settings) {
         return Map.of();
     }
@@ -112,11 +140,16 @@ public interface DataSourcePlugin {
         return Map.of();
     }
 
-    default Map<String, FilterPushdownSupport> filterPushdownSupport(Settings settings) {
-        return Map.of();
-    }
-
     default List<NamedWriteableRegistry.Entry> namedWriteables() {
         return List.of();
+    }
+
+    /**
+     * CRUD-time validators for datasource and dataset settings, keyed by type name.
+     * Receives node {@link Settings} so implementations can read cluster admin overrides
+     * (e.g. limits, allowed auth modes, default field values) when constructing validators.
+     */
+    default Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        return Map.of();
     }
 }

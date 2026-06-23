@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.core.inference.usage.ModelStats;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
@@ -23,9 +24,11 @@ import java.util.Set;
 import static org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder.RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_AUTO_PREFILTERING;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_BFLOAT16_SUPPORT;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID;
@@ -66,6 +69,7 @@ public class InferenceFeatures implements FeatureSpecification {
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
     public static final NodeFeature INFERENCE_CCM_CACHE = new NodeFeature("inference.ccm.cache");
+    public static final NodeFeature INFERENCE_OAUTH2_TOKEN_CACHE = new NodeFeature("inference.oauth2.token_cache");
     public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING = new NodeFeature(
         "text_similarity_reranker_inference_id_chunking"
@@ -77,14 +81,15 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature INFERENCE_CCM_ENABLEMENT_SERVICE = new NodeFeature("inference.ccm.enablement_service");
 
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
-
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
+    public static final NodeFeature SEMANTIC_TEXT_EMBEDDING_TASK = new NodeFeature("semantic_text.inference_using_embedding_task");
 
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
             INFERENCE_ENDPOINT_CACHE,
             INFERENCE_CCM_CACHE,
+            INFERENCE_OAUTH2_TOKEN_CACHE,
             INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
             INFERENCE_CCM_ENABLEMENT_SERVICE,
             EMBEDDING_TASK_TYPE,
@@ -142,9 +147,15 @@ public class InferenceFeatures implements FeatureSpecification {
                 RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER,
                 TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING,
                 TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING,
-                EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE
+                EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE,
+                SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS,
+                SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES,
+                SEMANTIC_TEXT_EMBEDDING_TASK
             )
         );
+        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
+            testFeatures.add(SemanticFieldMapper.SEMANTIC_FIELD_MAPPER);
+        }
         testFeatures.addAll(getFeatures());
         return testFeatures;
     }

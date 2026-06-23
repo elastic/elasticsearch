@@ -11,17 +11,21 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,18 +41,34 @@ import static org.hamcrest.Matchers.equalTo;
 public class SumOverTimeTests extends AbstractAggregationTestCase {
     public SumOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+        if (testCase.getData().getFirst().type().isHistogram()) {
+            testCase = testCase.withInjectNullTemporality();
+        }
+    }
+
+    @Override
+    protected boolean canSerialize() {
+        return false;
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
-        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).map(SumOverTimeTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
@@ -103,7 +123,54 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new SumOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
+        return new SumOverTime(source, args.get(0), AggregateFunction.NO_WINDOW, Literal.NULL);
+    }
+
+    @Override
+    public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateIntermediate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testGroupingAggregate() {
+        if (testCase.getData().getFirst().type() == DataType.EXPONENTIAL_HISTOGRAM) {
+            // Can't execute the aggregator because additional inputs (e.g. timestamp) are missing; verify the surrogate structure instead.
+            assertExpHistogramSurrogate(buildFieldExpression(testCase));
+            return;
+        }
+        super.testGroupingAggregate();
+    }
+
+    private void assertExpHistogramSurrogate(Expression expression) {
+        assumeTrue("expression should have no type errors", expression.typeResolved().resolved());
+        Expression surrogate = ((SurrogateExpression) expression).surrogate();
+        assertNotNull(surrogate);
+        assertTrue(
+            "expected ExtractHistogramComponent, got: " + surrogate.getClass().getSimpleName(),
+            surrogate instanceof ExtractHistogramComponent
+        );
+        ExtractHistogramComponent extract = (ExtractHistogramComponent) surrogate;
+        assertTrue("expected HistogramMergeOverTime", extract.field() instanceof HistogramMergeOverTime);
+        assertEquals(HistogramBlock.Component.SUM.ordinal(), ((Literal) extract.componentOrdinal()).value());
+    }
+
+    @Override
+    public void testFold() {
+        assumeFalse(
+            "exponential histogram fold tested via HistogramMergeOverTimeTests",
+            testCase.getData().getFirst().type() == DataType.EXPONENTIAL_HISTOGRAM
+        );
+        super.testFold();
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
@@ -112,11 +179,19 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
 
             DataType type = fieldTypedData.type().widenSmallNumeric();
             var data = fieldTypedData.multiRowData();
+            String expectedWarning = null;
             Object expected = null;
             if (data.isEmpty() == false) {
                 expected = switch (type) {
                     case INTEGER -> data.stream().mapToLong(v -> (int) v).sum();
-                    case LONG -> data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                    case LONG -> {
+                        try {
+                            yield data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                        } catch (ArithmeticException e) {
+                            expectedWarning = e.toString();
+                            yield null;
+                        }
+                    }
                     case DOUBLE -> data.stream().mapToDouble(v -> (double) v).sum();
                     case AGGREGATE_METRIC_DOUBLE -> data.stream()
                         .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
@@ -124,7 +199,7 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
                     case EXPONENTIAL_HISTOGRAM -> {
                         var sums = data.stream()
                             .map(obj -> (ExponentialHistogram) obj)
-                            .filter(obj -> obj.valueCount() > 0)
+                            .filter(obj -> obj.isEmpty() == false)
                             .mapToDouble(ExponentialHistogram::sum)
                             .toArray();
                         yield sums.length == 0 ? null : Arrays.stream(sums).sum();
@@ -153,6 +228,13 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
                 standardAggregatorName(type == DataType.DOUBLE ? "LossySum" : "Sum", fieldSupplier.type()),
                 returnType,
                 expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
+            ).withWarnings(
+                expectedWarning == null
+                    ? null
+                    : List.of(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: " + expectedWarning
+                    )
             );
         });
     }

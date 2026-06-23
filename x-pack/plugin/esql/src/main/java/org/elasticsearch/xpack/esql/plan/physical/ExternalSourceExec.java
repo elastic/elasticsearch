@@ -11,13 +11,21 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -40,7 +48,7 @@ import java.util.Objects;
  *       {@link #sourceMetadata()} and passed through without core understanding it</li>
  *   <li><b>Opaque pushed filter</b>: The {@link #pushedFilter()} is an opaque Object that only
  *       the source-specific operator factory interprets. It is NOT serialized; it is created
- *       locally on each data node by the LocalPhysicalPlanOptimizer via FilterPushdownRegistry</li>
+ *       locally on each data node by the LocalPhysicalPlanOptimizer via FormatReader.filterPushdownSupport()</li>
  *   <li><b>Data node execution</b>: Created on data nodes by LocalMapper from
  *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation} inside FragmentExec</li>
  * </ul>
@@ -54,6 +62,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     );
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
+    private static final TransportVersion DATA_SOURCE_ENCRYPTED_DATA = TransportVersion.fromName("data_source_encrypted_data");
 
     private final String sourcePath;
     private final String sourceType;
@@ -61,9 +70,24 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Map<String, Object> config;
     private final Map<String, Object> sourceMetadata;
     private final Object pushedFilter; // Opaque filter - NOT serialized, created locally on data nodes
+    private final List<Expression> pushedExpressions; // NOT serialized - ESQL expressions for per-file re-translation
     private final int pushedLimit; // NOT serialized, set locally on data nodes
+    /**
+     * Transient hint that the data above this source is a STATS aggregation followed by a TopN over a single
+     * grouping key. When present, the {@link BlockHash} can prune non-competitive groups during aggregation.
+     * NOT serialized; set locally on each node by {@code PushTopNIntoExternalSource}.
+     */
+    @Nullable
+    private final BlockHash.TopNDef pushedTopN;
     private final Integer estimatedRowSize;
-    private final FileSet fileSet; // NOT serialized - resolved on coordinator, null on data nodes
+    private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
+    // Coordinator-only — not serialized. Drives FileSplit.readSchema + UBN SchemaAdaptingIterator.
+    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+    // Coordinator-only — not serialized. The pre-prune Unified schema. Survives the optimizer's
+    // projection prune of `attributes` so split discovery can narrow per-file ColumnMappings to
+    // the post-prune Query schema without rebuilding Unified names from per-file mappings.
+    @Nullable
+    private final ExternalSchema unifiedSchema;
     private final List<ExternalSplit> splits;
 
     public ExternalSourceExec(
@@ -75,7 +99,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Map<String, Object> sourceMetadata,
         Object pushedFilter,
         Integer estimatedRowSize,
-        FileSet fileSet
+        FileList fileList
     ) {
         this(
             source,
@@ -85,9 +109,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
-            fileSet,
+            fileList,
+            Map.of(),
             List.of()
         );
     }
@@ -102,7 +128,87 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Object pushedFilter,
         int pushedLimit,
         Integer estimatedRowSize,
-        FileSet fileSet,
+        FileList fileList,
+        List<ExternalSplit> splits
+    ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            List.of(),
+            pushedLimit,
+            estimatedRowSize,
+            fileList,
+            Map.of(),
+            splits
+        );
+    }
+
+    /**
+     * Public 13-arg ctor used by {@link #info()} (via constructor reference) and by tree tests.
+     * Passes {@code null} for {@code unifiedSchema}; callers that need to carry the Unified schema
+     * (e.g. {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec})
+     * apply it afterwards via {@link #withUnifiedSchema(ExternalSchema)}.
+     */
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        List<Expression> pushedExpressions,
+        int pushedLimit,
+        Integer estimatedRowSize,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        List<ExternalSplit> splits
+    ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            null,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            null,
+            splits
+        );
+    }
+
+    /**
+     * Primary constructor that also accepts the transient {@link BlockHash.TopNDef} hint for in-hash TopN pruning
+     * and the coordinator-only {@link ExternalSchema} that carries the pre-prune Unified schema. Package-private on purpose
+     * so the public, longest constructor (used by tooling and tree tests) remains the thirteen-arg one above.
+     * Use {@link #withPushedTopN(BlockHash.TopNDef)} and {@link #withUnifiedSchema(ExternalSchema)} from outside the package.
+     */
+    ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        List<Expression> pushedExpressions,
+        int pushedLimit,
+        @Nullable BlockHash.TopNDef pushedTopN,
+        Integer estimatedRowSize,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        @Nullable ExternalSchema unifiedSchema,
         List<ExternalSplit> splits
     ) {
         super(source);
@@ -121,9 +227,13 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.config = config != null ? Map.copyOf(config) : Map.of();
         this.sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
         this.pushedFilter = pushedFilter;
+        this.pushedExpressions = pushedExpressions != null ? List.copyOf(pushedExpressions) : List.of();
         this.pushedLimit = pushedLimit;
+        this.pushedTopN = pushedTopN;
         this.estimatedRowSize = estimatedRowSize;
-        this.fileSet = fileSet;
+        this.fileList = fileList;
+        this.schemaMap = schemaMap != null ? schemaMap : Map.of();
+        this.unifiedSchema = unifiedSchema;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
     }
 
@@ -145,9 +255,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             List.of()
         );
     }
@@ -169,9 +281,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             List.of()
         );
     }
@@ -198,9 +312,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             splits
         );
     }
@@ -211,7 +327,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         out.writeString(sourcePath);
         out.writeString(sourceType);
         out.writeNamedWriteableCollection(attributes);
-        out.writeGenericValue(config);
+        // Encrypted secrets in _datasource ride to data nodes that support the carrier; strip them for
+        // older targets, which cannot deserialize the carrier and revert to prior behavior.
+        out.writeGenericValue(
+            out.getTransportVersion().supports(DATA_SOURCE_ENCRYPTED_DATA) ? config : ExternalSourceResolver.planConfig(config)
+        );
         out.writeGenericValue(sourceMetadata);
         out.writeOptionalVInt(estimatedRowSize);
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)) {
@@ -249,6 +369,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return pushedFilter;
     }
 
+    public List<Expression> pushedExpressions() {
+        return pushedExpressions;
+    }
+
     public int pushedLimit() {
         return pushedLimit;
     }
@@ -257,8 +381,17 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return estimatedRowSize;
     }
 
-    public FileSet fileSet() {
-        return fileSet;
+    public FileList fileList() {
+        return fileList;
+    }
+
+    public Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap() {
+        return schemaMap;
+    }
+
+    @Nullable
+    public ExternalSchema unifiedSchema() {
+        return unifiedSchema;
     }
 
     public List<ExternalSplit> splits() {
@@ -274,9 +407,13 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
+            pushedTopN,
             estimatedRowSize,
-            fileSet,
+            fileList,
+            schemaMap,
+            unifiedSchema,
             newSplits
         );
     }
@@ -290,9 +427,33 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             newFilter,
+            pushedExpressions,
             pushedLimit,
+            pushedTopN,
             estimatedRowSize,
-            fileSet,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits
+        );
+    }
+
+    public ExternalSourceExec withPushedFilterAndExpressions(Object newFilter, List<Expression> newPushedExpressions) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            newFilter,
+            newPushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -306,9 +467,104 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             newLimit,
+            pushedTopN,
             estimatedRowSize,
-            fileSet,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits
+        );
+    }
+
+    /**
+     * Returns a copy of this source with the given output attribute list. Used by
+     * {@code InsertExternalFieldExtraction} to narrow the source's projection (sort keys +
+     * predicate columns) and inject a synthetic {@code _rowPosition} attribute that the paired
+     * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec} consumes.
+     * <p>
+     * Every other field — including pushed filter, pushed limit, splits, and the source path — is
+     * preserved. The new attribute list is not validated against the source's reader schema; the
+     * caller (the optimizer rule) is responsible for ensuring it is a valid subset plus
+     * {@code _rowPosition}. Serialization is unaffected because attributes are part of the wire
+     * format already.
+     */
+    public ExternalSourceExec withAttributes(List<Attribute> newAttributes) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            newAttributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits
+        );
+    }
+
+    /**
+     * Returns a copy of this source annotated with the given Top-N grouping hint. See {@link #pushedTopN()}.
+     */
+    public ExternalSourceExec withPushedTopN(@Nullable BlockHash.TopNDef newPushedTopN) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            newPushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits
+        );
+    }
+
+    /**
+     * The Top-N grouping hint set by {@code PushTopNIntoExternalSource}, or {@code null} if no Top-N pruning
+     * should be performed during hash aggregation. This is a transient local-execution hint; it is never
+     * serialized and is re-derived independently on each node.
+     */
+    @Nullable
+    public BlockHash.TopNDef pushedTopN() {
+        return pushedTopN;
+    }
+
+    /**
+     * Returns a copy of this source carrying the given pre-prune Unified schema. See {@link #unifiedSchema()}.
+     * Applied by {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()} after
+     * construction so the Unified schema does not appear in {@link #info()} (which would let the optimizer's
+     * attribute-rewriting rules prune it along with {@code attributes}).
+     */
+    public ExternalSourceExec withUnifiedSchema(@Nullable ExternalSchema newUnifiedSchema) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            newUnifiedSchema,
             splits
         );
     }
@@ -329,15 +585,25 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
+            pushedTopN,
             newEstimatedRowSize,
-            fileSet,
+            fileList,
+            schemaMap,
+            unifiedSchema,
             splits
         );
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
+        // pushedTopN: excluded — transient local-execution hint; including it would break the
+        // node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters. Preserved via
+        // explicit with* methods; rendered in nodeString() for debuggability.
+        // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
+        // in info() and would prune the Unified schema along with `attributes`, defeating its
+        // whole purpose. Preserved through with* methods which carry it explicitly.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,
@@ -347,9 +613,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
             estimatedRowSize,
-            fileSet,
+            fileList,
+            schemaMap,
             splits
         );
     }
@@ -363,9 +631,13 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
+            pushedTopN,
             estimatedRowSize,
-            fileSet,
+            fileList,
+            schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -387,26 +659,49 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(config, other.config)
             && Objects.equals(sourceMetadata, other.sourceMetadata)
             && Objects.equals(pushedFilter, other.pushedFilter)
+            && Objects.equals(pushedExpressions, other.pushedExpressions)
             && pushedLimit == other.pushedLimit
+            && Objects.equals(pushedTopN, other.pushedTopN)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
-            && Objects.equals(fileSet, other.fileSet)
+            && Objects.equals(fileList, other.fileList)
+            && Objects.equals(schemaMap, other.schemaMap)
+            && Objects.equals(unifiedSchema, other.unifiedSchema)
             && Objects.equals(splits, other.splits);
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        String filterStr = pushedFilter != null ? "[filter=" + pushedFilter + "]" : "";
-        String limitStr = pushedLimit != FormatReader.NO_LIMIT ? "[limit=" + pushedLimit + "]" : "";
-        String splitsStr = splits.isEmpty() == false ? "[splits=" + splits.size() + "]" : "";
-        return nodeName()
-            + "["
-            + sourcePath
-            + "]["
-            + sourceType
-            + "]"
-            + filterStr
-            + limitStr
-            + splitsStr
-            + NodeUtils.toString(attributes, format);
+    public List<Object> nodeProperties() {
+        // config and sourceMetadata may carry SecureString (dataset path) or plaintext String
+        // (inline EXTERNAL path) secrets. Keep them out of EXPLAIN /
+        // debug-log output.
+        return List.of(sourcePath, sourceType, attributes);
+    }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        // sourcePath (external location) and pushedFilter (opaque local-only filter) are free-form
+        // user content — redact under anonymization. sourceType is a low-cardinality format enum.
+        sb.append(nodeName()).append("[").append(mapper.opaque(sourcePath)).append("][").append(sourceType).append("]");
+        if (pushedFilter != null) {
+            sb.append("[filter=").append(mapper.opaque(String.valueOf(pushedFilter))).append("]");
+        }
+        if (pushedLimit != FormatReader.NO_LIMIT) {
+            sb.append("[limit=").append(pushedLimit).append("]");
+        }
+        if (pushedTopN != null) {
+            sb.append("[topN=order:")
+                .append(pushedTopN.order())
+                .append(",asc:")
+                .append(pushedTopN.asc())
+                .append(",nullsFirst:")
+                .append(pushedTopN.nullsFirst())
+                .append(",limit:")
+                .append(pushedTopN.limit())
+                .append("]");
+        }
+        if (splits.isEmpty() == false) {
+            sb.append("[splits=").append(splits.size()).append("]");
+        }
+        NodeUtils.toString(sb, attributes, format, mapper);
     }
 }

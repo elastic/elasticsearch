@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
@@ -43,7 +44,41 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 for (var val : values) {
                     Document document = new Document();
-                    var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                    document.add(new BinaryDocValuesField("field", val));
+                    writer.addDocument(document);
+                }
+
+                // search
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    for (int len = 0; len <= 10; len++) {
+                        long numMatches = searcher.count(new BinaryDocValuesLengthQuery(fieldName, len));
+                        assertEquals(lengthToCount[len], numMatches);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testMultiValueFieldWithOneValue() throws Exception {
+        String fieldName = "field";
+        int numDocs = randomIntBetween(1, 100);
+        List<BytesRef> values = new ArrayList<>();
+        int[] lengthToCount = new int[11];
+        for (int i = 0; i < numDocs; i++) {
+            var val = new BytesRef(randomAlphaOfLength(between(0, 10)));
+            values.add(val);
+            lengthToCount[val.length]++;
+        }
+
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                for (var val : values) {
+                    Document document = new Document();
+                    var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                        "field",
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
                     field.add(val);
                     var countField = NumericDocValuesField.indexedField("field.counts", 1);
                     document.add(field);
@@ -89,7 +124,10 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 for (var valuesForDoc : values) {
                     Document document = new Document();
-                    var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                    var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                        "field",
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
                     for (var val : valuesForDoc) {
                         field.add(val);
                     }
@@ -131,7 +169,10 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 Document document = new Document();
 
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "field",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
                 var countField = NumericDocValuesField.indexedField("field.counts", 1);
                 document.add(field);

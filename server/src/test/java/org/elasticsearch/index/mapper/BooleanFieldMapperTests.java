@@ -91,42 +91,14 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         });
     }
 
-    public void testMultiValueSorted() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "sorted").endObject();
-        }));
-        BooleanFieldMapper mapper = (BooleanFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(
-            mapper.docValuesParameters(),
-            equalTo(
-                new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
-                )
-            )
-        );
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
     }
 
-    public void testMultiValueSortedSetNotAllowed() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        var e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "sorted_set").endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
-        );
-    }
-
-    public void testMultiValueDefaultIsSorted() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        BooleanFieldMapper mapper = (BooleanFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED));
+    @Override
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        return DocValuesType.SORTED_NUMERIC;
     }
 
     public void testSerialization() throws IOException {
@@ -339,14 +311,23 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     private class BooleanSyntheticSourceSupport implements SyntheticSourceSupport {
         Boolean nullValue = usually() ? null : randomBoolean();
         private boolean ignoreMalformed;
+        // boolean fields have doc_values enabled by default, so multi_value: false can always be requested when the feature is on.
+        private final boolean enforceSingleValue = FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+            && randomBoolean();
 
         BooleanSyntheticSourceSupport(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
         }
 
         @Override
+        public boolean enforcesSingleValue() {
+            return enforceSingleValue;
+        }
+
+        @Override
         public SyntheticSourceExample example(int maxVals) throws IOException {
-            if (randomBoolean()) {
+            // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+            if (enforceSingleValue || randomBoolean()) {
                 Tuple<Boolean, Boolean> v = generateValue();
                 return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
             }
@@ -371,6 +352,11 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 b.field("null_value", nullValue);
             }
             b.field("ignore_malformed", ignoreMalformed);
+            if (enforceSingleValue) {
+                b.startObject("doc_values");
+                b.field("multi_value", false);
+                b.endObject();
+            }
         }
 
         @Override
@@ -442,5 +428,19 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             // so skipping doesn't work here.
             new SortShortcutSupport(this::minimalMapping, this::writeField, false)
         );
+    }
+
+    public void testColumnarBooleanArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "boolean").endObject()))
+            .documentMapper();
+        // Mixed order — sorted doc-values order would group all false before all true regardless of input order.
+        boolean v1 = randomBoolean();
+        boolean v2 = randomBoolean();
+        boolean v3 = randomBoolean();
+        boolean v4 = randomBoolean();
+        String src = syntheticSource(mapper, b -> b.array("field", v1, v2, v3, v4));
+        assertThat(src, containsString("\"field\":[" + v1 + "," + v2 + "," + v3 + "," + v4 + "]"));
     }
 }

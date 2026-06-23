@@ -38,12 +38,13 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -84,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -103,6 +106,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -115,6 +119,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
@@ -122,6 +127,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests.metricsAnalyzer;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
@@ -343,6 +349,33 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                 }]""";
             assertNotNull(leaf.get());
             assertThat(leaf.get().stat().toString(), equalTo(expectedStats));
+        }
+    }
+
+    /**
+     * Keyword MV field: detectSingleValue has a false positive when terms.size() == terms.getDocCount().
+     * See SearchContextStats.detectSingleValue(IndexReader, MappedFieldType, String) where this check was wrong for KeywordFieldType.
+     *
+     * doc1: first_name=["A","B"]
+     * doc2: first_name=["A"]
+     * segment has terms.size()=2, getDocCount()=2 which wrongly reported the field as being single-valued.
+     */
+    public void testCountPushDownFor_SpecificDistributionOfMVValues() throws IOException {
+        String properties = EsqlTestUtils.loadUtf8TextFile("/index/mappings/mapping-basic.json");
+        String mapping = "{\"mappings\": " + properties + "}";
+        String keywordQuery = """
+            from test
+            | stats c = count(first_name)
+            """;
+        List<List<String>> keywordMvCasesWithoutPushdown = List.of(
+            List.of("{ \"first_name\" : [\"A\", \"B\"] }", "{ \"first_name\" : [\"A\"] }")
+        );
+
+        PhysicalPlan plan;
+        for (List<String> docs : keywordMvCasesWithoutPushdown) {
+            plan = planWithMappingAndDocs(keywordQuery, mapping, docs);
+            // No EsSatsQueryExec as leaf of the plan.
+            assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
         }
     }
 
@@ -898,7 +931,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * LimitExec[1000[INTEGER],12]
      * \_AggregateExec[[language_code{r}#8],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#8],FINAL,[l
      * anguage_code{r}#8, $$c$count{r}#33, $$c$seen{r}#34],12]
@@ -911,7 +944,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *             \_EvalExec[[null[INTEGER] AS languages#22]]
      *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags
      *               [[QueryBuilderAndTags[query=null, tags=[]]]]
-     * }</pre>
+     * }
      */
     public void testMissingFieldsPurgesTheJoinLocallyThroughCommands() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
@@ -2427,7 +2460,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testTranslateMetricsGroupedByTwoDimension() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster, pod";
-        var plan = plannerOptimizerTimeSeries.plan(query);
+        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
         var project = as(plan, ProjectExec.class);
         var unpack = as(project.child(), EvalExec.class);
         var limit = as(unpack.child(), LimitExec.class);
@@ -2446,7 +2479,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         FieldExtractExec readMetrics = as(partialAgg.child(), FieldExtractExec.class);
         assertThat(
             Expressions.names(readMetrics.attributesToExtract()),
-            containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in")
+            containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", TemporalityAttribute.NAME)
         );
         as(readMetrics.child(), EsQueryExec.class);
     }
@@ -2482,7 +2515,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testLimitByNotPushedToSource() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | limit 10 by first_name
@@ -2502,7 +2534,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testLimitByMultipleKeys() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | limit 5 by first_name, last_name
@@ -2521,7 +2552,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testLimitByWithFilter() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | where salary > 1000
@@ -2543,8 +2573,53 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(source.query(), is(not(nullValue())));
     }
 
+    /**
+     * {@code
+     * ProjectExec[[first_name{f}#10, last_name{f}#13, salary{f}#14, languages{f}#12]]
+     * \_TopNByExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],108]
+     *   \_ExchangeExec[[first_name{f}#10, languages{f}#12, last_name{f}#13, salary{f}#14],false]
+     *     \_ProjectExec[[first_name{f}#10, languages{f}#12, last_name{f}#13, salary{f}#14]]
+     *       \_FieldExtractExec[first_name{f}#10, last_name{f}#13][],[]
+     *         \_TopNByExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],128]
+     *           \_FieldExtractExec[salary{f}#14, languages{f}#12][],[]
+     *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#20], limit[], sort[] estimatedRowSize[12]
+     *             queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * }
+     */
+    public void testSortWithLimitBy() {
+        String query = """
+             FROM test
+            | SORT salary DESC NULLS LAST
+            | LIMIT 5 BY languages
+            | KEEP first_name, last_name, salary, languages""";
+        PhysicalPlan plan = plannerOptimizer.plan(query);
+
+        var project = as(plan, ProjectExec.class);
+        var limit = as(project.child(), LimitExec.class);
+        var topNBy = as(limit.child(), TopNByExec.class);
+
+        assertThat(as(as(topNBy.limitPerGroup(), Literal.class).value(), Integer.class), equalTo(5));
+        assertThat(topNBy.groupings(), hasSize(1));
+        var fieldAttr = as(topNBy.groupings().get(0), FieldAttribute.class);
+        assertThat(fieldAttr.name(), equalTo("languages"));
+
+        var topNOrder = topNBy.order();
+        assertThat(topNOrder.size(), equalTo(1));
+        var order = as(topNOrder.get(0), Order.class);
+        assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+
+        var exchangeExec = as(topNBy.child(), ExchangeExec.class);
+        var projectDataNode = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractDataNode = as(projectDataNode.child(), FieldExtractExec.class);
+        var topNExec = as(fieldExtractDataNode.child(), TopNByExec.class);
+        var fieldExtractExec = as(topNExec.child(), FieldExtractExec.class);
+        var esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+    }
+
     private boolean isMultiTypeEsField(Expression e) {
-        return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
+        return e instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField;
     }
 
     private Stat queryStatsFor(PhysicalPlan plan) {
@@ -2689,5 +2764,158 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         public String esqlQuery() {
             return "knn(" + fieldName() + ", " + Arrays.toString(((float[]) queryString())) + ", " + k + ")";
         }
+    }
+
+    // ── date_range pushdown tests ──────────────────────────────────────────────
+
+    private Analyzer mvDecadesAnalyzer() {
+        var mapping = loadMapping("mapping-mv_decades.json");
+        var index = EsIndexGenerator.esIndex("mv_decades", mapping, Map.of("mv_decades", IndexMode.STANDARD));
+        return makeAnalyzer(IndexResolution.valid(index));
+    }
+
+    /**
+     * RANGE_WITHIN(date_range_field, literal_range) pushes a WITHIN range query to Lucene
+     * and keeps a FilterExec in the plan for row-level recheck (RECHECK semantics).
+     */
+    public void testRangeWithinDateRangeFieldPushdown() {
+        assumeTrue("requires DATE_RANGE_FIELD_TYPE_V6", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            FROM mv_decades
+            | WHERE range_within(date_range, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+            """, EsqlTestUtils.TEST_SEARCH_STATS, mvDecadesAnalyzer());
+
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        // PushFiltersToSource runs at fixed-point; on the second pass the initial range query is wrapped in a bool filter.
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                    .to("1970-01-01T00:00:00.000Z", false)
+                    .format("strict_date_optional_time")
+                    .relation("within")
+            )
+        );
+        assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * RANGE_WITHIN(date_field, literal_range) pushes a plain range query to Lucene (no relation, date field)
+     * and keeps FilterExec for recheck.
+     */
+    public void testRangeWithinDateFieldPushdown() {
+        assumeTrue("requires DATE_RANGE_FIELD_TYPE_V6", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            FROM mv_decades
+            | WHERE range_within(event_dates, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+            """, EsqlTestUtils.TEST_SEARCH_STATS, mvDecadesAnalyzer());
+
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                    .to("1970-01-01T00:00:00.000Z", false)
+                    .format("strict_date_optional_time")
+            )
+        );
+        assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * RANGE_INTERSECTS(date_range_field, literal_range) pushes an INTERSECTS range query to Lucene
+     * and keeps FilterExec for recheck.
+     */
+    public void testRangeIntersectsDateRangeFieldPushdown() {
+        assumeTrue("requires DATE_RANGE_FIELD_TYPE_V6", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            FROM mv_decades
+            | WHERE range_intersects(date_range, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+            """, EsqlTestUtils.TEST_SEARCH_STATS, mvDecadesAnalyzer());
+
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                    .to("1970-01-01T00:00:00.000Z", false)
+                    .format("strict_date_optional_time")
+                    .relation("intersects")
+            )
+        );
+        assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * RANGE_INTERSECTS(date_field, literal_range) pushes a plain range query to Lucene (no relation)
+     * and keeps FilterExec for recheck.
+     */
+    public void testRangeIntersectsDateFieldPushdown() {
+        assumeTrue("requires DATE_RANGE_FIELD_TYPE_V6", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            FROM mv_decades
+            | WHERE range_intersects(event_dates, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+            """, EsqlTestUtils.TEST_SEARCH_STATS, mvDecadesAnalyzer());
+
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                    .to("1970-01-01T00:00:00.000Z", false)
+                    .format("strict_date_optional_time")
+                    .relation("intersects")
+            )
+        );
+        assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * RANGE_CONTAINS(date_range_field, date_literal) is lowered to RANGE_WITHIN(date_literal, date_range_field)
+     * via surrogate, which pushes a CONTAINS range query to Lucene and keeps FilterExec for recheck.
+     */
+    public void testRangeContainsDateRangeFieldPushdown() {
+        assumeTrue("requires DATE_RANGE_FIELD_TYPE_V6", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            FROM mv_decades
+            | WHERE range_contains(date_range, TO_DATETIME("1965-06-01T00:00:00.000Z"))
+            """, EsqlTestUtils.TEST_SEARCH_STATS, mvDecadesAnalyzer());
+
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("date_range").from("1965-06-01T00:00:00.000Z", true)
+                    .to("1965-06-01T00:00:00.000Z", true)
+                    .format("strict_date_optional_time")
+                    .relation("contains")
+            )
+        );
+        assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
 }

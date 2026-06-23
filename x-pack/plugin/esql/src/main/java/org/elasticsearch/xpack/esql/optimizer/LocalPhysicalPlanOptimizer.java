@@ -12,28 +12,30 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertExternalFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNIntoExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsByExactStats;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeDocValuesExtraction;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.esql.rule.Rule;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -44,7 +46,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     protected Logger log = LogManager.getLogger(getClass());
 
-    private static final List<Batch<PhysicalPlan>> RULES = rules(true);
+    private static final List<Batch<PhysicalPlan>> RULES = rules();
 
     private final PhysicalVerifier verifier = PhysicalVerifier.LOCAL_INSTANCE;
 
@@ -70,30 +72,26 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return RULES;
     }
 
-    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(10);
-        esSourceRules.add(new ReplaceSourceAttributes());
-        if (optimizeForEsSource) {
-            esSourceRules.add(new PushTopNToSource());
-            esSourceRules.add(new PushLimitToSource());
-            esSourceRules.add(new PushLimitToExternalSource());
-            esSourceRules.add(new PushFiltersToSource());
-            esSourceRules.add(new PushSampleToSource());
-        }
-        esSourceRules.add(new ReplaceSampledStatsByExactStats());
-        if (optimizeForEsSource) {
-            esSourceRules.add(new PushStatsToSource());
-            esSourceRules.add(new PushStatsToExternalSource());
-            esSourceRules.add(new EnableSpatialDistancePushdown());
-        }
-        esSourceRules.add(new ReplaceSampledStatsBySampleAndStats());
-        if (optimizeForEsSource) {
-            esSourceRules.add(new PushSampleToSource());
-        }
-
+    protected static List<Batch<PhysicalPlan>> rules() {
         // execute the rules multiple times to improve the chances of things being pushed down
-        @SuppressWarnings("unchecked")
-        var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
+        var pushdown = new Batch<>(
+            "Push to ES",
+            Limiter.DEFAULT,
+            new ReplaceSourceAttributes(),
+            new PushTopNToSource(),
+            new PushLimitToSource(),
+            new PushLimitToExternalSource(),
+            new PushFiltersToSource(),
+            new PushSampleToSource(),
+            new ReplaceSampledStatsByExactStats(),
+            new PushStatsToSource(),
+            new PushStatsToExternalSource(),
+            new PushAggregatesToExternalSource(),
+            new PushTopNIntoExternalSource(),
+            new EnableSpatialDistancePushdown(),
+            new ReplaceSampledStatsBySampleAndStats(),
+            new PushSampleToSource()
+        );
 
         // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
         // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
@@ -110,12 +108,20 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var fieldExtraction = new Batch<>(
             "Field extraction",
             Limiter.ONCE,
+            new PushExpressionsToFieldLoad(), // It's important for this to run after Query and Tags
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
-            new SpatialShapeDocValuesExtraction()
+            new SpatialShapeDocValuesExtraction(),
+            // Runs after PushTopNIntoExternalSource (which lives in the pushdown batch above) so we
+            // see the surviving TopN nodes that did not get fully pushed into the source. Inserts
+            // an ExternalFieldExtractExec above each remaining TopN whose source supports it.
+            // The narrowed source projection ({@code [sortKey, _rowPosition]}) this rule produces
+            // is also the precondition the planner's {@code tryBuildNumericTopN} checks before
+            // swapping in the specialised {@code NumericTopNOperator}.
+            new InsertExternalFieldExtraction()
         );
 
-        return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
+        return List.of(pushdown, substitutionRules, fieldExtraction);
     }
 }

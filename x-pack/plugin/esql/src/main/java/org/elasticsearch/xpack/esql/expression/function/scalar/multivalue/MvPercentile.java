@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -49,6 +50,9 @@ public class MvPercentile extends EsqlScalarFunction {
         "MvPercentile",
         MvPercentile::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvPercentile.class)
+        .binary(MvPercentile::new)
+        .name("mv_percentile");
 
     /**
      * 2^52 is the smallest integer where it and all smaller integers can be represented exactly as double
@@ -60,6 +64,7 @@ public class MvPercentile extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long" },
+        briefSummary = "Calculates the percentile of all values in a multi-value field.",
         description = "Converts a multivalued field into a single valued field containing "
             + "the value at which a certain percentage of observed values occur.",
         examples = @Example(file = "mv_percentile", tag = "example")

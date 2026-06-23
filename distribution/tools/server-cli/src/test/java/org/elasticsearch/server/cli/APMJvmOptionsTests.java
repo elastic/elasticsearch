@@ -12,6 +12,7 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.Properties;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -47,19 +49,23 @@ public class APMJvmOptionsTests extends ESTestCase {
     private Path installDir;
     private Path agentPath;
     private String otelMetricsEnabled;
+    private String otelTracesEnabled;
 
     @Before
     public void setup() throws IOException, UserException {
         otelMetricsEnabled = System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
+        otelTracesEnabled = System.getProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY);
         installDir = makeFakeAgentJar();
         agentPath = APMJvmOptions.findAgentJar(installDir.toAbsolutePath().toString());
         clearSystemProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
+        clearSystemProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY);
     }
 
     @After
     public void cleanup() throws IOException {
         Files.delete(agentPath);
         restoreSystemProperty(otelMetricsEnabled, OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
+        restoreSystemProperty(otelTracesEnabled, OTEL_TRACES_ENABLED_SYSTEM_PROPERTY);
     }
 
     public void testFindJar() throws IOException {
@@ -161,9 +167,10 @@ public class APMJvmOptionsTests extends ESTestCase {
 
         assertFalse(options.isEmpty());
 
-        Properties properties = extractProperties(tempDir);
+        Properties properties = extractProperties(options);
         assertThat(properties.getProperty("metrics_interval"), equalTo("120s"));
         assertNull(properties.getProperty("disable_metrics"));
+        assertThat(extractDynamicOption(options, "transaction_sample_rate"), equalTo("0.001"));
     }
 
     public void testAPMAgentMetricsDisabledWhenOtelMetricsEnabled() throws Exception {
@@ -179,23 +186,63 @@ public class APMJvmOptionsTests extends ESTestCase {
 
         assertFalse(options.isEmpty());
 
-        Properties properties = extractProperties(tempDir);
+        Properties properties = extractProperties(options);
         assertThat(properties.getProperty("metrics_interval"), equalTo("0s"));
         assertThat(properties.getProperty("disable_metrics"), equalTo("*"));
+        assertThat(extractDynamicOption(options, "transaction_sample_rate"), equalTo("0.001"));
     }
 
-    private static Properties extractProperties(Path tempDir) throws IOException {
-        Properties properties = new Properties();
-        Path configPath;
-        try (var files = Files.list(tempDir)) {
-            configPath = files.filter(
-                p -> p.getFileName().toString().startsWith(".elstcapm") && p.getFileName().toString().endsWith(".tmp")
-            ).findFirst().orElseThrow(() -> new AssertionError("expected temp APM config file"));
+    public void testAPMAgentTracesDisabledWhenOtelTracesEnabled() throws Exception {
+        setSystemProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "true");
+        Path tempDir = createTempDir();
+        List<String> options = APMJvmOptions.apmJvmOptions(
+            Settings.builder().put("telemetry.agent.server_url", "https://myurl:443").build(),
+            null,
+            createTempDir(),
+            tempDir,
+            installDir.toAbsolutePath().toString()
+        );
+
+        assertFalse(options.isEmpty());
+
+        assertThat(extractDynamicOption(options, "transaction_sample_rate"), equalTo("0"));
+        Properties properties = extractProperties(options);
+        assertThat(properties.getProperty("metrics_interval"), equalTo("120s"));
+        assertNull(properties.getProperty("disable_metrics"));
+    }
+
+    private static String extractDynamicOption(List<String> options, String key) {
+        String prefix = "-Delastic.apm." + key + "=";
+        for (String option : options) {
+            if (option.startsWith(prefix)) {
+                return option.substring(prefix.length());
+            }
         }
+        return null;
+    }
+
+    private static Properties extractProperties(List<String> options) throws IOException {
+        Path configPath = findApmConfigPath(options);
+        Properties properties = new Properties();
         try (InputStream inputStream = Files.newInputStream(configPath)) {
             properties.load(inputStream);
         }
         return properties;
+    }
+
+    private static Path findApmConfigPath(List<String> options) {
+        for (String inputArgument : options) {
+            if (inputArgument.startsWith("-javaagent:")) {
+                int configIndex = inputArgument.lastIndexOf("=c=");
+                if (configIndex > 0) {
+                    final Path apmConfig = PathUtils.get(inputArgument.substring(configIndex + 3));
+                    if (Files.isRegularFile(apmConfig) && apmConfig.getFileName().toString().matches(Node.APM_PROPFILE_REGEX)) {
+                        return apmConfig;
+                    }
+                }
+            }
+        }
+        throw new AssertionError("Expected temp APM config file. Options were: " + options);
     }
 
     private Path makeFakeAgentJar() throws IOException {

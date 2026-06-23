@@ -20,8 +20,8 @@ import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -38,6 +38,8 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -132,8 +134,7 @@ public class VectorScorerBQBenchmark {
             queries[i] = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
         }
 
-        int[] randomNodes = IntStream.range(0, numVectors).map(x -> random.nextInt(0, numVectors)).toArray();
-
+        int[] randomNodes = randomNodes(numVectors, random);
         return new VectorData(indexVectors, queries, VectorUtil.dotProduct(centroid, centroid), randomNodes);
     }
 
@@ -165,6 +166,7 @@ public class VectorScorerBQBenchmark {
         scorer = switch (implementation) {
             case SCALAR -> new DefaultES93BinaryQuantizedVectorScorer(input, dims, indexVectorLengthInBytes);
             case VECTORIZED -> ESVectorizationProvider.getInstance()
+                .getVectorScorerFactory()
                 .newES93BinaryQuantizedVectorScorer(input, dims, indexVectorLengthInBytes);
         };
         scratchScores = new float[NUM_VECTORS];
@@ -262,5 +264,12 @@ public class VectorScorerBQBenchmark {
             System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS, scratchScores.length);
         }
         return results;
+    }
+
+    /** Returns a randomly ordered array of unique node IDs in [0, size). */
+    static int[] randomNodes(int size, Random random) {
+        var nodeList = new ArrayList<>(IntStream.range(0, size).boxed().toList());
+        Collections.shuffle(nodeList, random);
+        return nodeList.stream().mapToInt(Integer::intValue).toArray();
     }
 }

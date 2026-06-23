@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Unit tests for AzureConfiguration.
@@ -23,17 +24,21 @@ import java.util.Map;
  */
 public class AzureConfigurationTests extends ESTestCase {
 
-    private static final Source SOURCE = Source.EMPTY;
-
-    public void testFromParamsWithAllFields() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("connection_string", literal("DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key"));
-        params.put("account", literal("myaccount"));
-        params.put("key", literal("mykey"));
-        params.put("sas_token", literal("?sv=2020-01-01"));
-        params.put("endpoint", literal("https://myaccount.blob.core.windows.net"));
-
-        AzureConfiguration config = AzureConfiguration.fromParams(params);
+    public void testFromMapWithAllFields() {
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of(
+                "connection_string",
+                "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key",
+                "account",
+                "myaccount",
+                "key",
+                "mykey",
+                "sas_token",
+                "?sv=2020-01-01",
+                "endpoint",
+                "https://myaccount.blob.core.windows.net"
+            )
+        );
 
         assertNotNull(config);
         assertEquals("DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key", config.connectionString());
@@ -44,23 +49,18 @@ public class AzureConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testFromParamsWithConnectionStringOnly() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("connection_string", literal("DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key"));
-
-        AzureConfiguration config = AzureConfiguration.fromParams(params);
+    public void testFromMapWithConnectionStringOnly() {
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of("connection_string", "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key")
+        );
 
         assertNotNull(config);
         assertEquals("DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key", config.connectionString());
         assertTrue(config.hasCredentials());
     }
 
-    public void testFromParamsWithAccountAndKey() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("account", literal("myaccount"));
-        params.put("key", literal("mykey"));
-
-        AzureConfiguration config = AzureConfiguration.fromParams(params);
+    public void testFromMapWithAccountAndKey() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("account", "myaccount", "key", "mykey"));
 
         assertNotNull(config);
         assertEquals("myaccount", config.account());
@@ -68,23 +68,16 @@ public class AzureConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testFromParamsWithNullMapReturnsNull() {
-        AzureConfiguration config = AzureConfiguration.fromParams(null);
-        assertNull(config);
+    public void testFromMapWithNullMapReturnsNull() {
+        assertNull(AzureConfiguration.fromMap(null));
     }
 
-    public void testFromParamsWithEmptyMapReturnsNull() {
-        AzureConfiguration config = AzureConfiguration.fromParams(new HashMap<>());
-        assertNull(config);
+    public void testFromMapWithEmptyMapReturnsNull() {
+        assertNull(AzureConfiguration.fromMap(new HashMap<>()));
     }
 
-    public void testFromParamsWithNoAzureParamsReturnsNull() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("other_param", literal("value"));
-
-        AzureConfiguration config = AzureConfiguration.fromParams(params);
-
-        assertNull(config);
+    public void testFromMapWithUnknownParamsThrows() {
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("other_param", "value")));
     }
 
     public void testFromFieldsWithAllFields() {
@@ -100,8 +93,7 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testFromFieldsWithAllNullReturnsNull() {
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null);
-        assertNull(config);
+        assertNull(AzureConfiguration.fromFields(null, null, null, null, null));
     }
 
     public void testHasCredentialsWithConnectionString() {
@@ -124,6 +116,13 @@ public class AzureConfigurationTests extends ESTestCase {
         assertFalse(config.hasCredentials());
     }
 
+    public void testHasCredentialsWithWhitespaceSasTokenIsAbsent() {
+        // A whitespace-only SAS token is treated as absent (consistent with S3/GCS short-lived tokens),
+        // so it does not count as credentials.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, "account", null, "   ", null);
+        assertFalse(config.hasCredentials());
+    }
+
     public void testEqualsAndHashCodeSameValues() {
         AzureConfiguration config1 = AzureConfiguration.fromFields("cs", "acc", "key", "sas", "ep");
         AzureConfiguration config2 = AzureConfiguration.fromFields("cs", "acc", "key", "sas", "ep");
@@ -137,6 +136,18 @@ public class AzureConfigurationTests extends ESTestCase {
         AzureConfiguration config2 = AzureConfiguration.fromFields("cs2", "acc", "key", "sas", "ep");
 
         assertNotEquals(config1, config2);
+    }
+
+    public void testNotEqualsWithDifferentSasToken() {
+        AzureConfiguration config1 = AzureConfiguration.fromFields(null, "acc", null, "sas1", "ep");
+        AzureConfiguration config2 = AzureConfiguration.fromFields(null, "acc", null, "sas2", "ep");
+        assertNotEquals(config1, config2);
+    }
+
+    public void testSasTokenAbsentByDefault() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, "account", "key", null, null);
+        assertNotNull(config);
+        assertNull(config.sasToken());
     }
 
     public void testAuthNone() {
@@ -153,15 +164,15 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testAuthNoneConflictsWithConnectionString() {
-        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none"));
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none"));
     }
 
     public void testAuthNoneConflictsWithAccountKey() {
-        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none"));
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none"));
     }
 
     public void testAuthNoneConflictsWithSasToken() {
-        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none"));
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none"));
     }
 
     public void testAuthNoneAllowsEndpoint() {
@@ -171,15 +182,108 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testUnsupportedAuthValueThrows() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> AzureConfiguration.fromFields(null, null, null, null, "https://ep", "unsupported")
-        );
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, null, null, null, "https://ep", "unsupported"));
     }
 
-    private Literal literal(Object value) {
-        Object literalValue = value instanceof String s ? new BytesRef(s) : value;
-        DataType dataType = value instanceof String ? DataType.KEYWORD : DataType.KEYWORD;
-        return new Literal(SOURCE, literalValue, dataType);
+    public void testFromMapRejectsUnknownKeys() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("account", "acc");
+        raw.put("header_row", false);
+        ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(raw));
+        assertThat(e.getMessage(), containsString("unknown setting [header_row]"));
+    }
+
+    public void testFromQueryConfigDropsUnknownKeys() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("account", "myaccount");
+        raw.put("key", "mykey");
+        raw.put("endpoint", "https://ep");
+        raw.put("header_row", false);
+        raw.put("column_prefix", "f");
+
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(raw);
+        AzureConfiguration config = result.value();
+        assertNotNull(config);
+        assertEquals("myaccount", config.account());
+        assertEquals("mykey", config.key());
+        assertEquals("https://ep", config.endpoint());
+        assertThat(result.consumedKeys(), containsInAnyOrder("account", "key", "endpoint"));
+    }
+
+    public void testFromQueryConfigWithSasToken() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("account", "myaccount");
+        raw.put("sas_token", "?sv=2020-01-01");
+        raw.put("header_row", false);
+
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(raw);
+        AzureConfiguration config = result.value();
+        assertNotNull(config);
+        assertEquals("?sv=2020-01-01", config.sasToken());
+        assertTrue(config.hasCredentials());
+        assertThat(result.consumedKeys(), containsInAnyOrder("account", "sas_token"));
+    }
+
+    public void testFromQueryConfigStillEnforcesAuthConflict() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("auth", "none");
+        raw.put("connection_string", "connstr");
+        raw.put("header_row", false);
+        ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromQueryConfig(raw));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
+    }
+
+    public void testFromQueryConfigWithOnlyUnknownKeysReturnsNull() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("header_row", false);
+        raw.put("column_prefix", "f");
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(raw);
+        assertNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
+    }
+
+    public void testFromQueryConfigWithNullReturnsNull() {
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(null);
+        assertNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
+    }
+
+    public void testKeylessAuthWithAllFields() {
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of("tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "api://AzureADTokenExchange")
+        );
+
+        assertNotNull(config);
+        assertEquals("my-tenant", config.tenantId());
+        assertEquals("my-client", config.clientId());
+        assertEquals("api://AzureADTokenExchange", config.jwtAudience());
+        assertTrue(config.hasKeylessAuth());
+        assertFalse(config.hasCredentials());
+    }
+
+    public void testKeylessAuthRequiresAllFields() {
+        ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant")));
+        assertThat(e.getMessage(), containsString("client_id is required when keyless authentication settings are configured"));
+        assertThat(e.getMessage(), containsString("jwt_audience is required when keyless authentication settings are configured"));
+    }
+
+    public void testKeylessAuthConflictsWithExplicitCredentials() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromMap(
+                Map.of("account", "acc", "key", "k", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+            )
+        );
+        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with keyless authentication settings"));
+    }
+
+    public void testKeylessAuthConflictsWithAuthNone() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromMap(
+                Map.of("auth", "none", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+            )
+        );
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with keyless authentication settings"));
     }
 }

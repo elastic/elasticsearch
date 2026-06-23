@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasource.orc;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,7 +41,7 @@ public class OrcDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, FilterPushdownSupport> filterPushdownSupport(Settings settings) {
-        return Map.of("orc", new OrcFilterPushdownSupport());
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(OrcReaderStatus.ENTRY);
     }
 }

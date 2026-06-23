@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -42,12 +43,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 public class Hash extends EsqlScalarFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hash", Hash::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Hash.class).binary(Hash::new).name("hash");
 
     private final Expression algorithm;
     private final Expression input;
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Computes the hash of the input using a specified algorithm.",
         description = "Computes the hash of the input using various algorithms such as MD5, SHA, SHA-224, SHA-256, SHA-384, SHA-512.",
         examples = { @Example(file = "hash", tag = "hash") }
     )

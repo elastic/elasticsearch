@@ -57,10 +57,8 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractIntsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
@@ -326,11 +324,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            "didn't throw while parsing " + source.source().utf8ToString(),
+            "didn't throw while parsing " + source.source().originalBytes().utf8ToString(),
             () -> mapperService.documentMapper().parse(source)
         );
         assertThat(
-            "incorrect exception while parsing " + source.source().utf8ToString(),
+            "incorrect exception while parsing " + source.source().originalBytes().utf8ToString(),
             e.getCause().getMessage(),
             exceptionMessageMatcher
         );
@@ -542,6 +540,48 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMinimalWarnings();
     }
 
+    public void testNotIndexed() throws IOException {
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));
+
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        for (var field : fields) {
+            assertThat(field.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
+        }
+    }
+
+    public void testDisableDefaultIndex() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));
+
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+        var documentMapper = mapperService.documentMapper();
+
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", this.getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        for (var field : fields) {
+            assertThat(field.fieldType().indexOptions(), equalTo(defaultDisabledIndexOption()));
+        }
+    }
+
+    /**
+     * Most field types default to disabled indexing when IndexSettings.INDEX_DISABLED_BY_DEFAULT is set.
+     * Text-like fields are the notable exception.
+     */
+    protected IndexOptions defaultDisabledIndexOption() {
+        return IndexOptions.NONE;
+    }
+
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {
@@ -660,8 +700,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return result.get();
     }
 
-    protected static void assertScriptDocValues(MapperService mapperService, Object sourceValue, Matcher<List<?>> dvMatcher)
-        throws IOException {
+    protected void assertScriptDocValues(MapperService mapperService, Object sourceValue, Matcher<List<?>> dvMatcher) throws IOException {
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", sourceValue))).rootDoc());
         }, iw -> {
@@ -677,6 +716,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     mapperService.getIndexSettings(),
                     () -> searchLookup,
                     Set::of,
+                    () -> false,
                     MappedFieldType.FielddataOperation.SCRIPT
                 )
             ).build(null, null);
@@ -688,11 +728,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     private class UpdateCheck {
+        final String paramName;
         final XContentBuilder init;
         final XContentBuilder update;
         final Consumer<FieldMapper> check;
 
-        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check) throws IOException {
+        private UpdateCheck(String paramName, CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check)
+            throws IOException {
+            this.paramName = paramName;
             this.init = fieldMapping(MapperTestCase.this::minimalMapping);
             this.update = fieldMapping(b -> {
                 minimalMapping(b);
@@ -702,10 +745,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         private UpdateCheck(
+            String paramName,
             CheckedConsumer<XContentBuilder, IOException> init,
             CheckedConsumer<XContentBuilder, IOException> update,
             Consumer<FieldMapper> check
         ) throws IOException {
+            this.paramName = paramName;
             this.init = fieldMapping(init);
             this.update = fieldMapping(update);
             this.check = check;
@@ -730,7 +775,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         public void registerUpdateCheck(String param, CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check)
             throws IOException {
             checkedParameters.add(param);
-            updateChecks.add(new UpdateCheck(update, check));
+            updateChecks.add(new UpdateCheck(param, update, check));
         }
 
         /**
@@ -748,7 +793,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             Consumer<FieldMapper> check
         ) throws IOException {
             checkedParameters.add(param);
-            updateChecks.add(new UpdateCheck(init, update, check));
+            updateChecks.add(new UpdateCheck(param, init, update, check));
         }
 
         /**
@@ -802,13 +847,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
+    private static FieldMapper.Builder findChildBuilder(String name, MappingBuilder mappings) {
+        for (Mapper.Builder child : mappings.rootBuilder().getChildBuilders()) {
+            if (name.equals(child.leafName()) && child instanceof FieldMapper.Builder mb) {
+                return mb;
+            }
+        }
+        return null;
+    }
+
     public void testAllParametersAreChecked() throws IOException {
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);
 
-        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        FieldMapper.Builder builder = mapper.getMergeBuilder();
+        MappingBuilder rootBuilder = parseMappings(fieldMapping(this::minimalMapping));
+        FieldMapper.Builder builder = findChildBuilder("field", rootBuilder);
         assumeTrue("mapper does not provide a merge builder", builder != null);
         checker.ensureAllParametersAreCovered(builder);
         assertParseMinimalWarnings();
@@ -862,6 +915,52 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             );
         }
         assertParseMaximalWarnings();
+    }
+
+    public void testParameterSerialization() throws IOException {
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+
+        for (UpdateCheck updateCheck : checker.updateChecks) {
+            String initSerialized = serializeMapping(createMapperService(updateCheck.init));
+            String updateSerialized = serializeMapping(createMapperService(updateCheck.update));
+            assertTrue(
+                "serialized mapping for update check on ["
+                    + updateCheck.paramName
+                    + "] should contain the parameter name"
+                    + " in either init or update mapping. Init: "
+                    + initSerialized
+                    + "; Update: "
+                    + updateSerialized,
+                initSerialized.contains(updateCheck.paramName) || updateSerialized.contains(updateCheck.paramName)
+            );
+        }
+
+        for (Map.Entry<String, ConflictCheck> entry : checker.conflictChecks.entrySet()) {
+            String param = entry.getKey();
+            ConflictCheck conflictCheck = entry.getValue();
+            String initSerialized = serializeMapping(createMapperService(conflictCheck.init));
+            String updateSerialized = serializeMapping(createMapperService(conflictCheck.update));
+            assertTrue(
+                "serialized mapping for conflict check on ["
+                    + param
+                    + "] should contain the parameter name"
+                    + " in either init or update mapping. Init: "
+                    + initSerialized
+                    + "; Update: "
+                    + updateSerialized,
+                initSerialized.contains(param) || updateSerialized.contains(param)
+            );
+        }
+
+        assertParseMaximalWarnings();
+    }
+
+    private static String serializeMapping(MapperService mapperService) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        mapperService.documentMapper().mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        return Strings.toString(builder);
     }
 
     public final void testTextSearchInfoConsistency() throws IOException {
@@ -1142,7 +1241,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SearchLookup lookup = new SearchLookup(
             f -> fieldType,
             (f, s, t) -> { throw new UnsupportedOperationException(); },
-            (ctx, docid) -> Source.fromBytes(doc.source())
+            (ctx, docid) -> Source.fromBytes(doc.source().originalBytes())
         );
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
@@ -1255,6 +1354,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         default boolean ignoreAbove() {
+            return false;
+        }
+
+        /**
+         * @return true when the field enforces single-value semantics (ie. {@code doc_values.multi_value: false}). In such cases, a doc
+         * with more than one value for the field is rejected at parse time and {@link #example} must only produce single-valued documents.
+         */
+        default boolean enforcesSingleValue() {
             return false;
         }
 
@@ -1667,8 +1774,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceKeepArrays() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ARRAYS)
-            .example(1);
+        SyntheticSourceSupport support = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ARRAYS);
+        assumeFalse("multi_value: false rejects documents with more than one value", support.enforcesSingleValue());
+        SyntheticSourceExample example = support.example(1);
         DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", randomSyntheticSourceKeep());
@@ -1712,17 +1820,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testSingletonIntBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton int reading", supportsBulkIntBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractIntsFromDocValuesBlockLoader.Singleton) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton) columnAtATimeReader);
     }
 
     public void testSingletonLongBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (LongsBlockLoader.Singleton) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton) columnAtATimeReader);
     }
 
     public void testSingletonDoubleBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton double reading", supportsBulkDoubleBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (DoublesBlockLoader.Singleton) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton) columnAtATimeReader);
     }
 
     private void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
@@ -1747,6 +1855,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     var doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + value))).rootDoc();
                     iw.addDocument(doc);
                 }
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));
@@ -1778,6 +1887,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 iw.addDocument(doc);
                 doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
                 iw.addDocument(doc);
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));
@@ -1822,6 +1932,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 iw.addDocument(doc);
                 doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
                 iw.addDocument(doc);
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));
@@ -1830,14 +1941,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 try (BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(context).apply(breaker)) {
-                    assertThat(
-                        columnReader,
-                        anyOf(
-                            instanceOf(LongsBlockLoader.Sorted.class),
-                            instanceOf(DoublesBlockLoader.Sorted.class),
-                            instanceOf(AbstractIntsFromDocValuesBlockLoader.Singleton.class)
-                        )
-                    );
                     var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.get(0), equalTo(expectedSampleValues[0]));
@@ -1969,6 +2072,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         mapperService.getIndexSettings(),
                         () -> null,
                         Set::of,
+                        () -> false,
                         MappedFieldType.FielddataOperation.SEARCH
                     )
                 ).build(null, null).sortField(false, IndexVersion.current(), null, MultiValueMode.MIN, null, false);
@@ -1997,7 +2101,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     MappedFieldType ft = mapperService.fieldType(sortShortcutSupport.fieldname);
                     SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
                         throw new UnsupportedOperationException();
-                    }, Set::of, MappedFieldType.FielddataOperation.SEARCH))
+                    }, Set::of, () -> false, MappedFieldType.FielddataOperation.SEARCH))
                         .build(null, null)
                         .sortField(false, getVersion(), null, MultiValueMode.MIN, null, false);
                     var comparator = sortField.getComparator(1, Pruning.GREATER_THAN_OR_EQUAL_TO);
@@ -2091,5 +2195,163 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
         }
+    }
+
+    /**
+     * Whether this mapper exposes the {@code doc_values.multi_value} sub-parameter. Override and return {@code true} for mappers that
+     * participate in single-value enforcement; also override {@link #expectedDocValuesTypeForMultiValueFalse()} to declare the Lucene
+     * doc-values type produced when {@code multi_value=false}.
+     */
+    protected boolean supportsMultiValueParameter() {
+        return false;
+    }
+
+    /**
+     * The Lucene {@link DocValuesType} produced for a field mapped with {@code multi_value=false}. Override when
+     * {@link #supportsMultiValueParameter()} returns {@code true}.
+     * <p>
+     * {@code multi_value=false} fields always use the multi-valued sortable Lucene types ({@code SORTED_NUMERIC} / {@code SORTED_SET})
+     * so that index sorting works correctly at segment-merge time. Single-valuedness is enforced at parse time instead.
+     */
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        throw new UnsupportedOperationException(
+            "Override expectedDocValuesTypeForMultiValueFalse() when supportsMultiValueParameter() returns true"
+        );
+    }
+
+    public void testMultiValueFalseAcceptsSingleValue() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        assertEquals(1, doc.rootDoc().getFields("field").stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
+    }
+
+    public void testMultiValueFalseRejectsArray() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", getSampleValueForDocument(), getSampleValueForDocument())))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    public void testMultiValueFalseDocValuesType() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse("expected at least one indexable field for [field]", fields.isEmpty());
+        boolean hasDocValuesField = false;
+        for (IndexableField f : fields) {
+            DocValuesType dvType = f.fieldType().docValuesType();
+            if (dvType != DocValuesType.NONE) {
+                hasDocValuesField = true;
+                assertEquals(
+                    "multi_value=false must use the sortable multi-valued doc values type",
+                    expectedDocValuesTypeForMultiValueFalse(),
+                    dvType
+                );
+            }
+        }
+        assertTrue("expected a doc values field for [field]", hasDocValuesField);
+    }
+
+    /**
+     * Verifies the block loader read path for a field mapped with {@code doc_values.multi_value: false}. The on-disk doc-values
+     * format is the same as for multi-valued fields (single-valuedness is enforced at parse time only), but the block loader must
+     * still return correct results for single-valued documents.
+     *
+     * <p>For field types whose default mapping also supports column-at-a-time doc-values loading we assert that the two mappings produce
+     * identical blocks, including {@code null} for the sparse middle document. For field types whose default mapping uses source-based
+     * row-stride loading (e.g. {@code text}) the column-at-a-time path is only enabled by {@code multi_value: false}; in that case we
+     * only verify the structural invariant: docs 0 and 2 are non-null, doc 1 is null.
+     */
+    public void testMultiValueFalseBlockLoader() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+
+        // getSampleValueForDocument() is deterministic for most types, so a single call is enough.
+        Object sample = getSampleValueForDocument();
+
+        MapperService mvFalse = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        MapperService defaults = createMapperService(fieldMapping(this::minimalMapping));
+
+        Object[] mvFalseBlock = loadThreeDocs(mvFalse, sample);
+        assumeTrue("field must support column-at-a-time doc-values loading", mvFalseBlock != null);
+        Object[] defaultBlock = loadThreeDocs(defaults, sample);
+
+        if (defaultBlock != null) {
+            // Both mappings support column-at-a-time: assert identical encoded values.
+            assertThat(mvFalseBlock[0], equalTo(defaultBlock[0]));
+            assertThat(mvFalseBlock[1], nullValue());          // sparse / unset middle document
+            assertThat(mvFalseBlock[2], equalTo(defaultBlock[2]));
+        } else {
+            // Default mapping reads from source (no doc-values); multi_value:false adds doc-values, enabling the
+            // column-at-a-time path. Verify the structural invariant: present docs are non-null, sparse is null.
+            assertNotNull(mvFalseBlock[0]);
+            assertThat(mvFalseBlock[1], nullValue());          // sparse / unset middle document
+            assertNotNull(mvFalseBlock[2]);
+        }
+    }
+
+    /**
+     * Indexes three documents — {@code [sample, <empty>, sample]} — force-merges to one segment, and loads the field's block via the
+     * column-at-a-time reader with {@link MappedFieldType.FieldExtractPreference#DOC_VALUES}. Returns the three loaded values, or
+     * {@code null} when the field type has no column-at-a-time reader (e.g. source-only loaders), so the caller can skip via
+     * {@code assumeTrue}.
+     */
+    private Object[] loadThreeDocs(MapperService mapperService, Object sample) throws IOException {
+        DocumentMapper mapper = mapperService.documentMapper();
+        Object[] result = new Object[3];
+        boolean[] supported = { true };
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapper.parse(source(b -> b.field("field", sample))).rootDoc());
+            iw.addDocument(mapper.parse(source(b -> {})).rootDoc());
+            iw.addDocument(mapper.parse(source(b -> b.field("field", sample))).rootDoc());
+            iw.forceMerge(1);
+        }, reader -> {
+            assertThat(reader.leaves(), hasSize(1));
+            LeafReaderContext ctx = reader.leaves().get(0);
+            BlockLoader blockLoader = mapperService.fieldType("field")
+                .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
+                    @Override
+                    public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                        return MappedFieldType.FieldExtractPreference.DOC_VALUES;
+                    }
+                });
+            var columnReaderSource = blockLoader.columnAtATimeReader(ctx);
+            if (columnReaderSource == null) {
+                supported[0] = false;
+                return;
+            }
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+            try (BlockLoader.ColumnAtATimeReader columnReader = columnReaderSource.apply(breaker)) {
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
+                assertThat(block.size(), equalTo(3));
+                result[0] = block.get(0);
+                result[1] = block.get(1);
+                result[2] = block.get(2);
+            }
+        });
+        return supported[0] ? result : null;
     }
 }

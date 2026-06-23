@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -51,11 +53,17 @@ public class JsonExtract extends EsqlScalarFunction {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
     private static final BytesRef FALSE_BYTES = new BytesRef("false");
 
+    /** Emitted when {@code _source} bytes arrive null at evaluation time — typically a disabled-source mapping. */
+    private static final String NULL_SOURCE_MESSAGE = "_source is null; this typically means the index has _source disabled in its mapping";
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "JsonExtract",
         JsonExtract::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(JsonExtract.class)
+        .binary(JsonExtract::new)
+        .name("json_extract");
 
     private final Expression str;
     private final Expression path;
@@ -64,6 +72,7 @@ public class JsonExtract extends EsqlScalarFunction {
         returnType = "keyword",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        briefSummary = "Extracts a value from a JSON string using JSONPath syntax.",
         description = """
             Extracts a value from a JSON string using a subset of
             [JSONPath](https://datatracker.ietf.org/doc/rfc9535) syntax.""",
@@ -99,7 +108,21 @@ public class JsonExtract extends EsqlScalarFunction {
 
             This function does not support wildcards (`*`), recursive descent
             (`..`), array slicing (`[0:3]`), filter expressions
-            (`?(@.price<10)`), or negative array indices (`[-1]`).""",
+            (`?(@.price<10)`), or negative array indices (`[-1]`).
+
+            When called with [`_source`][source], this function reads
+            `_source` as Elasticsearch returns it. On indices using
+            [synthetic `_source`][synthetic], Elasticsearch reconstructs
+            `_source` from stored data when documents are retrieved, so the
+            JSON the function sees can differ from the original document.
+            See [synthetic `_source` modifications][modifications] for the
+            changes that apply — for example, arrays are moved to leaves,
+            fields are named as in the mapping, and object keys are sorted
+            alphabetically.
+
+            [source]: /reference/elasticsearch/mapping-reference/mapping-source-field.md
+            [synthetic]: /reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source
+            [modifications]: /reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-modifications""",
         examples = {
             @Example(file = "json_extract", tag = "json_extract"),
             @Example(file = "json_extract", tag = "json_extract_dollar", description = """
@@ -216,7 +239,7 @@ public class JsonExtract extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
-    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed JsonPath path) {
+    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed(jitConstant = true) JsonPath path) {
         doExtract(builder, str, path);
     }
 
@@ -338,23 +361,64 @@ public class JsonExtract extends EsqlScalarFunction {
                         int end = (int) endLocation.byteOffset() + rawOffset;
                         builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
                     } else {
-                        // Fallback if offsets are unavailable (shouldn't happen for JSON)
-                        copyCurrentStructureFallback(builder, parser);
+                        // Standard if offsets are unavailable (shouldn't happen for JSON)
+                        copyCurrentStructureStandard(builder, parser);
                     }
                 } else {
                     // Non-JSON format (SMILE/CBOR/YAML) — must re-serialize to JSON
-                    copyCurrentStructureFallback(builder, parser);
+                    copyCurrentStructureStandard(builder, parser);
                 }
             }
             default -> throw new IllegalArgumentException("unexpected token: " + token);
         }
     }
 
-    private static void copyCurrentStructureFallback(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
+    private static void copyCurrentStructureStandard(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
         try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             jsonBuilder.copyCurrentStructure(parser);
             builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
         }
+    }
+
+    /**
+     * SOURCE-typed entry points. Opt out of the @Evaluator null short-circuit so a null
+     * source surfaces a warning instead of a silent null. Source is single-value per doc
+     * (asserted); path can be multi-value (canonical single-value warning, like the scalar path).
+     */
+    @Evaluator(
+        extraName = "Source",
+        warnExceptions = { IllegalArgumentException.class, IllegalStateException.class },
+        allNullsIsNull = false
+    )
+    static void processSource(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock strBlock, BytesRefBlock pathBlock) {
+        if (strBlock.isNull(position)) {
+            throw new IllegalStateException(NULL_SOURCE_MESSAGE);
+        }
+        if (pathBlock.isNull(position)) {
+            builder.appendNull();
+            return;
+        }
+        assert strBlock.getValueCount(position) == 1 : "_source is single-value per doc";
+        if (pathBlock.getValueCount(position) != 1) {
+            throw new IllegalArgumentException("single-value function encountered multi-value");
+        }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(position), new BytesRef());
+        BytesRef path = pathBlock.getBytesRef(pathBlock.getFirstValueIndex(position), new BytesRef());
+        doExtract(builder, str, JsonPath.parse(path.utf8ToString()));
+    }
+
+    @Evaluator(
+        extraName = "SourceConstant",
+        warnExceptions = { IllegalArgumentException.class, IllegalStateException.class },
+        allNullsIsNull = false
+    )
+    static void processSourceConstant(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock strBlock, @Fixed JsonPath path) {
+        if (strBlock.isNull(position)) {
+            throw new IllegalStateException(NULL_SOURCE_MESSAGE);
+        }
+        assert strBlock.getValueCount(position) == 1 : "_source is single-value per doc";
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(position), new BytesRef());
+        doExtract(builder, str, path);
     }
 
     @Override
@@ -369,12 +433,19 @@ public class JsonExtract extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        boolean isSource = str.dataType() == DataType.SOURCE;
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
         if (path.foldable()) {
             JsonPath jsonPath = JsonPath.parse(((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString());
+            if (isSource) {
+                return new JsonExtractSourceConstantEvaluator.Factory(source(), strExpr, jsonPath);
+            }
             return new JsonExtractConstantEvaluator.Factory(source(), strExpr, jsonPath);
         }
         ExpressionEvaluator.Factory pathExpr = toEvaluator.apply(path);
+        if (isSource) {
+            return new JsonExtractSourceEvaluator.Factory(source(), strExpr, pathExpr);
+        }
         return new JsonExtractEvaluator.Factory(source(), strExpr, pathExpr);
     }
 

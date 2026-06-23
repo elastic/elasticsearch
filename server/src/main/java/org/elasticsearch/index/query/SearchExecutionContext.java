@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -54,6 +56,8 @@ import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -99,6 +103,16 @@ import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
  */
 public class SearchExecutionContext extends QueryRewriteContext {
 
+    /**
+     * Per-call telemetry for the pre-flight reservation swap in
+     * {@link #addCircuitBreakerMemory(long, long, String)}. Enable at {@code DEBUG} to observe
+     * the {@code reservation/actual} ratio in production and inform tuning of the automaton peak
+     * multiplier used to size the reservation.
+     */
+    private static final Logger CB_RESERVATION_LOGGER = LogManager.getLogger(
+        SearchExecutionContext.class.getCanonicalName() + ".cb.automaton.reservation"
+    );
+
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
     private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup;
@@ -115,6 +129,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
+    @Nullable
+    private String sliceRouting;
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
@@ -298,6 +314,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return aliasFilter;
     }
 
+    // Set slice routing, so it can be applied as a shard-level filter in search context.
+    public void setSliceRouting(@Nullable String sliceRouting) {
+        this.sliceRouting = sliceRouting;
+    }
+
+    @Nullable
+    public String getSliceRouting() {
+        return sliceRouting;
+    }
+
     /**
      * The similarity to use in searches, which takes into account per-field configuration.
      */
@@ -313,7 +339,23 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public List<String> defaultFields() {
-        return indexSettings.getDefaultFields();
+        List<String> fields = indexSettings.getDefaultFields();
+        if (indexSettings.getMode().isStrictColumnar() && fields.size() == 1 && "*".equals(fields.getFirst())) {
+            List<String> indexedFields = new ArrayList<>();
+            for (var mapper : mappingLookup.fieldMappers()) {
+                if (mapper instanceof FieldMapper fieldMapper) {
+                    if (mapper instanceof MetadataFieldMapper) {
+                        continue;
+                    }
+                    var fieldType = fieldMapper.fieldType();
+                    if (fieldType.indexType().hasDenseIndex()) {
+                        indexedFields.add(fieldType.name());
+                    }
+                }
+            }
+            return indexedFields;
+        }
+        return fields;
     }
 
     public boolean queryStringLenient() {
@@ -341,6 +383,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 getIndexSettings(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
+                mapperService.getIdFieldDataEnabled(),
                 fielddataOperation
             )
         );
@@ -529,6 +572,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                     getIndexSettings(),
                     searchLookup,
                     this::sourcePath,
+                    () -> false,
                     fielddataOperation
                 )
             ),
@@ -562,7 +606,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 query = Queries.newMatchNoDocsQuery("No query left after rewrite.");
             }
             return new ParsedQuery(query, copyNamedQueries());
-        } catch (QueryShardException | ParsingException e) {
+        } catch (QueryShardException | ParsingException | CircuitBreakingException e) {
             throw e;
         } catch (Exception e) {
             throw new QueryShardException(this, "failed to create query: {}", e, e.getMessage());
@@ -745,19 +789,61 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Adds memory usage to the circuit breaker for query construction.
-     * <p>
-     * This method tracks memory used during query construction and enforces circuit breaker limits
-     * to prevent excessive memory usage. The tracked memory can later be released using
-     * {@link #releaseQueryConstructionMemory()}.
+     * Returns the circuit breaker used for query construction memory accounting, or {@code null}
+     * if none was configured.
+     */
+    @Nullable
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
+    }
+
+    /**
+     * Adds memory usage to the request circuit breaker, accumulating against this SEC's pool drained by
+     * {@link #releaseQueryConstructionMemory()}; the rewrite-phase clone in {@code SearchService} must not charge here.
      *
-     * @param bytes the number of bytes to add to the circuit breaker
+     * @param bytes the number of bytes to add to the circuit breaker; must be {@code >= 0}
      * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
      */
     public void addCircuitBreakerMemory(long bytes, String label) {
-        if (circuitBreaker != null) {
-            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
-            queryConstructionMemoryUsed.addAndGet(bytes);
+        assert bytes >= 0 : "negative breaker charge: " + bytes + " for [" + label + "]";
+        if (circuitBreaker == null || bytes <= 0) {
+            return;
+        }
+        addCircuitBreakerMemory(bytes, 0L, label);
+    }
+
+    /**
+     * Swap variant of {@link #addCircuitBreakerMemory(long, String)} that replaces a prior
+     * reservation of {@code heldBreakerBytes} with a final charge of {@code bytes}, applying the
+     * net delta as a single breaker operation. A positive delta may trip the breaker; if it does,
+     * the reservation residual remains on the breaker and the request counter until
+     * {@link #releaseQueryConstructionMemory()} runs at request end.
+     * <p>
+     * {@code heldBreakerBytes <= 0} behaves like the single-arg form.
+     * <p>
+     * Used by wildcard / regexp construction to keep the in-flight clause visible to the breaker
+     * across the unguarded {@code CompiledAutomaton} build window.
+     */
+    public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
+        assert bytes >= 0 : "bytes must be non-negative, got " + bytes;
+        if (circuitBreaker == null) {
+            return;
+        }
+        long held = Math.max(heldBreakerBytes, 0L);
+        long delta = bytes - held;
+        if (delta > 0) {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(delta, label);
+        } else if (delta < 0) {
+            circuitBreaker.addWithoutBreaking(delta);
+        }
+        queryConstructionMemoryUsed.addAndGet(delta);
+        if (held > 0 && CB_RESERVATION_LOGGER.isDebugEnabled()) {
+            CB_RESERVATION_LOGGER.debug(
+                "automaton CB reservation swap: actual=[{}] reservation=[{}] label=[{}]",
+                bytes,
+                heldBreakerBytes,
+                label
+            );
         }
     }
 
@@ -769,12 +855,27 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Release all accumulated query construction memory back to the circuit breaker.
+     * Release all accumulated query construction memory back to the circuit breaker. Safe to
+     * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
         long memoryToRelease = queryConstructionMemoryUsed.getAndSet(0);
         if (memoryToRelease > 0 && circuitBreaker != null) {
             circuitBreaker.addWithoutBreaking(-memoryToRelease);
         }
+    }
+
+    /**
+     * Release {@code bytes} of accumulated query construction memory back to the circuit breaker.
+     *
+     * @param bytes the number of bytes to refund; must be {@code >= 0}
+     */
+    public void releaseQueryConstructionMemory(long bytes) {
+        assert bytes >= 0 : "negative refund: " + bytes;
+        if (circuitBreaker == null || bytes <= 0) {
+            return;
+        }
+        circuitBreaker.addWithoutBreaking(-bytes);
+        queryConstructionMemoryUsed.addAndGet(-bytes);
     }
 }

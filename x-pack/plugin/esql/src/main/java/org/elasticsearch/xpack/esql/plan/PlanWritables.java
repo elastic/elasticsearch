@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -30,9 +32,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -55,6 +60,8 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -67,9 +74,12 @@ import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
+import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 
@@ -97,6 +107,7 @@ public class PlanWritables {
             ExternalRelation.ENTRY,
             Filter.ENTRY,
             Grok.ENTRY,
+            Highlight.ENTRY,
             InlineJoin.ENTRY,
             InlineStats.ENTRY,
             Join.ENTRY,
@@ -114,11 +125,15 @@ public class PlanWritables {
             SampledAggregate.ENTRY,
             Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
+            TimeSeriesCollapse.ENTRY,
             TopN.ENTRY,
+            TopNBy.ENTRY,
             UriParts.ENTRY,
+            IpLocation.ENTRY,
             MetricsInfo.ENTRY,
             RegisteredDomain.ENTRY,
-            TsInfo.ENTRY
+            TsInfo.ENTRY,
+            UserAgent.ENTRY
         );
     }
 
@@ -139,6 +154,7 @@ public class PlanWritables {
             FragmentExec.ENTRY,
             GrokExec.ENTRY,
             HashJoinExec.ENTRY,
+            HighlightExec.ENTRY,
             LimitByExec.ENTRY,
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
@@ -150,11 +166,15 @@ public class PlanWritables {
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,
             TimeSeriesAggregateExec.ENTRY,
+            TimeSeriesCollapseExec.ENTRY,
             TopNExec.ENTRY,
+            TopNByExec.ENTRY,
             UriPartsExec.ENTRY,
+            IpLocationExec.ENTRY,
             MetricsInfoExec.ENTRY,
             RegisteredDomainExec.ENTRY,
-            TsInfoExec.ENTRY
+            TsInfoExec.ENTRY,
+            UserAgentExec.ENTRY
         );
     }
 

@@ -18,6 +18,6 @@ public class ES93TSDBDefaultCompressionLucene103Codec extends AbstractTSDBSynthe
     }
 
     public ES93TSDBDefaultCompressionLucene103Codec(Lucene104Codec delegate) {
-        super("ES93TSDBDefaultCompressionLucene103Codec", delegate);
+        super("ES93TSDBDefaultCompressionLucene103Codec", delegate, delegate::getDocValuesFormatForField);
     }
 }

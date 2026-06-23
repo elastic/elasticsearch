@@ -103,10 +103,10 @@ public class EsField implements Writeable {
     private static Map<String, Reader<? extends EsField>> readers = Map.ofEntries(
         Map.entry("DateEsField", DateEsField::new),
         Map.entry("EsField", EsField::new),
-        Map.entry("InvalidMappedField", InvalidMappedField::new),
         Map.entry("KeywordEsField", KeywordEsField::new),
         Map.entry("MissingEsField", MissingEsField::new),
         Map.entry("MultiTypeEsField", MultiTypeEsField::new),
+        Map.entry("CompactMultiTypeEsField", CompactMultiTypeEsField::new),
         Map.entry("PotentiallyUnmappedKeywordEsField", PotentiallyUnmappedKeywordEsField::new),
         Map.entry("TextEsField", TextEsField::new),
         Map.entry("UnsupportedEsField", UnsupportedEsField::new)

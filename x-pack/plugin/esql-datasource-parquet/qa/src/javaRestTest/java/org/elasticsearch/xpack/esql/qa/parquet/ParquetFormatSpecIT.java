@@ -14,10 +14,12 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Parameterized integration tests for standalone Parquet files.
@@ -42,6 +44,11 @@ public class ParquetFormatSpecIT extends AbstractExternalSourceSpecTestCase {
     }
 
     @Override
+    protected String readerName() {
+        return FormatNameResolver.READER_JAVA;
+    }
+
+    @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
@@ -51,8 +58,17 @@ public class ParquetFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return true;
     }
 
+    // Migrated specs run via FROM <dataset> on S3 and via the rebuilt EXTERNAL query on the other backends.
+    // The reader: "java" this IT injects is redundant with the .parquet extension default (FormatNameResolver
+    // maps a .parquet resource to the Java reader with no reader key), so FROM-on-S3 still uses the Java reader;
+    // the explicit reader injection stays exercised on the rebuilt-EXTERNAL backends.
+    @Override
+    protected Set<StorageBackend> datasetModeBackends() {
+        return Set.of(StorageBackend.S3);
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-*.csv-spec");
+        return readExternalSpecTests("/external-*.csv-spec", "/parquet-*.csv-spec");
     }
 }

@@ -56,7 +56,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -77,6 +76,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.shard.MutableOperationGate;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -136,6 +136,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final Engine.IndexCommitListener indexCommitListener;
+    private final MutableOperationGate mutableOperationGate;
     private final IndexCache indexCache;
     private final MapperService mapperService;
     private final XContentParserConfiguration parserConfiguration;
@@ -203,7 +204,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         List<SearchOperationListener> searchOperationListeners,
         List<IndexingOperationListener> indexingOperationListeners,
         NamedWriteableRegistry namedWriteableRegistry,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier idFieldDataEnabled,
         BooleanSupplier allowExpensiveQueries,
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
@@ -211,6 +212,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Engine.IndexCommitListener indexCommitListener,
+        MutableOperationGate mutableOperationGate,
         MapperMetrics mapperMetrics,
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
@@ -242,7 +244,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
                 () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap(), null, null),
-                idFieldMapper,
+                idFieldDataEnabled,
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics,
@@ -268,7 +270,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
-            this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
+            this.warmer = new IndexWarmer(threadPool, indexFieldData, indexSettings, bitsetFilterCache.createListener(threadPool));
             this.indexCache = new IndexCache(queryCache, bitsetFilterCache);
         } else {
             assert indexAnalyzers == null;
@@ -298,6 +300,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.indexCommitListener = indexCommitListener;
+        this.mutableOperationGate = mutableOperationGate;
         this.mapperMetrics = mapperMetrics;
         try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
             // kick off async ops for the first shard in this index
@@ -600,6 +603,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 snapshotCommitSupplier,
                 System::nanoTime,
                 indexCommitListener,
+                mutableOperationGate,
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
@@ -725,6 +729,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void onShardClose(ShardLock lock) {
+        // TODO: A shard may be closed for a reason unrelated to index deletion (e.g. a relocation), yet read
+        // deleted == true because a concurrent index deletion set the flag. It will then end up calling
+        // beforeIndexShardDeleted/afterIndexShardDeleted eventhough it did not own the deletion work.
+        // This is safe because index deletion is a no-return state, and cleanup should be idempotent, but should
+        // eventually be fixed for completeness' sake. See issue #147666.
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
                 try {
@@ -1376,7 +1385,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     /**
      * Clears the caches for the given shard id if the shard is still allocated on this node
      */
-    public boolean clearCaches(boolean queryCache, boolean fieldDataCache, String... fields) {
+    public boolean clearCaches(boolean queryCache, boolean fieldDataCache, boolean requestCache, String... fields) {
         boolean clearedAtLeastOne = false;
         if (queryCache) {
             clearedAtLeastOne = true;
@@ -1392,7 +1401,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             }
         }
-        if (clearedAtLeastOne == false) {
+        if (clearedAtLeastOne == false && requestCache == false) {
             if (fields.length == 0) {
                 indexCache.clear("api");
                 indexFieldData.clear();

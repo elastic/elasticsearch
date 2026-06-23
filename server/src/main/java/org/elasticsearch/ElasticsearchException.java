@@ -36,6 +36,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.OCCNotSupportedException;
 import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.FailureIndexNotSupportedException;
@@ -89,7 +90,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VAL
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.index.SliceIndexing.SLICE_MISSING_EXCEPTION_VERSION;
 import static org.elasticsearch.index.engine.OCCNotSupportedException.OCC_NOT_SUPPORTED_EXCEPTION_VERSION;
+import static org.elasticsearch.index.reindex.TaskRelocatedException.TASK_RELOCATED_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.InvalidProjectRoutingException.INVALID_PROJECT_ROUTING_EXCEPTION_VERSION;
 
@@ -821,7 +824,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Returns a underscore case name for the given exception. This method strips {@code Elasticsearch} prefixes from exception names.
      */
     public static String getExceptionName(Throwable ex) {
-        String simpleName = ex.getClass().getSimpleName();
+        return getExceptionName(ex.getClass());
+    }
+
+    public static String getExceptionName(Class<? extends Throwable> clazz) {
+        String simpleName = clazz.getSimpleName();
         // TODO: do we really need to make the exception name in underscore casing?
         return toUnderscoreCase(simpleName, simpleName.startsWith("Elasticsearch") ? "Elasticsearch".length() : 0);
     }
@@ -2089,6 +2096,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             InvalidProjectRoutingException::new,
             192,
             INVALID_PROJECT_ROUTING_EXCEPTION_VERSION
+        ),
+        TASK_RELOCATED_EXCEPTION(TaskRelocatedException.class, TaskRelocatedException::new, 193, TASK_RELOCATED_EXCEPTION_VERSION),
+        SLICE_MISSING_EXCEPTION(
+            org.elasticsearch.action.SliceMissingException.class,
+            org.elasticsearch.action.SliceMissingException::new,
+            194,
+            SLICE_MISSING_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

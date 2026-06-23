@@ -13,13 +13,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
  * Vector implementation that stores a constant double value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
+public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
 
@@ -36,13 +38,23 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     }
 
     @Override
+    public void copyTo(int srcPosition, double[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public DoubleBlock asBlock() {
         return new DoubleVectorBlock(this);
     }
 
     @Override
-    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantDoubleVector(value, positions.length);
+    public int valueMaxByteSize() {
+        return Double.BYTES;
+    }
+
+    @Override
+    public DoubleVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantDoubleVector(value, length);
     }
 
     @Override

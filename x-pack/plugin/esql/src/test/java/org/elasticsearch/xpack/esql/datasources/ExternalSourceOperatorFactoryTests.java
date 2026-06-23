@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -296,17 +298,22 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         assertEquals(3, capturedObjects.size());
 
-        assertFalse("First split (offset=0) should not be wrapped", capturedObjects.get(0) instanceof RangeStorageObject);
+        assertTrue("First split (offset=0) must use RangeStorageObject", capturedObjects.get(0) instanceof RangeStorageObject);
+        RangeStorageObject range0 = (RangeStorageObject) capturedObjects.get(0);
+        assertEquals(0, range0.offset());
+        assertEquals(1000, range0.length());
         assertFalse("First split should not skip first line", capturedSkipFirstLine.get(0));
 
         assertTrue("Second split (offset=1000) should be wrapped", capturedObjects.get(1) instanceof RangeStorageObject);
         RangeStorageObject range1 = (RangeStorageObject) capturedObjects.get(1);
         assertEquals(1000, range1.offset());
+        assertEquals(1000, range1.length());
         assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(1));
 
         assertTrue("Third split (offset=2000) should be wrapped", capturedObjects.get(2) instanceof RangeStorageObject);
         RangeStorageObject range2 = (RangeStorageObject) capturedObjects.get(2);
         assertEquals(2000, range2.offset());
+        assertEquals(500, range2.length());
         assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(2));
 
         for (Page p : pages) {
@@ -337,6 +344,69 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("500"));
     }
 
+    /**
+     * Regression: {@code COUNT(*)} projects zero data columns (empty {@code queryDataSchema}) while
+     * the per-file mapping is carried at the file's full, non-identity width. The factory must skip
+     * the schema adapter and pass the reader's page through untouched, rather than tripping
+     * {@code SchemaAdaptingIterator}'s "output schema size [0] does not match mapping width [3]" guard.
+     */
+    public void testEmptyDataProjectionWithNonIdentityMappingPassesThrough() throws Exception {
+        // Reorder mapping: width 3, non-identity (so the identity short-circuit does NOT apply).
+        ColumnMapping nonIdentityMapping = new ColumnMapping(new int[] { 2, 1, 0 }, null);
+        FileSplit split = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/headerless.csv"),
+            0,
+            100,
+            "csv",
+            Map.of(FileSplitProvider.LAST_SPLIT_KEY, "true"),
+            Map.of(),
+            nonIdentityMapping
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        SplitCapturingFormatReader formatReader = new SplitCapturingFormatReader(new ArrayList<>(), new ArrayList<>());
+        StubStorageProvider storageProvider = new StubStorageProvider();
+
+        // Empty attributes: COUNT(*) wants no data columns, so queryDataSchema is empty.
+        List<Attribute> attributes = List.of();
+
+        BlockFactory blockFactory = Mockito.mock(BlockFactory.class);
+        DriverContext driverContext = Mockito.mock(DriverContext.class);
+        Mockito.when(driverContext.blockFactory()).thenReturn(blockFactory);
+
+        ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            StoragePath.of("s3://bucket/headerless.csv"),
+            attributes,
+            100,
+            FormatReader.NO_LIMIT,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        // No exception from the schema-adapter width guard; the reader's page flows through.
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals("reader's single page must survive the empty-projection path", 1, pages.size());
+        assertEquals("row count is preserved", 1, pages.get(0).getPositionCount());
+        // Passed through untouched: the reader's block count is preserved, NOT reshaped to the
+        // mapping's width 3 (which is what routing through SchemaAdaptingIterator would have done).
+        assertEquals("page is not reshaped by the schema adapter", 1, pages.get(0).getBlockCount());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
     // ===== Helpers =====
 
     private static Page createTestPage() {
@@ -344,7 +414,8 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         return new Page(block);
     }
 
-    private static class SplitCapturingFormatReader implements FormatReader {
+    private static class SplitCapturingFormatReader implements NoConfigFormatReader {
+
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
 

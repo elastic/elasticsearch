@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
  * Vector implementation that stores an array of boolean values.
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class BooleanArrayVector extends AbstractVector implements BooleanVector {
+public final class BooleanArrayVector extends AbstractVector implements BooleanVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
@@ -79,6 +79,16 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, boolean[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Byte.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BOOLEAN;
     }
@@ -89,9 +99,10 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
     }
 
     @Override
-    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
-        try (BooleanVector.Builder builder = blockFactory().newBooleanVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+    public BooleanVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (BooleanVector.Builder builder = blockFactory().newBooleanVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendBoolean(values[pos]);
             }
             return builder.build();

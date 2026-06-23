@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -101,7 +102,7 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     private static ExternalSourceExec createExternalSourceExec(String sourcePath, String sourceType) {
         List<Attribute> attrs = List.of(fieldAttr("id", DataType.LONG));
-        return new ExternalSourceExec(SRC, sourcePath, sourceType, attrs, Map.of(), Map.of(), null, null, FileSet.UNRESOLVED);
+        return new ExternalSourceExec(SRC, sourcePath, sourceType, attrs, Map.of(), Map.of(), null, null, FileList.UNRESOLVED);
     }
 
     private static Attribute fieldAttr(String name, DataType type) {
@@ -110,6 +111,12 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     private static ExternalSourceFactory testFactory(SplitProvider provider) {
         return new ExternalSourceFactory() {
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                throw new UnsupportedOperationException("test stub does not implement validation");
+            }
+
             @Override
             public String type() {
                 return "test";

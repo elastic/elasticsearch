@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for {@link OrcFilterPushdownSupport} verifying RECHECK semantics.
@@ -39,6 +40,7 @@ public class OrcFilterPushdownSupportTests extends ESTestCase {
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(eq));
 
         assertTrue("Should have pushed filter", result.hasPushedFilter());
+        assertThat(result.pushedFilter(), instanceOf(OrcPushedExpressions.class));
         assertTrue("Remainder must not be empty", result.hasRemainder());
         assertEquals("Remainder must contain all original filters", 1, result.remainder().size());
     }
@@ -87,6 +89,20 @@ public class OrcFilterPushdownSupportTests extends ESTestCase {
     public void testEmptyFilterList() {
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of());
         assertFalse(result.hasPushedFilter());
+    }
+
+    public void testVirtualColumnNotPushable() {
+        // Virtual columns (engine-synthesized _file.* / VirtualAttribute) are not stored as ORC
+        // columns; predicate pushdown must reject them so the engine evaluates the filter after
+        // VirtualColumnIterator injects the constant per-file blocks.
+        org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute virtual =
+            new org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute(SOURCE, "_file.size", DataType.LONG);
+        Expression filter = new Equals(SOURCE, virtual, new Literal(SOURCE, 100L, DataType.LONG));
+
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+        assertFalse(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
     }
 
     // --- Helpers ---

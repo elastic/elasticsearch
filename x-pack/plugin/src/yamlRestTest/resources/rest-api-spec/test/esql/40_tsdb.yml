@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [allowed_warnings_regex, allowed_warnings]
+      test_runner_features: [allowed_warnings_regex, allowed_warnings, capabilities]
   - do:
       indices.create:
           index: test
@@ -183,6 +183,37 @@ setup:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T23:50:04.467Z", "agg_metric": {"sum": 1, "value_count": 10}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+
+  - do:
+      indices.create:
+        index: test_counter_double
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [dim]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              dim:
+                type: keyword
+                time_series_dimension: true
+              value:
+                type: double
+                time_series_metric: counter
+
+  - do:
+      indices.create:
+        index: idx_histogram
+        body:
+          mappings:
+            properties:
+              h:
+                type: histogram
 
 ---
 load everything:
@@ -446,17 +477,17 @@ stats on aggregate_metric_double with partial submetrics missing sum and count:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_avg_as_default_metric]
-      reason: "Support for using avg as default metric with std_dev"
+          capabilities: [aggregate_metric_double_no_rows_count_0]
+      reason: "Fixing count for AMD when no rows"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric), std_dev(agg_metric) BY k8s.pod.uid | SORT k8s.pod.uid'
+          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric), avg(agg_metric), std_dev(agg_metric) BY k8s.pod.uid | SORT k8s.pod.uid'
 
   - length: {values: 2}
-  - length: {values.0: 6}
+  - length: {values.0: 7}
   - match: {columns.0.name: "max(agg_metric)"}
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "min(agg_metric)"}
@@ -465,22 +496,26 @@ stats on aggregate_metric_double with partial submetrics missing sum and count:
   - match: {columns.2.type: "double"}
   - match: {columns.3.name: "count(agg_metric)"}
   - match: {columns.3.type: "long"}
-  - match: {columns.4.name: "std_dev(agg_metric)"}
+  - match: {columns.4.name: "avg(agg_metric)"}
   - match: {columns.4.type: "double"}
-  - match: {columns.5.name: "k8s.pod.uid"}
-  - match: {columns.5.type: "keyword"}
+  - match: {columns.5.name: "std_dev(agg_metric)"}
+  - match: {columns.5.type: "double"}
+  - match: {columns.6.name: "k8s.pod.uid"}
+  - match: {columns.6.type: "keyword"}
   - match: {values.0.0: 10.0}
   - match: {values.0.1: -3.0}
   - match: {values.0.2: null}
-  - match: {values.0.3: null}
+  - match: {values.0.3: 0.0}
   - match: {values.0.4: null}
-  - match: {values.0.5: "947e4ced-1786-4e53-9e0c-5c447e959507"}
+  - match: {values.0.5: null}
+  - match: {values.0.6: "947e4ced-1786-4e53-9e0c-5c447e959507"}
   - match: {values.1.0: 17.0}
   - match: {values.1.1: 2.0}
   - match: {values.1.2: null}
-  - match: {values.1.3: null}
+  - match: {values.1.3: 0.0}
   - match: {values.1.4: null}
-  - match: {values.1.5: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
+  - match: {values.1.5: null}
+  - match: {values.1.6: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
 
 ---
 stats on aggregate_metric_double missing min and max:
@@ -877,7 +912,7 @@ error on rename timestamp:
 ---
 Stats with partial submetrics for aggregate metric double with average as default:
   - requires:
-      test_runner_features: [capabilities, cluster_features]
+      test_runner_features: [capabilities]
       cluster_features: ["aggregate_metric_double.default_metric.deprecated"]
       capabilities:
         - method: POST
@@ -931,7 +966,7 @@ PromQL rate on counter field:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -945,6 +980,10 @@ PromQL rate on counter field:
   - match: {columns.2.name: "k8s.pod.name"}
   - match: {columns.2.type: "keyword"}
   - length: {values: 4}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.1.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.2.1: "2021-04-28T18:52:00.000Z"}
+  - match: {values.3.1: "2021-04-28T18:52:00.000Z"}
 
 ---
 PromQL irate on counter field:
@@ -954,7 +993,7 @@ PromQL irate on counter field:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0, promql_unmapped_fields_filter_nulls]
+          capabilities: [promql_command_v0, promql_unmapped_fields_filter_nulls, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -968,6 +1007,8 @@ PromQL irate on counter field:
   - match: {columns.2.name: "k8s.pod.name"}
   - match: {columns.2.type: "keyword"}
   - length: {values: 2}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.1.1: "2021-04-28T18:51:00.000Z"}
 
 ---
 PromQL increase on counter field:
@@ -977,7 +1018,7 @@ PromQL increase on counter field:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -991,6 +1032,10 @@ PromQL increase on counter field:
   - match: {columns.2.name: "k8s.pod.name"}
   - match: {columns.2.type: "keyword"}
   - length: {values: 4}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.1.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.2.1: "2021-04-28T18:52:00.000Z"}
+  - match: {values.3.1: "2021-04-28T18:52:00.000Z"}
 
 ---
 PromQL max_over_time:
@@ -1000,7 +1045,7 @@ PromQL max_over_time:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -1013,6 +1058,7 @@ PromQL max_over_time:
   - match: {columns.1.type: "date"}
   - length: {values: 1}
   - match: {values.0.0: 20.0}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
 
 ---
 PromQL sum_over_time with grouping:
@@ -1022,7 +1068,7 @@ PromQL sum_over_time with grouping:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -1037,8 +1083,10 @@ PromQL sum_over_time with grouping:
   - match: {columns.2.type: "keyword"}
   - length: {values: 2}
   - match: {values.0.0: 20.0}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
   - match: {values.0.2: "A"}
   - match: {values.1.0: 83.0}
+  - match: {values.1.1: "2021-04-28T18:51:00.000Z"}
   - match: {values.1.2: "B"}
 
 ---
@@ -1049,7 +1097,7 @@ PromQL avg aggregation:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -1061,3 +1109,492 @@ PromQL avg aggregation:
   - match: {columns.1.name: "step"}
   - match: {columns.1.type: "date"}
   - length: {values: 1}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
+
+---
+PromQL unknown function error:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_resolve_unkown]
+      reason: "PromQL support"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m result=(non_existent_function(k8s.pod.network.tx))'
+
+  - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ [0-9]+:[0-9]+:\ Unknown\ PromQL\ function\ \[non_existent_function\]/' }
+
+---
+Stats on aggregate_metric_double with no count, but has sum:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_no_rows_count_0 ]
+      reason: "Fixing count for AMD when no rows"
+
+  - do:
+      indices.create:
+        index: test_no_count
+        body:
+          mappings:
+            properties:
+              amd:
+                type: aggregate_metric_double
+                metrics: [ max, sum ]
+  - do:
+      bulk:
+        refresh: true
+        index: test_no_count
+        body:
+          - '{"index": {}}'
+          - '{"amd": {"max": 10, "sum": 20}}'
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test_no_count | STATS max(amd), sum(amd), count(amd), avg(amd), std_dev(amd) | LIMIT 1'
+
+  - match: {columns.0.name: "max(amd)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "sum(amd)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "count(amd)"}
+  - match: {columns.2.type: "long"}
+  - match: {columns.3.name: "avg(amd)"}
+  - match: {columns.3.type: "double"}
+  - match: {columns.4.name: "std_dev(amd)"}
+  - match: {columns.4.type: "double"}
+  - match: {values.0.0: 10.0}
+  - match: {values.0.1: 20.0}
+  - match: {values.0.2: 0}
+  - match: {values.0.3: null}
+  - match: {values.0.4: null}
+
+---
+'sort by _tsid':
+  - requires:
+      test_runner_features: [ contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ sorting_on_histogram_and_tsid_forbidden ]
+      reason: "sorting on _tsid raises a verification error since this fix"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test METADATA _tsid | SORT _tsid | LIMIT 3'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'cannot sort on _tsid' }
+
+---
+sort by counter_integer:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on counters shouldn't have been possible"
+  - do:
+      catch: /cannot sort on counter_integer/
+      esql.query:
+        body:
+          query: 'from test | sort k8s.pod.network.rx | limit 1'
+
+---
+sort by counter_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on counters shouldn't have been possible"
+  - do:
+      catch: /cannot sort on counter_double/
+      esql.query:
+        body:
+          query: 'from test_counter_double | sort value | limit 1'
+
+---
+sort by histogram:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ sorting_on_histogram_and_tsid_forbidden ]
+      reason: "sorting on histogram raises a verification error since this fix"
+  - do:
+      catch: /cannot sort on histogram/
+      esql.query:
+        body:
+          query: 'from idx_histogram | sort h | limit 3'
+
+---
+PromQL label matcher with named param:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=?_name}[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+          params: [{"_name": "cat"}]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 2}
+  - match: {values.0.2: "cat"}
+  - match: {values.1.2: "cat"}
+
+---
+PromQL label matcher with positional param:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=?1}[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+          params: ["dog"]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 2}
+  - match: {values.0.2: "dog"}
+  - match: {values.1.2: "dog"}
+
+---
+PromQL label matcher with regex multi-value param:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=~?_names}[1m]))) | SORT step, k8s.pod.name | LIMIT 10'
+          params: [{"_names": ["cat", "dog"]}]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL label matcher multi-value with exact matcher promotes to regex:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=?_names}[1m]))) | SORT step, k8s.pod.name | LIMIT 10'
+          params: [{"_names": ["cat", "dog"]}]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL label matcher unknown param error:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      catch: /Parameter \[\?_unknown\] value not found/
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum(rate(k8s.pod.network.tx{k8s.pod.name=?_unknown}[1m])))'
+
+---
+flattened field with time_series_dimensions:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_datatype, flattened_datatype_sorted_keys ]
+      reason: "requires flattened datatype support"
+
+  - do:
+      indices.create:
+        index: test_flattened_tsdb_dim
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              deployment:
+                type: flattened
+                time_series_dimensions: [ "build.tag" ]
+              voltage:
+                type: double
+                time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_flattened_tsdb_dim
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-a", "voltage": 7.2, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-a", "voltage": 7.4, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-b", "voltage": 5.1, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-b", "voltage": 5.3, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+
+  - is_false: errors
+
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM test_flattened_tsdb_dim
+            | WHERE @timestamp == "2021-04-28T18:35:24.467Z"
+            | SORT uid
+            | KEEP uid, deployment, voltage
+            | LIMIT 10
+
+  - match: {columns.0.name: "uid"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "deployment"}
+  - match: {columns.1.type: "flattened"}
+  - match: {columns.2.name: "voltage"}
+  - match: {columns.2.type: "double"}
+  - length: {values: 2}
+  - match: {values.0.0: "host-a"}
+  - match: {values.0.1: {build.tag: "v1.0", region: "us-east-1"}}
+  - match: {values.0.2: 7.2}
+  - match: {values.1.0: "host-b"}
+  - match: {values.1.1: {build.tag: "v2.0", region: "eu-west-1"}}
+  - match: {values.1.2: 5.1}
+
+---
+TS command on flattened field with time_series_dimensions:
+  # The TS command groups by all dimension fields.  For the flattened deployment
+  # field (isDimension=true because build.tag is in time_series_dimensions), ESQL
+  # currently falls back to Values aggregation over the full flattened JSON blob
+  # rather than reading just the dimension sub-key from _tsid.  The grouping still
+  # produces one row per time series because non-dimension keys (region) are
+  # constant within each series in this dataset.
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ ts_command_v0, flattened_datatype, flattened_datatype_sorted_keys ]
+      reason: "requires TS command and flattened datatype support"
+
+  - do:
+      indices.create:
+        index: test_flattened_tsdb_dim_ts
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              deployment:
+                type: flattened
+                time_series_dimensions: [ "build.tag" ]
+              voltage:
+                type: double
+                time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_flattened_tsdb_dim_ts
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-a", "voltage": 7.2, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-a", "voltage": 7.4, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-b", "voltage": 5.1, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-b", "voltage": 5.3, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+
+  - is_false: errors
+
+  - do:
+      esql.query:
+        body:
+          query: |
+            TS test_flattened_tsdb_dim_ts
+            | STATS avg_v = avg(voltage) BY uid, deployment
+            | SORT uid
+            | LIMIT 10
+  - match: {columns.0.name: "avg_v"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "uid"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "deployment"}
+  - match: {columns.2.type: "flattened"}
+  - length: {values: 2}
+  - match: {values.0.0: 7.4}
+  - match: {values.0.1: "host-a"}
+  - match: {values.0.2: {build.tag: "v1.0", region: "us-east-1"}}
+  - match: {values.1.0: 5.3}
+  - match: {values.1.1: "host-b"}
+  - match: {values.1.2: {build.tag: "v2.0", region: "eu-west-1"}}
+
+---
+TS command spurious grouping when non-dimension flattened keys vary:
+  # When non-dimension flattened keys vary within a time series, the Values
+  # fallback for the root flattened field (which is isDimension=true) collects
+  # multiple distinct JSON blobs for the same _tsid.  On a single shard those
+  # blobs stay together in one Pack/Unpack bucket, so the second-pass grouping
+  # sees a multi-valued deployment column for the affected time series.  On
+  # multiple shards the blobs split across shards and produce spurious extra
+  # groups — one per distinct non-dimension value combination — even though
+  # the time series key (uid + build.tag) is the same.
+  #
+  # host-a: build.tag=v1.0 constant, region varies (us-east-1 vs us-east-2)
+  # host-b: build.tag=v2.0 constant, region constant (eu-west-1)
+  #
+  # Expected correct result: 2 rows, one per time series.
+  # Actual result on a single shard: 2 rows, but host-a has a multi-valued
+  # deployment column containing both JSON blobs.
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ ts_command_v0, flattened_datatype, flattened_datatype_sorted_keys ]
+      reason: "requires TS command and flattened datatype support"
+  - do:
+      indices.create:
+        index: test_flattened_tsdb_dim_varying
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              deployment:
+                type: flattened
+                time_series_dimensions: [ "build.tag" ]
+              voltage:
+                type: double
+                time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: test_flattened_tsdb_dim_varying
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-a", "voltage": 7.0, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-a", "voltage": 7.4, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-2"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-b", "voltage": 5.0, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-b", "voltage": 5.4, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+  - is_false: errors
+  # The TS source collapses each time series to its most recent document, so
+  # Values(deployment) sees only one blob per _tsid even though region varied.
+  # For host-a the latest document (18:35:34) has region "us-east-2", so the
+  # earlier region "us-east-1" is silently dropped.  avg_v is likewise the
+  # most-recent voltage (7.4), not the true average (7.2) across both docs.
+  - do:
+      esql.query:
+        body:
+          query: |
+            TS test_flattened_tsdb_dim_varying
+            | STATS avg_v = avg(voltage) BY uid, deployment
+            | SORT uid
+            | LIMIT 10
+  - match: {columns.0.name: "avg_v"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "uid"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "deployment"}
+  - match: {columns.2.type: "flattened"}
+  - length: {values: 2}
+  - match: {values.0.0: 7.4}
+  - match: {values.0.1: "host-a"}
+  - match: {values.0.2: {build.tag: "v1.0", region: "us-east-2"}}
+  - match: {values.1.0: 5.4}
+  - match: {values.1.1: "host-b"}
+  - match: {values.1.2: {build.tag: "v2.0", region: "eu-west-1"}}

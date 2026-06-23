@@ -12,7 +12,9 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
@@ -72,7 +74,7 @@ public class OsProbe {
     private static final Method getFreeSwapSpaceSize;
     private static final Method getTotalSwapSpaceSize;
     private static final Method getSystemLoadAverage;
-    private static final Method getSystemCpuLoad;
+    private static final Method getCpuLoad;
     private static final Method getAvailableProcessors;
 
     static {
@@ -81,7 +83,7 @@ public class OsProbe {
         getFreeSwapSpaceSize = getMethod("getFreeSwapSpaceSize");
         getTotalSwapSpaceSize = getMethod("getTotalSwapSpaceSize");
         getSystemLoadAverage = getMethod("getSystemLoadAverage");
-        getSystemCpuLoad = getMethod("getSystemCpuLoad");
+        getCpuLoad = getMethod("getCpuLoad");
         getAvailableProcessors = getMethod("getAvailableProcessors");
     }
 
@@ -300,7 +302,15 @@ public class OsProbe {
     }
 
     public static short getSystemCpuPercent() {
-        return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
+        return Probes.scaleToPercent(Probes.getLoad(getCpuLoad, osMxBean));
+    }
+
+    /**
+     * Returns the system CPU usage as a value in range [0.0, 1.0]. May return a negative value if the CPU load information is not
+     * available.
+     */
+    public static double getCpuLoad() {
+        return Probes.getLoad(getCpuLoad, osMxBean);
     }
 
     public static int getAvailableProcessors() {
@@ -327,11 +337,20 @@ public class OsProbe {
      * @param path path to the file to read
      * @return the single line
      * @throws IOException if an I/O exception occurs reading the file
+     * @throws IllegalStateException if the file contains zero lines
      */
-    private static String readSingleLine(final Path path) throws IOException {
+    static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
+        if (lines.isEmpty()) {
+            throw new IllegalStateException(Strings.format("File %s is empty, exactly one line was expected", path));
+        }
         assert lines.size() == 1 : String.join("\n", lines);
-        return lines.get(0);
+        return lines.getFirst();
+    }
+
+    @Nullable
+    private static String maybeSingleLine(final List<String> lines) {
+        return lines.size() == 1 ? lines.getFirst() : null;
     }
 
     // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
@@ -353,9 +372,9 @@ public class OsProbe {
              * The virtual file /proc/self/cgroup lists the control groups that the Elasticsearch process is a member of. Each line contains
              * three colon-separated fields of the form hierarchy-ID:subsystem-list:cgroup-path. For cgroups version 1 hierarchies, the
              * subsystem-list is a comma-separated list of subsystems. The subsystem-list can be empty if the hierarchy represents a cgroups
-             * version 2 hierarchy. For cgroups version 1
+             * version 2 hierarchy. The cgroup-path field is a path and may contain additional colons.
              */
-            final String[] fields = line.split(":");
+            final String[] fields = line.split(":", 3);
             assert fields.length == 3;
             final String[] controllers = fields[1].split(",");
             for (final String controller : controllers) {
@@ -381,10 +400,10 @@ public class OsProbe {
      * The lines from {@code /proc/self/cgroup}. This file represents the control groups to which the Elasticsearch process belongs. Each
      * line in this file represents a control group hierarchy of the form
      * <p>
-     * {@code \d+:([^:,]+(?:,[^:,]+)?):(/.*)}
+     * {@code (\d+):((?:[^:,]+(?:,[^:,]+)*)?):(/.*)}
      * <p>
      * with the first field representing the hierarchy ID, the second field representing a comma-separated list of the subsystems bound to
-     * the hierarchy, and the last field representing the control group.
+     * the hierarchy, and the last field representing the control group. The control group is a path and may contain additional colons.
      *
      * @return the lines from {@code /proc/self/cgroup}
      * @throws IOException if an I/O exception occurs reading {@code /proc/self/cgroup}
@@ -421,21 +440,26 @@ public class OsProbe {
         return readSingleLine(PathUtils.get("/sys/fs/cgroup/cpuacct", controlGroup, "cpuacct.usage"));
     }
 
+    @Nullable
     private long[] getCgroupV2CpuLimit(String controlGroup) throws IOException {
-        String entry = readCgroupV2CpuLimit(controlGroup);
+        final var entry = maybeSingleLine(readCgroupV2CpuLimit(controlGroup));
+        if (entry == null) {
+            return null;
+        }
         String[] parts = entry.split("\\s+");
-        assert parts.length == 2 : "Expected 2 fields in [cpu.max]";
+        if (parts.length != 2) {
+            return null;
+        }
 
         long[] values = new long[2];
-
         values[0] = "max".equals(parts[0]) ? -1L : Long.parseLong(parts[0]);
         values[1] = Long.parseLong(parts[1]);
         return values;
     }
 
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu.max")
-    String readCgroupV2CpuLimit(String controlGroup) throws IOException {
-        return readSingleLine(PathUtils.get("/sys/fs/cgroup/", controlGroup, "cpu.max"));
+    List<String> readCgroupV2CpuLimit(String controlGroup) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/", controlGroup, "cpu.max"));
     }
 
     /**
@@ -769,6 +793,10 @@ public class OsProbe {
                 cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec").multiply(THOUSAND); // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
+                if (cpuLimits == null) {
+                    logger.debug("no cpu_quota and cpu_period data found in cpu.max");
+                    return null;
+                }
                 cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
                 cgroupCpuAcctCpuCfsPeriodMicros = cpuLimits[1];
 

@@ -35,9 +35,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
@@ -53,19 +51,14 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     private static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin) {
-        Holder<Boolean> forkPresent = new Holder<>(false);
         // while going top-to-bottom (upstream)
-        return plan.transformDown(p -> {
+        return plan.transformDownSkipBranch((p, skipBranch) -> {
             // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
             // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
             // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
             // that is used in the left hand side must have been created in the left side as well. Even field attributes belonging to the
             // same index fields will have different name ids in the left and right hand sides - as in the extreme example
             // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
-
-            if (forkPresent.get()) {
-                return p;
-            }
 
             // TODO: revisit with every new command
             // skip nodes that simply pass the input through and use no references
@@ -86,7 +79,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
                     case Fork fork -> {
-                        forkPresent.set(true);
+                        // Skip descending into the Fork subtree: a true Fork handles its subplans internally in
+                        // pruneColumnsInFork, while UnionAll is left untouched. Using skipBranch (instead of a sticky
+                        // flag) ensures that pruning resumes for siblings outside the Fork, e.g. the right-hand side
+                        // of an enclosing InlineJoin.
+                        skipBranch.set(true);
                         yield pruneColumnsInFork(fork, used);
                     }
                     case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
@@ -235,10 +232,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         AttributeSet.Builder builder = AttributeSet.builder();
         // if any of the fork outputs are used, keep them
         // otherwise, prune them based on the rest of the plan's usage
-        Set<String> names = new HashSet<>(used.build().names());
         for (var attr : fork.output()) {
             // we should also ensure to keep any synthetic attributes around as those could still be used for internal processing
-            if (attr.synthetic() || names.contains(attr.name())) {
+            if (attr.synthetic() || used.contains(attr)) {
                 builder.add(attr);
             } else {
                 forkOutputChanged = true;
@@ -259,6 +255,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
             } else {
                 // otherwise, we first prune the projections of the top-level Project of each subplan
+                subPlan.outputSet().stream().filter(x -> forkOutputNames.contains(x.name())).forEach(usedAttrs::add);
+
                 Holder<Boolean> projectVisited = new Holder<>(false);
                 newSubPlan = subPlan.transformDown(Project.class, p -> {
                     if (projectVisited.get()) {
@@ -267,10 +265,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     projectVisited.set(true);
                     // filter projections based on fork output attributes
                     var prunedAttrs = p.projections().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
-                    p = new Project(p.source(), p.child(), prunedAttrs);
-                    // add all output attributes to used set
-                    usedAttrs.addAll(p.output());
-                    return p;
+                    return new Project(p.source(), p.child(), prunedAttrs);
                 });
                 newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
             }

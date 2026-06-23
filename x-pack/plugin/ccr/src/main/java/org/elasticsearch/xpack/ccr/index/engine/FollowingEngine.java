@@ -19,6 +19,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -28,6 +29,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -174,6 +177,17 @@ public class FollowingEngine extends InternalEngine {
         assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
             : "version [" + index.version() + "], type [" + index.versionType() + "]";
         return true;
+    }
+
+    @Override
+    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
+        // CCR following engine has special versioning semantics that are not compatible with
+        // the optimized batch indexing path in InternalEngine. Fall back to sequential indexing.
+        List<IndexResult> results = new ArrayList<>(operations.size());
+        for (Index op : operations) {
+            results.add(index(op));
+        }
+        return results;
     }
 
     private OptionalLong lookupPrimaryTerm(final long seqNo) throws IOException {

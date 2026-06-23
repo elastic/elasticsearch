@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,7 +58,7 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     public void testLookupExplosionManyFieldsExpression() throws IOException {
         int sensorDataCount = 400;
         int lookupEntries = 1000;
-        int joinFieldsCount = 399;// only join on 399 columns due to max expression size of 400
+        int joinFieldsCount = ExpressionBuilder.MAX_EXPRESSION_DEPTH - 1;
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, joinFieldsCount, lookupEntries, true);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
@@ -140,8 +141,8 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
 
     public void testLookupExplosionBigStringManyMatches() throws IOException {
         // 500, 1 is enough with a single node, but the serverless copy of this test uses many nodes.
-        // So something like 5000, 10 is much more of a sure thing there.
-        assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 5000, 10));
+        // Use a large multiplier so the breaker trips early, avoiding slow scaled attempts (#145710).
+        assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 10000, 10));
     }
 
     private Map<String, Object> lookupExplosion(

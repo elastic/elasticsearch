@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.WarningsTests;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.LongDenseVectorFloatTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.junit.Before;
@@ -50,7 +50,7 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new SumDenseVectorAggregatorFunctionSupplier(new WarningsTests.TestWarningsSource("source", null, 1, 1));
+        return new SumDenseVectorAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
     }
 
     @Override
@@ -103,11 +103,9 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
 
         int start = resultBlock.getFirstValueIndex(position);
         for (int i = 0; i < vectorDimensions; i++) {
-            assertThat(
-                "Dimension " + i + " mismatch",
-                (double) resultBlock.getFloat(start + i),
-                closeTo(expectedSum[i], Math.abs(expectedSum[i]) * 1e-5f)
-            );
+            // Use a relative tolerance since float summation order changes across partitions.
+            double tolerance = Math.abs(expectedSum[i]) * 1e-3f;
+            assertThat("Dimension " + i + " mismatch", (double) resultBlock.getFloat(start + i), closeTo(expectedSum[i], tolerance));
         }
     }
 

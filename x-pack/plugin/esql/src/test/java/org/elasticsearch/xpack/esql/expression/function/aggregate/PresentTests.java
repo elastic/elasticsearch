@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -39,7 +40,9 @@ public class PresentTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         ArrayList<TestCaseSupplier> suppliers = new ArrayList<>();
-        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo flattenedPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -62,9 +65,19 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
-            MultiRowTestCaseSupplier.histogramCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList()
+            MultiRowTestCaseSupplier.flattenedCases(1, 1000),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.histogramCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList()
         ).flatMap(List::stream).map(PresentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -78,6 +91,7 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.DATE_NANOS,
             DataType.DENSE_VECTOR,
             DataType.DOUBLE,
+            DataType.FLATTENED,
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,
             DataType.INTEGER,
@@ -92,15 +106,20 @@ public class PresentTests extends AbstractAggregationTestCase {
         );
         for (var dataType : types) {
             var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
-                ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field").withAppliesTo(histogramAppliesTo)
+                ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
+                    .withAppliesTo(histogramPreviewAppliesTo)
+                    .withAppliesTo(histogramGaAppliesTo)
+                : dataType == DataType.FLATTENED
+                    ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
+                        .withAppliesTo(flattenedPreviewAppliesTo)
+                        .withPreview()
                 : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
-            suppliers.add(
-                new TestCaseSupplier(
-                    "No rows (" + dataType + ")",
-                    List.of(dataType),
-                    () -> new TestCaseSupplier.TestCase(List.of(field), "Present", DataType.BOOLEAN, equalTo(false))
-                )
-            );
+            suppliers.add(new TestCaseSupplier("No rows (" + dataType + ")", List.of(dataType), () -> {
+                if (dataType == DataType.FLATTENED) {
+                    assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
+                }
+                return new TestCaseSupplier.TestCase(List.of(field), "Present", DataType.BOOLEAN, equalTo(false));
+            }));
         }
 
         // "No rows" expects 0 here instead of null

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_INTERSECTS` function [esql-st_intersects]
 
-:::{include} ../../_snippets/functions/layout/st_intersects.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_intersects.md
 :::

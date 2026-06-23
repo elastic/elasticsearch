@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -46,6 +47,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        float matchCost = matchCost();
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -55,10 +57,13 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                     return null;
                 }
 
+                // The optimized path returns a TwoPhaseIterator-backed iterator (see the contract
+                // on tryContainsIterator). ConstantScoreScorer unwraps the TwoPhase so Lucene's
+                // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
+                // linear scaling under sub-segment slicing (DataPartitioning.DOC).
                 final DocIdSetIterator containsIter = values instanceof BlockLoader.OptionalColumnAtATimeReader direct
                     ? direct.tryContainsIterator(containsTerm)
                     : null;
-
                 final DocIdSetIterator iterator;
                 if (containsIter != null) {
                     iterator = containsIter;
@@ -114,28 +119,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
         return contains(value.bytes, value.offset, value.length, term);
     }
 
-    // Copied and modified from StringUTF16.indexOfLatin1Unsafe
     public static boolean contains(byte[] value, int offset, int length, BytesRef term) {
-        byte first = term.bytes[term.offset];
-        int max = (length - term.length) + offset;
-        for (int i = offset; i <= max; i++) {
-            // Look for first character.
-            if (value[i] != first) {
-                while (++i <= max && value[i] != first)
-                    ;
-            }
-            // Found first character, now look at the rest of value
-            if (i <= max) {
-                int j = i + 1;
-                int end = j + term.length - 1;
-                for (int k = term.offset + 1; j < end && value[j] == term.bytes[k]; j++, k++)
-                    ;
-                if (j == end) {
-                    // Found whole string.
-                    return true;
-                }
-            }
-        }
-        return false;
+        return ESVectorUtil.contains(value, offset, length, term.bytes, term.offset, term.length);
     }
 }

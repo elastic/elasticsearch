@@ -194,7 +194,11 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         void assertSourceOperator(LuceneSourceOperator sourceOperator) {
             for (int shard = 0; shard < sourceOperator.refCounteds.size(); shard++) {
                 var shardContext = sourceOperator.getSliceQueue().shardContext(shard);
-                assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+                if (shardContext.searcher().getIndexReader().maxDoc() > 0) {
+                    assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+                } else {
+                    assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), equalTo(0d));
+                }
             }
         }
     }
@@ -250,7 +254,9 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             taskConcurrency,
             maxPageSize,
             limit,
-            scoring
+            scoring,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
     }
 
@@ -456,7 +462,9 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 taskConcurrency,
                 maxPageSize,
                 LuceneOperator.NO_LIMIT,
-                scoring
+                scoring,
+                () -> 0L,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE
             );
             DriverContext ctx = driverContext();
             LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(ctx);

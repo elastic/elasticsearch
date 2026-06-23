@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Math
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -44,23 +43,28 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsi
 
 public class Round extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Round", Round::new);
-    public static final FunctionDefinition DEFINITION = EsqlFunctionRegistry.binary(Round.class, Round::new, "round")
-        .withSubCapabilities(
-            List.of(
-                // Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
-                "ul_fixes"
-            )
-        );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Round.class)
+        .binary(Round::new)
+        .capabilities(
+            // Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
+            "ul_fixes"
+        )
+        .name("round");
 
     private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
 
     private final Expression field, decimals;
 
-    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = """
-        Rounds a number to the specified number of decimal places.
-        Defaults to 0, which returns the nearest integer. If the
-        precision is a negative number, rounds to the number of digits left
-        of the decimal point.""", examples = @Example(file = "docs", tag = "round"))
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Rounds a number to the specified number of decimal places.",
+        description = """
+            Rounds a number to the specified number of decimal places.
+            Defaults to 0, which returns the nearest integer. If the
+            precision is a negative number, rounds to the number of digits left
+            of the decimal point.""",
+        examples = @Example(file = "docs", tag = "round")
+    )
     public Round(
         Source source,
         @Param(

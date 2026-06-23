@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -39,6 +40,9 @@ public class UrlEncodeComponent extends UnaryScalarFunction {
         "UrlEncodeComponent",
         UrlEncodeComponent::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(UrlEncodeComponent.class)
+        .unary(UrlEncodeComponent::new)
+        .name("url_encode_component");
 
     private UrlEncodeComponent(StreamInput in) throws IOException {
         super(in);
@@ -46,6 +50,7 @@ public class UrlEncodeComponent extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "URL-encodes a string with spaces encoded as percent codes.",
         description = "URL-encodes the input. All characters are {wikipedia}/Percent-encoding[percent-encoded] except "
             + "for alphanumerics, `.`, `-`, `_`, and `~`. Spaces are encoded as `%20`.",
         examples = { @Example(file = "string", tag = "url_encode_component") },

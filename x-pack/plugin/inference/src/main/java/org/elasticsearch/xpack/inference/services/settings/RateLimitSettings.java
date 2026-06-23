@@ -12,10 +12,13 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -27,36 +30,89 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String FIELD_NAME = "rate_limit";
     public static final String REQUESTS_PER_MINUTE_FIELD = "requests_per_minute";
     public static final RateLimitSettings DISABLED_INSTANCE = new RateLimitSettings(1, TimeUnit.MINUTES, false);
 
+    /**
+     * Creates a parser for the {@code rate_limit} object. When {@code requests_per_minute} is not supplied (for example an explicitly
+     * empty {@code "rate_limit": {}} object), the parser returns {@code defaultValue} rather than {@code null}, so callers that store the
+     * parsed result do not have to treat an explicitly-provided rate limit object as a {@code null} value.
+     *
+     * @param ignoreUnknownFields whether unknown fields within the rate limit object are tolerated
+     * @param defaultValue the value to return when {@code requests_per_minute} is absent; may be {@code null}
+     */
+    public static ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> createParser(
+        boolean ignoreUnknownFields,
+        @Nullable RateLimitSettings defaultValue
+    ) {
+        ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> parser = new ConstructingObjectParser<>(
+            "rate_limit",
+            ignoreUnknownFields,
+            args -> {
+                Long requestsPerMinute = (Long) args[0];
+                return requestsPerMinute != null ? new RateLimitSettings(requestsPerMinute) : defaultValue;
+            }
+        );
+        parser.declareLong(optionalConstructorArg(), new ParseField(REQUESTS_PER_MINUTE_FIELD));
+        return parser;
+    }
+
     private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
         "inference_api_disable_eis_rate_limiting"
     );
 
+    /**
+     * Creates a new instance of {@link RateLimitSettings} from the provided map.
+     * The map is expected to contain a nested map under the key defined by {@link #FIELD_NAME}.
+     * If the nested map contains the key defined by {@link #REQUESTS_PER_MINUTE_FIELD},
+     * its value is extracted and used to create a new instance of {@link RateLimitSettings}.
+     * If the nested map does not contain the key or if the value is null, the provided default value is returned.
+     * @param serviceSettingsMap the map containing the service settings,
+     *                           expected to contain a nested map for rate limit settings under the key defined by {@link #FIELD_NAME}
+     * @param defaultValue the default value to return if the map does not contain valid rate limit settings
+     * @param validationException the {@link ValidationException} to which validation errors will be added
+     *                            if the map contains invalid rate limit settings
+     * @param context the context of the configuration parsing, used to determine if validation should be applied
+     * @return a new instance of {@link RateLimitSettings} based on the provided map,
+     * or the default value if the map does not contain valid rate limit settings
+     */
     public static RateLimitSettings of(
-        Map<String, Object> map,
+        Map<String, Object> serviceSettingsMap,
         RateLimitSettings defaultValue,
         ValidationException validationException,
-        String serviceName,
         ConfigurationParseContext context
     ) {
-        Map<String, Object> settings = removeFromMapOrDefaultEmpty(map, FIELD_NAME);
-        var requestsPerMinute = extractOptionalPositiveLong(settings, REQUESTS_PER_MINUTE_FIELD, FIELD_NAME, validationException);
+        var rateLimitSettings = removeFromMapOrDefaultEmpty(serviceSettingsMap, FIELD_NAME);
+        var requestsPerMinute = extractOptionalPositiveLong(rateLimitSettings, REQUESTS_PER_MINUTE_FIELD, FIELD_NAME, validationException);
 
-        if (ConfigurationParseContext.isRequestContext(context)) {
-            throwIfNotEmptyMap(settings, serviceName);
+        if (ConfigurationParseContext.isRequestContext(context) && rateLimitSettings.isEmpty() == false) {
+            validationException.addValidationError(
+                Strings.format("Rate limit settings contain unknown entries [%s]", rateLimitSettings.toString())
+            );
+            return defaultValue;
         }
 
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
     }
 
+    /**
+     * Validates that rate limit settings are not included in the request context.
+     * If rate limit settings are found, a validation error is added to the provided {@link ValidationException}.
+     * Currently used only for {@code elastic} provider that doesn't support rate limit settings.
+     * @param map the map containing the settings to validate
+     * @param scope the scope of the settings, used for error messaging
+     * @param service the name of the service, used for error messaging
+     * @param taskType the task type, used for error messaging
+     * @param context the context of the configuration parsing, used to determine if validation should be applied
+     * @param validationException the {@link ValidationException} to which validation errors will be added
+     *                            if rate limit settings are found in the request context
+     */
     public static void rejectRateLimitFieldForRequestContext(
         Map<String, Object> map,
         String scope,

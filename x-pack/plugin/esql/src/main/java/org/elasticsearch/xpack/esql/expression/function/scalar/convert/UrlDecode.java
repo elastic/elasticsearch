@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -36,6 +37,7 @@ public final class UrlDecode extends UnaryScalarFunction {
         "UrlDecode",
         UrlDecode::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(UrlDecode.class).unary(UrlDecode::new).name("url_decode");
 
     private UrlDecode(StreamInput in) throws IOException {
         super(in);
@@ -43,6 +45,7 @@ public final class UrlDecode extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Decodes a URL-encoded string.",
         description = "URL-decodes the input, or returns `null` and adds a warning header to the response if the input cannot be decoded.",
         examples = { @Example(file = "string", tag = "url_decode") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }

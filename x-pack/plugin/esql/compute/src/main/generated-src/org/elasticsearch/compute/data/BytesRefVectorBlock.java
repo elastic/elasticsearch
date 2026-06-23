@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -45,8 +46,18 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return vector.get(valueIndex, scratch);
+    }
+
+    @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return vector.getBytesRef(valueIndex, dest);
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
     }
 
     @Override
@@ -65,8 +76,8 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
-        return vector.filter(mayContainDuplicates, positions).asBlock();
+    public BytesRefBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return vector.filter(mayContainDuplicates, positions, offset, length).asBlock();
     }
 
     @Override

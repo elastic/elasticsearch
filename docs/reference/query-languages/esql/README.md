@@ -1,6 +1,6 @@
 # ES|QL documentation
 
-> [!NOTE] 
+> [!NOTE]
 > This directory contains the source files for the [ES|QL documentation](https://www.elastic.co/docs/reference/query-languages/esql).
 
 This README covers how the ES|QL docs are structured, what's hand-written vs. auto-generated, and how to add or update commands and functions correctly.
@@ -55,7 +55,7 @@ When adding tested examples to a command, for example adding an example to the `
 * If you only want to show the query, and no results, then do not tag the results table,
   otherwise tag the results table with a tag that has the same name as the query tag, but with the suffix `-result`.
 * Create a file with the name of the tag in a subdirectory with the name of the csv-spec file
-  in the [`_snippets/commands/examples`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands/examples) directory. While you could add the content to that file, it is not necessary, merely that the file exists
+  in the [`_snippets/generated/x-pack-esql/commands/examples`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/examples) directory. While you could add the content to that file, it is not necessary, merely that the file exists
 * Run the test `CommandDocsTests` in the `x-pack/plugin/esql` module to generate the content.
 
 For example, we tag the following test in change_point.csv-spec:
@@ -80,7 +80,7 @@ key:integer | value:integer | type:keyword | pvalue:double
 ;
 ```
 
-Then we create the file [`_snippets/commands/examples/change_point.csv-spec/changePointForDocs.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/commands/examples/change_point.csv-spec/changePointForDocs.md) with the content:
+Then we create the file [`_snippets/generated/x-pack-esql/commands/examples/change_point.csv-spec/changePointForDocs.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/examples/change_point.csv-spec/changePointForDocs.md) with the content:
 ```
 This should be overwritten
 ```
@@ -108,7 +108,7 @@ ROW key=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
 Finally include this file in the `CHANGE_POINT` command file [`_snippets/commands/layout/change_point.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/commands/layout/change_point.md):
 
 ```
-**Examples**
+## Examples
 
 The following example shows the detection of a step change:
 
@@ -118,14 +118,16 @@ The following example shows the detection of a step change:
 
 ## Add a new function
 
-Each function has its own standalone page under `functions-operators/<group>/` that includes a generated layout snippet from [`_snippets/functions/layout/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/functions/layout).
+Each function has its own standalone page under `functions-operators/<group>/` that includes a generated layout snippet from `_snippets/generated/<plugin-name>/functions/layout/`.
+
+Generated snippets are organized by the Elasticsearch plugin that provides the function. The `<plugin-name>` matches the `name` field in the module's `esplugin { }` block in `build.gradle` (e.g. `x-pack-esql` for the core plugin, `x-pack-esql-function-math` for the math function plugin).
 
 To add a new function called `<my_func>` to the `<group>` group (e.g. `string-functions`):
 
 > [!TIP]
 > For a full walkthrough of the Java implementation, see the [guide in `package-info.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/package-info.java).
 
-1. Implement the function's Java class
+1. Implement the function's Java class in the appropriate module
    - Add `@FunctionInfo` and `@Param` annotations
    - Add version metadata: see [Add version metadata](#add-version-metadata)
    - If the function name doesn't start with a known prefix (`mv_`, `st_`, `to_`, `date_`, `is_`),
@@ -133,10 +135,10 @@ To add a new function called `<my_func>` to the `<group>` group (e.g. `string-fu
      This maps function names to groups for cross-reference link generation.
       > [!WARNING]
       > Without this, the test in the next step will fail with `Docs Generation Error: Unknown function group`.
-2. Create a test class extending `AbstractFunctionTestCase`
-3. Run the test to generate all snippets
-   - `./gradlew :x-pack:plugin:esql:test -Dtests.class='<MyFunc>Tests'`
-   - This generates files in [`_snippets/functions/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/functions) (layout, description, parameters, types, examples) and [`images/functions/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/images/functions)
+2. Create a test class extending `AbstractFunctionTestCase` in the same module
+3. Run the test to generate all snippets, using the Gradle path for the module that owns the function:
+   - `./gradlew :<module-path>:test -Dtests.class='<MyFunc>Tests'`
+   - This generates files in `_snippets/generated/<plugin-name>/functions/` (layout, description, parameters, types, examples) and `images/generated/<plugin-name>/`
 4. Add the function to `_snippets/lists/<group>.md`
    - Link to the individual page path: `functions-operators/<group>/<my_func>.md`
    - Add [version tags](#update-list-files)
@@ -193,7 +195,64 @@ When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alo
 )
 ```
 
-We updated [`DocsV3Support.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/expression/function/DocsV3Support.java) to generate the `applies_to` metadata correctly for functions and operators.
+You can also use `applies_to` for `Param`, `MapParam`, and `MapParamEntry`. In this case `applies_to` is a plain text field that accepts the same format used in [inline](https://elastic.github.io/docs-builder/syntax/applies/#inline-examples-by-product) `applies_to` metadata.
+For example, to mark a specific parameter as preview:
+
+```java
+@Param(name = "query", type = { "keyword" }, description = "The query.", applies_to = "stack: preview 9.4.0")
+```
+
+To mark a whole map parameter as preview:
+
+```java
+@MapParam(
+    name = "options",
+    description = "Optional parameters.",
+    optional = true,
+    applies_to = "stack: preview 9.5.0",
+    params = { ... }
+)
+```
+
+To mark a specific map entry as preview:
+
+```java
+@MapParam(
+    name = "options",
+    description = "Optional parameters.",
+    params = {
+        @MapParamEntry(
+            name = "my_option",
+            type = "keyword",
+            description = "Description of my_option.",
+            applies_to = "stack: preview 9.2"
+        )
+    }
+)
+```
+
+We updated [`DocsV3Support.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/qa/testFixtures/src/main/java/org/elasticsearch/xpack/esql/expression/function/DocsV3Support.java) to generate the `applies_to` metadata correctly for functions and operators.
+
+### Annotate supported types
+
+When a function adds support for a new data type in a specific version, the **Supported types** table in the docs needs `applies_to` metadata on those type rows. This is done by annotating the type's `TypedDataSupplier` in the function's `*Tests.java` class.
+
+Use `withAppliesTo(...)` to tag which version introduced the type, and `withPreview()` if the function has `preview = true` on its `@FunctionInfo` annotation:
+
+```java
+FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+
+// In the suppliers list:
+MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+    .stream()
+    .map(s -> s.withAppliesTo(histogramAppliesTo).withPreview())  // withPreview() because the function has preview=true
+    .toList()
+```
+
+- Call `withAppliesTo(...)` on `TypedDataSupplier` entries for any type that was added after the function's initial release
+- Call `withPreview()` only if the data types function's `@FunctionInfo` has `preview = true`
+
+This ensures the generated **Supported types** table includes the correct `{applies_to}` and `serverless: preview` annotations per type row.
 
 ### Use inline applies_to metadata
 
@@ -256,9 +315,9 @@ A few formatting rules:
        },
    )
    ```
-2. Run the function's tests to regenerate its docs snippets:
+2. Run the function's tests to regenerate its docs snippets, using the Gradle path for the module that owns the function:
    ```
-   ./gradlew :x-pack:plugin:esql:test -Dtests.class='MyFuncTests'
+   ./gradlew :<module-path>:test -Dtests.class='MyFuncTests'
    ```
 3. Update the list entry: add the `stack: ga X.Y` tag and drop `serverless: preview`:
    ```diff
@@ -321,21 +380,23 @@ All generated content is produced by running ESQL tests. The section below cover
 
 ### Functions and operators
 
+Generated snippets are written to `_snippets/generated/<plugin-name>/functions/` where `<plugin-name>` is the `name` from the module's `esplugin { }` block. Run the test task for whichever module owns the function.
+
 Run a single function's tests to regenerate its snippets (layout, description, parameters, types, examples, syntax diagrams, and Kibana definitions):
 
 ```
-./gradlew :x-pack:plugin:esql:test -Dtests.class='CaseTests'
+./gradlew :<module-path>:test -Dtests.class='CaseTests'
 ```
 
-To regenerate everything for all functions and operators:
+To regenerate everything for all functions and operators in a module:
 
 ```
-./gradlew :x-pack:plugin:esql:test
+./gradlew :<module-path>:test
 ```
 
 ### Settings
 
-Query settings (see [SET](commands/set.md)) are documented in [`_snippets/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Only settings with `snapshot=false` are included.
+Query settings (see [SET](commands/set.md)) are documented in [`_snippets/generated/x-pack-esql/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Only settings with `snapshot=false` are included.
 
 ## Understand how generated content works
 
@@ -364,7 +425,7 @@ To help differentiate between the static and generated content, the generated co
 
 PromQL documentation is generated separately and stored in:
 ```
-docs/reference/query-languages/promql/kibana/definitions/*.json
+docs/reference/query-languages/promql/kibana/generated/x-pack-esql/definition/**/*.json
 ```
 For PromQL function documentation, see: https://prometheus.io/docs/prometheus/latest/querying/functions/
 
@@ -373,7 +434,7 @@ To generate the PromQL definition files, run:
 ```bash
 ./gradlew :x-pack:plugin:esql:test --tests "PromqlKibanaDefinitionGeneratorTests"
 ```
-The result will be in `x-pack/plugin/esql/build/testrun/test/temp/promql/kibana/definitions/`.
+The result will be in `x-pack/plugin/esql/build/testrun/test/temp/promql/kibana/definition/`.
 
 ## Elastic docs resources
 

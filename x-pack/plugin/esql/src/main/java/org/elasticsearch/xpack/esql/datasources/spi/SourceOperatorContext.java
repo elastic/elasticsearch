@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -47,15 +48,28 @@ public record SourceOperatorContext(
     int maxBufferSize,
     int rowLimit,
     Executor executor,
+    @Nullable Executor fileReadExecutor,
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
     Object pushedFilter,
-    FileSet fileSet,
+    List<Expression> pushedExpressions,
+    FileList fileList,
+    Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
-    int parsingParallelism
+    int parsingParallelism,
+    int maxConcurrentOpenSegments,
+    int maxRecordBytes,
+    int parallelism
 ) {
+    /**
+     * Single source of truth for the {@code max_concurrent_open_segments} default. Lives in this SPI (leaf)
+     * layer so both the {@code QueryPragmas} setting and the datasources-side fallback defaults reference it
+     * without {@code datasources} having to depend on {@code plugin}. Change here and it propagates.
+     */
+    public static final int DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS = 4;
+
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
         Check.notNull(executor, "executor cannot be null");
@@ -63,6 +77,8 @@ public record SourceOperatorContext(
         attributes = attributes != null ? List.copyOf(attributes) : List.of();
         config = config != null ? Map.copyOf(config) : Map.of();
         sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
+        pushedExpressions = pushedExpressions != null ? List.copyOf(pushedExpressions) : List.of();
+        schemaMap = schemaMap != null ? schemaMap : Map.of();
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
@@ -75,6 +91,12 @@ public record SourceOperatorContext(
         }
         if (parsingParallelism < 1) {
             throw new IllegalArgumentException("parsingParallelism must be >= 1, got: " + parsingParallelism);
+        }
+        if (maxConcurrentOpenSegments < 1) {
+            throw new IllegalArgumentException("maxConcurrentOpenSegments must be >= 1, got: " + maxConcurrentOpenSegments);
+        }
+        if (parallelism < 1) {
+            throw new IllegalArgumentException("parallelism must be >= 1, got: " + parallelism);
         }
     }
 
@@ -89,7 +111,7 @@ public record SourceOperatorContext(
         Map<String, Object> config,
         Map<String, Object> sourceMetadata,
         Object pushedFilter,
-        FileSet fileSet,
+        FileList fileList,
         @Nullable ExternalSplit split
     ) {
         this(
@@ -101,13 +123,19 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
-            fileSet,
+            null,
+            fileList,
+            Map.of(),
             split,
             null,
             null,
+            1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -123,7 +151,7 @@ public record SourceOperatorContext(
         Map<String, Object> config,
         Map<String, Object> sourceMetadata,
         Object pushedFilter,
-        FileSet fileSet
+        FileList fileList
     ) {
         this(
             sourceType,
@@ -134,13 +162,19 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
-            fileSet,
+            null,
+            fileList,
+            Map.of(),
             null,
             null,
             null,
+            1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -166,13 +200,19 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
             null,
             null,
+            Map.of(),
             null,
             null,
+            null,
+            1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -196,13 +236,19 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             Map.of(),
             null,
             null,
             null,
+            Map.of(),
             null,
             null,
+            null,
+            1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -220,14 +266,23 @@ public record SourceOperatorContext(
         private int maxBufferSize = 10;
         private int rowLimit = FormatReader.NO_LIMIT;
         private Executor executor;
+        @Nullable
+        private Executor fileReadExecutor;
         private Map<String, Object> config;
         private Map<String, Object> sourceMetadata;
         private Object pushedFilter;
-        private FileSet fileSet;
+        private List<Expression> pushedExpressions;
+        private FileList fileList;
+        private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
+        private int maxConcurrentOpenSegments = DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
+        // Default matches StreamingParallelParsingCoordinator's record-growth cap (64 MiB); the planner
+        // overrides it from the max_record_size query pragma.
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
+        private int parallelism = 1;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -269,6 +324,16 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Optional executor for file (and similar) background reads. When set (e.g. to {@code generic}),
+         * async reads and slice-queue drain run here instead of on {@link #executor}, so producers blocked
+         * in buffer backpressure do not starve the {@code esql_worker} drivers that consume the buffer.
+         */
+        public Builder fileReadExecutor(Executor fileReadExecutor) {
+            this.fileReadExecutor = fileReadExecutor;
+            return this;
+        }
+
         public Builder config(Map<String, Object> config) {
             this.config = config;
             return this;
@@ -284,8 +349,24 @@ public record SourceOperatorContext(
             return this;
         }
 
-        public Builder fileSet(FileSet fileSet) {
-            this.fileSet = fileSet;
+        public Builder pushedExpressions(List<Expression> pushedExpressions) {
+            this.pushedExpressions = pushedExpressions;
+            return this;
+        }
+
+        public Builder fileList(FileList fileList) {
+            this.fileList = fileList;
+            return this;
+        }
+
+        /**
+         * Per-file planner-resolved schema info, populated by the resolver and threaded through
+         * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec}. Always present
+         * for resolved sources (single-file gets a one-entry identity map; multi-file gets the
+         * reconciliation result). Empty map for legacy/unresolved paths.
+         */
+        public Builder schemaMap(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap) {
+            this.schemaMap = schemaMap;
             return this;
         }
 
@@ -309,6 +390,21 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder maxConcurrentOpenSegments(int maxConcurrentOpenSegments) {
+            this.maxConcurrentOpenSegments = maxConcurrentOpenSegments;
+            return this;
+        }
+
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
+        public Builder parallelism(int parallelism) {
+            this.parallelism = parallelism;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -319,14 +415,20 @@ public record SourceOperatorContext(
                 maxBufferSize,
                 rowLimit,
                 executor,
+                fileReadExecutor,
                 config,
                 sourceMetadata,
                 pushedFilter,
-                fileSet,
+                pushedExpressions,
+                fileList,
+                schemaMap,
                 split,
                 partitionColumnNames,
                 sliceQueue,
-                parsingParallelism
+                parsingParallelism,
+                maxConcurrentOpenSegments,
+                maxRecordBytes,
+                parallelism
             );
         }
     }

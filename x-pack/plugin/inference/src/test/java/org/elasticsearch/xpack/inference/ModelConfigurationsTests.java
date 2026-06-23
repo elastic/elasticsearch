@@ -44,16 +44,14 @@ import static org.hamcrest.Matchers.not;
 public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCase<ModelConfigurations> {
 
     public static ModelConfigurations createRandomInstance() {
-        var taskType = randomFrom(TaskType.values());
-        var endpointMetadata = randomBoolean() ? null : EndpointMetadataTests.randomInstance();
         return new ModelConfigurations(
             randomAlphaOfLength(6),
-            taskType,
+            TaskTypeTests.randomTaskTypeOtherThanAny(),
             randomAlphaOfLength(6),
             randomServiceSettings(),
             randomTaskSettings(),
             randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null,
-            endpointMetadata
+            randomBoolean() ? null : EndpointMetadataTests.randomInstance()
         );
     }
 
@@ -70,7 +68,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
             );
             case 1 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
-                TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
+                randomValueOtherThan(instance.getTaskType(), TaskTypeTests::randomTaskTypeOtherThanAny),
                 instance.getService(),
                 instance.getServiceSettings(),
                 instance.getTaskSettings(),

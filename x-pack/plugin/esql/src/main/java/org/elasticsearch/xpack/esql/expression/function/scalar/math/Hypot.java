@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -34,11 +35,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
  */
 public class Hypot extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hypot", Hypot::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Hypot.class).binary(Hypot::new).name("hypot");
 
     private final Expression n1;
     private final Expression n2;
 
-    @FunctionInfo(returnType = "double", description = """
+    @FunctionInfo(returnType = "double", briefSummary = "Returns the hypotenuse of two numbers.", description = """
         Returns the hypotenuse of two numbers. The input can be any numeric values, the return value is always a double.
         Hypotenuses of infinities are null.""", examples = @Example(file = "math", tag = "hypot"))
     public Hypot(

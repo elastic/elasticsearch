@@ -56,6 +56,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFieldType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFunction;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxAllocationBytes;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxLoopCounter;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDModifiers;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
@@ -66,6 +67,8 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDThisMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDTypeParameters;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.Method;
 
@@ -142,7 +145,10 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irFunctionNode.attachDecoration(new IRDReturnType(returnType));
             irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
             irFunctionNode.attachDecoration(new IRDParameterNames(parameterNames));
-            irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+            attachLoopProtection(irFunctionNode, scriptScope);
+            // Carry the per-context allocation limit on the execute entry so its prologue can reset $allocBytes; the value
+            // is -1 when tracking is disabled, in which case no counter bytecode is emitted.
+            irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(scriptScope.getCompilerSettings().getMaxAllocationBytes()));
 
             injectStaticFieldsAndGetters();
             injectGetsDeclarations(irBlockNode, scriptScope);
@@ -413,6 +419,17 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irLoadVariableNode.attachDecoration(new IRDExpressionType(SecurityException.class));
             irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(SecurityException.class)));
             irThrowNode.setExpressionNode(irLoadVariableNode);
+
+            for (Class<? extends Throwable> rethrow : List.of(
+                ContextIndexSearcher.TimeExceededException.class,
+                TaskCancelledException.class
+            )) {
+                irThrowNode = createCatchAndThrow(rethrow, internalLocation, irTryNode);
+                irLoadVariableNode = new LoadVariableNode(internalLocation);
+                irLoadVariableNode.attachDecoration(new IRDExpressionType(rethrow));
+                irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(rethrow)));
+                irThrowNode.setExpressionNode(irLoadVariableNode);
+            }
 
             for (Class<? extends Throwable> throwable : List.of(
                 PainlessError.class,

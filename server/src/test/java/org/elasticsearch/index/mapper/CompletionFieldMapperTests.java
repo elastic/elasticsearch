@@ -30,6 +30,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
@@ -41,7 +42,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -154,16 +154,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
-        } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
-            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-            assertThat(((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
+        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            codec = deduplicateFieldInfosCodec.delegate();
         }
+        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+        assertThat(((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -643,6 +638,35 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2"), suggestField("suggestion3")));
     }
 
+    public void testArrayObjectsLimitDoesNotApplyToCompletionField() throws Exception {
+        int limit = 2;
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            fieldMapping(this::minimalMapping)
+        );
+        DocumentMapper defaultMapper = mapperService.documentMapper();
+        ParsedDocument parsedDocument = defaultMapper.parse(source(b -> {
+            b.startArray("field");
+            for (int i = 0; i < limit + 3; i++) {
+                b.startObject().field("input", "suggestion" + i).field("weight", i + 1).endObject();
+            }
+            b.endArray();
+        }));
+
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
+        assertThat(
+            fields,
+            containsInAnyOrder(
+                suggestField("suggestion0"),
+                suggestField("suggestion1"),
+                suggestField("suggestion2"),
+                suggestField("suggestion3"),
+                suggestField("suggestion4")
+            )
+        );
+    }
+
     public void testParsingMixed() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
@@ -845,7 +869,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         }));
-        assertCriticalWarnings(
+        assertWarnings(
             "You have defined more than ["
                 + COMPLETION_CONTEXTS_LIMIT
                 + "] completion contexts"

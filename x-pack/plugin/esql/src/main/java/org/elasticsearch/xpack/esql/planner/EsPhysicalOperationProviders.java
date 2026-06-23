@@ -14,15 +14,18 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.query.DataPartitioning.AutoStrategy;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
@@ -75,15 +78,19 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -94,6 +101,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -102,6 +110,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
@@ -166,15 +175,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final PlannerSettings plannerSettings;
 
+    private final LongSupplier directoryBytesRead;
+
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
-        PlannerSettings plannerSettings
+        PlannerSettings plannerSettings,
+        LongSupplier directoryBytesRead
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
+        this.directoryBytesRead = directoryBytesRead;
     }
 
     @Override
@@ -208,7 +221,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 reuseColumnLoaders,
                 docChannel,
                 plannerSettings.sourceReservationFactor(),
-                docSequenceThreshold
+                docSequenceThreshold,
+                directoryBytesRead
             ),
             layout.build()
         );
@@ -236,13 +250,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
         String fieldName = getFieldName(attr);
         if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
-            functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.withoutFields());
+            functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.excludedFields());
             fieldName = SourceFieldMapper.NAME;
+        } else if (attr instanceof TemporalityAttribute) {
+            return resolveTemporalitySource(shardContext, warnings, fieldExtractPreference);
         } else if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
             functionConfig = functionEsField.functionConfig();
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
-        MultiTypeEsField unionTypes = findUnionTypes(attr);
+        UnionTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null) {
             BlockLoader blockLoader = shardContext.blockLoader(
                 fieldName,
@@ -255,11 +271,31 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             );
             return ValuesSourceReaderOperator.load(blockLoader);
         }
-        // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
-        String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
-        Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
+        Expression conversion = switch (unionTypes) {
+            case CompactMultiTypeEsField compact -> {
+                MappedFieldType mft = shardContext.fieldType(fieldName);
+                // Match what field_caps reports on the coordinator: family type (e.g., constant_keyword -> keyword) rather than the
+                // concrete mapper type, so the lookup key here aligns with how typeToConversionExpressions was keyed upstream.
+                yield mft == null
+                    ? null
+                    : compact.getConversionExpressionForType(
+                        EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType())
+                    );
+            }
+            case MultiTypeEsField legacy -> {
+                // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with cluster prefix
+                String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
+                yield legacy.getConversionExpressionForIndex(indexName);
+            }
+        };
         if (conversion == null) {
-            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+            Expression potentiallyUnmapped = unionTypes.getUnmappedConversionExpression();
+            if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
+                return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+            }
+            fieldName = getFieldName((Attribute) convert.field());
+            shardContext = wrapWithUnmappedFieldContext(shardContext, new PotentiallyUnmappedKeywordEsField(fieldName));
+            conversion = potentiallyUnmapped;
         }
         if (conversion instanceof BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
@@ -287,6 +323,57 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             plannerSettings.blockLoaderSizeScript()
         );
         return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
+    }
+
+    private ValuesSourceReaderOperator.LoaderAndConverter resolveTemporalitySource(
+        DefaultShardContext shardContext,
+        BlockLoaderWarnings warnings,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference
+    ) {
+        Settings indexSettings = shardContext.indexSettings().getSettings();
+        String temporalityFieldName = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(indexSettings);
+        if (temporalityFieldName == null || temporalityFieldName.isEmpty()) {
+            // index does not have a temporality field configured, return constant nulls
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        MappedFieldType temporalityFieldType = shardContext.fieldType(temporalityFieldName);
+        if (temporalityFieldType == null) {
+            // configured field does not exist in this index, return constant nulls
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        if (KeywordFieldMapper.CONTENT_TYPE.equals(temporalityFieldType.typeName()) == false) {
+            warnings.registerException(
+                IllegalArgumentException.class,
+                "configured temporality field ["
+                    + temporalityFieldName
+                    + "] has type ["
+                    + temporalityFieldType.typeName()
+                    + "], expected ["
+                    + KeywordFieldMapper.CONTENT_TYPE
+                    + "]; assuming default temporality for all values"
+            );
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        if (temporalityFieldType.isDimension() == false) {
+            warnings.registerException(
+                IllegalArgumentException.class,
+                "configured temporality field ["
+                    + temporalityFieldName
+                    + "] must be a time-series dimension; assuming default temporality for all values"
+            );
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        return ValuesSourceReaderOperator.load(
+            shardContext.blockLoader(
+                temporalityFieldName,
+                false,
+                fieldExtractPreference,
+                null,
+                warnings,
+                plannerSettings.blockLoaderSizeOrdinals(),
+                plannerSettings.blockLoaderSizeScript()
+            )
+        );
     }
 
     static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedField) {
@@ -330,9 +417,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
     }
 
-    private static @Nullable MultiTypeEsField findUnionTypes(Attribute attr) {
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField multiTypeEsField) {
-            return multiTypeEsField;
+    private static @Nullable UnionTypeEsField findUnionTypes(Attribute attr) {
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField unionTypeEsField) {
+            return unionTypeEsField;
         }
         return null;
     }
@@ -366,6 +453,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
+        int taskConcurrency = context.queryPragmas().taskConcurrency();
+        if (context.timeSeries()) {
+            // Time-series aggregation is CPU-bound and cache-sensitive; cap concurrency at the number of processors.
+            taskConcurrency = Math.min(taskConcurrency, Math.max(EsExecutors.allocatedProcessors(context.settings()), 2));
+        }
         if (sorts != null && sorts.isEmpty() == false) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             long estimatedPerRowSortSize = 0;
@@ -386,21 +478,24 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 querySupplier(esQueryExec.query()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 topNAutoStrategy(),
-                context.queryPragmas().taskConcurrency(),
+                taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 sortBuilders,
                 estimatedPerRowSortSize,
-                scoring
+                scoring,
+                directoryBytesRead
             );
         } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
+                context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
-                context.queryPragmas().taskConcurrency(),
+                taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
-                limit
+                limit,
+                directoryBytesRead
             );
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(
@@ -409,10 +504,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 context.autoPartitioningStrategy(),
                 context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
-                context.queryPragmas().taskConcurrency(),
+                taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
-                scoring
+                scoring,
+                directoryBytesRead,
+                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -422,7 +519,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
-    private static AutoStrategy topNAutoStrategy() {
+    private static DataPartitioning.AutoStrategy topNAutoStrategy() {
+        // TopN keeps SEGMENT under AUTO. Routing it to DOC via the source-operator's high-speed
+        // heuristic helps scan-dominant TopN (e.g. WHERE URL LIKE … | SORT … | LIMIT 10) but
+        // regresses sort-dominant TopN (cheap or no WHERE) — sub-segment slicing breaks Lucene's
+        // sorted-segment short-circuit. Users who want DOC for a scan-dominant TopN can opt in
+        // via the data_partitioning pragma.
         return unusedLimit -> query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
     }
 
@@ -494,7 +596,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             context.queryPragmas().taskConcurrency(),
             tagTypes,
-            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
+            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
+            directoryBytesRead,
+            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
         );
     }
 
@@ -507,13 +611,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LocalExecutionPlannerContext context,
         int maxPageSize
     ) {
+        Rounding.Prepared outputRounding = ts.outputTimeBucketRounding(context.foldCtx());
+        Rounding.Prepared internalRounding = ts.timeBucketRounding(context.foldCtx());
+        boolean needsOutputFiltering = aggregatorMode.isOutputPartial() == false
+            && outputRounding != null
+            && internalRounding != null
+            && outputRounding.getUnprepared().equals(internalRounding.getUnprepared()) == false;
         return new TimeSeriesAggregationOperator.Factory(
-            ts.timeBucketRounding(context.foldCtx()),
+            internalRounding,
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts, ts.estimatedRowSize())
+            context.pageSize(ts, ts.estimatedRowSize()),
+            needsOutputFiltering ? outputRounding : null
         );
     }
 
@@ -562,15 +673,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public SourceLoader newSourceLoader(Set<String> sourcePaths) {
+            var filter = buildSourceFilter(sourcePaths, ctx.getMappingLookup(), ctx.getIndexSettings());
+            return ctx.newSourceLoader(filter, false);
+        }
+
+        static SourceFilter buildSourceFilter(Set<String> sourcePaths, MappingLookup mappingLookup, IndexSettings indexSettings) {
             var filter = sourcePaths != null ? new SourceFilter(sourcePaths.toArray(new String[0]), null) : null;
             // Apply vector exclusion logic similar to ShardGetService
             var fetchSourceContext = filter != null ? FetchSourceContext.of(true, null, filter.getIncludes(), filter.getExcludes()) : null;
-            var result = maybeExcludeVectorFields(ctx.getMappingLookup(), ctx.getIndexSettings(), fetchSourceContext, null);
+            var result = maybeExcludeVectorFields(mappingLookup, indexSettings, fetchSourceContext, null);
             var vectorFilter = result.v2();
             if (vectorFilter != null) {
-                filter = vectorFilter;
+                var includes = filter != null ? filter.getIncludes() : new String[0];
+                filter = new SourceFilter(includes, vectorFilter.getExcludes());
             }
-            return ctx.newSourceLoader(filter, false);
+            return filter;
         }
 
         @Override

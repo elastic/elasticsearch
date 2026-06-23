@@ -62,17 +62,10 @@ public class CheckLicenseTests extends ESTestCase {
     }
 
     private LogicalPlan analyze(License.OperationMode operationMode, LicensedFeature functionLicenseFeature) {
-        final EsqlFunctionRegistry.FunctionBuilder builder = (source, expression, cfg) -> new LicensedFunction(
-            source,
-            functionLicenseFeature
-        );
-        final FunctionDefinition def = EsqlFunctionRegistry.def(LicensedFunction.class, builder, "license");
-        final EsqlFunctionRegistry registry = new EsqlFunctionRegistry(def) {
-            @Override
-            public EsqlFunctionRegistry snapshotRegistry() {
-                return this;
-            }
-        };
+        final FunctionDefinition def = FunctionDefinition.def(LicensedFunction.class)
+            .noArgs(source -> new LicensedFunction(source, functionLicenseFeature))
+            .name("license");
+        final EsqlFunctionRegistry registry = new EsqlFunctionRegistry(def);
 
         var plan = TEST_PARSER.parseQuery(esql);
         plan = plan.transformDown(

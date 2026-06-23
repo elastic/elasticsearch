@@ -13,13 +13,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
  * Vector implementation that stores a constant float value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantFloatVector extends AbstractVector implements FloatVector {
+public final class ConstantFloatVector extends AbstractVector implements FloatVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantFloatVector.class);
 
@@ -36,13 +38,23 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, float[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public FloatBlock asBlock() {
         return new FloatVectorBlock(this);
     }
 
     @Override
-    public FloatVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantFloatVector(value, positions.length);
+    public int valueMaxByteSize() {
+        return Float.BYTES;
+    }
+
+    @Override
+    public FloatVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantFloatVector(value, length);
     }
 
     @Override

@@ -9,7 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.LongHashTable;
-import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.core.Releasable;
@@ -17,9 +17,9 @@ import org.elasticsearch.core.Releasables;
 
 public class ValuesNextPreparedForEmitting implements Releasable {
     /**
-     * Build for a {@link LongLongHash}.
+     * Build for a {@link LongLongHashTable}.
      */
-    static ValuesNextPreparedForEmitting build(BlockFactory blockFactory, IntVector selected, LongLongHash hashes) {
+    static ValuesNextPreparedForEmitting build(BlockFactory blockFactory, IntVector selected, LongLongHashTable hashes) {
         ValuesNextPreparedForEmitting result = new ValuesNextPreparedForEmitting(blockFactory, selected);
         if (hashes.size() == 0) {
             return result;
@@ -71,8 +71,23 @@ public class ValuesNextPreparedForEmitting implements Releasable {
         this.max = selected.max();
     }
 
-    public int nextValuesEnd(int group, int nextValuesStart) {
-        return selectedCounts != null ? selectedCounts[group - min] : nextValuesStart;
+    public int nextValuesStart(int group) {
+        if (selectedCounts == null) {
+            // There aren't any multivalued results
+            return 0;
+        }
+        if (group == min) {
+            return 0;
+        }
+        return selectedCounts[group - min - 1];
+    }
+
+    public int nextValuesEnd(int group) {
+        if (selectedCounts == null) {
+            // There aren't any multivalued results
+            return 0;
+        }
+        return selectedCounts[group - min];
     }
 
     @Override
@@ -85,7 +100,7 @@ public class ValuesNextPreparedForEmitting implements Releasable {
      * flip the sign on all the actually selected groups. Negative values in
      * this array are always unselected groups.
      */
-    private void countSelected(LongLongHash hashes) {
+    private void countSelected(LongLongHashTable hashes) {
         int selectedCountsLen = max + 1 - min;
         reserveBytesForIntArray(selectedCountsLen);
         this.selectedCounts = new int[selectedCountsLen];
@@ -171,7 +186,7 @@ public class ValuesNextPreparedForEmitting implements Releasable {
      *     {@code 3, 4, -2, 5, 9}.
      * </p>
      */
-    private void buildIds(int total, LongLongHash hashes) {
+    private void buildIds(int total, LongLongHashTable hashes) {
         reserveBytesForIntArray(total);
         ids = new int[total];
         for (int id = 0; id < hashes.size(); id++) {

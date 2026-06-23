@@ -6,7 +6,8 @@ Prometheus scrapes itself and forwards samples to Elasticsearch via the Promethe
 ## Files
 
 - `prometheus.yml` configures `scrape_configs` and `remote_write`.
-- `docker-compose.yml` runs Prometheus on port `9090` and Kibana on port `5601`.
+- `docker-compose.yml` runs Prometheus, Kibana, and Grafana behind a [Traefik](https://traefik.io/) reverse proxy for convenient local URLs.
+- `docker-compose.yml` also seeds deterministic raw and downsampled TSDB indices for comparing PromQL query behavior.
 
 ## Start
 
@@ -27,12 +28,25 @@ cd dev-tools/prometheus-local
 docker compose up -d
 ```
 
+To reset the PromQL downsample comparison indices, rerun the seed service:
+
+```bash
+docker compose up promql_downsample_data_init
+```
+
 ## Verify
 
-- Prometheus UI: `http://localhost:9090`
-- Targets page: `http://localhost:9090/targets` (the `prometheus` job should be `UP`)
-- Kibana UI: `http://localhost:5601`
+- Prometheus UI: `http://prometheus.localhost`
+- Targets page: `http://prometheus.localhost/targets` (the `prometheus` job should be `UP`)
+- Kibana UI: `http://kibana.localhost`
+- Grafana UI: `http://grafana.localhost` (admin/password)
+  - Elasticsearch is pre-configured as a Prometheus data source
+  - A Prometheus overview dashboard is automatically imported on first start
+  - PromQL downsample comparison: `http://grafana.localhost/d/promql-downsample-comparison`
+- Traefik dashboard: `http://traefik.localhost`
 - Remote write health in Prometheus UI (example query):
   - `rate(prometheus_remote_storage_samples_total[1m])`
 - Query PromQL in Kibana Discover (example query):
   - `PROMQL step=1m rate(prometheus_remote_storage_samples_total[1m])`
+
+> **Note:** The `.localhost` hostnames are resolved by most browsers to `127.0.0.1` without any `/etc/hosts` changes.

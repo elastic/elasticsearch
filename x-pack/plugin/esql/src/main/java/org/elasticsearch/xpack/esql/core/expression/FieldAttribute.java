@@ -13,30 +13,41 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Attribute for an ES field.
+ * Treat this as final - avoid creating new subclasses. This is used extensively throughout the codebase, making new subclasses risky.
+ * Consider using a new {@link EsField} subclass if needed.
+ * <p>
+ * Attribute for an ES index field. May actually stand for a field with the same name across different indices (a union), e.g. when
+ * index pattern were used in the query: {@code FROM logs-* | KEEP field}.
+ * <p>
  * This class offers:
- * - name - the name of the attribute, but not necessarily of the field.
- * - The raw EsField representing the field; for parent.child.grandchild this is just grandchild.
- * - parentName - the full path to the immediate parent of the field, e.g. parent.child (without .grandchild)
- *
+ * <ul>
+ *  <li> name - the name of the attribute, but not necessarily of the field.
+ *  <li> The raw EsField representing the field; for parent.child.grandchild this is just grandchild.
+ *  <li> parentName - the full path to the immediate parent of the field, e.g. parent.child (without .grandchild)
+ * </ul>
+ * <p>
  * To adequately represent e.g. union types, the name of the attribute can be altered because we may have multiple synthetic field
  * attributes that really belong to the same underlying field. For instance, if a multi-typed field is used both as {@code field::string}
  * and {@code field::ip}, we'll generate 2 field attributes called {@code $$field$converted_to$keyword} and {@code $$field$converted_to$ip}
  * which still refer to the same underlying index field.
  */
-public class FieldAttribute extends TypedAttribute {
+public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMetadataAttribute, UnsupportedAttribute {
 
     /**
      * A field name, as found in the mapping. Includes the whole path from the root of the document.
@@ -52,7 +63,7 @@ public class FieldAttribute extends TypedAttribute {
         EsField.TimeSeriesFieldType.DIMENSION
     );
 
-    static EsField timeSeriesField() {
+    public static EsField timeSeriesField() {
         return TIMESERIES_FIELD;
     }
 
@@ -187,7 +198,7 @@ public class FieldAttribute extends TypedAttribute {
                 && MetadataAttribute.isTimeSeriesAttributeName(name())) {
                 if (this instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
                     out.writeBoolean(true);
-                    out.writeStringCollection(timeSeriesMetadataAttribute.withoutFields());
+                    out.writeStringCollection(timeSeriesMetadataAttribute.excludedFields());
                 } else {
                     out.writeBoolean(false);
                 }
@@ -230,6 +241,26 @@ public class FieldAttribute extends TypedAttribute {
             }
         }
         return lazyFieldName;
+    }
+
+    public boolean hasTypeConflicts() {
+        return field instanceof TypeConflictedField;
+    }
+
+    /**
+     * If the underlying field is a {@link TypeConflictedField} (ambiguous type across indices),
+     * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message
+     * so the analyzer can surface a clear user-facing error.
+     */
+    public Attribute flagTypeConflicts() {
+        if (field instanceof TypeConflictedField tcf) {
+            // Field has conflicting types across indices — build a user-facing error message.
+            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + tcf.errorMessage();
+            List<String> types = tcf.getTypesToIndices().keySet().stream().toList();
+            // Preserve the original NameId so downstream attribute-resolution stays consistent.
+            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(tcf.getName(), types), unresolvedMessage, id());
+        }
+        return this;
     }
 
     /**
@@ -315,15 +346,23 @@ public class FieldAttribute extends TypedAttribute {
         return field;
     }
 
+    /**
+     * Renders the FieldAttribute as {@code [<qual>.]<name>{f[(SubclassName)][$]}#id}. Identifier
+     * mentions route through the supplied {@link NodeStringMapper}; in LIMITED mode the EsField
+     * subclass marker is suppressed to keep the rendering compact.
+     */
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return switch (format) {
-            case FULL -> {
-                var nodeStringName = field.getNodeStringName();
-                nodeStringName = nodeStringName.isEmpty() ? nodeStringName : Strings.format("(%s)", nodeStringName);
-                yield Strings.format("%s{%s%s%s}#%s", qualifiedName(), label(), nodeStringName, synthetic() ? "$" : "", id());
-            }
-            case LIMITED -> super.nodeString(format);
-        };
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        if (qualifier() != null) {
+            sb.append(mapper.column(qualifier())).append('.');
+        }
+        sb.append(mapper.column(name())).append('{').append(label());
+        if (format != NodeStringFormat.LIMITED && field.getNodeStringName().isEmpty() == false) {
+            sb.append('(').append(field.getNodeStringName()).append(')');
+        }
+        if (synthetic()) {
+            sb.append('$');
+        }
+        sb.append("}#").append(id());
     }
 }

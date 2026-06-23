@@ -49,6 +49,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,6 +57,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessage;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -267,13 +270,8 @@ public class MockTransportService extends TransportService {
             clusterSettings,
             MockTaskManager.create(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId),
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
-            new TelemetryProvider() {
+            new NoopTelemetryProvider() {
                 final MeterRegistry meterRegistry = new RecordingMeterRegistry();
-
-                @Override
-                public Tracer getTracer() {
-                    return Tracer.NOOP;
-                }
 
                 @Override
                 public MeterRegistry getMeterRegistry() {
@@ -572,7 +570,11 @@ public class MockTransportService extends TransportService {
 
                 // poor mans request cloning...
                 BytesStreamOutput bStream = new BytesStreamOutput();
-                request.writeTo(bStream);
+                if (request instanceof BytesTransportMessage bytesRequest) {
+                    BytesTransportMessageTestUtils.writeThinWithBytes(bStream, bytesRequest);
+                } else {
+                    request.writeTo(bStream);
+                }
                 RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                 final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
                 assert clonedRequest.getClass().equals(MasterNodeRequestHelper.unwrapTermOverride(request).getClass())

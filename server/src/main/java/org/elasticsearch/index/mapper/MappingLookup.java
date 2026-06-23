@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,15 +57,24 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final Set<String> syntheticVectorFields;
+    private final Set<FieldMapper> indexDimensionFieldMappers;
+    private final Set<FieldMapper> indexMetricFieldMappers;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
-    private final Map<String, NamedAnalyzer> indexAnalyzersMap;
+    private final Map<String, NamedAnalyzer> indexAnalyzers;
     private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
     private final int totalFieldsCount;
     private final IndexMode indexMode;
+
+    // cached booleans from the _source field mapper
+    private final boolean isSourceEnabled;
+    private final boolean isSourceSynthetic;
+    private final boolean isSourceColumnarStored;
+
+    private final boolean isColumnarId;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -77,16 +87,16 @@ public final class MappingLookup {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
-        List<PassThroughObjectMapper> newPassThroughMappers = new ArrayList<>();
+        List<PassThroughFieldSource> newPassThroughSources = new ArrayList<>();
         for (MetadataFieldMapper metadataMapper : mapping.getSortedMetadataMappers()) {
             if (metadataMapper != null) {
                 newFieldMappers.add(metadataMapper);
             }
         }
         for (Mapper child : mapping.getRoot()) {
-            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughMappers);
+            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughSources);
         }
-        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughMappers, indexMode);
+        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughSources, indexMode);
     }
 
     private static void collect(
@@ -94,15 +104,18 @@ public final class MappingLookup {
         Collection<ObjectMapper> objectMappers,
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers
+        Collection<PassThroughFieldSource> passThroughSources
     ) {
         if (mapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
-            passThroughMappers.add(passThroughObjectMapper);
+            passThroughSources.add(passThroughObjectMapper);
             objectMappers.add(passThroughObjectMapper);
         } else if (mapper instanceof ObjectMapper objectMapper) {
             objectMappers.add(objectMapper);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             fieldMappers.add(fieldMapper);
+            if (fieldMapper instanceof PassThroughFieldSource pts && pts.passThroughSubFields().isEmpty() == false) {
+                passThroughSources.add(pts);
+            }
         } else if (mapper instanceof FieldAliasMapper fieldAliasMapper) {
             fieldAliasMappers.add(fieldAliasMapper);
         } else {
@@ -110,7 +123,7 @@ public final class MappingLookup {
         }
 
         for (Mapper child : mapper) {
-            collect(child, objectMappers, fieldMappers, fieldAliasMappers, passThroughMappers);
+            collect(child, objectMappers, fieldMappers, fieldAliasMappers, passThroughSources);
         }
     }
 
@@ -126,7 +139,7 @@ public final class MappingLookup {
      * @param mappers the field mappers
      * @param objectMappers the object mappers
      * @param aliasMappers the field alias mappers
-     * @param passThroughMappers the pass-through mappers
+     * @param passThroughSources the pass-through field sources
      * @param indexMode the mode of the index
      * @return the newly created lookup instance
      */
@@ -135,10 +148,10 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers,
+        Collection<PassThroughFieldSource> passThroughSources,
         IndexMode indexMode
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers, indexMode);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughSources, indexMode);
     }
 
     public static MappingLookup fromMappers(
@@ -155,7 +168,7 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers,
+        Collection<PassThroughFieldSource> passThroughSources,
         IndexMode indexMode
     ) {
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
@@ -174,8 +187,10 @@ public final class MappingLookup {
         }
         this.nestedLookup = NestedLookup.build(nestedMappers);
 
-        final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
+        final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
         final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
+        final Set<FieldMapper> dimensionMappers = new LinkedHashSet<>();
+        final Set<FieldMapper> metricMappers = new LinkedHashSet<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.fullPath())) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
@@ -183,9 +198,16 @@ public final class MappingLookup {
             if (fieldMappers.put(mapper.fullPath(), mapper) != null) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined more than once");
             }
-            indexAnalyzersMap.putAll(mapper.indexAnalyzers());
+            indexAnalyzers.putAll(mapper.indexAnalyzers());
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
+            }
+            MappedFieldType fieldType = mapper.fieldType();
+            if (fieldType.isDimension()) {
+                dimensionMappers.add(mapper);
+            }
+            if (fieldType.getMetricType() != null) {
+                metricMappers.add(mapper);
             }
         }
 
@@ -198,9 +220,10 @@ public final class MappingLookup {
             }
         }
 
-        PassThroughObjectMapper.checkForDuplicatePriorities(passThroughMappers);
+        PassThroughObjectMapper.checkForDuplicatePriorities(passThroughSources);
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, runtimeFields);
+        final Map<String, PrefixProperties> prefixProperties = mapping.getRoot().getPrefixProperties();
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields, prefixProperties);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         List<String> syntheticVectorFields = new ArrayList<>();
@@ -219,18 +242,35 @@ public final class MappingLookup {
             // without runtime fields this is the same as the field type lookup
             this.indexTimeLookup = fieldTypeLookup;
         } else {
-            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, Collections.emptyList());
+            this.indexTimeLookup = new FieldTypeLookup(
+                mappers,
+                aliasMappers,
+                passThroughSources,
+                Collections.emptyList(),
+                prefixProperties
+            );
         }
         // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);
+        this.indexDimensionFieldMappers = Collections.unmodifiableSet(dimensionMappers);
+        this.indexMetricFieldMappers = Collections.unmodifiableSet(metricMappers);
         this.objectMappers = Map.copyOf(objects);
         this.runtimeFieldMappersCount = runtimeFields.size();
-        this.indexAnalyzersMap = Map.copyOf(indexAnalyzersMap);
+        this.indexAnalyzers = Map.copyOf(indexAnalyzers);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
         this.indexMode = indexMode;
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
         assert assertMapperNamesInterned(this.fieldMappers, this.objectMappers);
+
+        // cache these properties of the _source field for instantaneous access
+        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
+        this.isSourceEnabled = sfm != null && sfm.enabled();
+        this.isSourceSynthetic = sfm != null && sfm.isSynthetic();
+        this.isSourceColumnarStored = sfm != null && sfm.isColumnarStored();
+
+        var idFieldMapper = mapping.getMetadataMapperByClass(ProvidedIdFieldMapper.class);
+        this.isColumnarId = idFieldMapper != null && idFieldMapper.isColumnarMode();
     }
 
     private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {
@@ -286,7 +326,7 @@ public final class MappingLookup {
     }
 
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
-        final NamedAnalyzer analyzer = indexAnalyzersMap.get(field);
+        final NamedAnalyzer analyzer = indexAnalyzers.get(field);
         if (analyzer != null) {
             return analyzer;
         }
@@ -298,6 +338,20 @@ public final class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
+    }
+
+    /**
+     * Returns the set of field mappers marked as time-series dimensions, in insertion order.
+     */
+    public Set<FieldMapper> indexDimensionFieldMappers() {
+        return indexDimensionFieldMappers;
+    }
+
+    /**
+     * Returns the set of field mappers that carry a time-series metric type, in insertion order.
+     */
+    public Set<FieldMapper> indexMetricFieldMappers() {
+        return indexMetricFieldMappers;
     }
 
     void checkLimits(IndexSettings settings) {
@@ -501,24 +555,35 @@ public final class MappingLookup {
      * Will there be {@code _source}.
      */
     public boolean isSourceEnabled() {
-        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
-        return sfm != null && sfm.enabled();
+        return isSourceEnabled;
     }
 
     /**
      * Does the source need to be rebuilt on the fly?
      */
     public boolean isSourceSynthetic() {
-        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
-        return sfm != null && sfm.isSynthetic();
+        return isSourceSynthetic;
+    }
+
+    public boolean isSourceColumnarStored() {
+        return isSourceColumnarStored;
+    }
+
+    public boolean isColumnarId() {
+        return isColumnarId;
     }
 
     /**
      * Build something to load source {@code _source}.
      */
     public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
-        if (isSourceSynthetic()) {
-            return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics, mapping.ignoredSourceFormat());
+        if (isSourceSynthetic() || isSourceColumnarStored()) {
+            return new SourceLoader.Synthetic(
+                filter,
+                () -> mapping.syntheticFieldLoader(filter, isSourceColumnarStored()),
+                metrics,
+                mapping.ignoredSourceFormat()
+            );
         }
         var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -48,6 +49,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvAppend", MvAppend::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvAppend.class)
+        .binary(MvAppend::new)
+        .capabilities("flattened")
+        .name("mv_append");
 
     private final Expression field1, field2;
     private DataType dataType;
@@ -60,6 +65,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -71,6 +77,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Appends two multi-value fields together.",
         description = "Concatenates values of two multi-value fields.",
         examples = { @Example(file = "date", tag = "mv_append_date") }
     )
@@ -85,6 +92,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -107,6 +115,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

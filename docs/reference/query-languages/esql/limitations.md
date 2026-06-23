@@ -50,9 +50,9 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 * TSDB metrics {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
    * `counter`
    * `gauge`
-   * `aggregate_metric_double`
-   * `exponential_histogram` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
-   * `tdigest` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+   * `aggregate_metric_double`: Aggregation functions that do not natively support `aggregate_metric_double` will use the average value and treat it as a `double`. {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+   * `exponential_histogram` {applies_to}`stack: preview 9.3+, ga 9.4.0`
+   * `tdigest` {applies_to}`stack: preview 9.3+, ga 9.4.0`
 
 
 ### Unsupported types [_unsupported_types]
@@ -145,6 +145,12 @@ Note that if you return both the original `location` and the extracted `x` and `
     * `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])`
     * `FROM test | EVAL agm_data = TO_AGGREGATE_METRIC_DOUBLE(aggregate_metric_double_field)`
     :::
+
+## Runtime fields [esql-limitations-runtime-fields]
+
+{{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping and treats them like regular mapped fields. However, you cannot define new runtime fields at search time in {{esql}}. Use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to create computed columns instead.
+
+Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/commands/set.md#esql-unmapped_fields) directive.
 
 ## _source availability [esql-_source-availability]
 
@@ -257,6 +263,32 @@ Work around this limitation by converting the field to single value with one of 
 [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions/categorize.md) grouping function is not currently supported.
 
 Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
+
+
+## Subquery and view limitations [esql-limitations-subquery-views]
+
+[Subqueries](/reference/query-languages/esql/esql-subquery.md) and
+[views](/reference/query-languages/esql/esql-views.md) are closely related,
+since both extend the
+[`FROM`](/reference/query-languages/esql/commands/from.md) command with
+branched query plans. They share the overall branching constraints but each
+has its own additional limitations, described in turn below.
+
+### Subquery limitations [esql-limitations-subquery]
+
+:::{include} _snippets/common/subquery_limitations.md
+:::
+
+### View limitations [esql-limitations-views]
+
+[Views](/reference/query-languages/esql/esql-views.md) reuse the same
+branching model as subqueries, nested branching is generally not supported, but
+views can work around this limitation via
+[query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
+Beyond that, views have a few additional restrictions of their own, listed next.
+
+:::{include} _snippets/common/view_limitations.md
+:::
 
 
 ## Kibana limitations [esql-limitations-kibana]

@@ -16,6 +16,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Shared utilities for GCS fixture-based integration tests.
  * Provides fixture infrastructure for testing ESQL external data sources with Google Cloud Storage.
@@ -60,21 +63,41 @@ public final class GcsFixtureUtils {
          */
         public void loadFixturesFromResources() {
             try {
-                byte[] serviceAccountBytes = TestUtils.createServiceAccount(Randomness.get());
-                gcsServiceAccountJson = new String(serviceAccountBytes, java.nio.charset.StandardCharsets.UTF_8);
+                ensureServiceAccountInitialized();
 
-                int[] count = { 0 };
-                FixtureUtils.forEachFixtureEntry(getClass(), (relativePath, content) -> {
+                Set<String> loadedKeys = new HashSet<>();
+                FixtureUtils.forEachFixtureEntryMergingAllClasspathRoots(getClass().getClassLoader(), (relativePath, content) -> {
                     String key = S3FixtureUtils.WAREHOUSE + "/" + relativePath;
                     getHandler().putBlob(key, new BytesArray(content));
-                    count[0]++;
+                    loadedKeys.add(key);
                 });
 
-                logger.info("Loaded {} fixture files into GCS fixture", count[0]);
+                logger.info("Loaded {} fixture file(s) into GCS fixture: {}", loadedKeys.size(), String.join(", ", loadedKeys));
             } catch (Exception e) {
                 logger.error("Failed to load GCS fixtures", e);
                 throw new RuntimeException(e);
             }
+        }
+
+        /**
+         * Generate a service account JSON if one hasn't already been created. Lets callers that bypass
+         * {@link #loadFixturesFromResources()} (e.g. dataset-CRUD tests that {@link #getHandler() put}
+         * a single ad-hoc blob) still obtain the JSON via {@link #gcsServiceAccountJson()} for
+         * embedding into a {@code DataSource} registration.
+         */
+        public synchronized void ensureServiceAccountInitialized() {
+            if (gcsServiceAccountJson == null) {
+                byte[] serviceAccountBytes = TestUtils.createServiceAccount(Randomness.get());
+                gcsServiceAccountJson = new String(serviceAccountBytes, java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+
+        /**
+         * Returns the service-account JSON the fixture trusts. Must be called after
+         * {@link #ensureServiceAccountInitialized()} or {@link #loadFixturesFromResources()}.
+         */
+        public String gcsServiceAccountJson() {
+            return gcsServiceAccountJson;
         }
 
         /**
@@ -104,15 +127,13 @@ public final class GcsFixtureUtils {
 
             String tokenUri = getAddress() + "/" + TOKEN;
 
-            StringBuilder params = new StringBuilder();
-            params.append(" WITH { ");
-            params.append("\"endpoint\": \"").append(getAddress()).append("\", ");
-            params.append("\"credentials\": \"").append(escapedCredentials).append("\", ");
-            params.append("\"project_id\": \"test\", ");
-            params.append("\"token_uri\": \"").append(tokenUri).append("\"");
-            params.append(" }");
+            StringBuilder entries = new StringBuilder();
+            entries.append("\"endpoint\": \"").append(getAddress()).append("\", ");
+            entries.append("\"credentials\": \"").append(escapedCredentials).append("\", ");
+            entries.append("\"project_id\": \"test\", ");
+            entries.append("\"token_uri\": \"").append(tokenUri).append("\"");
 
-            return externalPart + params + restOfQuery;
+            return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
         }
     }
 }

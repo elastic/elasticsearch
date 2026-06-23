@@ -21,6 +21,8 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -56,6 +58,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -64,20 +67,31 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.TreeMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
-import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticIdBytesRef;
+import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticId;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
+
+    private static int metricHash;
+
+    @Before
+    public void setUpMetricsNameField() throws Exception {
+        metricHash = randomIntBetween(1, 255);
+    }
 
     /**
      * Represents a time-series document
@@ -87,7 +101,6 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     public record Doc(long timestamp, String hostName, String metricField, Integer metricValue, int version, int routing) {}
 
     public void testTerms() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         runTest((writer, parser) -> {
 
             final var now = Instant.now();
@@ -138,7 +151,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
                     assertThat(terms.size(), equalTo(-1L));
                     assertThat(terms.getSumTotalTermFreq(), equalTo(0L));
-                    assertThat(terms.getSumDocFreq(), equalTo(0L));
+                    assertThat(terms.getSumDocFreq(), equalTo((long) docsPerSegments[i]));
                     assertThat(terms.getDocCount(), equalTo(docsPerSegments[i]));
 
                     var lazyTermsEnum = terms.iterator();
@@ -163,7 +176,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                         if (previous != null) {
                             assertThat(current.compareTo(previous), greaterThan(0));
                         }
-                        previous = termsEnum.term();
+                        // Deep copy since term() may return a reused BytesRef (scratch buffer)
+                        previous = BytesRef.deepCopyOf(termsEnum.term());
 
                         if (randomBoolean()) {
                             var postings = termsEnum.postings(reuse);
@@ -195,7 +209,6 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     public void testSeek() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         runTestWithRandomDocs((writer, finalDocs) -> {
             try (var reader = DirectoryReader.open(writer)) {
                 assertThat(reader.getDocCount(IdFieldMapper.NAME), equalTo(finalDocs.values().stream().mapToInt(Doc::version).sum()));
@@ -390,14 +403,182 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    public void testSeekCeilWithInvalidEscapedTerms() throws IOException {
+        runTestWithRandomDocs((writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+
+                final Terms terms = leafReader.terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+
+                final TermsEnum syntheticIdTermsEnum = LazyFilterTermsEnum.unwrap(terms.iterator());
+                assertThat(syntheticIdTermsEnum, instanceOf(SyntheticIdTermsEnum.class));
+                // terms start with 0xFD is valid if the next byte is >= 0xFD, but either case, the seekCeil should position correctly
+                {
+                    byte firstByte = (byte) 0xFD;
+                    var lookupTerm = new BytesRef(new byte[] { firstByte });
+                    var status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                    if (status == TermsEnum.SeekStatus.END) {
+                        assertNull(finalDocs.ceilingKey(lookupTerm));
+                    } else {
+                        assertThat(status, is(TermsEnum.SeekStatus.NOT_FOUND));
+                        assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.ceilingKey(lookupTerm)));
+                        assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
+                    }
+                    for (int secondByte = 0x00; secondByte <= 0xFF; secondByte++) {
+                        lookupTerm = new BytesRef(new byte[] { firstByte, (byte) secondByte });
+                        status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                        if (status == TermsEnum.SeekStatus.END) {
+                            assertNull(finalDocs.ceilingKey(lookupTerm));
+                        } else {
+                            assertThat(status, is(TermsEnum.SeekStatus.NOT_FOUND));
+                            assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.ceilingKey(lookupTerm)));
+                            assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
+                        }
+                    }
+                }
+                // all terms start with 0xFE or 0xFF are not found
+                for (int firstByte : List.of(0xFE, 0xFF)) {
+                    assertThat(syntheticIdTermsEnum.seekCeil(new BytesRef(new byte[] { (byte) firstByte })), is(TermsEnum.SeekStatus.END));
+                    for (int secondByte = 0x00; secondByte <= 0xFF; secondByte++) {
+                        assertThat(
+                            syntheticIdTermsEnum.seekCeil(new BytesRef(new byte[] { (byte) firstByte, (byte) secondByte })),
+                            is(TermsEnum.SeekStatus.END)
+                        );
+                        byte thirdByte = randomByte();
+                        assertThat(
+                            syntheticIdTermsEnum.seekCeil(new BytesRef(new byte[] { (byte) firstByte, (byte) secondByte, thirdByte })),
+                            is(TermsEnum.SeekStatus.END)
+                        );
+                    }
+                }
+                // terms start with 0x00..0xFC — these are shorter than any valid synthetic id, seekCeil should position correctly
+                for (int firstByte = 0x00; firstByte < 0xFD; firstByte++) {
+                    var lookupTerm = new BytesRef(new byte[] { (byte) firstByte });
+                    var status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                    if (status == TermsEnum.SeekStatus.END) {
+                        assertNull(finalDocs.ceilingKey(lookupTerm));
+                    } else {
+                        assertThat(status, is(TermsEnum.SeekStatus.NOT_FOUND));
+                        assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.ceilingKey(lookupTerm)));
+                        assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
+                    }
+                    for (int secondByte = 0x00; secondByte <= 0xFF; secondByte++) {
+                        lookupTerm = new BytesRef(new byte[] { (byte) firstByte, (byte) secondByte });
+                        status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                        if (status == TermsEnum.SeekStatus.END) {
+                            assertNull(finalDocs.ceilingKey(lookupTerm));
+                        } else {
+                            assertThat(status, is(TermsEnum.SeekStatus.NOT_FOUND));
+                            assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.ceilingKey(lookupTerm)));
+                            assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    public void testSeekRandomTerms() throws IOException {
+        runTestWithRandomDocs((writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+                final Terms terms = leafReader.terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+                final TermsEnum syntheticIdTermsEnum = LazyFilterTermsEnum.unwrap(terms.iterator());
+                assertThat(syntheticIdTermsEnum, instanceOf(SyntheticIdTermsEnum.class));
+                for (int i = 0; i < 1000; i++) {
+                    final BytesRef lookupTerm = new BytesRef(randomByteArrayOfLength(between(0, 64)));
+                    final var status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                    switch (status) {
+                        case FOUND -> assertThat(syntheticIdTermsEnum.term(), equalTo(lookupTerm));
+                        case NOT_FOUND -> assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
+                        case END -> assertNull(finalDocs.ceilingKey(lookupTerm));
+                    }
+                }
+            }
+        });
+    }
+
+    public void testConcurrentSeekExactNIOFSDirectory() throws IOException {
+        // We test directly with a NIOFSDirectory since it uses mutable non-thread safe IndexInputs instead of MMap IndexInputs
+        // that are less prone to concurrency issues.
+        doTestConcurrentSeekExact(new NIOFSDirectory(createTempDir()));
+    }
+
+    public void testConcurrentSeekExactRandomDirectory() throws IOException {
+        final var directory = newDirectory();
+        directory.setCheckIndexOnClose(false);
+        doTestConcurrentSeekExact(directory);
+    }
+
+    private void doTestConcurrentSeekExact(Directory directory) throws IOException {
+        runTestWithRandomDocs(directory, 25, 100, (writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+                final var ids = new ArrayList<>(finalDocs.keySet());
+
+                // N threads each do terms("_id").iterator().seekExact(id), mirroring the
+                // PerThreadIDVersionAndSeqNoLookup pattern: each thread has its own TermsEnum
+                // but all share the same DelegatingBloomFilterFieldsProducer and its underlying BloomFilter.
+                final int numThreads = 16;
+                final int iterationsPerThread = 1_000;
+                final var errors = new CopyOnWriteArrayList<Throwable>();
+                final var startLatch = new CountDownLatch(1);
+                final var doneLatch = new CountDownLatch(numThreads);
+
+                for (int t = 0; t < numThreads; t++) {
+                    final int threadIdx = t;
+                    new Thread(() -> {
+                        try {
+                            final TermsEnum termsEnum = leafReader.terms(IdFieldMapper.NAME).iterator();
+                            startLatch.await();
+                            for (int i = 0; i < iterationsPerThread; i++) {
+                                final BytesRef id = ids.get((i + threadIdx) % ids.size());
+                                termsEnum.seekExact(id);
+                            }
+                        } catch (Throwable e) {
+                            logger.error("unexpected exception", e);
+                            errors.add(e);
+                        } finally {
+                            doneLatch.countDown();
+                        }
+                    }, "seek-thread-" + t).start();
+                }
+
+                startLatch.countDown();
+                safeAwait(doneLatch);
+                assertThat(errors, empty());
+            }
+        });
+    }
+
     /**
      * Indexes random documents with synthetic id in a time-series Lucene index.
      *
      * See {@link #runTest(CheckedBiConsumer)}.
      */
     public static void runTestWithRandomDocs(CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test) throws IOException {
+        final var directory = newDirectory();
+        directory.setCheckIndexOnClose(false);
+        runTestWithRandomDocs(directory, test);
+    }
+
+    public static void runTestWithRandomDocs(Directory directory, CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test)
+        throws IOException {
+        runTestWithRandomDocs(directory, randomIntBetween(1, 25), randomIntBetween(1, 100), test);
+    }
+
+    private static void runTestWithRandomDocs(
+        Directory directory,
+        int maxHosts,
+        int maxMetricsPerHost,
+        CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test
+    ) throws IOException {
         final int routing = randomNonNegativeInt();
-        final int maxHosts = randomIntBetween(1, 25);
 
         // Generate a list of unique random documents
         // Note: some documents will be later updated to a newer version so that 1 synthetic term have more than 1 posting (doc)
@@ -405,14 +586,13 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         for (int host = 0; host < maxHosts; host++) {
             var timestamp = Instant.now();
 
-            int maxMetricsPerHost = randomIntBetween(1, 100);
             for (int metric = 0; metric < maxMetricsPerHost; metric++) {
                 randomDocs.add(new Doc(timestamp.toEpochMilli(), "vm-prod-" + host, "cpu-load", metric, 1, routing));
                 timestamp = timestamp.plus(randomIntBetween(1, 59), randomFrom(ChronoUnit.MILLIS, ChronoUnit.SECONDS, ChronoUnit.MINUTES));
             }
         }
 
-        runTest((writer, parser) -> {
+        runTest(directory, (writer, parser) -> {
             // Last version of docs, keyed by their synthetic id term
             final var finalDocs = new TreeMap<BytesRef, Doc>();
 
@@ -424,7 +604,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 var doc = randomlyOrderedDocs.get(i);
                 writer.addDocument(parser.parse(doc));
 
-                var uid = createSyntheticIdBytesRef(buildTsId(doc), doc.timestamp(), doc.routing());
+                var uid = uidEncodedSyntheticId(doc);
                 assertThat(finalDocs.put(uid, doc), nullValue());
 
                 if (i > 0 && rarely()) {
@@ -468,18 +648,22 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * best way to stay close to the default options of time-series indices, while keeping it light enough for unit tests.
      */
     private static void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
+        final var directory = newDirectory();
+        // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
+        // that is not supported in TSDBSyntheticIdFieldsProducer today.
+        //
+        // TODO would be nice to enable check-index-on-close
+        directory.setCheckIndexOnClose(false);
+        runTest(directory, test);
+    }
+
+    private static void runTest(Directory directory, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
         final var indexName = randomIdentifier();
         final var indexSettings = buildIndexSettings(indexName);
         final var mapperService = buildMapperService(indexSettings);
         final var documentParser = buildDocumentParser(mapperService);
 
-        try (var directory = newDirectory()) {
-            // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
-            // that is not supported in TSDBSyntheticIdFieldsProducer today.
-            //
-            // TODO would be nice to enable check-index-on-close
-            directory.setCheckIndexOnClose(false);
-
+        try (directory) {
             final var indexWriterConfig = newIndexWriterConfig();
             indexWriterConfig.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(
@@ -503,9 +687,10 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * Builds time-series index settings.
      */
     private static IndexSettings buildIndexSettings(final String indexName) {
+        final List<String> dimensions = List.of("hostname", "metric.field", "_metric_names_hash");
         var settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), List.of("hostname", "metric.field"));
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensions);
         if (rarely()) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
         }
@@ -530,6 +715,10 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                                 "time_series_metric": "counter"
                             }
                         }
+                    },
+                    "_metric_names_hash": {
+                       "type": "integer",
+                       "time_series_dimension": true
                     }
                 }
             }""").build(), Settings.EMPTY);
@@ -606,9 +795,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             {
                 source.field("field", document.metricField());
                 source.field("value", document.metricValue());
-
             }
             source.endObject();
+            source.field("_metric_names_hash", metricHash);
         }
         source.endObject();
         return source;
@@ -665,9 +854,18 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     private static BytesRef buildTsId(Doc doc) {
-        return new TsidBuilder().addStringDimension("hostname", doc.hostName())
+        return new TsidBuilder().addIntDimension("_metric_names_hash", metricHash)
+            .addStringDimension("hostname", doc.hostName())
             .addStringDimension("metric.field", doc.metricField())
             .buildTsid(IndexVersion.current());
+    }
+
+    /**
+     * Returns the Uid-encoded synthetic ID for a document, matching what term() returns.
+     */
+    private static BytesRef uidEncodedSyntheticId(Doc doc) {
+        String base64Id = createSyntheticId(buildTsId(doc), doc.timestamp(), doc.routing());
+        return Uid.encodeId(base64Id);
     }
 
     /**
@@ -714,7 +912,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             modifiedTimestamp = timestamp;
         }
 
-        final var term = TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+        final var term = createSyntheticIdBytesRef(
             modifiedTsId,
             modifiedTimestamp,
             TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(value)
@@ -736,19 +934,19 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             // tsids are not identical, find the first byte that differs
             int diffIndex = 0;
             final int minLen = Math.min(tsIdMin.length, tsIdMax.length);
-            while (diffIndex < minLen && min.bytes[min.offset + diffIndex] == max.bytes[max.offset + diffIndex]) {
+            while (diffIndex < minLen && tsIdMin.bytes[tsIdMin.offset + diffIndex] == tsIdMax.bytes[tsIdMax.offset + diffIndex]) {
                 diffIndex++;
             }
 
             // increment the first byte that differs (if there is room for doing so)
             if (diffIndex < minLen) {
-                int valueMin = min.bytes[min.offset + diffIndex] & 0xFF;
-                int valueMax = (diffIndex < max.length) ? (max.bytes[max.offset + diffIndex] & 0xFF) : 256;
+                int valueMin = tsIdMin.bytes[tsIdMin.offset + diffIndex] & 0xFF;
+                int valueMax = (diffIndex < tsIdMax.length) ? (tsIdMax.bytes[tsIdMax.offset + diffIndex] & 0xFF) : 256;
                 if (valueMax - valueMin > 1) {
                     byte[] tsid = new byte[tsIdMin.length];
                     System.arraycopy(tsIdMin.bytes, tsIdMin.offset, tsid, 0, tsIdMin.length);
                     tsid[diffIndex] = (byte) (valueMin + randomIntBetween(1, valueMax - valueMin - 1));
-                    return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+                    return createSyntheticIdBytesRef(
                         new BytesRef(tsid),
                         TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(min),
                         TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(min)
@@ -763,13 +961,13 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         long diffTimestamps = Math.abs(timestampMin - timestampMax);
         if (diffTimestamps > 1L) {
             if (timestampMin > timestampMax) {
-                return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+                return createSyntheticIdBytesRef(
                     tsIdMin,
                     timestampMin - randomLongBetween(1L, diffTimestamps - 1L),
                     TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(min)
                 );
             } else {
-                return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+                return createSyntheticIdBytesRef(
                     tsIdMax,
                     timestampMax + randomLongBetween(1L, diffTimestamps - 1L),
                     TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(max)
@@ -777,6 +975,17 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             }
         }
         return null; // Nothing we can do, min and max have identical _tsid and @timestamp
+    }
+
+    static BytesRef createSyntheticIdBytesRef(BytesRef tsid, long timestamp, int routingHash) {
+        BytesRef id = TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(tsid, timestamp, routingHash);
+        if (Byte.toUnsignedInt(id.bytes[id.offset]) >= Uid.BASE64_ESCAPE) {
+            byte[] newBytes = new byte[id.length + 1];
+            System.arraycopy(id.bytes, id.offset, newBytes, 1, id.length);
+            newBytes[0] = (byte) Uid.BASE64_ESCAPE;
+            return new BytesRef(newBytes);
+        }
+        return id;
     }
 
 }

@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
-import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -41,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
@@ -48,11 +48,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -80,7 +80,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -97,22 +96,19 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -121,7 +117,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
@@ -160,7 +155,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -1363,7 +1361,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitDefaultLimitAfterLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = basic().query("from test | limit 1 by emp_no");
 
         var defaultLimit = as(plan, Limit.class);
@@ -1862,7 +1859,7 @@ public class AnalyzerTests extends ESTestCase {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes =
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
-                + "or dense_vector or exponential_histogram or geo_point "
+                + "or dense_vector or exponential_histogram or flattened or geo_point "
                 + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         analyzer().error(
             "row period = 1 year | eval to_string(period)",
@@ -2333,7 +2330,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         LogicalPlan plan = basic().query(query);
@@ -2386,7 +2383,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 int_number_names ON garbage
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 2:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("2:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         basic().error(query, containsString("Unknown column in lookup target [garbage]"));
@@ -2398,7 +2395,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 garbage ON a
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 2:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("2:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         basic().error(query, containsString("Unknown table [garbage]"));
@@ -2411,7 +2408,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         basic().error(query, containsString("column type mismatch, table column was [integer] and original column was [keyword]"));
@@ -3342,20 +3339,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_createsUnmappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("keyword")),
-                        fieldCapabilitiesIndexResponse("bar", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
 
         String query = "FROM foo, bar | INSIST_🐔 message";
         var plan = analyzer().addIndex(resolution).query(query);
@@ -3366,143 +3357,49 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
     }
 
-    public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", Map.of())
-                    ),
-                    List.of()
-                )
-            ),
-            IndexResolver.DO_NOT_GROUP
-        );
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [2] incompatible types: "
-            + "[keyword] enforced by INSIST command, and [long] in index mappings";
-        assertThat(attribute.unresolvedMessage(), is(expected));
-    }
-
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
+                fieldCapabilitiesIndexResponse("bazz", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
         var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[keyword] enforced by INSIST command, [datetime] in [bar], [long] in [foo]";
+            + "[keyword] due to loading from _source, [datetime] in [bar], [long] in [foo]";
         assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
-    public void testResolveInsist_multiIndexSameMapping_fieldIsMapped() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
-                    ),
-                    List.of()
-                )
-            ),
-            IndexResolver.DO_NOT_GROUP
-        );
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-        assertThat(attribute.dataType(), is(DataType.LONG));
     }
 
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", messageResponseMap("keyword")),
-                        fieldCapabilitiesIndexResponse("qux", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
+                fieldCapabilitiesIndexResponse("bazz", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("qux", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
         var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[datetime] in [bar], [keyword] enforced by INSIST command and in [bazz], [long] in [foo]";
+            + "[datetime] in [bar], [keyword] due to loading from _source and in [bazz], [long] in [foo]";
         assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", Map.of())
-                    ),
-                    List.of()
-                )
-            ),
-            IndexResolver.DO_NOT_GROUP
-        );
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message | EVAL message = message :: keyword")
-        );
-        // This isn't the most informative error, but it'll do for now.
-        assertThat(
-            e.getMessage(),
-            containsString("EVAL does not support type [unsupported] as the return data type of expression [message]")
-        );
     }
 
     public void testResolveDenseVector() {
@@ -3516,6 +3413,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3527,6 +3425,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3551,6 +3450,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3565,6 +3465,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3583,6 +3484,7 @@ public class AnalyzerTests extends ESTestCase {
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, false),
+            false,
             (p, r) -> Map.of()
         );
         var plan = analyzer().addIndex(resolution).query("FROM test | KEEP status");
@@ -3593,8 +3495,9 @@ public class AnalyzerTests extends ESTestCase {
 
     /**
      * When a TS source is followed by STATS, the time series merge is enforced and conflicting
-     * dimension/metric types across indices produce an {@link InvalidMappedField}. The field
-     * resolves as {@link DataType#UNSUPPORTED} rather than the original KEYWORD type.
+     * dimension/metric roles across indices produce an {@link InvalidMappedTsField}. Because
+     * {@code mappingAsAttributes} converts it to an {@link UnsupportedAttribute} immediately,
+     * any query that references the field is rejected with a clear error message.
      */
     public void testTsStatsQueryWithConflictingTsTypesMarksFieldUnsupported() {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
@@ -3602,12 +3505,15 @@ public class AnalyzerTests extends ESTestCase {
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, true),
+            false,
             (p, r) -> Map.of()
         );
-        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
-        var plan = analyzer().addIndex(resolution).query("TS test | STATS avg(rate(bytes_in)) BY status");
-        var statusAttr = plan.output().stream().filter(a -> a.name().equals("status")).findFirst().orElseThrow();
-        assertThat(statusAttr.dataType(), equalTo(UNSUPPORTED));
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedTsField.class));
+        analyzer().addIndex(resolution)
+            .error(
+                "TS test | STATS avg(rate(bytes_in)) BY status",
+                containsString("Time Series Metadata conflict.  Cannot merge [METRIC] with [DIMENSION].")
+            );
     }
 
     /**
@@ -3620,6 +3526,7 @@ public class AnalyzerTests extends ESTestCase {
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, false),
+            false,
             (p, r) -> Map.of()
         );
         var plan = analyzer().addIndex(resolution).query("TS test | KEEP status");
@@ -3633,14 +3540,17 @@ public class AnalyzerTests extends ESTestCase {
      * just like TS + STATS.
      */
     public void testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        assumeTrue("Requires PROMQL", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, true),
+            false,
             (p, r) -> Map.of()
         );
-        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedTsField.class));
         var plan = analyzer().addIndex(resolution).query("""
             PROMQL index=test
                 step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z"
@@ -3688,9 +3598,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(subPlans.size(), equalTo(5));
 
         // fork branch 1
-        limit = as(subPlans.get(0), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        Project project = as(limit.child(), Project.class);
+        Project project = as(subPlans.get(0), Project.class);
         List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         Eval eval = as(project.child(), Eval.class);
@@ -3705,9 +3613,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 2
-        limit = as(subPlans.get(1), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(1), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3722,9 +3628,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 3
-        limit = as(subPlans.get(2), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(2), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3741,9 +3645,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 4
-        limit = as(subPlans.get(3), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(3), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3756,9 +3658,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 5
-        limit = as(subPlans.get(4), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(4), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3791,9 +3691,7 @@ public class AnalyzerTests extends ESTestCase {
         var expectedOutput = List.of("emp_no", "first_name", "_fork", "xyz", "x", "y");
 
         // fork branch 1
-        limit = as(subPlans.get(0), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        Project project = as(limit.child(), Project.class);
+        Project project = as(subPlans.get(0), Project.class);
         List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
 
@@ -3822,9 +3720,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 2
-        limit = as(subPlans.get(1), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(1), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3852,9 +3748,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 3
-        limit = as(subPlans.get(2), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(2), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3956,13 +3850,110 @@ public class AnalyzerTests extends ESTestCase {
             | FORK (FORK (WHERE true) (WHERE true))
                    (WHERE true)
             """, containsString("Only a single FORK command is supported, but found multiple"));
+
+        basic().error("""
+            FROM test
+            | FORK (EVAL conflict_field = "string_value")
+                   (EVAL conflict_field = 123)
+            | EVAL y = conflict_field
+            """, containsString("Column [conflict_field] has conflicting data types in FORK branches: [INTEGER] and [KEYWORD]"));
+
+        basic().error("""
+            FROM test
+            | FORK (EVAL shared_field = "abc")
+                   (EVAL shared_field = 100.5)
+            | WHERE shared_field > 50
+            """, containsString("first argument of [shared_field > 50] is [keyword]"));
+    }
+
+    public void testForkWithAmbiguousFieldType() {
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "k8s-downsampled,k8s",
+            false,
+            fieldsInfoOnCurrentVersion(
+                new FieldCapabilitiesResponse(
+                    List.of(
+                        fieldCapabilitiesIndexResponse(
+                            "k8s-downsampled",
+                            Map.of(
+                                "network.eth0.tx",
+                                new IndexFieldCapabilitiesBuilder("network.eth0.tx", "aggregate_metric_double").build()
+                            )
+                        ),
+                        fieldCapabilitiesIndexResponse(
+                            "k8s",
+                            Map.of("network.eth0.tx", new IndexFieldCapabilitiesBuilder("network.eth0.tx", "integer").build())
+                        )
+                    ),
+                    List.of()
+                )
+            ),
+            false,
+            IndexResolver.DO_NOT_GROUP
+        );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (where true) (where true)
+                    | eval x = network.eth0.tx + 1
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (where true) (where false)
+                    | stats c = COUNT() BY network.eth0.tx
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (KEEP network.eth0.tx) (DROP network.eth0.tx)
+                    | eval x = network.eth0.tx + 1
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (EVAL x = network.eth0.tx + 1)
+                           (WHERE true)
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
     }
 
     public void testValidFuse() {
         LogicalPlan plan = basic().query("""
              from test metadata _id, _index, _score
-             | fork ( where first_name:"foo" )
-                    ( where first_name:"bar" )
+             | fork ( where first_name:"foo" | LIMIT 100)
+                    ( where first_name:"bar" | LIMIT 100)
              | fuse
             """);
 
@@ -4013,22 +4004,6 @@ public class AnalyzerTests extends ESTestCase {
             """, containsString("FUSE requires a key column, default [_id] column not found"));
     }
 
-    // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
-    private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
-        String indexName,
-        Map<String, IndexFieldCapabilities> fields
-    ) {
-        String indexMappingHash = new String(
-            MessageDigests.sha256().digest(fields.toString().getBytes(StandardCharsets.UTF_8)),
-            StandardCharsets.UTF_8
-        );
-        return new FieldCapabilitiesIndexResponse(indexName, indexMappingHash, fields, false, IndexMode.STANDARD);
-    }
-
-    private static Map<String, IndexFieldCapabilities> messageResponseMap(String date) {
-        return Map.of("message", new IndexFieldCapabilitiesBuilder("message", date).build());
-    }
-
     private void assertProjection(LogicalPlan plan, String... names) {
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
@@ -4055,8 +4030,7 @@ public class AnalyzerTests extends ESTestCase {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
-        IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", false, caps, IndexResolver.DO_NOT_GROUP);
+        IndexResolution resolution = mergedResolution("test*", new FieldCapabilitiesResponse(idxResponses, List.of()));
         return analyzer().addIndex(resolution).query(query);
     }
 
@@ -4117,7 +4091,29 @@ public class AnalyzerTests extends ESTestCase {
             """
                 FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""",
             ParsingException.class,
-            containsString(" error building [text_embedding]: function [text_embedding] expects exactly two arguments")
+            containsString("error building [text_embedding]: expects two or three arguments")
+        );
+    }
+
+    public void testTextEmbeddingFunctionInvalidOptions() {
+        books().error(
+            String.format(
+                Locale.ROOT,
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"invalid": "value"})""",
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
+            containsString("Invalid option [invalid]")
+        );
+
+        books().error(
+            String.format(
+                Locale.ROOT,
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"timeout": "a long one"})""",
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
+            containsString("failed to parse setting [timeout]")
         );
     }
 
@@ -4696,8 +4692,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
             Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
-            Set.of()
+            Map.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
 
@@ -4739,8 +4734,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("id", idField),
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
-            Set.of()
+            Map.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
 
@@ -5012,8 +5006,7 @@ public class AnalyzerTests extends ESTestCase {
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
             Map.of(),
-            Map.of(),
-            Set.of()
+            Map.of()
         );
         var testAnalyzer = analyzer().addIndex(esIndex);
         var stddevPlan = testAnalyzer.query("""
@@ -5041,1196 +5034,90 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection(plan2, "s1", "s2", "min", "count", "avg", "cluster", "time_bucket");
     }
 
-    public void testSubqueryInFrom() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addLanguages().query("""
-            FROM test, (FROM languages | WHERE language_code > 1)
-            | WHERE emp_no > 10000
-            | SORT emp_no, language_code
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        List<Order> order = orderBy.order();
-        assertEquals(2, order.size());
-        ReferenceAttribute empNo = as(order.get(0).child(), ReferenceAttribute.class);
-        assertEquals("emp_no", empNo.name());
-        ReferenceAttribute languageCode = as(order.get(1).child(), ReferenceAttribute.class);
-        assertEquals("language_code", languageCode.name());
-        Filter filter = as(orderBy.child(), Filter.class);
-        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
-        empNo = as(greaterThan.left(), ReferenceAttribute.class);
-        assertEquals("emp_no", empNo.name());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(10000, literal.value());
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        List<? extends NamedExpression> projections = subqueryProject.projections();
-        assertEquals(13, projections.size()); // all fields from the two indices
-        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
-        List<Alias> aliases = subqueryEval.fields(); // nullEvals from languages index
-        assertEquals(2, aliases.size());
-        assertEquals("language_code", aliases.get(0).name());
-        Literal nullLiteral = as(aliases.get(0).child(), Literal.class);
-        assertNull(nullLiteral.value());
-        assertEquals(INTEGER, nullLiteral.dataType());
-        assertEquals("language_name", aliases.get(1).name());
-        nullLiteral = as(aliases.get(1).child(), Literal.class);
-        assertNull(nullLiteral.value());
-        assertEquals(KEYWORD, nullLiteral.dataType());
-        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        projections = subqueryProject.projections();
-        assertEquals(13, projections.size()); // all fields from the two indices
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        aliases = subqueryEval.fields(); // nullEvals from test index
-        assertEquals(11, aliases.size());
-        Subquery subquery = as(subqueryEval.child(), Subquery.class);
-        Filter subqueryFilter = as(subquery.child(), Filter.class);
-        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
-        assertEquals("languages", subqueryIndex.indexPattern());
-    }
-
-    public void testViewInFrom() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
-        LogicalPlan plan = basic().addLanguages().addView("view", "FROM languages | WHERE language_code > 1").query("""
-            FROM test, view
-            | WHERE emp_no > 10000
-            | SORT emp_no, language_code
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        List<Order> order = orderBy.order();
-        assertEquals(2, order.size());
-        ReferenceAttribute empNo = as(order.get(0).child(), ReferenceAttribute.class);
-        assertEquals("emp_no", empNo.name());
-        ReferenceAttribute languageCode = as(order.get(1).child(), ReferenceAttribute.class);
-        assertEquals("language_code", languageCode.name());
-        Filter filter = as(orderBy.child(), Filter.class);
-        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
-        empNo = as(greaterThan.left(), ReferenceAttribute.class);
-        assertEquals("emp_no", empNo.name());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(10000, literal.value());
-        ViewUnionAll viewUnionAll = as(filter.child(), ViewUnionAll.class);
-        assertEquals(2, viewUnionAll.children().size());
-
-        Project viewProject = as(viewUnionAll.children().get(0), Project.class);
-        List<? extends NamedExpression> projections = viewProject.projections();
-        assertEquals(13, projections.size()); // all fields from the two indices
-        Eval viewEval = as(viewProject.child(), Eval.class);
-        List<Alias> aliases = viewEval.fields(); // nullEvals from languages index
-        assertEquals(2, aliases.size());
-        assertEquals("language_code", aliases.get(0).name());
-        Literal nullLiteral = as(aliases.get(0).child(), Literal.class);
-        assertNull(nullLiteral.value());
-        assertEquals(INTEGER, nullLiteral.dataType());
-        assertEquals("language_name", aliases.get(1).name());
-        nullLiteral = as(aliases.get(1).child(), Literal.class);
-        assertNull(nullLiteral.value());
-        assertEquals(KEYWORD, nullLiteral.dataType());
-        EsRelation subqueryIndex = as(viewEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        viewProject = as(viewUnionAll.children().get(1), Project.class);
-        projections = viewProject.projections();
-        assertEquals(13, projections.size()); // all fields from the two indices
-        viewEval = as(viewProject.child(), Eval.class);
-        aliases = viewEval.fields(); // nullEvals from test index
-        assertEquals(11, aliases.size());
-        Filter subqueryFilter = as(viewEval.child(), Filter.class);
-        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
-        assertEquals("languages", subqueryIndex.indexPattern());
-    }
-
-    /**
-     * If there is only one subquery in the main from command, the subquery is merged into the main index pattern
-     */
-    public void testSubqueryInFromWithoutMainIndexPattern() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addLanguages().query("""
-            FROM (FROM languages | WHERE language_code > 1)
-            | WHERE language_name is not null
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        Filter filter = as(limit.child(), Filter.class);
-        IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
-        FieldAttribute language_name = as(isNotNull.field(), FieldAttribute.class);
-        assertEquals("language_name", language_name.name());
-        filter = as(filter.child(), Filter.class);
-        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
-        FieldAttribute language_code = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("language_code", language_code.name());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(1, literal.value());
-        EsRelation relation = as(filter.child(), EsRelation.class);
-        assertEquals("languages", relation.indexPattern());
-    }
-
-    /**
-     * If there is only one view in the main from command, the view is merged into the main index pattern
-     */
-    public void testViewInFromWithoutMainIndexPattern() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
-        LogicalPlan plan = basic().addLanguages().addView("view", "FROM languages | WHERE language_code > 1").query("""
-            FROM view
-            | WHERE language_name is not null
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        Filter filter = as(limit.child(), Filter.class);
-        IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
-        FieldAttribute language_name = as(isNotNull.field(), FieldAttribute.class);
-        assertEquals("language_name", language_name.name());
-        filter = as(filter.child(), Filter.class);
-        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
-        FieldAttribute language_code = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("language_code", language_code.name());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(1, literal.value());
-        EsRelation relation = as(filter.child(), EsRelation.class);
-        assertEquals("languages", relation.indexPattern());
-    }
-
-    public void testMultipleSubqueriesInFrom() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addLanguages().addSampleData().addLanguagesLookup().query("""
-            FROM test
-            , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
-            , (FROM sample_data | STATS max(@timestamp))
-            , (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
-            | WHERE emp_no > 10000
-            | STATS count(*) by emp_no, language_code
-            | RENAME emp_no AS empNo, language_code AS languageCode
-            | MV_EXPAND languageCode
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        MvExpand mvExpand = as(limit.child(), MvExpand.class);
-        NamedExpression mvExpandTarget = as(mvExpand.target(), NamedExpression.class);
-        assertEquals("languageCode", mvExpandTarget.name());
-        ReferenceAttribute mvExpandExpanded = as(mvExpand.expanded(), ReferenceAttribute.class);
-        assertEquals("languageCode", mvExpandExpanded.name());
-        Project rename = as(mvExpand.child(), Project.class);
-        List<? extends NamedExpression> projections = rename.projections();
-        assertEquals(3, projections.size());
-        Alias a = as(projections.get(1), Alias.class);
-        assertEquals("empNo", a.name());
-        ReferenceAttribute ra = as(a.child(), ReferenceAttribute.class);
-        assertEquals("emp_no", ra.name());
-        a = as(projections.get(2), Alias.class);
-        assertEquals("languageCode", a.name());
-        ra = as(a.child(), ReferenceAttribute.class);
-        assertEquals("language_code", ra.name());
-        Aggregate aggregate = as(rename.child(), Aggregate.class);
-        List<? extends NamedExpression> aggregates = aggregate.aggregates();
-        assertEquals(3, aggregates.size());
-        a = as(aggregates.get(0), Alias.class);
-        assertEquals("count(*)", a.name());
-        List<Expression> groupings = aggregate.groupings();
-        assertEquals(2, groupings.size());
-        ra = as(groupings.get(0), ReferenceAttribute.class);
-        assertEquals("emp_no", ra.name());
-        ra = as(groupings.get(1), ReferenceAttribute.class);
-        assertEquals("language_code", ra.name());
-        Filter filter = as(aggregate.child(), Filter.class);
-        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
-        ReferenceAttribute empNo = as(greaterThan.left(), ReferenceAttribute.class);
-        assertEquals("emp_no", empNo.name());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(10000, literal.value());
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        assertEquals(4, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        projections = subqueryProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
-        List<Alias> aliases = subqueryEval.fields(); // nullEvals from the other legs
-        assertEquals(4, aliases.size());
-        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        projections = subqueryProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        aliases = subqueryEval.fields(); // nullEvals from the other legs
-        assertEquals(13, aliases.size());
-        Subquery subquery = as(subqueryEval.child(), Subquery.class);
-        rename = as(subquery.child(), Project.class);
-        List<? extends NamedExpression> renameProjections = rename.projections();
-        assertEquals(2, renameProjections.size());
-        FieldAttribute language_code = as(renameProjections.get(0), FieldAttribute.class);
-        assertEquals("language_code", language_code.name());
-        a = as(renameProjections.get(1), Alias.class);
-        assertEquals("languageName", a.name());
-        FieldAttribute language_name = as(a.child(), FieldAttribute.class);
-        assertEquals("language_name", language_name.name());
-        Filter subqueryFilter = as(rename.child(), Filter.class);
-        greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
-        language_code = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("language_code", language_code.name());
-        literal = as(greaterThan.right(), Literal.class);
-        assertEquals(10, literal.value());
-        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
-        assertEquals("languages", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(2), Project.class);
-        projections = subqueryProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        aliases = subqueryEval.fields(); // nullEvals from the other legs
-        assertEquals(14, aliases.size());
-        subquery = as(subqueryEval.child(), Subquery.class);
-        Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
-        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
-        assertEquals("sample_data", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(3), Project.class);
-        projections = subqueryProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        aliases = subqueryEval.fields(); // nullEvals from the other legs
-        assertEquals(2, aliases.size());
-        subquery = as(subqueryEval.child(), Subquery.class);
-        LookupJoin lookupJoin = as(subquery.child(), LookupJoin.class);
-        subqueryIndex = as(lookupJoin.right(), EsRelation.class);
-        assertEquals("languages_lookup", subqueryIndex.indexPattern());
-        subqueryEval = as(lookupJoin.left(), Eval.class);
-        subqueryIndex = as(subqueryEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-    }
-
-    public void testMultipleViewsInFrom() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        LogicalPlan plan = basic().addLanguages()
-            .addSampleData()
-            .addLanguagesLookup()
-            .addView("view1", "FROM languages | WHERE language_code > 10 | RENAME language_name as languageName")
-            .addView("view2", "FROM sample_data | STATS max(@timestamp)")
-            .addView("view3", "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
-            .query("""
-                FROM test, view1, view2, view3
-                | WHERE emp_no > 10000
-                | STATS count(*) by emp_no, language_code
-                | RENAME emp_no AS empNo, language_code AS languageCode
-                | MV_EXPAND languageCode
-                """);
-
-        Limit limit = as(plan, Limit.class);
-        MvExpand mvExpand = as(limit.child(), MvExpand.class);
-        NamedExpression mvExpandTarget = as(mvExpand.target(), NamedExpression.class);
-        assertEquals("languageCode", mvExpandTarget.name());
-        ReferenceAttribute mvExpandExpanded = as(mvExpand.expanded(), ReferenceAttribute.class);
-        assertEquals("languageCode", mvExpandExpanded.name());
-        Project rename = as(mvExpand.child(), Project.class);
-        List<? extends NamedExpression> projections = rename.projections();
-        assertEquals(3, projections.size());
-        Alias a = as(projections.get(1), Alias.class);
-        assertEquals("empNo", a.name());
-        ReferenceAttribute ra = as(a.child(), ReferenceAttribute.class);
-        assertEquals("emp_no", ra.name());
-        a = as(projections.get(2), Alias.class);
-        assertEquals("languageCode", a.name());
-        ra = as(a.child(), ReferenceAttribute.class);
-        assertEquals("language_code", ra.name());
-        Aggregate aggregate = as(rename.child(), Aggregate.class);
-        List<? extends NamedExpression> aggregates = aggregate.aggregates();
-        assertEquals(3, aggregates.size());
-        a = as(aggregates.get(0), Alias.class);
-        assertEquals("count(*)", a.name());
-        List<Expression> groupings = aggregate.groupings();
-        assertEquals(2, groupings.size());
-        ra = as(groupings.get(0), ReferenceAttribute.class);
-        assertEquals("emp_no", ra.name());
-        ra = as(groupings.get(1), ReferenceAttribute.class);
-        assertEquals("language_code", ra.name());
-        Filter filter = as(aggregate.child(), Filter.class);
-        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
-        ReferenceAttribute empNo = as(greaterThan.left(), ReferenceAttribute.class);
-        assertEquals("emp_no", empNo.name());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(10000, literal.value());
-        ViewUnionAll viewUninAll = as(filter.child(), ViewUnionAll.class);
-        assertEquals(4, viewUninAll.children().size());
-
-        Project viewProject = as(viewUninAll.children().get(0), Project.class);
-        projections = viewProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        Eval viewEval = as(viewProject.child(), Eval.class);
-        List<Alias> aliases = viewEval.fields(); // nullEvals from the other legs
-        assertEquals(4, aliases.size());
-        EsRelation subqueryIndex = as(viewEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        viewProject = as(viewUninAll.children().get(1), Project.class);
-        projections = viewProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        viewEval = as(viewProject.child(), Eval.class);
-        aliases = viewEval.fields(); // nullEvals from the other legs
-        assertEquals(13, aliases.size());
-        rename = as(viewEval.child(), Project.class);
-        List<? extends NamedExpression> renameProjections = rename.projections();
-        assertEquals(2, renameProjections.size());
-        FieldAttribute language_code = as(renameProjections.get(0), FieldAttribute.class);
-        assertEquals("language_code", language_code.name());
-        a = as(renameProjections.get(1), Alias.class);
-        assertEquals("languageName", a.name());
-        FieldAttribute language_name = as(a.child(), FieldAttribute.class);
-        assertEquals("language_name", language_name.name());
-        Filter subqueryFilter = as(rename.child(), Filter.class);
-        greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
-        language_code = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("language_code", language_code.name());
-        literal = as(greaterThan.right(), Literal.class);
-        assertEquals(10, literal.value());
-        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
-        assertEquals("languages", subqueryIndex.indexPattern());
-
-        viewProject = as(viewUninAll.children().get(2), Project.class);
-        projections = viewProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        viewEval = as(viewProject.child(), Eval.class);
-        aliases = viewEval.fields(); // nullEvals from the other legs
-        assertEquals(14, aliases.size());
-        Aggregate subqueryAggregate = as(viewEval.child(), Aggregate.class);
-        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
-        assertEquals("sample_data", subqueryIndex.indexPattern());
-
-        viewProject = as(viewUninAll.children().get(3), Project.class);
-        projections = viewProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        viewEval = as(viewProject.child(), Eval.class);
-        aliases = viewEval.fields(); // nullEvals from the other legs
-        assertEquals(2, aliases.size());
-        LookupJoin lookupJoin = as(viewEval.child(), LookupJoin.class);
-        subqueryIndex = as(lookupJoin.right(), EsRelation.class);
-        assertEquals("languages_lookup", subqueryIndex.indexPattern());
-        viewEval = as(lookupJoin.left(), Eval.class);
-        subqueryIndex = as(viewEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-    }
-
-    public void testMultipleSubqueryInFromWithoutMainIndexPattern() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addLanguages().addSampleData().addLanguagesLookup().query("""
-            FROM (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
-            , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
-            , (FROM sample_data | STATS max(@timestamp))
-            | WHERE emp_no > 10000
-            | STATS count(*) by emp_no, language_code
-            | RENAME emp_no AS empNo, language_code AS languageCode
-            | MV_EXPAND languageCode
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        MvExpand mvExpand = as(limit.child(), MvExpand.class);
-        NamedExpression mvExpandTarget = as(mvExpand.target(), NamedExpression.class);
-        assertEquals("languageCode", mvExpandTarget.name());
-        ReferenceAttribute mvExpandExpanded = as(mvExpand.expanded(), ReferenceAttribute.class);
-        assertEquals("languageCode", mvExpandExpanded.name());
-        Project rename = as(mvExpand.child(), Project.class);
-        List<? extends NamedExpression> projections = rename.projections();
-        assertEquals(3, projections.size());
-        Alias a = as(projections.get(1), Alias.class);
-        assertEquals("empNo", a.name());
-        ReferenceAttribute ra = as(a.child(), ReferenceAttribute.class);
-        assertEquals("emp_no", ra.name());
-        a = as(projections.get(2), Alias.class);
-        assertEquals("languageCode", a.name());
-        ra = as(a.child(), ReferenceAttribute.class);
-        assertEquals("language_code", ra.name());
-        Aggregate aggregate = as(rename.child(), Aggregate.class);
-        List<? extends NamedExpression> aggregates = aggregate.aggregates();
-        assertEquals(3, aggregates.size());
-        a = as(aggregates.get(0), Alias.class);
-        assertEquals("count(*)", a.name());
-        List<Expression> groupings = aggregate.groupings();
-        assertEquals(2, groupings.size());
-        ra = as(groupings.get(0), ReferenceAttribute.class);
-        assertEquals("emp_no", ra.name());
-        ra = as(groupings.get(1), ReferenceAttribute.class);
-        assertEquals("language_code", ra.name());
-        Filter filter = as(aggregate.child(), Filter.class);
-        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
-        ReferenceAttribute empNo = as(greaterThan.left(), ReferenceAttribute.class);
-        assertEquals("emp_no", empNo.name());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(10000, literal.value());
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        assertEquals(3, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        projections = subqueryProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
-        List<Alias> aliases = subqueryEval.fields(); // nullEvals from the other legs
-        assertEquals(2, aliases.size());
-        Subquery subquery = as(subqueryEval.child(), Subquery.class);
-        LookupJoin lookupJoin = as(subquery.child(), LookupJoin.class);
-        EsRelation subqueryIndex = as(lookupJoin.right(), EsRelation.class);
-        assertEquals("languages_lookup", subqueryIndex.indexPattern());
-        subqueryEval = as(lookupJoin.left(), Eval.class);
-        subqueryIndex = as(subqueryEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        projections = subqueryProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        aliases = subqueryEval.fields(); // nullEvals from the other legs
-        assertEquals(13, aliases.size());
-        subquery = as(subqueryEval.child(), Subquery.class);
-        rename = as(subquery.child(), Project.class);
-        List<? extends NamedExpression> renameProjections = rename.projections();
-        assertEquals(2, renameProjections.size());
-        FieldAttribute language_code = as(renameProjections.get(0), FieldAttribute.class);
-        assertEquals("language_code", language_code.name());
-        a = as(renameProjections.get(1), Alias.class);
-        assertEquals("languageName", a.name());
-        FieldAttribute language_name = as(a.child(), FieldAttribute.class);
-        assertEquals("language_name", language_name.name());
-        Filter subqueryFilter = as(rename.child(), Filter.class);
-        greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
-        language_code = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("language_code", language_code.name());
-        literal = as(greaterThan.right(), Literal.class);
-        assertEquals(10, literal.value());
-        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
-        assertEquals("languages", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(2), Project.class);
-        projections = subqueryProject.projections();
-        assertEquals(15, projections.size()); // all fields from the other legs
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        aliases = subqueryEval.fields(); // nullEvals from the other legs
-        assertEquals(14, aliases.size());
-        subquery = as(subqueryEval.child(), Subquery.class);
-        Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
-        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
-        assertEquals("sample_data", subqueryIndex.indexPattern());
-
-    }
-
-    public void testNestedSubqueryInFrom() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addLanguages().addSampleData().query("""
-            FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)
-            | WHERE emp_no > 10000
-            | SORT emp_no, language_code
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        Filter filter = as(orderBy.child(), Filter.class);
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
-        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        Subquery subquery = as(subqueryEval.child(), Subquery.class);
-        Filter subqueryFilter = as(subquery.child(), Filter.class);
-        unionAll = as(subqueryFilter.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
-
-        subqueryProject = as(unionAll.children().get(0), Project.class);
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        subqueryIndex = as(subqueryEval.child(), EsRelation.class);
-        assertEquals("languages", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        subquery = as(subqueryEval.child(), Subquery.class);
-        Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
-        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
-        assertEquals("sample_data", subqueryIndex.indexPattern());
-    }
-
-    public void testNestedSubqueryInFromWithMetadata() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addLanguages().addSampleData().query("""
-            FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10) metadata _index
-            | WHERE emp_no > 10000
-            | SORT emp_no, language_code
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        Filter filter = as(orderBy.child(), Filter.class);
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
-        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-        List<Attribute> output = subqueryIndex.output();
-        assertEquals(12, output.size());
-        MetadataAttribute metadataAttribute = as(output.get(11), MetadataAttribute.class);
-        assertEquals("_index", metadataAttribute.name());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        Subquery subquery = as(subqueryEval.child(), Subquery.class);
-        Filter subqueryFilter = as(subquery.child(), Filter.class);
-        unionAll = as(subqueryFilter.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
-
-        subqueryProject = as(unionAll.children().get(0), Project.class);
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        subqueryIndex = as(subqueryEval.child(), EsRelation.class);
-        assertEquals("languages", subqueryIndex.indexPattern());
-        output = subqueryIndex.output();
-        assertEquals(2, output.size());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        subquery = as(subqueryEval.child(), Subquery.class);
-        Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
-        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
-        assertEquals("sample_data", subqueryIndex.indexPattern());
-        output = subqueryIndex.output();
-        assertEquals(4, output.size());
-    }
-
-    public void testNestedSubqueriesInFromWithoutMainIndexPattern() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addSampleData().query("""
-            FROM (FROM test, (FROM sample_data | STATS count(*)) | WHERE emp_no > 10)
-            | WHERE languages is not null
-            | SORT emp_no, languages
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        List<Order> orderKeys = orderBy.order();
-        assertEquals(2, orderKeys.size());
-        ReferenceAttribute emp_no = as(orderKeys.get(0).child(), ReferenceAttribute.class);
-        assertEquals("emp_no", emp_no.name());
-        ReferenceAttribute languages = as(orderKeys.get(1).child(), ReferenceAttribute.class);
-        assertEquals("languages", languages.name());
-        Filter filter = as(orderBy.child(), Filter.class);
-        IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
-        languages = as(isNotNull.field(), ReferenceAttribute.class);
-        assertEquals("languages", languages.name());
-        filter = as(filter.child(), Filter.class);
-        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
-        emp_no = as(greaterThan.left(), ReferenceAttribute.class);
-        assertEquals("emp_no", emp_no.name());
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
-        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        Subquery subquery = as(subqueryEval.child(), Subquery.class);
-        Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
-        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
-        assertEquals("sample_data", subqueryIndex.indexPattern());
-    }
-
-    /*
-     * When there are mixed date types between the main query and the subquery, the fields/references need to be casted to a common type
-     * in the UnionAll legs, otherwise  FORK's postAnalysisPlanVerification will fail. The common type can be date_nanos,
-     * keyword with null if the fields are not referenced in the main query, or unsupported if the fields are referenced in the main query.
-     */
-    public void testMixedDataTypesInSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
-            FROM test, (FROM test_mixed_types | WHERE languages > 0)
-            | EVAL emp_no = emp_no::long
-            | WHERE emp_no > 10000
-            | SORT emp_no
-            """);
-
-        Project project = as(plan, Project.class);
-        List<? extends NamedExpression> projections = project.projections();
-        assertEquals(25, projections.size());
-        Limit limit = as(project.child(), Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        Filter filter = as(orderBy.child(), Filter.class);
-        Eval eval = as(filter.child(), Eval.class);
-        List<Alias> aliases = eval.fields();
-        assertEquals(1, aliases.size());
-        Alias alias = aliases.get(0);
-        assertEquals("emp_no", alias.name());
-        ReferenceAttribute emp_no = as(alias.child(), ReferenceAttribute.class);
-        assertEquals("$$emp_no$converted_to$long", emp_no.name());
-        UnionAll unionAll = as(eval.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(26, output.size());
-        assertEquals(2, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        assertEquals(10, implicitCastingEval.fields().size());
-        Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
-        assertEquals(1, explicitCastingEval.fields().size());
-        Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
-        assertEquals(2, missingFieldEval.fields().size());
-        EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        assertEquals(9, implicitCastingEval.fields().size());
-        explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
-        assertEquals(1, explicitCastingEval.fields().size());
-        missingFieldEval = as(explicitCastingEval.child(), Eval.class);
-        assertEquals(5, missingFieldEval.fields().size());
-        Subquery subquery = as(missingFieldEval.child(), Subquery.class);
-        Filter subqueryFilter = as(subquery.child(), Filter.class);
-        GreaterThan greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
-        FieldAttribute fa = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("languages", fa.name());
-        assertEquals(INTEGER, fa.dataType());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(0, literal.value());
-        assertEquals(INTEGER, literal.dataType());
-        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
-        assertEquals("test_mixed_types", subqueryIndex.indexPattern());
-    }
-
-    public void testMixedDataTypesWithExplicitCastingInSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
-            FROM test, (FROM test_mixed_types | WHERE languages > 0)
-            | EVAL emp_no = emp_no::long
-            | WHERE emp_no > 10000
-            | EVAL still_hired = still_hired::string, is_rehired = is_rehired::string
-            | SORT still_hired, is_rehired
-            """);
-
-        Project project = as(plan, Project.class);
-        List<? extends NamedExpression> projections = project.projections();
-        assertEquals(25, projections.size());
-        Limit limit = as(project.child(), Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        Eval eval = as(orderBy.child(), Eval.class);
-        List<Alias> aliases = eval.fields();
-        assertEquals(2, aliases.size());
-        Alias a = aliases.get(0);
-        assertEquals("still_hired", a.name());
-        ReferenceAttribute still_hired = as(a.child(), ReferenceAttribute.class);
-        assertEquals("$$still_hired$converted_to$keyword", still_hired.name());
-        a = aliases.get(1);
-        assertEquals("is_rehired", a.name());
-        ReferenceAttribute is_rehired = as(a.child(), ReferenceAttribute.class);
-        assertEquals("$$is_rehired$converted_to$keyword", is_rehired.name());
-        Filter filter = as(eval.child(), Filter.class);
-        eval = as(filter.child(), Eval.class);
-        aliases = eval.fields();
-        assertEquals(1, aliases.size());
-        a = aliases.get(0);
-        assertEquals("emp_no", a.name());
-        ReferenceAttribute emp_no = as(a.child(), ReferenceAttribute.class);
-        assertEquals("$$emp_no$converted_to$long", emp_no.name());
-        UnionAll unionAll = as(eval.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(28, output.size());
-        assertEquals(2, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        assertEquals(10, implicitCastingEval.fields().size());
-        Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
-        assertEquals(3, explicitCastingEval.fields().size());
-        Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
-        assertEquals(2, missingFieldEval.fields().size());
-        EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        assertEquals(9, implicitCastingEval.fields().size());
-        explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
-        assertEquals(3, explicitCastingEval.fields().size());
-        missingFieldEval = as(explicitCastingEval.child(), Eval.class);
-        assertEquals(5, missingFieldEval.fields().size());
-        Subquery subquery = as(missingFieldEval.child(), Subquery.class);
-        Filter subqueryFilter = as(subquery.child(), Filter.class);
-        GreaterThan greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
-        FieldAttribute fa = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("languages", fa.name());
-        assertEquals(INTEGER, fa.dataType());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(0, literal.value());
-        assertEquals(INTEGER, literal.dataType());
-        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
-        assertEquals("test_mixed_types", subqueryIndex.indexPattern());
-    }
-
-    public void testMixedDataTypesWithMultipleExplicitCastingInSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
-            FROM test, (FROM test_mixed_types | WHERE languages > 0)
-            | EVAL x = emp_no::long, y = emp_no::string, z = emp_no::double, first_name = first_name::string
-            | WHERE z > 10000
-            | EVAL still_hired = still_hired::string, is_rehired = is_rehired::string
-            | SORT still_hired, is_rehired
-            """);
-
-        Project project = as(plan, Project.class);
-        List<? extends NamedExpression> projections = project.projections();
-        assertEquals(28, projections.size());
-        Limit limit = as(project.child(), Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        Eval eval = as(orderBy.child(), Eval.class);
-        List<Alias> aliases = eval.fields();
-        assertEquals(2, aliases.size());
-        Alias a = aliases.get(0);
-        assertEquals("still_hired", a.name());
-        ReferenceAttribute still_hired = as(a.child(), ReferenceAttribute.class);
-        assertEquals("$$still_hired$converted_to$keyword", still_hired.name());
-        a = aliases.get(1);
-        assertEquals("is_rehired", a.name());
-        ReferenceAttribute is_rehired = as(a.child(), ReferenceAttribute.class);
-        assertEquals("$$is_rehired$converted_to$keyword", is_rehired.name());
-        Filter filter = as(eval.child(), Filter.class);
-        eval = as(filter.child(), Eval.class);
-        aliases = eval.fields();
-        assertEquals(4, aliases.size());
-        a = aliases.get(0);
-        assertEquals("x", a.name());
-        ReferenceAttribute emp_no = as(a.child(), ReferenceAttribute.class);
-        assertEquals("$$emp_no$converted_to$long", emp_no.name());
-        a = aliases.get(1);
-        assertEquals("y", a.name());
-        emp_no = as(a.child(), ReferenceAttribute.class);
-        assertEquals("$$emp_no$converted_to$keyword", emp_no.name());
-        a = aliases.get(2);
-        assertEquals("z", a.name());
-        emp_no = as(a.child(), ReferenceAttribute.class);
-        assertEquals("$$emp_no$converted_to$double", emp_no.name());
-        a = aliases.get(3);
-        assertEquals("first_name", a.name());
-        ReferenceAttribute first_name = as(a.child(), ReferenceAttribute.class);
-        assertEquals("$$first_name$converted_to$keyword", first_name.name());
-        UnionAll unionAll = as(eval.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(31, output.size());
-        assertEquals(2, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        assertEquals(10, implicitCastingEval.fields().size());
-        Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
-        assertEquals(6, explicitCastingEval.fields().size());
-        Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
-        assertEquals(2, missingFieldEval.fields().size());
-        EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        assertEquals(9, implicitCastingEval.fields().size());
-        explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
-        assertEquals(6, explicitCastingEval.fields().size());
-        missingFieldEval = as(explicitCastingEval.child(), Eval.class);
-        assertEquals(5, missingFieldEval.fields().size());
-        Subquery subquery = as(missingFieldEval.child(), Subquery.class);
-        Filter subqueryFilter = as(subquery.child(), Filter.class);
-        GreaterThan greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
-        FieldAttribute fa = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("languages", fa.name());
-        assertEquals(INTEGER, fa.dataType());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(0, literal.value());
-        assertEquals(INTEGER, literal.dataType());
-        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
-        assertEquals("test_mixed_types", subqueryIndex.indexPattern());
-    }
-
-    public void testSubqueryWithUnionAllOutputOverwritten() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addDefaultIncompatible().query("""
-            FROM test, (FROM test_mixed_types | WHERE languages > 1)
-            | EVAL emp_no = languages::long
-            | WHERE emp_no > 1
-            | SORT emp_no
-            """);
-
-        Project project = as(plan, Project.class);
-        List<? extends NamedExpression> projections = project.projections();
-        assertEquals(24, projections.size());
-        Limit limit = as(project.child(), Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        Filter filter = as(orderBy.child(), Filter.class);
-        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
-        ReferenceAttribute emp_no = as(greaterThan.left(), ReferenceAttribute.class);
-        assertEquals("emp_no", emp_no.name());
-        Literal literal = as(greaterThan.right(), Literal.class);
-        assertEquals(1, literal.value());
-        Eval eval = as(filter.child(), Eval.class);
-        List<Alias> aliases = eval.fields();
-        assertEquals(1, aliases.size());
-        Alias alias = aliases.get(0);
-        assertEquals("emp_no", alias.name());
-        ReferenceAttribute language_code = as(alias.child(), ReferenceAttribute.class);
-        assertEquals("$$languages$converted_to$long", language_code.name());
-        UnionAll unionAll = as(eval.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(25, output.size());
-        assertEquals(2, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
-        Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
-        EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
-        missingFieldEval = as(explicitCastingEval.child(), Eval.class);
-        Subquery subquery = as(missingFieldEval.child(), Subquery.class);
-        Filter subqueryFilter = as(subquery.child(), Filter.class);
-        greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
-        FieldAttribute fa = as(greaterThan.left(), FieldAttribute.class);
-        assertEquals("languages", fa.name());
-        literal = as(greaterThan.right(), Literal.class);
-        assertEquals(1, literal.value());
-        assertEquals(INTEGER, literal.dataType());
-        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
-        assertEquals("test_mixed_types", subqueryIndex.indexPattern());
-    }
-
-    public void testSubqueryWithTimeSeriesIndexInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = k8s().addSampleData().query("""
-            FROM k8s, (FROM sample_data), (FROM sample_data | WHERE client_ip == "127.0.0.1")
-            | WHERE @timestamp > "2025-10-07"
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        Filter filter = as(limit.child(), Filter.class);
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(24, output.size());
-        assertEquals(3, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval eval = as(subqueryProject.child(), Eval.class);
-        eval = as(eval.child(), Eval.class);
-        EsRelation relation = as(eval.child(), EsRelation.class);
-        assertEquals("k8s", relation.indexPattern());
-        assertEquals(IndexMode.STANDARD, relation.indexMode());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        eval = as(subqueryProject.child(), Eval.class);
-        Subquery subquery = as(eval.child(), Subquery.class);
-        relation = as(subquery.child(), EsRelation.class);
-        assertEquals("sample_data", relation.indexPattern());
-        assertEquals(IndexMode.STANDARD, relation.indexMode());
-
-        subqueryProject = as(unionAll.children().get(2), Project.class);
-        eval = as(subqueryProject.child(), Eval.class);
-        subquery = as(eval.child(), Subquery.class);
-        filter = as(subquery.child(), Filter.class);
-        relation = as(filter.child(), EsRelation.class);
-        assertEquals("sample_data", relation.indexPattern());
-        assertEquals(IndexMode.STANDARD, relation.indexMode());
-    }
-
-    public void testSubqueryWithTimeSeriesIndexInSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = sampleData().addK8sDownsampled().query("""
-            FROM sample_data,
-                       (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
-                       (FROM sample_data | WHERE client_ip == "127.0.0.1")
-            | WHERE @timestamp > "2025-10-07"
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        Filter filter = as(limit.child(), Filter.class);
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(26, output.size());
-        assertEquals(3, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval eval = as(subqueryProject.child(), Eval.class);
-        EsRelation relation = as(eval.child(), EsRelation.class);
-        assertEquals("sample_data", relation.indexPattern());
-        assertEquals(IndexMode.STANDARD, relation.indexMode());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        eval = as(subqueryProject.child(), Eval.class);
-        eval = as(eval.child(), Eval.class);
-        Subquery subquery = as(eval.child(), Subquery.class);
-        InlineStats inlineStats = as(subquery.child(), InlineStats.class);
-        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
-        eval = as(aggregate.child(), Eval.class);
-        relation = as(eval.child(), EsRelation.class);
-        assertEquals("k8s", relation.indexPattern());
-        assertEquals(IndexMode.STANDARD, relation.indexMode());
-
-        subqueryProject = as(unionAll.children().get(2), Project.class);
-        eval = as(subqueryProject.child(), Eval.class);
-        subquery = as(eval.child(), Subquery.class);
-        filter = as(subquery.child(), Filter.class);
-        relation = as(filter.child(), EsRelation.class);
-        assertEquals("sample_data", relation.indexPattern());
-        assertEquals(IndexMode.STANDARD, relation.indexMode());
-    }
-
-    public void testSubqueryWithTimeSeriesIndexInMainQueryAndSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = k8s().addSampleData().query("""
-            FROM k8s,
-                       (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
-                       (FROM sample_data | WHERE client_ip == "127.0.0.1")
-            | WHERE @timestamp > "2025-10-07"
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        Filter filter = as(limit.child(), Filter.class);
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(26, output.size());
-        assertEquals(3, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval eval = as(subqueryProject.child(), Eval.class);
-        eval = as(eval.child(), Eval.class);
-        EsRelation relation = as(eval.child(), EsRelation.class);
-        assertEquals("k8s", relation.indexPattern());
-        assertEquals(IndexMode.STANDARD, relation.indexMode());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        eval = as(subqueryProject.child(), Eval.class);
-        eval = as(eval.child(), Eval.class);
-        Subquery subquery = as(eval.child(), Subquery.class);
-        InlineStats inlineStats = as(subquery.child(), InlineStats.class);
-        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
-        eval = as(aggregate.child(), Eval.class);
-        relation = as(eval.child(), EsRelation.class);
-        assertEquals("k8s", relation.indexPattern());
-        assertEquals(IndexMode.STANDARD, relation.indexMode());
-
-        subqueryProject = as(unionAll.children().get(2), Project.class);
-        eval = as(subqueryProject.child(), Eval.class);
-        subquery = as(eval.child(), Subquery.class);
-        filter = as(subquery.child(), Filter.class);
-        relation = as(filter.child(), EsRelation.class);
-        assertEquals("sample_data", relation.indexPattern());
-        assertEquals(IndexMode.STANDARD, relation.indexMode());
-    }
-
-    public void testSubqueryWithFullTextFunctionInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addSampleData().query("""
-            FROM sample_data, (FROM sample_data | WHERE message:"error")
-            | WHERE match(client_ip,"127.0.0.1")
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        Filter filter = as(limit.child(), Filter.class);
-        Match matchFunction = as(filter.condition(), Match.class);
-        ReferenceAttribute clientIP = as(matchFunction.field(), ReferenceAttribute.class);
-        assertEquals("client_ip", clientIP.name());
-        Literal literal = as(matchFunction.query(), Literal.class);
-        assertEquals(new BytesRef("127.0.0.1"), literal.value());
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        // all fields from the two indices
-        assertEquals(4, output.size());
-        assertEquals(2, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        EsRelation subqueryIndex = as(subqueryProject.child(), EsRelation.class);
-        assertEquals("sample_data", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        Subquery subquery = as(subqueryProject.child(), Subquery.class);
-        Filter subqueryFilter = as(subquery.child(), Filter.class);
-        MatchOperator matchOperator = as(subqueryFilter.condition(), MatchOperator.class);
-        FieldAttribute message = as(matchOperator.field(), FieldAttribute.class);
-        assertEquals("message", message.name());
-        literal = as(matchOperator.query(), Literal.class);
-        assertEquals(new BytesRef("error"), literal.value());
-        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
-        assertEquals("sample_data", subqueryIndex.indexPattern());
-    }
-
-    public void testPruneEmptySubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    public void testToGaugeStrippedOnAggregateMetricDoubleAndGaugeUnion() {
+        assumeTrue("to_gauge must be available", EsqlCapabilities.Cap.TO_GAUGE.isEnabled());
         assumeTrue(
-            "Requires subquery in FROM command support",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+            "aggregate metric double implicit casting must be available",
+            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()
+        );
+        Map<String, EsField> mapping = Map.of(
+            "@timestamp",
+            new EsField("@timestamp", DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "network.eth0.rx",
+            new InvalidMappedField(
+                "network.eth0.rx",
+                Map.of("aggregate_metric_double", Set.of("k8s-downsampled"), "integer", Set.of("k8s"))
+            )
         );
 
-        LogicalPlan plan = basic().addSampleData().addRemoteMissingIndex().query("""
-            FROM test, (FROM remote:missingIndex | WHERE message:"error"), (FROM sample_data)
-            | WHERE match(client_ip,"127.0.0.1")
+        var esIndex = new EsIndex(
+            "k8s,k8s-downsampled",
+            mapping,
+            Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of()
+        );
+        var testAnalyzer = analyzer().addIndex(esIndex);
+        var plan = testAnalyzer.query("""
+            TS k8s,k8s-downsampled | stats bytes = sum(avg_over_time(network.eth0.rx::gauge)) by time_bucket = bucket(@timestamp, 1minute)
             """);
-
-        Limit limit = as(plan, Limit.class);
-        Filter filter = as(limit.child(), Filter.class);
-        Match matchFunction = as(filter.condition(), Match.class);
-        ReferenceAttribute clientIP = as(matchFunction.field(), ReferenceAttribute.class);
-        assertEquals("client_ip", clientIP.name());
-        UnionAll unionAll = as(filter.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(15, output.size());
-        // the subquery with remote:missingIndex is pruned, validate PruneEmptyUnionAllBranch
-        assertEquals(2, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
-        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
-        assertEquals("test", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        subqueryEval = as(subqueryProject.child(), Eval.class);
-        Subquery subquery = as(subqueryEval.child(), Subquery.class);
-        subqueryIndex = as(subquery.child(), EsRelation.class);
-        assertEquals("sample_data", subqueryIndex.indexPattern());
+        assertProjection(plan, "bytes", "time_bucket");
     }
 
-    // no_fields_index has empty mapping, however there is entry in indexNameWithModes,originalIndices and concreteIndices
-    public void testSubqueryInFromWithNoFieldsIndices() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue(
-            "Requires subquery in FROM command support",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
-        );
+    public void testCountWithForkWithNoFields() {
+        for (String count : List.of("count()", "count(*)", "count(1)")) {
+            String query = LoggerMessageFormat.format(null, """
+                FROM no_fields_index
+                | FORK (WHERE 1 == 1) (WHERE 2 == 2)
+                | STATS {}
+                """, count);
+            var plan = basic().addNoFieldsIndex().query(query);
 
-        LogicalPlan plan = basic().addNoFieldsIndex().query("""
-            FROM
-                no_fields_index,
-                (FROM no_fields_index),
-                (FROM no_fields_index)
-            """);
+            Limit limit = as(plan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            Fork fork = as(aggregate.child(), Fork.class);
+            assertEquals(1, fork.output().size());
+            assertEquals(2, fork.children().size());
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(0, output.size());
-        assertEquals(3, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        List<Attribute> projectOutput = subqueryProject.output();
-        assertEquals(NO_FIELDS, projectOutput);
-        EsRelation subqueryIndex = as(subqueryProject.child(), EsRelation.class);
-        assertEquals("no_fields_index", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        projectOutput = subqueryProject.output();
-        assertEquals(NO_FIELDS, projectOutput);
-        Subquery subquery = as(subqueryProject.child(), Subquery.class);
-        subqueryIndex = as(subquery.child(), EsRelation.class);
-        assertEquals("no_fields_index", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(2), Project.class);
-        projectOutput = subqueryProject.output();
-        assertEquals(NO_FIELDS, projectOutput);
-        subquery = as(subqueryProject.child(), Subquery.class);
-        subqueryIndex = as(subquery.child(), EsRelation.class);
-        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+            for (int i = 0; i < 2; i++) {
+                Project project = as(fork.children().get(i), Project.class);
+                assertEquals(1, project.projections().size());
+                ReferenceAttribute referenceAttribute = as(project.projections().getFirst(), ReferenceAttribute.class);
+                assertEquals("_fork", referenceAttribute.name());
+                Eval eval = as(project.child(), Eval.class);
+                Filter filter = as(eval.child(), Filter.class);
+                EsRelation relation = as(filter.child(), EsRelation.class);
+                assertEquals("no_fields_index", relation.indexPattern());
+            }
+        }
     }
 
-    // empty_index has empty mapping,indexNameWithModes,originalIndices and concreteIndices
-    public void testSubqueryInFromWithEmptyIndex() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue(
-            "Requires subquery in FROM command support",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
-        );
+    public void testCountWithForkWithEmptyIndex() {
+        for (String count : List.of("count()", "count(*)", "count(1)")) {
+            String query = LoggerMessageFormat.format(null, """
+                FROM empty_index
+                | FORK (WHERE 1 == 1) (WHERE 2 == 2)
+                | STATS {}
+                """, count);
+            var plan = basic().addEmptyIndex().query(query);
 
-        LogicalPlan plan = basic().addEmptyIndex().query("""
-            FROM
-                empty_index,
-                (FROM empty_index),
-                (FROM empty_index)
-            """);
+            Limit limit = as(plan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            Fork fork = as(aggregate.child(), Fork.class);
+            assertEquals(1, fork.output().size());
+            assertEquals(2, fork.children().size());
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(0, output.size());
-        assertEquals(3, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        List<Attribute> projectOutput = subqueryProject.output();
-        assertEquals(NO_FIELDS, projectOutput);
-        EsRelation subqueryIndex = as(subqueryProject.child(), EsRelation.class);
-        assertEquals("empty_index", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        projectOutput = subqueryProject.output();
-        assertEquals(NO_FIELDS, projectOutput);
-        Subquery subquery = as(subqueryProject.child(), Subquery.class);
-        subqueryIndex = as(subquery.child(), EsRelation.class);
-        assertEquals("empty_index", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(2), Project.class);
-        projectOutput = subqueryProject.output();
-        assertEquals(NO_FIELDS, projectOutput);
-        subquery = as(subqueryProject.child(), Subquery.class);
-        subqueryIndex = as(subquery.child(), EsRelation.class);
-        assertEquals("empty_index", subqueryIndex.indexPattern());
-    }
-
-    // no_fields_index has empty mapping, however there is entry in indexNameWithModes,originalIndices and concreteIndices
-    // empty_index has empty mapping,indexNameWithModes,originalIndices and concreteIndices
-    public void testSubqueryInFromWithNoFieldsAndEmptyIndex() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue(
-            "Requires subquery in FROM command support",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
-        );
-
-        LogicalPlan plan = basic().addNoFieldsIndex().addEmptyIndex().query("""
-            FROM
-                (FROM no_fields_index),
-                (FROM no_fields_index),
-                (FROM empty_index)
-            """);
-
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        List<Attribute> output = unionAll.output();
-        assertEquals(0, output.size());
-        assertEquals(3, unionAll.children().size());
-
-        Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        List<Attribute> projectOutput = subqueryProject.output();
-        assertEquals(NO_FIELDS, projectOutput);
-        Subquery subquery = as(subqueryProject.child(), Subquery.class);
-        EsRelation subqueryIndex = as(subquery.child(), EsRelation.class);
-        assertEquals("no_fields_index", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(1), Project.class);
-        projectOutput = subqueryProject.output();
-        assertEquals(NO_FIELDS, projectOutput);
-        subquery = as(subqueryProject.child(), Subquery.class);
-        subqueryIndex = as(subquery.child(), EsRelation.class);
-        assertEquals("no_fields_index", subqueryIndex.indexPattern());
-
-        subqueryProject = as(unionAll.children().get(2), Project.class);
-        projectOutput = subqueryProject.output();
-        assertEquals(NO_FIELDS, projectOutput);
-        subquery = as(subqueryProject.child(), Subquery.class);
-        subqueryIndex = as(subquery.child(), EsRelation.class);
-        assertEquals("empty_index", subqueryIndex.indexPattern());
+            for (int i = 0; i < 2; i++) {
+                Project project = as(fork.children().get(i), Project.class);
+                assertEquals(1, project.projections().size());
+                ReferenceAttribute referenceAttribute = as(project.projections().getFirst(), ReferenceAttribute.class);
+                assertEquals("_fork", referenceAttribute.name());
+                Eval eval = as(project.child(), Eval.class);
+                Filter filter = as(eval.child(), Filter.class);
+                EsRelation relation = as(filter.child(), EsRelation.class);
+                assertEquals("empty_index", relation.indexPattern());
+            }
+        }
     }
 
     public void testLookupJoinOnFieldNotAnywhereElse() {
@@ -6470,6 +5357,119 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testUserAgent() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query("ROW ua=\"Mozilla/5.0\" | user_agent p = ua WITH { \"extract_device_type\": true }");
+
+        Limit limit = as(plan, Limit.class);
+        UserAgent userAgent = as(limit.child(), UserAgent.class);
+
+        final List<Attribute> attributes = userAgent.generatedAttributes();
+
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        assertContainsAttribute(attributes, "p.name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.version", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.os.name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.os.version", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.os.full", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.device.name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.device.type", DataType.KEYWORD);
+        assertEquals(7, attributes.size());
+
+        basic().error(
+            "ROW ua=123 | user_agent p = ua WITH { \"extract_device_type\": true }",
+            containsString("Input for USER_AGENT must be of type [string] but is [integer]")
+        );
+    }
+
+    public void testIpLocation() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query("ROW ip=\"1.2.3.4\" | ip_location g = ip");
+
+        Limit limit = as(plan, Limit.class);
+        IpLocation ipLocation = as(limit.child(), IpLocation.class);
+
+        final List<Attribute> attributes = ipLocation.generatedAttributes();
+
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        assertContainsAttribute(attributes, "g.country_iso_code", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.continent_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.region_iso_code", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.region_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.city_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.location", DataType.GEO_POINT);
+        assertEquals(7, attributes.size());
+    }
+
+    public void testIpLocationStringInput() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // KEYWORD input should be accepted
+        basic().query("ROW ip=\"1.2.3.4\" | ip_location g = ip");
+    }
+
+    public void testIpLocationIpInput() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // IP-typed input should be accepted
+        basic().query("ROW ip=\"1.2.3.4\"::ip | ip_location g = ip");
+    }
+
+    public void testIpLocationInvalidInput() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        basic().error(
+            "ROW ip=123 | ip_location g = ip",
+            containsString("Input for IP_LOCATION must be of type [string] or [ip] but is [integer]")
+        );
+    }
+
+    public void testIpLocationCustomDatabase() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query("ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"database_file\": \"GeoLite2-Country.mmdb\" }");
+
+        Limit limit = as(plan, Limit.class);
+        IpLocation ipLocation = as(limit.child(), IpLocation.class);
+        assertEquals("GeoLite2-Country.mmdb", ipLocation.databaseFile());
+
+        final List<Attribute> attributes = ipLocation.generatedAttributes();
+        assertContainsAttribute(attributes, "g.continent_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_iso_code", DataType.KEYWORD);
+    }
+
+    public void testIpLocationPropertiesFilter() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query(
+            "ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"properties\": [\"city_name\", \"country_iso_code\"] }"
+        );
+
+        Limit limit = as(plan, Limit.class);
+        IpLocation ipLocation = as(limit.child(), IpLocation.class);
+
+        final List<Attribute> attributes = ipLocation.generatedAttributes();
+        assertEquals(2, attributes.size());
+        assertContainsAttribute(attributes, "g.city_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_iso_code", DataType.KEYWORD);
+    }
+
+    public void testIpLocationUnrecognizedDatabaseFile() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        basic().error(
+            "ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"database_file\": \"totally-unknown.mmdb\" }",
+            containsString("IP location database [totally-unknown.mmdb] is not recognized")
+        );
+    }
+
+    public void testIpLocationInvalidProperty() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // Properties are validated against the database schema by the analyzer; an unknown property is a verification failure.
+        basic().error(
+            "ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"properties\": [\"not_a_real_property\"] }",
+            containsString("illegal property value [not_a_real_property]")
+        );
+    }
+
     private void assertContainsAttribute(List<Attribute> attributes, String expectedName, DataType expectedType) {
         Attribute attr = attributes.stream().filter(a -> a.name().equals(expectedName)).findFirst().orElse(null);
         assertNotNull("Expected attribute " + expectedName + " not found", attr);
@@ -6489,7 +5489,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private boolean isMultiTypeEsField(Expression e) {
-        return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
+        return e instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField;
     }
 
     @Override

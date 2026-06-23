@@ -126,7 +126,7 @@ public final class ResponseValueUtils {
         return values;
     }
 
-    interface BlockValueExtractor {
+    public interface BlockValueExtractor {
         Object extract(Block block, int offset, BytesRef scratch);
     }
 
@@ -138,7 +138,7 @@ public final class ResponseValueUtils {
         return valueExtractors;
     }
 
-    private static BlockValueExtractor valueExtractorFor(DataType dataType, ZoneId zoneId) {
+    public static BlockValueExtractor valueExtractorFor(DataType dataType, ZoneId zoneId) {
         return switch (dataType) {
             case UNSIGNED_LONG -> (block, offset, scratch) -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case LONG, COUNTER_LONG -> (block, offset, scratch) -> ((LongBlock) block).getLong(offset);
@@ -202,8 +202,9 @@ public final class ResponseValueUtils {
                 return TimeSeriesIdFieldMapper.encodeTsid(val);
             };
             case DENSE_VECTOR -> (block, offset, scratch) -> ((FloatBlock) block).getFloat(offset);
+            case FLATTENED -> (block, offset, scratch) -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case NULL, UNSUPPORTED -> (block, offset, scratch) -> null;
-            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE ->
+            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG ->
                 throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }

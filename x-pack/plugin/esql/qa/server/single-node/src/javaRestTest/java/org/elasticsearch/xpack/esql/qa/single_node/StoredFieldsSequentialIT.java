@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -115,6 +116,10 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         assertMap(
             result,
             matchesMap().entry("documents_found", documentsFound)
+                .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+                .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+                .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry(
                     "profile",
                     matchesMap() //
@@ -122,8 +127,12 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
                         .entry("plans", instanceOf(List.class))
                         .entry("planning", matchesMap().extraOk())
                         .entry("parsing", matchesMap().extraOk())
+                        .entry("view_resolution", matchesMap().extraOk())
+                        .entry("dataset_resolution", matchesMap().extraOk())
                         .entry("preanalysis", matchesMap().extraOk())
-                        .entry("dependency_resolution", matchesMap().extraOk())
+                        .entry("indices_resolution", matchesMap().extraOk())
+                        .entry("enrich_resolution", matchesMap().extraOk())
+                        .entry("inference_resolution", matchesMap().extraOk())
                         .entry("analysis", matchesMap().extraOk())
                         .entry("query", matchesMap().extraOk())
                         .entry("field_caps_calls", instanceOf(Integer.class))

@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -42,12 +44,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 
 public class EndsWith extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "EndsWith", EndsWith::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(EndsWith.class).binary(EndsWith::new).name("ends_with");
 
     private final Expression str;
     private final Expression suffix;
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Checks whether a keyword string ends with another string.",
         description = "Returns a boolean that indicates whether a keyword string ends with another string.",
         examples = @Example(file = "string", tag = "endsWith")
     )
@@ -123,6 +127,21 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
         );
     }
 
+    @Evaluator(extraName = "Constant")
+    static boolean processConstant(BytesRef str, @Fixed(jitConstant = true) BytesRef suffix) {
+        if (str.length < suffix.length) {
+            return false;
+        }
+        return Arrays.equals(
+            str.bytes,
+            str.offset + str.length - suffix.length,
+            str.offset + str.length,
+            suffix.bytes,
+            suffix.offset,
+            suffix.offset + suffix.length
+        );
+    }
+
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new EndsWith(source(), newChildren.get(0), newChildren.get(1));
@@ -135,6 +154,13 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (suffix.foldable()) {
+            Object folded = suffix.fold(toEvaluator.foldCtx());
+            BytesRef constantSuffix = BytesRefs.toBytesRef(folded);
+            if (constantSuffix != null) {
+                return new EndsWithConstantEvaluator.Factory(source(), toEvaluator.apply(str), constantSuffix);
+            }
+        }
         return new EndsWithEvaluator.Factory(source(), toEvaluator.apply(str), toEvaluator.apply(suffix));
     }
 
@@ -149,9 +175,9 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
         var fieldName = handler.nameOf(str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
 
         // TODO: Get the real FoldContext here
-        var wildcardQuery = "*" + QueryParser.escape(BytesRefs.toString(suffix.fold(FoldContext.small())));
+        var wildcardQuery = "*" + StringUtils.escapeWildcardLiteral(BytesRefs.toString(suffix.fold(FoldContext.small())));
 
-        return new WildcardQuery(source(), fieldName, wildcardQuery, false, false);
+        return new WildcardQuery(source(), fieldName, wildcardQuery, false, pushdownPredicates.flags().stringLikeOnIndex());
     }
 
     @Override
@@ -159,11 +185,11 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
         return str;
     }
 
-    Expression str() {
+    public Expression str() {
         return str;
     }
 
-    Expression suffix() {
+    public Expression suffix() {
         return suffix;
     }
 }

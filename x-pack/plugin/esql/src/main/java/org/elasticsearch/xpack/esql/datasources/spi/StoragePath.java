@@ -18,6 +18,12 @@ import java.nio.file.Path;
  * - Has simpler parsing rules suitable for blob storage keys
  * - Provides convenient methods for path manipulation
  *
+ * The userInfo component is preserved verbatim and exposed via {@link #userInfo()}.
+ * Its meaning is provider-defined: for Azure WASB(S) URIs in the canonical
+ * Hadoop/Spark form ({@code wasbs://<container>@<account>.blob.core.windows.net/<blob>}),
+ * the userInfo is the container name. The boundary between userInfo and host is the
+ * last {@code '@'} in the authority, per RFC 3986.
+ *
  * Note: glob pattern detection ({@link #isPattern()}) only inspects the path component.
  * Glob characters in the scheme or authority (e.g. {@code s3://bucket-*&#47;data/}) are
  * not detected as patterns and will be treated as literal text.
@@ -32,13 +38,15 @@ public final class StoragePath {
 
     private final String location;
     private final String scheme;      // "s3", "https", "file", etc.
+    private final String userInfo;    // null if absent; provider-defined (e.g. WASB container)
     private final String host;        // bucket name, hostname
     private final int port;           // -1 if not specified
     private final String path;        // path within the storage
 
-    private StoragePath(String location, String scheme, String host, int port, String path) {
+    private StoragePath(String location, String scheme, String userInfo, String host, int port, String path) {
         this.location = location;
         this.scheme = scheme;
+        this.userInfo = userInfo;
         this.host = host;
         this.port = port;
         this.path = path;
@@ -101,29 +109,67 @@ public final class StoragePath {
         String host;
         int port = -1;
 
-        // Skip userInfo if present (not commonly used in storage URLs)
-        int atIndex = authority.indexOf('@');
+        // Extract userInfo if present. Per RFC 3986, the userInfo extends to the last '@'
+        // in the authority, so values containing ':' or '@' (e.g. "user:pa@ss") are preserved.
+        // The userInfo is provider-defined: for Azure WASB(S), it carries the container name
+        // (canonical Hadoop form: wasbs://<container>@<account>.blob.core.windows.net/<blob>).
+        String userInfo = null;
+        int atIndex = authority.lastIndexOf('@');
         if (atIndex >= 0) {
+            if (atIndex > 0) {
+                userInfo = authority.substring(0, atIndex);
+            }
             authority = authority.substring(atIndex + 1);
         }
 
-        int portIndex = authority.lastIndexOf(':');
-        if (portIndex >= 0) {
-            host = authority.substring(0, portIndex);
-            try {
-                port = Integer.parseInt(authority.substring(portIndex + 1));
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid port in location: " + location, e);
+        if (authority.startsWith("[")) {
+            // IPv6 literal address per RFC 3986 §3.2.2: [::1] or [::1]:8080
+            // The closing bracket delimits the IP literal; port (if any) follows after ']'.
+            int closingBracket = authority.indexOf(']');
+            if (closingBracket < 0) {
+                throw new IllegalArgumentException("Malformed IPv6 address in location (missing ']'): " + location);
+            }
+            host = authority.substring(0, closingBracket + 1);
+            String afterBracket = authority.substring(closingBracket + 1);
+            if (afterBracket.isEmpty() == false) {
+                if (afterBracket.startsWith(":") == false) {
+                    throw new IllegalArgumentException("Malformed authority in location: " + location);
+                }
+                try {
+                    port = Integer.parseInt(afterBracket.substring(1));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid port in location: " + location, e);
+                }
             }
         } else {
-            host = authority;
+            int portIndex = authority.lastIndexOf(':');
+            if (portIndex >= 0) {
+                host = authority.substring(0, portIndex);
+                try {
+                    port = Integer.parseInt(authority.substring(portIndex + 1));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid port in location: " + location, e);
+                }
+            } else {
+                host = authority;
+            }
         }
 
-        return new StoragePath(location, scheme, host, port, path);
+        return new StoragePath(location, scheme, userInfo, host, port, path);
     }
 
     public String scheme() {
         return scheme;
+    }
+
+    /**
+     * Returns the userInfo component of the URI authority, or {@code null} when absent.
+     * Empty userInfo (e.g. {@code "scheme://@host/x"}) is normalized to {@code null}.
+     * The value is preserved verbatim (no URL decoding) and is provider-defined: Azure
+     * WASB(S) URIs in canonical Hadoop form carry the container name here.
+     */
+    public String userInfo() {
+        return userInfo;
     }
 
     public String host() {
@@ -135,6 +181,19 @@ public final class StoragePath {
     }
 
     public String path() {
+        return path;
+    }
+
+    /**
+     * Returns the path component adjusted for use as a local filesystem path.
+     * On Windows, file:// URIs produce paths like {@code /C:/dir/file} where the
+     * leading slash is invalid for the OS. This method strips it when a drive letter
+     * is detected so the result can be passed to {@code PathUtils.get()} safely.
+     */
+    public String localPath() {
+        if (path.length() >= 3 && path.charAt(0) == '/' && Character.isLetter(path.charAt(1)) && path.charAt(2) == ':') {
+            return path.substring(1);
+        }
         return path;
     }
 
@@ -229,11 +288,15 @@ public final class StoragePath {
     }
 
     private String authorityPrefix() {
-        String prefix = scheme + SCHEME_SEPARATOR + host;
-        if (port > 0) {
-            prefix += PORT_SEPARATOR + port;
+        StringBuilder prefix = new StringBuilder().append(scheme).append(SCHEME_SEPARATOR);
+        if (userInfo != null) {
+            prefix.append(userInfo).append('@');
         }
-        return prefix;
+        prefix.append(host);
+        if (port > 0) {
+            prefix.append(PORT_SEPARATOR).append(port);
+        }
+        return prefix.toString();
     }
 
     private int firstGlobMetacharacter() {

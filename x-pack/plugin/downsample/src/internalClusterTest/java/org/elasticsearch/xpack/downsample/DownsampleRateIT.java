@@ -29,37 +29,36 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class DownsampleRateIT extends DownsamplingIntegTestCase {
 
     private static final String INDEX_NAME = "metrics";
-    private static final String DOWNSAMPLED_INDEX_NAME = "metrics-downsampled";
-    private static final String MAPPING = """
-        {
-          "properties": {
-            "@timestamp": {
-              "type": "date"
-            },
-            "metricset": {
-              "type": "keyword",
-              "time_series_dimension": true
-            },
-            "counter": {
-              "type": "long",
-              "time_series_metric": "counter"
-            }
-          }
-        }
-        """;
+    private static final String DOWNSAMPLED_AGGREGATE_INDEX_NAME = "metrics-aggregated";
+    private static final String DOWNSAMPLED_LAST_VALUE_INDEX_NAME = "metrics-last-value";
+    private static final String MAPPING_FIELDS = """
+        "@timestamp": {
+          "type": "date"
+        },
+        "metricset": {
+          "type": "keyword",
+          "time_series_dimension": true
+        },
+        "counter": {
+          "type": "long",
+          "time_series_metric": "counter"
+        }""";
     public static final String START_TIME = "2021-04-29T00:00:00Z";
     public static final String END_TIME = "2021-04-29T23:59:59Z";
 
@@ -75,8 +74,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:32:22.470Z", 12),
                 new DocumentSpec("2021-04-29T17:39:22.470Z", 13)
             ),
-            "30m",
-            0.1
+            "30m"
         );
     }
 
@@ -94,8 +92,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:32:22.470Z", 12),
                 new DocumentSpec("2021-04-29T17:39:22.470Z", 13)
             ),
-            "30m",
-            0.1
+            "30m"
         );
     }
 
@@ -113,8 +110,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:32:22.470Z", 70),
                 new DocumentSpec("2021-04-29T17:39:22.470Z", 80)
             ),
-            "30m",
-            0.1
+            "30m"
         );
     }
 
@@ -140,8 +136,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:29:22.470Z", 10),
                 new DocumentSpec("2021-04-29T17:59:22.470Z", 20)
             ),
-            "30m",
-            0.1
+            "30m"
         );
     }
 
@@ -160,36 +155,97 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             documentSpecs.add(new DocumentSpec(randomFrom("pod-1", "pod-2", "pod-3"), DATE_FORMATTER.formatMillis(currentTime), counter));
             currentTime += randomLongBetween(5, 30) * 1000;
         }
-        // We use higher rate epsilon because there is a bigger fluctuation due to the random data
-        runTest(documentSpecs, "1h", 0.25);
+        runTest(documentSpecs, "1h");
     }
 
-    private void runTest(List<DocumentSpec> documentSpecs, String interval, double rateEpsilon) {
+    public void testDeltaTemporalityRate() {
+        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
+        runTestWithTemporality(
+            List.of(
+                new DocumentSpec("pod", "delta", "2021-04-29T17:01:00.000Z", 5),
+                new DocumentSpec("pod", "delta", "2021-04-29T17:05:00.000Z", 3),
+                new DocumentSpec("pod", "delta", "2021-04-29T17:10:00.000Z", 8),
+                new DocumentSpec("pod", "delta", "2021-04-29T17:15:00.000Z", 2),
+                new DocumentSpec("pod", "delta", "2021-04-29T17:20:00.000Z", 10),
+                new DocumentSpec("pod", "delta", "2021-04-29T17:25:00.000Z", 1),
+                new DocumentSpec("pod", "delta", "2021-04-29T17:32:00.000Z", 7),
+                new DocumentSpec("pod", "delta", "2021-04-29T17:39:00.000Z", 4)
+            ),
+            "30m"
+        );
+    }
+
+    public void testMixedTemporalityRate() {
+        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
+        runTestWithTemporality(
+            List.of(
+                // cumulative TSID: monotonically increasing counter
+                new DocumentSpec("pod-cumulative", "cumulative", "2021-04-29T17:01:00.000Z", 10),
+                new DocumentSpec("pod-cumulative", "cumulative", "2021-04-29T17:05:00.000Z", 20),
+                new DocumentSpec("pod-cumulative", "cumulative", "2021-04-29T17:10:00.000Z", 35),
+                new DocumentSpec("pod-cumulative", "cumulative", "2021-04-29T17:15:00.000Z", 50),
+                new DocumentSpec("pod-cumulative", "cumulative", "2021-04-29T17:20:00.000Z", 60),
+                new DocumentSpec("pod-cumulative", "cumulative", "2021-04-29T17:25:00.000Z", 75),
+                new DocumentSpec("pod-cumulative", "cumulative", "2021-04-29T17:32:00.000Z", 90),
+                new DocumentSpec("pod-cumulative", "cumulative", "2021-04-29T17:39:00.000Z", 100),
+                // delta TSID: per-interval increments
+                new DocumentSpec("pod-delta", "delta", "2021-04-29T17:01:00.000Z", 5),
+                new DocumentSpec("pod-delta", "delta", "2021-04-29T17:05:00.000Z", 3),
+                new DocumentSpec("pod-delta", "delta", "2021-04-29T17:10:00.000Z", 8),
+                new DocumentSpec("pod-delta", "delta", "2021-04-29T17:15:00.000Z", 2),
+                new DocumentSpec("pod-delta", "delta", "2021-04-29T17:20:00.000Z", 10),
+                new DocumentSpec("pod-delta", "delta", "2021-04-29T17:25:00.000Z", 1),
+                new DocumentSpec("pod-delta", "delta", "2021-04-29T17:32:00.000Z", 7),
+                new DocumentSpec("pod-delta", "delta", "2021-04-29T17:39:00.000Z", 4)
+            ),
+            "30m"
+        );
+    }
+
+    private void runTest(List<DocumentSpec> documentSpecs, String interval) {
         createIndex();
         indexDocuments(documentSpecs);
-        DownsampleConfig downsampleConfig = new DownsampleConfig(
-            new DateHistogramInterval(interval),
-            DownsampleConfig.SamplingMethod.AGGREGATE
-        );
-        downsample(downsampleConfig);
-
-        try (var baseline = queryRate(INDEX_NAME); var contender = queryRate(DOWNSAMPLED_INDEX_NAME)) {
-            compareResults(baseline, contender, rateEpsilon);
+        downsample(new DateHistogramInterval(interval));
+        try (
+            var baseline = queryRate(INDEX_NAME);
+            var aggregateContender = queryRate(DOWNSAMPLED_AGGREGATE_INDEX_NAME);
+            var lastValueContender = queryRate(DOWNSAMPLED_LAST_VALUE_INDEX_NAME)
+        ) {
+            compareResults(baseline, aggregateContender, lastValueContender);
         }
     }
 
-    private void compareResults(EsqlQueryResponse baseline, EsqlQueryResponse contender, double rateEpsilon) {
+    private void runTestWithTemporality(List<DocumentSpec> documentSpecs, String interval) {
+        createIndexWithTemporality();
+        indexDocuments(documentSpecs);
+        downsample(new DateHistogramInterval(interval));
+        try (
+            var baseline = queryRate(INDEX_NAME);
+            var aggregateContender = queryRate(DOWNSAMPLED_AGGREGATE_INDEX_NAME);
+            var lastValueContender = queryRate(DOWNSAMPLED_LAST_VALUE_INDEX_NAME)
+        ) {
+            compareResults(baseline, aggregateContender, lastValueContender);
+        }
+    }
+
+    private void compareResults(EsqlQueryResponse baseline, EsqlQueryResponse aggregateContender, EsqlQueryResponse lastValueContender) {
         assertResultColumns(baseline);
-        assertResultColumns(contender);
+        assertResultColumns(aggregateContender);
+        assertResultColumns(lastValueContender);
         List<RateResult> baselineRows = convertToSortedList(baseline);
-        List<RateResult> contenderRows = convertToSortedList(contender);
+        List<RateResult> aggregatedRows = convertToSortedList(aggregateContender);
+        List<RateResult> lastValueRows = convertToSortedList(lastValueContender);
         for (int i = 0; i < baselineRows.size(); i++) {
             RateResult baselineRow = baselineRows.get(i);
-            RateResult contenderRow = contenderRows.get(i);
-            // We need these two assertions to correctly identify the rate
-            assertThat(contenderRow.timeseries, equalTo(baselineRow.timeseries));
-            assertThat(contenderRow.timestamp, equalTo(baselineRow.timestamp));
-            assertEquals(0, Math.abs(baselineRow.rate - contenderRow.rate) / baselineRow.rate, rateEpsilon);
+            RateResult aggregatedRow = aggregatedRows.get(i);
+            RateResult lastValueRow = lastValueRows.get(i);
+            // We need these assertions to correctly identify the rate
+            assertThat(aggregatedRow.timeseries, equalTo(baselineRow.timeseries));
+            assertThat(aggregatedRow.timestamp, equalTo(baselineRow.timestamp));
+            assertThat(lastValueRow.timeseries, equalTo(baselineRow.timeseries));
+            assertThat(lastValueRow.timestamp, equalTo(baselineRow.timestamp));
+            // Aggregate counter downsampling should be closer to the baseline than the last value
+            assertThat(Math.abs(aggregatedRow.rate - baselineRow.rate), lessThanOrEqualTo(Math.abs(lastValueRow.rate - baselineRow.rate)));
         }
     }
 
@@ -211,6 +267,9 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     private void assertResultColumns(EsqlQueryResponse response) {
+        Map<String, Object> bucketMeta = COLUMN_METADATA_BUCKET.isEnabled()
+            ? Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))
+            : null;
         var columns = response.columns();
         assertThat(columns, hasSize(3));
         assertThat(
@@ -219,7 +278,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 List.of(
                     new ColumnInfoImpl("rate", "double", null),
                     new ColumnInfoImpl("_timeseries", "keyword", null),
-                    new ColumnInfoImpl("time_bucket", "date", null)
+                    new ColumnInfoImpl("time_bucket", "date", null, bucketMeta)
                 )
             )
         );
@@ -239,7 +298,26 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), START_TIME)
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), END_TIME)
         );
-        request.mapping(MAPPING);
+        request.mapping("{ \"properties\": {" + MAPPING_FIELDS + "}}");
+        assertAcked(client().admin().indices().create(request));
+    }
+
+    private static void createIndexWithTemporality() {
+        String temporalityField = """
+            "temporality": {
+              "type": "keyword",
+              "time_series_dimension": true
+            }""";
+        CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
+        request.settings(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "metricset,temporality")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), START_TIME)
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), END_TIME)
+                .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+        );
+        request.mapping("{ \"properties\": {" + MAPPING_FIELDS + "," + temporalityField + "}}");
         assertAcked(client().admin().indices().create(request));
     }
 
@@ -249,12 +327,15 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             try {
                 assertThat(i.get(), lessThan(documentSpecs.size()));
                 var docSpec = documentSpecs.get(i.getAndIncrement());
-                return XContentFactory.jsonBuilder()
+                XContentBuilder builder = XContentFactory.jsonBuilder()
                     .startObject()
                     .field("@timestamp", docSpec.timestamp)
                     .field("metricset", docSpec.dimension)
-                    .field("counter", docSpec.counter)
-                    .endObject();
+                    .field("counter", docSpec.counter);
+                if (docSpec.temporality != null) {
+                    builder.field("temporality", docSpec.temporality);
+                }
+                return builder.endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -262,7 +343,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         bulkIndex(INDEX_NAME, nextDoc, documentSpecs.size());
     }
 
-    private void downsample(DownsampleConfig downsampleConfig) {
+    private void downsample(DateHistogramInterval interval) {
         // Set the source index to read-only state
         assertAcked(
             indicesAdmin().prepareUpdateSettings(INDEX_NAME)
@@ -272,25 +353,50 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         assertAcked(
             client().execute(
                 DownsampleAction.INSTANCE,
-                new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, INDEX_NAME, DOWNSAMPLED_INDEX_NAME, TIMEOUT, downsampleConfig)
+                new DownsampleAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    INDEX_NAME,
+                    DOWNSAMPLED_AGGREGATE_INDEX_NAME,
+                    TIMEOUT,
+                    new DownsampleConfig(interval, DownsampleConfig.SamplingMethod.AGGREGATE)
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                DownsampleAction.INSTANCE,
+                new DownsampleAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    INDEX_NAME,
+                    DOWNSAMPLED_LAST_VALUE_INDEX_NAME,
+                    TIMEOUT,
+                    new DownsampleConfig(interval, DownsampleConfig.SamplingMethod.LAST_VALUE)
+                )
             )
         );
 
         // Wait for downsampling to complete
         SubscribableListener<Void> listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-            final var indexMetadata = clusterState.metadata().getProject().index(DOWNSAMPLED_INDEX_NAME);
-            if (indexMetadata == null) {
+            final var aggregatedIndexMetadata = clusterState.metadata().getProject().index(DOWNSAMPLED_AGGREGATE_INDEX_NAME);
+            final var lastValueIndexMetadata = clusterState.metadata().getProject().index(DOWNSAMPLED_LAST_VALUE_INDEX_NAME);
+            if (aggregatedIndexMetadata == null || lastValueIndexMetadata == null) {
                 return false;
             }
-            var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
-            return downsampleStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS;
+            var downsampleAggregateStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(aggregatedIndexMetadata.getSettings());
+            var downsampleLastValueStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(lastValueIndexMetadata.getSettings());
+            return downsampleAggregateStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS
+                && downsampleLastValueStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS;
         });
         safeAwait(listener);
     }
 
-    record DocumentSpec(String dimension, String timestamp, int counter) {
+    record DocumentSpec(String dimension, String temporality, String timestamp, int counter) {
         DocumentSpec(String timestamp, int counter) {
-            this("pod", timestamp, counter);
+            this("pod", null, timestamp, counter);
+        }
+
+        DocumentSpec(String dimension, String timestamp, int counter) {
+            this(dimension, null, timestamp, counter);
         }
     }
 

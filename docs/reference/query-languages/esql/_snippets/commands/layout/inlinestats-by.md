@@ -77,7 +77,7 @@ The following examples show common `INLINE STATS` patterns.
 
 Calculate a statistic on one column and group by the values of another:
 
-:::{include} ../examples/inlinestats.csv-spec/max-salary.md
+:::{include} ../../generated/x-pack-esql/commands/examples/inlinestats.csv-spec/max-salary.md
 :::
 
 :::{note}
@@ -90,17 +90,17 @@ a column overridden by the `INLINE STATS` command (it's the grouping key) and it
 Omit `BY` to apply aggregations over the entire dataset. The order of the existing
 columns is preserved and the new column is added last:
 
-:::{include} ../examples/inlinestats.csv-spec/max-salary-without-by.md
+:::{include} ../../generated/x-pack-esql/commands/examples/inlinestats.csv-spec/max-salary-without-by.md
 :::
 
 ### Use multiple aggregations and grouping keys
 
-:::{include} ../examples/inlinestats.csv-spec/multi-agg-multi-grouping.md
+:::{include} ../../generated/x-pack-esql/commands/examples/inlinestats.csv-spec/multi-agg-multi-grouping.md
 :::
 
 ### Filter rows per aggregation with WHERE
 
-:::{include} ../examples/inlinestats.csv-spec/avg-salaries-where.md
+:::{include} ../../generated/x-pack-esql/commands/examples/inlinestats.csv-spec/avg-salaries-where.md
 :::
 
 

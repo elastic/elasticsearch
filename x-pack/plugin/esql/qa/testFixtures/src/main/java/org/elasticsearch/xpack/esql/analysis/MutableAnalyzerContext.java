@@ -13,6 +13,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -32,6 +33,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
     public MutableAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
@@ -42,6 +44,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         this(
             configuration,
             functionRegistry,
+            promqlFunctionRegistry,
             indexResolution,
             lookupResolution,
             enrichResolution,
@@ -55,6 +58,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
     public MutableAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
@@ -66,15 +70,18 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         super(
             configuration,
             functionRegistry,
+            promqlFunctionRegistry,
             null,
             indexResolution,
             lookupResolution,
+            Map.of(),
             enrichResolution,
             inferenceResolution,
             ExternalSourceResolution.EMPTY,
             minimumVersion,
             unmappedResolution,
-            timestampBounds
+            timestampBounds,
+            IpLocationResolution.SERVICE_UNAVAILABLE
         );
         this.currentVersion = minimumVersion;
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -53,6 +54,9 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         "SpatialWithin",
         SpatialWithin::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SpatialWithin.class)
+        .binary(SpatialWithin::new)
+        .name("st_within");
 
     // public for test access with reflection
     public static final SpatialRelations GEO = new SpatialRelations(
@@ -71,6 +75,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
 
     @FunctionInfo(
         returnType = { "boolean" },
+        briefSummary = "Returns whether the first geometry is within the second geometry.",
         description = """
             Returns whether the first geometry is within the second geometry.
             This is the inverse of the <<esql-st_contains,ST_CONTAINS>> function.""",

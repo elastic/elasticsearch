@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -26,8 +27,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.ingest.geoip.GeoIpTestUtils;
+import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -43,6 +47,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.useragent.UserAgentPlugin;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -62,8 +67,10 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -83,7 +90,10 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -97,6 +107,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
@@ -119,9 +131,100 @@ public class CsvIT extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
     private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
+    private static final QueryPragmas ALL_PRAGMAS = new QueryPragmas(Settings.EMPTY);
+    private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
+
+    /**
+     * Hook for tests that want to load datasets with a transformed mapping and/or transformed source documents,
+     * and/or to rewrite the csv-spec query before it is sent to the cluster &mdash; for example to exercise
+     * ES|QL behavior with a different field type than the dataset's mapping declares.
+     */
+    public interface IndexLoadStrategy {
+        /**
+         * Returns the mapping JSON to use when creating the index for {@code dataset}.
+         * The {@code originalMapping} is the mapping after {@link CsvTestsDataLoader#readMappingFile(CsvTestsDataLoader.TestDataset)}
+         * has applied {@code TestDataset}-level overrides (e.g. {@code withTypeMapping}, {@code withDynamic}).
+         */
+        String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) throws IOException;
+
+        /**
+         * Returns the index settings to use when creating the index for {@code dataset}.
+         */
+        Settings transformSettings(CsvTestsDataLoader.TestDataset dataset, Settings settings);
+
+        /**
+         * Returns the document source JSON to bulk-index for {@code dataset}. Called once per CSV row.
+         */
+        String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) throws IOException;
+
+        /**
+         * Returns the ES|QL query to send to the cluster, given the full {@link CsvSpecReader.CsvTestCase}
+         * for context (in particular, {@link CsvSpecReader.CsvTestCase#expectedResults} lets a variant
+         * recover the expected output column order). {@code testId} is the
+         * {@code <fileName>.<testName>} pair the test runner uses to identify the case (the
+         * same form {@link org.junit.AssumptionViolatedException} log lines surface) so a
+         * variant can consult a per-test silencing registry without threading the test
+         * instance into the strategy. The default {@link #IDENTITY_INDEX_LOAD_STRATEGY}
+         * returns the original query unchanged regardless of {@code testId}.
+         * <p>
+         * Implementations may throw {@link org.junit.AssumptionViolatedException} (typically via
+         * {@code assumeTrue} / {@code assumeFalse}) to skip the test under this variant when the original
+         * query is not relevant for the variant &mdash; for example, when no field that this variant rewrites
+         * appears in the query and so re-running the spec would only re-test the unmodified behavior.
+         */
+        String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase);
+
+        /**
+         * Transforms the expected results loaded from the csv-spec entry before they are compared
+         * against the actual query output.
+         */
+        ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected);
+
+        /**
+         * Called once after the index for {@code dataset} has been fully populated.
+         */
+        default void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) throws IOException {}
+    }
+
+    public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
+        @Override
+        public String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) {
+            return originalMapping;
+        }
+
+        @Override
+        public Settings transformSettings(CsvTestsDataLoader.TestDataset dataset, Settings settings) {
+            return settings;
+        }
+
+        @Override
+        public String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) {
+            return originalDocumentJson;
+        }
+
+        @Override
+        public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+            return testCase.query;
+        }
+
+        @Override
+        public ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected) {
+            return expected;
+        }
+    };
+
+    /**
+     * Strategy for transforming mappings and documents before they are sent to the test cluster.
+     * Defaults to the identity strategy (no transformation). Subclasses can replace this in their
+     * own {@link BeforeClass} method, which by JUnit's contract runs after the parent's {@link #setupCluster()}.
+     * <p>
+     * {@link #setupCluster()} resets the field to {@link #IDENTITY_INDEX_LOAD_STRATEGY} on every run so that
+     * a stale subclass strategy from a prior class in the same JVM never leaks into a sibling test class.
+     */
+    protected static IndexLoadStrategy indexLoadStrategy = IDENTITY_INDEX_LOAD_STRATEGY;
 
     private final String fileName;
     private final String groupName;
@@ -155,11 +258,16 @@ public class CsvIT extends ESTestCase {
 
     @BeforeClass
     public static void setupCluster() throws Exception {
+        indexLoadStrategy = IDENTITY_INDEX_LOAD_STRATEGY;
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
+        var nodeDirectory = createTempDir();
+        var configDirectory = nodeDirectory.resolve("config");
+        createCustomRegexConfig(configDirectory);
+        createGeoIpConfig(configDirectory);
         cluster = new InternalTestCluster(
             randomLong(),
-            createTempDir(),
+            nodeDirectory,
             false,
             true,
             1,
@@ -171,12 +279,13 @@ public class CsvIT extends ESTestCase {
                     return Settings.builder()
                         .put("xpack.security.enabled", false)
                         .put("xpack.license.self_generated.type", "trial")
+                        .put("ingest.geoip.downloader.enabled", false)
                         .build();
                 }
 
                 @Override
                 public java.nio.file.Path nodeConfigPath(int nodeOrdinal) {
-                    return null;
+                    return configDirectory;
                 }
             },
             0,
@@ -184,6 +293,8 @@ public class CsvIT extends ESTestCase {
             List.of(
                 getTestTransportPlugin(),
                 EsqlTestPlugin.class,
+                // EncryptionService binding for the always-registered data-source CRUD actions.
+                TestEncryptionServicePlugin.class,
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
                 CommonAnalysisPlugin.class,
@@ -194,6 +305,8 @@ public class CsvIT extends ESTestCase {
                 MapperExtrasPlugin.class,
                 SpatialPlugin.class,
                 UnsignedLongMapperPlugin.class,
+                UserAgentPlugin.class,
+                IngestGeoIpPlugin.class,
                 VersionFieldPlugin.class,
                 Wildcard.class
             ),
@@ -212,16 +325,26 @@ public class CsvIT extends ESTestCase {
     }
 
     public final void test() throws Throwable {
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
-        assumeFalse(
+        assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        assumeFalseLogging(
             "runs in a single cluster/single node mode",
             testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST.capabilityName())
         );
-        assumeFalse(
+        assumeFalseLogging(
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
-        checkTestCapabilities();
+        assumeFalseLogging(
+            "CSV tests cannot handle dataset-backed FROM <dataset> sources (requires QA integration tests)",
+            testCase.datasetSources.isEmpty() == false
+        );
+        assumeTrueLogging(
+            "CSV tests don't support remote cluster capability requirements",
+            testCase.missingCapabilitiesRemoteCluster.isEmpty()
+        );
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
+        CsvTestUtils.checkPragma(testCase.pragmas);
 
         currentGroupName = groupName;
         // verify no prior failures
@@ -230,12 +353,31 @@ public class CsvIT extends ESTestCase {
         inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        var request = syncEsqlQueryRequest(testCase.query);
+        String queryToRun = indexLoadStrategy.transformQuery(groupName + "." + testName, testCase);
+        var request = syncEsqlQueryRequest(queryToRun);
+        if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
+            request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
+        }
+
+        Settings.Builder pragmaSettings = Settings.builder();
+        if (randomBoolean()) {
+            pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
+        }
+        testCase.pragmas.forEach(pragmaSettings::put);
+        if (pragmaSettings.build().isEmpty() == false) {
+            request.acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmaSettings.build()));
+        }
+
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
         try (var response = listener.actionGet(5, TimeUnit.MINUTES)) {
-            ExpectedResults expected = loadCsvSpecValues(testCase.expectedResults);
+            assertFalse("response must not be partial: " + response.getExecutionInfo(), response.isPartial());
+            ExpectedResults expected = indexLoadStrategy.transformExpectedResults(
+                groupName + "." + testName,
+                testCase,
+                loadCsvSpecValues(testCase.expectedResults)
+            );
             ActualResults actual = new ActualResults(
                 response.zoneId(),
                 response.columns().stream().map(ColumnInfoImpl::name).toList(),
@@ -245,6 +387,7 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
+            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), logger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
                 actual.values(),
@@ -258,14 +401,11 @@ public class CsvIT extends ESTestCase {
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
                 .toList();
             testCase.assertWarnings(false).assertWarnings(warnings, null);
+            CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
         }
-    }
-
-    private void checkTestCapabilities() {
-        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
     }
 
     private StackTraceElement[] prependSpec(StackTraceElement[] original) {
@@ -356,8 +496,12 @@ public class CsvIT extends ESTestCase {
 
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
-        if ("views".equals(currentGroupName)) {
-            CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> views.maybeLoad(name, view));
+        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName)) {
+            CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> {
+                if (view.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled)) {
+                    views.maybeLoad(name, view);
+                }
+            });
         } else {
             views.unloadAll();
         }
@@ -367,13 +511,35 @@ public class CsvIT extends ESTestCase {
         Stream.of(request.indices()).flatMap(pattern -> {
             assert pattern.contains("<") == false : "Date-math is not supported in test";
             if (pattern.contains("*")) {
-                assert pattern.endsWith("*") : "Only suffix patterns are supported in test";
-                var prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
+                if (pattern.equals("*")) {
+                    switch (currentGroupName) {
+                        // Temporarily allow a few so they have time to migrate away
+                        case "enrich", "inlinestats", "limit", "lookup-join" -> logger.warn("stop using FROM *");
+                        // Views tests need FROM * with exclusions to test wildcard view resolution (e.g. FROM *,-employees*)
+                        case "views" -> logger.info("FROM * used in views test");
+                        default -> throw new IllegalStateException(
+                            "FROM * is not allowed in csv-spec tests because it makes them brittle. We add new data sets frequently."
+                        );
+                    }
+                    return CSV_DATASET.values().stream();
+                }
+                if (pattern.endsWith("*") == false) {
+                    throw new IllegalStateException("CsvIT only supports suffix patterns but got: " + pattern);
+                }
+                String prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
+                if (prefix.length() < 3) {
+                    throw new IllegalStateException(
+                        "FROM pattern* may not be short in csv-spec tests because it makes them brittle. We add new data sets frequently."
+                    );
+                }
                 return CSV_DATASET.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
             } else {
                 return Stream.of(CSV_DATASET.get(pattern));
             }
-        }).filter(Objects::nonNull).forEach(resource -> indices.maybeLoad(resource.indexName(), resource));
+        })
+            .filter(Objects::nonNull)
+            .filter(resource -> resource.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled))
+            .forEach(resource -> indices.maybeLoad(resource.indexName(), resource));
     }
 
     private static void loadInference(GetInferenceModelAction.Request request) {
@@ -396,23 +562,22 @@ public class CsvIT extends ESTestCase {
             for (String inferenceId : dataset.inferenceEndpoints()) {
                 inference.maybeLoad(inferenceId, INFERENCE_CONFIGS.get(inferenceId));
             }
-            assertAcked(
-                cluster.client()
-                    .admin()
-                    .indices()
-                    .prepareCreate(dataset.indexName())
-                    .setMapping(CsvTestsDataLoader.readMappingFile(dataset))
-                    .setSettings(dataset.loadSettings())
-            );
+            String mapping = indexLoadStrategy.transformMapping(dataset, CsvTestsDataLoader.readMappingFile(dataset));
+            Settings settings = indexLoadStrategy.transformSettings(dataset, dataset.loadSettings());
+            assertAcked(cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings));
             if (dataset.dataFileName() != null) {
                 var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
-                    bulk.add(
-                        cluster.client()
-                            .prepareIndex(dataset.indexName())
-                            .setId(document.id())
-                            .setSource(document.json().toString(), XContentType.JSON)
-                    );
+                    String source = indexLoadStrategy.transformDocument(dataset, document.json().toString());
+                    bulk.add(cluster.client().prepareIndex(dataset.indexName()).setId(document.id()).setSource(source, XContentType.JSON));
+                    if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
+                        var result = bulk.get();
+                        assertFalse(
+                            "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
+                            result.hasFailures()
+                        );
+                        bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    }
                 }
                 if (bulk.numberOfActions() > 0) {
                     var result = bulk.get();
@@ -422,6 +587,7 @@ public class CsvIT extends ESTestCase {
                     );
                 }
             }
+            indexLoadStrategy.afterIndexLoaded(dataset, cluster.client());
         }
     };
 
@@ -489,7 +655,10 @@ public class CsvIT extends ESTestCase {
             logger.info("Unloading view [{}]", name);
             assertAcked(
                 cluster.client()
-                    .execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name))
+                    .execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                    )
             );
         }
     };
@@ -528,6 +697,22 @@ public class CsvIT extends ESTestCase {
                 throw new RuntimeException("Resource loading failure", failure);
             }
         }
+    }
+
+    private static void createCustomRegexConfig(Path configDir) throws IOException {
+        // create a subdir for the user-agent with custom regex files so we can test the USER_AGENT with the regex_file option
+        Path userAgentDir = configDir.resolve("user-agent");
+        Files.createDirectories(userAgentDir);
+        try (InputStream is = CsvIT.class.getResourceAsStream("/custom-regexes.yml")) {
+            assert is != null : "custom-regexes.yml not found on classpath";
+            Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
+        }
+    }
+
+    private static void createGeoIpConfig(Path configDir) throws IOException {
+        Path geoIpDir = configDir.resolve("ingest-geoip");
+        Files.createDirectories(geoIpDir);
+        GeoIpTestUtils.copyDefaultDatabases(geoIpDir);
     }
 
     private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {

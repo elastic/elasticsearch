@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -72,7 +72,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
     private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 2;
-    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 7;
+    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 10;
     private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 3;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
     private static final int FLEET_POLICIES_MAPPINGS_VERSION = 2;
@@ -236,7 +236,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         try {
             ComposableIndexTemplate composableIndexTemplate = TemplateUtils.loadTemplate(
                 "/fleet-actions-results.json",
-                Version.CURRENT.toString(),
+                Build.current().version(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of("fleet.managed.index.version", Integer.toString(FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION)),
                 false,
@@ -322,7 +322,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         try {
             Template template = TemplateUtils.loadTemplate(
                 resource,
-                Version.CURRENT.toString(),
+                Build.current().version(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of("fleet.managed.index.version", Integer.toString(mappingsVersion)),
                 false,

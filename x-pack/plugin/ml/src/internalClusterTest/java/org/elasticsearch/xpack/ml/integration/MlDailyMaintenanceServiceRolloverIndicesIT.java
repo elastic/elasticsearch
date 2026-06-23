@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.ml.MlAssignmentNotifier;
 import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
@@ -71,6 +72,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             threadPool,
             client(),
             clusterService,
+            mock(AnomalyDetectionAuditor.class),
             mock(MlAssignmentNotifier.class),
             TestIndexNameExpressionResolver.newInstance(),
             true,
@@ -631,6 +633,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             threadPool,
             client(),
             clusterService,
+            mock(AnomalyDetectionAuditor.class),
             mock(MlAssignmentNotifier.class),
             TestIndexNameExpressionResolver.newInstance(),
             true,

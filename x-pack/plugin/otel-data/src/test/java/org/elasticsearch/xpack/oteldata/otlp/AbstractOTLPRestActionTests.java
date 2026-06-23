@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -160,18 +161,33 @@ public abstract class AbstractOTLPRestActionTests extends ESTestCase {
     }
 
     protected RestResponse execute(IndexingPressure pressure, long maxSize, int bodySize) {
+        return execute(pressure, maxSize, bodySize, Map.of());
+    }
+
+    protected RestResponse execute(long maxSize, int bodySize, Map<String, List<String>> headers) {
+        return execute(indexingPressure, maxSize, bodySize, headers);
+    }
+
+    protected RestResponse execute(IndexingPressure pressure, long maxSize, int bodySize, Map<String, List<String>> extraHeaders) {
         var stream = new FakeHttpBodyStream();
         var action = createAction(pressure, maxSize);
-        var httpRequest = new FakeRestRequest.FakeHttpRequest(
-            RestRequest.Method.POST,
-            routePath(),
-            Map.of("Content-Type", List.of("application/x-protobuf")),
-            stream
-        );
+        var headers = new HashMap<String, List<String>>();
+        headers.put("Content-Type", List.of("application/x-protobuf"));
+        headers.putAll(extraHeaders);
+        var httpRequest = new FakeRestRequest.FakeHttpRequest(RestRequest.Method.POST, routePath(), headers, stream);
         var request = RestRequest.request(parserConfig(), httpRequest, new FakeRestRequest.FakeHttpChannel(null));
-        var channel = new FakeRestChannel(request, true, 1);
+        var channel = new FakeRestChannel(request, true);
+        BaseRestHandler.RequestBodyChunkConsumer consumer;
         try {
-            var consumer = (BaseRestHandler.RequestBodyChunkConsumer) action.prepareRequest(request, client);
+            consumer = (BaseRestHandler.RequestBodyChunkConsumer) action.prepareRequest(request, client);
+        } catch (RuntimeException e) {
+            // RuntimeExceptions from prepareRequest (e.g. invalid headers) are surfaced to callers as 400 by the REST framework;
+            // let them propagate so tests can assert on them directly.
+            throw e;
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        try {
             stream.setHandler(new HttpBody.ChunkHandler() {
                 @Override
                 public void onNext(ReleasableBytesReference chunk, boolean last) {

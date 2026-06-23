@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -38,12 +39,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Repeat", Repeat::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Repeat.class).binary(Repeat::new).name("repeat");
 
     private final Expression str;
     private final Expression number;
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns a string repeated a specified number of times.",
         description = "Returns a string constructed by concatenating `string` with itself the specified `number` of times.",
         examples = @Example(file = "string", tag = "repeat")
     )

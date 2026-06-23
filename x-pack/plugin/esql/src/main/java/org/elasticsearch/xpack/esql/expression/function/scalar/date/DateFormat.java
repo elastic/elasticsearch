@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -47,12 +48,16 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         "DateFormat",
         DateFormat::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateFormat.class)
+        .binaryConfig(DateFormat::new)
+        .name("date_format");
 
     private final Expression field;
     private final Expression format;
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns a string representation of a date, in the provided format.",
         description = "Returns a string representation of a date, in the provided format.",
         examples = @Example(file = "date", tag = "docsDateFormat")
     )

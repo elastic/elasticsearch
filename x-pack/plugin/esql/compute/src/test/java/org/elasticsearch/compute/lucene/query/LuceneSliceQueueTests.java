@@ -15,6 +15,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -24,19 +25,24 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -45,6 +51,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests.simpleReader;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -355,6 +363,126 @@ public class LuceneSliceQueueTests extends ESTestCase {
         assertThat(slices, hasSize(sliceOffset));
     }
 
+    public void testBalancedBinPackOneBigManySmall() {
+        // 1 big segment + 100 small segments, target = 2 slices.
+        // Worst-fit-decreasing should produce two roughly-equal slices: big alone vs all the smalls.
+        LeafReaderContext big = new MockLeafReader(10_000_000).getContext();
+        List<LeafReaderContext> all = new ArrayList<>();
+        all.add(big);
+        for (int i = 0; i < 100; i++) {
+            all.add(new MockLeafReader(100_000).getContext());
+        }
+        List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.PartitioningStrategy.balancedBinPack(all, Set.of(), 2);
+        assertThat(slices, hasSize(2));
+        // Each slice's leaf-doc-sum should be approximately 10M.
+        long sliceADocs = slices.get(0).stream().mapToLong(p -> p.leafReaderContext().reader().maxDoc()).sum();
+        long sliceBDocs = slices.get(1).stream().mapToLong(p -> p.leafReaderContext().reader().maxDoc()).sum();
+        assertThat(sliceADocs + sliceBDocs, equalTo(20_000_000L));
+        assertThat(Math.abs(sliceADocs - sliceBDocs), Matchers.lessThanOrEqualTo(100_000L));
+    }
+
+    public void testBalancedBinPackKeepsGuardedLeavesIsolated() {
+        LeafReaderContext guarded = new MockLeafReader(500_000).getContext();
+        LeafReaderContext a = new MockLeafReader(200_000).getContext();
+        LeafReaderContext b = new MockLeafReader(200_000).getContext();
+        List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.PartitioningStrategy.balancedBinPack(
+            List.of(guarded, a, b),
+            Set.of(guarded),
+            2
+        );
+        // guarded becomes its own slice; the remaining two get the full target parallelism (one bin
+        // each), so total slices can exceed the target — the guarded slice doesn't eat into the
+        // budget for the leaves that still need iterating.
+        assertThat(slices, hasSize(3));
+        assertThat(slices.get(0), hasSize(1));
+        assertThat(slices.get(0).getFirst().leafReaderContext(), equalTo(guarded));
+        assertThat(slices.get(1), hasSize(1));
+        assertThat(slices.get(2), hasSize(1));
+    }
+
+    /**
+     * Regression for the starvation bug: when guarded (shortcut, O(1)) leaves already meet or exceed
+     * the target slice count, the unguarded leaves — the ones that actually need iterating — must
+     * still get their own full target-sized parallelism, not be crammed onto a single serialized
+     * slice. The guarded slices are independent O(1) work and must not subtract from that budget.
+     */
+    public void testBalancedBinPackDoesNotStarveUnguardedLeaves() {
+        List<LeafReaderContext> guarded = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            guarded.add(new MockLeafReader(100_000).getContext());
+        }
+        LeafReaderContext a = new MockLeafReader(200_000).getContext();
+        LeafReaderContext b = new MockLeafReader(200_000).getContext();
+        List<LeafReaderContext> all = new ArrayList<>(guarded);
+        all.add(a);
+        all.add(b);
+        int target = 2;
+        List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.PartitioningStrategy.balancedBinPack(
+            all,
+            new HashSet<>(guarded),
+            target
+        );
+        // 5 guarded single-leaf slices + the 2 unguarded leaves spread across min(target, 2) = 2 bins.
+        assertThat(slices, hasSize(7));
+        long unguardedSlices = slices.stream()
+            .filter(s -> s.stream().anyMatch(p -> p.leafReaderContext() == a || p.leafReaderContext() == b))
+            .count();
+        assertThat("unguarded leaves must each get their own slice, not be serialized", unguardedSlices, equalTo(2L));
+    }
+
+    public void testDocPartitioningKeepWhole() {
+        LeafReaderContext small = new MockLeafReader(400).getContext();
+        LeafReaderContext mediumGuarded = new MockLeafReader(800_000).getContext();
+        LeafReaderContext largeSplit = new MockLeafReader(1_400_990).getContext();
+        var adaptivePartitioner = new LuceneSliceQueue.AdaptivePartitioner(250_000, 5);
+        List<List<PartialLeafReaderContext>> slices = adaptivePartitioner.partition(
+            List.of(small, mediumGuarded, largeSplit),
+            Set.of(mediumGuarded)
+        );
+        // The guarded leaf is emitted as a single full-leaf slice before any large-segment slices.
+        assertThat(slices.get(0), hasSize(1));
+        assertThat(slices.get(0).getFirst().leafReaderContext(), equalTo(mediumGuarded));
+        assertThat(slices.get(0).getFirst().minDoc(), equalTo(0));
+        // Full-leaf bound (not Integer.MAX_VALUE) — matches the convention used by SHARD.
+        assertThat(slices.get(0).getFirst().maxDoc(), equalTo(mediumGuarded.reader().maxDoc()));
+        // Large unguarded leaf gets split into multiple sub-segment slices.
+        long largeSplitSliceCount = slices.stream().filter(s -> s.size() == 1 && s.getFirst().leafReaderContext() == largeSplit).count();
+        assertThat(largeSplitSliceCount, greaterThan(1L));
+        // Small leaf is grouped via IndexSearcher.slices (its own one-slice group).
+        long smallSliceCount = slices.stream().filter(s -> s.stream().anyMatch(p -> p.leafReaderContext() == small)).count();
+        assertThat(smallSliceCount, equalTo(1L));
+    }
+
+    /**
+     * The {@code min_docs_per_slice} override (surfaced as the {@code min_docs_per_slice} query pragma) lets a small
+     * index actually exercise DOC partitioning: with the default {@link LuceneSliceQueue#MIN_DOCS_PER_SLICE} floor a
+     * one-segment index below the floor collapses to a single slice (no parallelism), but lowering the floor splits the
+     * segment into multiple slices. This is what makes DOC/SEGMENT parallelism testable without indexing tens of
+     * thousands of documents.
+     */
+    public void testDocPartitioningHonorsMinDocsPerSliceOverride() throws IOException {
+        IndexSearcher searcher = new IndexSearcher(new MultiReader(new MockLeafReader(1_000)));
+        int taskConcurrency = 4;
+        // Default floor (50k) ≫ the 1_000-doc segment: one slice, no parallelism.
+        var defaultSlices = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            taskConcurrency,
+            null,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+        );
+        assertThat(defaultSlices, hasSize(1));
+        // Lowered floor: the segment splits so several drivers can share the scan.
+        var overriddenSlices = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            taskConcurrency,
+            null,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            100
+        );
+        assertThat(overriddenSlices.size(), greaterThan(1));
+    }
+
     public void testCreateSlice() throws IOException {
         try (var directory = newDirectory()) {
             try (var reader = simpleReader(directory, 1, 1)) {
@@ -388,11 +516,134 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
     }
 
+    public void testTimeSeriesPartitionerSingleSegment() throws IOException {
+        var prefixes = new PartitionedDocValues.PrefixPartitions(3, new int[] { 0, 2, 3 }, new int[] { 0, 100, 300 });
+        MultiReader reader = new MultiReader(new MockLeafReader(500, prefixes));
+        var partitioner = new LuceneSliceQueue.TimeSeriesPartitioner();
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 1, 500);
+            assertThat(slices, hasSize(1));
+            assertThat(slices, contains(List.of(new PartialLeafReaderContext(reader.leaves().get(0), 0, 500))));
+        }
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 3, 200);
+            assertThat(slices, hasSize(2));
+            assertThat(
+                slices,
+                contains(
+                    List.of(new PartialLeafReaderContext(reader.leaves().get(0), 0, 300)),
+                    List.of(new PartialLeafReaderContext(reader.leaves().get(0), 300, 500))
+                )
+            );
+        }
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 5, 100);
+            assertThat(slices, hasSize(3));
+            assertThat(
+                slices,
+                contains(
+                    List.of(new PartialLeafReaderContext(reader.leaves().get(0), 0, 100)),
+                    List.of(new PartialLeafReaderContext(reader.leaves().get(0), 100, 300)),
+                    List.of(new PartialLeafReaderContext(reader.leaves().get(0), 300, 500))
+                )
+            );
+        }
+    }
+
+    public void testTimeSeriesPartitionerMultipleSegments() throws IOException {
+        var prefixes0 = new PartitionedDocValues.PrefixPartitions(2, new int[] { 0, 1 }, new int[] { 0, 100 });
+        var prefixes1 = new PartitionedDocValues.PrefixPartitions(2, new int[] { 1, 6 }, new int[] { 0, 160 });
+        var prefixes2 = new PartitionedDocValues.PrefixPartitions(5, new int[] { 0, 1, 2, 3, 6 }, new int[] { 0, 50, 120, 250, 470 });
+        MultiReader reader = new MultiReader(
+            new MockLeafReader(200, prefixes0),
+            new MockLeafReader(370, prefixes1),
+            new MockLeafReader(801, prefixes2)
+        );
+        var partitioner = new LuceneSliceQueue.TimeSeriesPartitioner();
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 1, 1371);
+            assertThat(slices, hasSize(1));
+            assertThat(
+                slices.get(0),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(0), 0, 200),
+                    new PartialLeafReaderContext(reader.leaves().get(1), 0, 370),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 0, 801)
+                )
+            );
+        }
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 2, 750);
+            assertThat(slices, hasSize(2));
+            assertThat(
+                slices.get(0),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(0), 0, 200),
+                    new PartialLeafReaderContext(reader.leaves().get(1), 0, 160),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 0, 470)
+                )
+            );
+            assertThat(
+                slices.get(1),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(1), 160, 370),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 470, 801)
+                )
+            );
+        }
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 3, 500);
+            assertThat(slices, hasSize(2));
+            assertThat(
+                slices.get(0),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(0), 0, 200),
+                    new PartialLeafReaderContext(reader.leaves().get(1), 0, 160),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 0, 250)
+                )
+            );
+            assertThat(
+                slices.get(1),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(1), 160, 370),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 250, 801)
+                )
+            );
+        }
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 5, 200);
+            assertThat(slices, hasSize(3));
+            assertThat(
+                slices.get(0),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(0), 0, 200),
+                    new PartialLeafReaderContext(reader.leaves().get(1), 0, 160),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 0, 120)
+                )
+            );
+            assertThat(slices.get(1), containsInAnyOrder(new PartialLeafReaderContext(reader.leaves().get(2), 120, 470)));
+            assertThat(
+                slices.get(2),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(1), 160, 370),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 470, 801)
+                )
+            );
+        }
+    }
+
     static class MockLeafReader extends LeafReader {
         private final int maxDoc;
+        private final PartitionedDocValues.PrefixPartitions prefixPartitions;
 
         MockLeafReader(int maxDoc) {
             this.maxDoc = maxDoc;
+            this.prefixPartitions = null;
+        }
+
+        MockLeafReader(int maxDoc, PartitionedDocValues.PrefixPartitions prefixPartitions) {
+            this.maxDoc = maxDoc;
+            this.prefixPartitions = prefixPartitions;
         }
 
         @Override
@@ -417,7 +668,10 @@ public class LuceneSliceQueueTests extends ESTestCase {
 
         @Override
         public SortedDocValues getSortedDocValues(String field) throws IOException {
-            throw new UnsupportedOperationException();
+            if (field.equals("_tsid") == false || prefixPartitions == null) {
+                return null;
+            }
+            return new PartitionedSortedDocValues(prefixPartitions);
         }
 
         @Override
@@ -514,6 +768,49 @@ public class LuceneSliceQueueTests extends ESTestCase {
         @Override
         public CacheHelper getReaderCacheHelper() {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    static class PartitionedSortedDocValues extends AbstractSortedDocValues implements PartitionedDocValues {
+        final PartitionedDocValues.PrefixPartitions prefixPartitions;
+
+        PartitionedSortedDocValues(PrefixPartitions prefixPartitions) {
+            this.prefixPartitions = prefixPartitions;
+        }
+
+        @Override
+        public int ordValue() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BytesRef lookupOrd(int ord) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int getValueCount() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int docID() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public PrefixPartitions prefixPartitions(PrefixPartitions reuse) throws IOException {
+            return prefixPartitions;
+        }
+
+        @Override
+        public int prefixPartitionBits() {
+            return 1;
         }
     }
 }

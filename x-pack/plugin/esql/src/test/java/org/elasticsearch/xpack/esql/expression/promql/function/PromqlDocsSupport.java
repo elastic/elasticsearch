@@ -199,7 +199,7 @@ public final class PromqlDocsSupport {
         }
     }
 
-    private static void genFunctionDocs(PromqlFunctionRegistry.FunctionDefinition def, DocsV3Support.Callbacks callbacks) throws Exception {
+    private static void genFunctionDocs(PromqlFunctionDefinition def, DocsV3Support.Callbacks callbacks) throws Exception {
         List<ParamDef> params = def.params()
             .stream()
             .map(p -> new ParamDef(p.name(), mapDataType(p.type()), p.optional(), p.description()))
@@ -275,7 +275,6 @@ public final class PromqlDocsSupport {
             builder.endArray();
 
             builder.array("examples", examples.toArray(String[]::new));
-            builder.field("preview", true);
             builder.field("snapshot_only", false);
             builder.endObject();
 

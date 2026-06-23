@@ -82,7 +82,8 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                 "logger.org.elasticsearch.xpack.ml.inference.pytorch" : null,
                 "logger.org.elasticsearch.xpack.ml.process.logging" : null,
                 "cluster.routing.allocation.awareness.attributes": null,
-                "xpack.ml.max_lazy_ml_nodes": null
+                "xpack.ml.max_lazy_ml_nodes": null,
+                "xpack.ml.trained_models.graph_validation_enabled": null
             }}""");
         client().performRequest(clusterSettings);
 

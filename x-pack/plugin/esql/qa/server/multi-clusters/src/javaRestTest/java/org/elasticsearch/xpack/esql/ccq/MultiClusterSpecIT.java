@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_EQUALITY;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
@@ -67,6 +68,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_INFO_C
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -80,7 +84,6 @@ import static org.mockito.Mockito.when;
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
-
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(CSV_DATA_PATH, LOGGING_CLUSTER_SETTINGS);
@@ -96,7 +99,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     private static final Set<String> LOCAL_ONLY_INFERENCE_CAPABILITIES = Set.of(
         RERANK.capabilityName(),
         COMPLETION.capabilityName(),
-        TEXT_EMBEDDING_FUNCTION.capabilityName()
+        TEXT_EMBEDDING_FUNCTION.capabilityName(),
+        EMBEDDING_FUNCTION.capabilityName()
     );
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
@@ -169,6 +173,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
 
+        assumeTrue(
+            "Remote cluster must not support " + testCase.missingCapabilitiesRemoteCluster + " for test " + testName,
+            doesntHaveCapabilities(remoteClusterClient(), testCase.missingCapabilitiesRemoteCluster)
+        );
+
         // Filter out capabilities that are required only on the local cluster and then check the remaining on the remote cluster.
         List<String> remoteCapabilities = testCase.requiredCapabilities.stream()
             .filter(c -> LOCAL_ONLY_INFERENCE_CAPABILITIES.contains(c) == false)
@@ -234,6 +243,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse(
             "Dense vector equality is not supported in CCS unless all nodes support it",
             testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
+        );
+
+        // TODO remove this when addressing https://github.com/elastic/esql-planning/issues/517
+        assumeFalse(
+            "skip CCS for IN subqueries until convertToRemoteIndices supports IN subquery",
+            testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
         );
     }
 
@@ -370,6 +385,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
+        }
+        // convertToRemoteIndices does not support WHERE IN subquery yet
+        if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
+            || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())) {
+            return testCase;
         }
         if (testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
             return convertSubqueryToRemoteIndices(testCase);

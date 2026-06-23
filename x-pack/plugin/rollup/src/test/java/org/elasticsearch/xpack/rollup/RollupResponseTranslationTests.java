@@ -666,7 +666,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             () -> false,
             mock(AggregationBuilder.class),
             b -> {},
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            null
         );
 
         InternalAggregation reduced = InternalAggregationTestCase.reduce(Collections.singletonList(unrolled), context);

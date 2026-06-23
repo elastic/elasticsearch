@@ -123,7 +123,7 @@ abstract class CentroidPointAggregator {
         try (BytesRefBlock.Builder builder = ctx.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
-                if (state.hasValue(si) && si < state.xValues.size()) {
+                if (si < state.xValues.size() && state.hasValue(si)) {
                     BytesRef result = state.encodeCentroidResult(si);
                     builder.appendBytesRef(result);
                 } else {
@@ -266,7 +266,6 @@ abstract class CentroidPointAggregator {
             return encode(x, y);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             CentroidPointAggregator.evaluateIntermediate(this, blocks, offset, selected, driverContext);
         }

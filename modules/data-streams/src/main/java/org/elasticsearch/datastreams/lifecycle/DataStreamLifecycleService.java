@@ -72,6 +72,7 @@ import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDo
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -141,18 +142,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    /**
-     * This setting controls how often we signal that an index is in the error state when it comes to its data stream lifecycle
-     * progression.
-     * The signalling is currently logging at the `error` level but in the future it can signify other types of signalling.
-     */
-    public static final Setting<Integer> DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING = Setting.intSetting(
-        "data_streams.lifecycle.signalling.error_retry_interval",
-        10,
-        1,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
 
     public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
 
@@ -166,6 +155,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     public static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
     public static final String FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY = "dlm_freeze_with";
+    public static final String DLM_CREATED_SETTING_KEY = IndexMetadata.INDEX_SETTING_PREFIX + "dlm.frozen.created";
+    public static final Setting<Boolean> DLM_CREATED_SETTING = Setting.boolSetting(
+        DLM_CREATED_SETTING_KEY,
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.InternalIndex
+    );
     private final Settings settings;
     private final Client client;
     private final ClusterService clusterService;
@@ -242,7 +238,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
         this.targetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(settings);
-        this.signallingErrorRetryInterval = DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
+        this.signallingErrorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings()
             .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         this.defaultRepository = RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(settings);
@@ -283,7 +279,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING, this::updateMergePolicyFloorSegment);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING, this::updateSignallingRetryThreshold);
+            .addSettingsUpdateConsumer(
+                DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,
+                this::updateSignallingRetryThreshold
+            );
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(RepositoriesService.DEFAULT_REPOSITORY_SETTING, this::updateDefaultRepository);
     }
@@ -409,6 +408,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             // the following indices should not be considered for the remainder of this service run, for various reasons.
             Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
 
+            // Seed the exclusion set with any indices that have index.lifecycle.skip=true so they are ignored by every phase below.
+            for (Index index : dataStream.getIndices()) {
+                if (isLifecycleSkipped(project, index)) {
+                    indicesToExcludeForRemainingRun.add(index);
+                }
+            }
+            for (Index index : dataStream.getFailureIndices()) {
+                if (isLifecycleSkipped(project, index)) {
+                    indicesToExcludeForRemainingRun.add(index);
+                }
+            }
+
             // These are the pre-rollover write indices. They may or may not be the write index after maybeExecuteRollover has executed,
             // depending on rollover criteria, for this reason we exclude them for the remaining run.
             indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, dataRetention, false));
@@ -479,20 +490,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
 
             try {
-                if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-                    // Collect all candidates for conversion to a frozen index.
-                    // These will be processed at the end of the loop where we mark all the indices at once.
-                    Set<Index> candidatesForFrozen = candidatesForFrozen(
-                        project,
-                        dataStream,
-                        nowSupplier,
-                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false)
-                    );
-                    // Exclude these candidates from the rest of the run
-                    indicesToExcludeForRemainingRun.addAll(candidatesForFrozen);
-                    // Add them to the list to be marked for conversion
-                    indicesForFrozenConversion.addAll(candidatesForFrozen);
-                }
+                // Collect all candidates for conversion to a frozen index.
+                // These will be processed at the end of the loop where we mark all the indices at once.
+                Set<Index> candidatesForFrozen = candidatesForFrozen(
+                    project,
+                    dataStream,
+                    nowSupplier,
+                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false)
+                );
+
+                // Exclude these candidates from the rest of the run
+                indicesToExcludeForRemainingRun.addAll(candidatesForFrozen);
+                // Add them to the list to be marked for conversion
+                indicesForFrozenConversion.addAll(candidatesForFrozen);
             } catch (Exception e) {
                 logger.warn(
                     () -> String.format(
@@ -509,18 +519,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
 
         try {
-            if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-                // Only identify and mark indices if the default repository setting is set,
-                // if it's entirely unset, no work could proceed, so we should just skip
-                // the frozen step entirely.
-                if (Strings.hasText(defaultRepository)) {
-                    maybeMarkIndicesForFrozen(projectState, indicesForFrozenConversion);
-                } else if (indicesForFrozenConversion.isEmpty() == false) {
-                    logger.debug(
-                        "DLM identified {} indices as candidates to convert to frozen, but no default repository is configured",
-                        indicesForFrozenConversion.size()
-                    );
-                }
+            // Only identify and mark indices if the default repository setting is set,
+            // if it's entirely unset, no work could proceed, so we should just skip
+            // the frozen step entirely.
+            if (Strings.hasText(defaultRepository)) {
+                maybeMarkIndicesForFrozen(projectState, indicesForFrozenConversion);
+            } else if (indicesForFrozenConversion.isEmpty() == false) {
+                logger.debug(
+                    "DLM identified {} indices as candidates to convert to frozen, but no default repository is configured",
+                    indicesForFrozenConversion.size()
+                );
             }
         } catch (Exception e) {
             logger.warn("Data stream lifecycle failed to mark candidates for converting to frozen index for data stream", e);
@@ -578,6 +586,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
             Optional.ofNullable(projectMetadata.index(index))
                 .filter(indexMeta -> indexMarkedForFrozen(indexMeta) == false)
+                .filter(indexMeta -> DLM_CREATED_SETTING.get(indexMeta.getSettings()) == false)
                 .ifPresent(metadata -> candidates.add(metadata.getIndex()));
         }
         return candidates;
@@ -996,6 +1005,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return targetIndices;
     }
 
+    private static boolean isLifecycleSkipped(ProjectMetadata project, Index index) {
+        IndexMetadata indexMetadata = project.index(index);
+        return indexMetadata != null && IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings());
+    }
+
     /**
      * This clears the error store for the case where a data stream or some backing indices were managed by data stream lifecycle, failed in
      * their lifecycle execution, and then they were not managed by the data stream lifecycle (maybe they were switched to ILM).
@@ -1033,7 +1047,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             return null;
         }
         try {
-            if (dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, project::index)) {
+            if (isLifecycleSkipped(project, currentRunWriteIndex) == false
+                && dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, project::index)) {
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),

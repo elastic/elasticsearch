@@ -24,6 +24,7 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
 import static java.nio.file.StandardOpenOption.WRITE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class MappedByteBufferTests extends ESTestCase {
 
@@ -128,6 +129,30 @@ public class MappedByteBufferTests extends ESTestCase {
         expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(0, size + 2));
     }
 
+    // Verifies that slicing a buffer preserves its concrete type, so that
+    // platform-specific operations like prefetch and madvise remain functional.
+    public void testSlicePreservesConcreteType() throws IOException {
+        int size = 4096;
+        var tmp = createTempDir();
+        Path file = tmp.resolve("testSliceType");
+        Files.write(file, newByteArray(size, 0), CREATE, WRITE);
+        file = Unwrappable.unwrapAll(file);
+        try (
+            FileChannel fileChannel = FileChannel.open(file, READ);
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+        ) {
+            try (var slice = mappedByteBuffer.slice(0, size)) {
+                assertThat(slice, instanceOf(mappedByteBuffer.getClass()));
+            }
+            try (var slice = mappedByteBuffer.slice(0, 1024)) {
+                assertThat(slice, instanceOf(mappedByteBuffer.getClass()));
+            }
+            try (var slice = mappedByteBuffer.slice(1024, 1024)) {
+                assertThat(slice, instanceOf(mappedByteBuffer.getClass()));
+            }
+        }
+    }
+
     static void assertSliceOfBuffer(CloseableMappedByteBuffer mappedByteBuffer, int offset, int length) {
         var buffer = mappedByteBuffer.buffer();
         try (var slice = mappedByteBuffer.slice(offset, length)) {
@@ -143,6 +168,58 @@ public class MappedByteBufferTests extends ESTestCase {
             assertThat(sliceLastByte, equalTo(expectedLastByte));
 
             assertOutOfBounds(slice, length);
+        }
+    }
+
+    // Verify that madvise does not fail or crash with various advice values.
+    public void testMadviseWithVariousAdvice() throws IOException {
+        int size = randomIntBetween(10, 4096);
+        var tmp = createTempDir();
+        Path file = tmp.resolve("testMadvise");
+        Files.write(file, newByteArray(size, 0), CREATE, WRITE);
+        file = Unwrappable.unwrapAll(file);
+        try (
+            FileChannel fileChannel = FileChannel.open(file, READ);
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+        ) {
+            mappedByteBuffer.madvise(0, size, MadviseAdvice.NORMAL);
+            mappedByteBuffer.madvise(0, size, MadviseAdvice.RANDOM);
+            mappedByteBuffer.madvise(0, size, MadviseAdvice.NORMAL);
+        }
+    }
+
+    // Verify that madvise works with sub-regions of the buffer.
+    public void testMadviseWithOffsets() throws IOException {
+        int size = randomIntBetween(100, 4096);
+        var tmp = createTempDir();
+        Path file = tmp.resolve("testMadviseOffsets");
+        Files.write(file, newByteArray(size, 0), CREATE, WRITE);
+        file = Unwrappable.unwrapAll(file);
+        try (
+            FileChannel fileChannel = FileChannel.open(file, READ);
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+        ) {
+            int mid = size / 2;
+            mappedByteBuffer.madvise(0, mid, MadviseAdvice.RANDOM);
+            mappedByteBuffer.madvise(mid, size - mid, MadviseAdvice.NORMAL);
+            mappedByteBuffer.madvise(0, 0, MadviseAdvice.RANDOM);
+        }
+    }
+
+    // Verify that madvise rejects out-of-bounds offset/length.
+    public void testMadviseOutOfBounds() throws IOException {
+        int size = randomIntBetween(10, 4096);
+        var tmp = createTempDir();
+        Path file = tmp.resolve("testMadviseOOB");
+        Files.write(file, newByteArray(size, 0), CREATE, WRITE);
+        file = Unwrappable.unwrapAll(file);
+        try (
+            FileChannel fileChannel = FileChannel.open(file, READ);
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+        ) {
+            expectThrows(IOOBE, () -> mappedByteBuffer.madvise(-1, size, MadviseAdvice.NORMAL));
+            expectThrows(IOOBE, () -> mappedByteBuffer.madvise(0, size + 1, MadviseAdvice.NORMAL));
+            expectThrows(IOOBE, () -> mappedByteBuffer.madvise(1, size, MadviseAdvice.NORMAL));
         }
     }
 

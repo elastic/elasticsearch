@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -18,10 +19,10 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
@@ -33,14 +34,10 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
  */
 public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
-    public static final String OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR =
-        "Cannot update OAuth2 fields as the service was not configured with OAuth2 settings. "
-            + "Please create a new Inference Endpoint with the OAuth2 settings instead.";
-
     /**
-     * Common fields parsed from a map, shared by all Azure OpenAI service setting types.
+     * Common settings parsed from a map, shared by all Azure OpenAI service setting types.
      */
-    protected record CommonFields(
+    protected record CommonSettings(
         String resourceName,
         String deploymentId,
         String apiVersion,
@@ -68,38 +65,32 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
         this.oAuth2Settings = oAuth2Settings;
     }
 
-    protected AzureOpenAiServiceSettings(CommonFields commonFields) {
+    protected AzureOpenAiServiceSettings(CommonSettings commonSettings) {
         this(
-            commonFields.resourceName(),
-            commonFields.deploymentId(),
-            commonFields.apiVersion(),
-            commonFields.rateLimitSettings(),
-            commonFields.oAuth2Settings()
+            commonSettings.resourceName(),
+            commonSettings.deploymentId(),
+            commonSettings.apiVersion(),
+            commonSettings.rateLimitSettings(),
+            commonSettings.oAuth2Settings()
         );
     }
 
     /**
-     * Parses the common Azure OpenAI service fields from a map. Subclasses may use this
+     * Parses the common Azure OpenAI service settings from a map. Subclasses may use this
      * when implementing their own {@code fromMap} and then parse additional fields.
      */
-    protected static CommonFields parseCommonFields(
+    protected static CommonSettings parseCommonSettings(
         Map<String, Object> map,
         ValidationException validationException,
         ConfigurationParseContext context,
         RateLimitSettings defaultRateLimitSettings
     ) {
-        String resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            defaultRateLimitSettings,
-            validationException,
-            AzureOpenAiService.NAME,
-            context
-        );
+        var resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, defaultRateLimitSettings, validationException, context);
         var oAuth2Settings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
-        return new CommonFields(resourceName, deploymentId, apiVersion, rateLimitSettings, oAuth2Settings);
+        return new CommonSettings(resourceName, deploymentId, apiVersion, rateLimitSettings, oAuth2Settings);
     }
 
     public String resourceName() {
@@ -122,30 +113,24 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
         return oAuth2Settings;
     }
 
-    /**
-     * Creates a copy of this settings instance with the given OAuth2 settings.
-     */
-    protected abstract AzureOpenAiServiceSettings createInstance(@Nullable AzureOpenAiOAuth2Settings newOAuth2Settings);
-
-    @Override
-    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        if (oAuth2Settings == null) {
-            if (AzureOpenAiOAuth2Settings.hasAnyOAuth2Fields(serviceSettings)) {
-                throw new ValidationException().addValidationError(OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR);
-            }
-            return this;
+    protected CommonSettings updateCommonSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
+        var extractedOAuth2Settings = oAuth2Settings;
+        // If the endpoint was not initially configured with OAuth2 settings,
+        // we do not allow OAuth2 fields in request map as that would lead to an invalid configuration and fail early.
+        if (oAuth2Settings == null && AzureOpenAiOAuth2Settings.hasAnyOAuth2Fields(serviceSettings)) {
+            validationException.addValidationError(OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR);
+        } else if (oAuth2Settings != null) {
+            extractedOAuth2Settings = oAuth2Settings.updateServiceSettings(serviceSettings, validationException);
         }
 
-        var validationException = new ValidationException();
-        var newOAuth2Settings = oAuth2Settings.updateServiceSettings(new HashMap<>(serviceSettings), validationException);
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
 
-        validationException.throwIfValidationErrorsExist();
-
-        if (Objects.equals(newOAuth2Settings, oAuth2Settings)) {
-            return this;
-        }
-
-        return createInstance(newOAuth2Settings);
+        return new CommonSettings(resourceName, deploymentId, apiVersion, extractedRateLimitSettings, extractedOAuth2Settings);
     }
 
     @Override
@@ -174,5 +159,10 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
     @Override
     public int hashCode() {
         return Objects.hash(resourceName, deploymentId, apiVersion, rateLimitSettings, oAuth2Settings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

@@ -12,15 +12,16 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorScorer;
+import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -64,10 +65,10 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
-        ES93FlatVectorScorer.INSTANCE
+        ES93GenericFlatVectorScorer.INSTANCE
     );
     private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+        ES93GenericFlatVectorScorer.INSTANCE
     );
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
         float32VectorFormat.getName(),
@@ -113,54 +114,45 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         TWO_BIT_4BIT_QUERY(1, (byte) 2, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                ESVectorUtil.packDibit(quantized, destination);
+                ESVectorUtil.packDibitQuad(quantized, destination);
             }
 
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                ESVectorUtil.transposeHalfByte(quantized, destination);
-            }
-
-            @Override
-            public int discretizedDimensions(int dimensions) {
-                int queryDiscretized = (dimensions * 4 + 7) / 8 * 8 / 4;
-                // we want to force dibit packing to byte boundaries assuming single bit striping
-                // so we discretize to the same as single bit encoding
-                int docDiscretized = (dimensions + 7) / 8 * 8;
-                int maxDiscretized = Math.max(queryDiscretized, docDiscretized);
-                assert maxDiscretized % (8.0 / 4) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
-                assert maxDiscretized % (8.0 / 2) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
-                return maxDiscretized;
+                packDibitQueryByStripe(quantized, destination);
             }
 
             @Override
             public int getDocPackedLength(int dimensions) {
-                // discretized to single bit encoding, but we assume dibit packing (2 bits per value)
-                // so we need twice as many bytes as single bit encoding
                 int discretized = discretizedDimensions(dimensions);
-                return 2 * ((discretized + 7) / 8);
+                return discretized / 4;
+            }
+
+            @Override
+            public int getQueryPackedLength(int dimensions) {
+                return discretizedDimensions(dimensions);
             }
         },
         FOUR_BIT_SYMMETRIC(2, (byte) 4, (byte) 4) {
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                ESVectorUtil.transposeHalfByte(quantized, destination);
+                packAsBytes(quantized, destination);
             }
 
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                ESVectorUtil.transposeHalfByte(quantized, destination);
+                packNibbles(quantized, destination);
             }
 
             @Override
             public int getDocPackedLength(int dimensions) {
                 int discretized = discretizedDimensions(dimensions);
-                return 4 * ((discretized + 7) / 8);
+                return discretized / 2;
             }
 
             @Override
             public int getQueryPackedLength(int dimensions) {
-                return getDocPackedLength(dimensions);
+                return discretizedDimensions(dimensions);
             }
 
             @Override
@@ -194,11 +186,42 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             public int getQueryPackedLength(int dimensions) {
                 return discretizedDimensions(dimensions);
             }
+        },
+        ONE_BIT_1BIT_QUERY(5, (byte) 1, (byte) 1) {
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                ESVectorUtil.packAsBinary(quantized, destination);
+            }
+
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                ESVectorUtil.packAsBinary(quantized, destination);
+            }
         };
 
         private static void packAsBytes(int[] quantized, byte[] destination) {
             for (int i = 0; i < quantized.length; i++) {
                 destination[i] = (byte) quantized[i];
+            }
+        }
+
+        private static void packNibbles(int[] quantized, byte[] destination) {
+            assert quantized.length == destination.length * 2;
+            int packedLength = destination.length;
+            for (int i = 0; i < packedLength; i++) {
+                destination[i] = (byte) ((quantized[i] << 4) | (quantized[packedLength + i] & 0x0F));
+            }
+        }
+
+        private static void packDibitQueryByStripe(int[] quantized, byte[] destination) {
+            assert quantized.length == destination.length;
+            assert destination.length % 4 == 0;
+            int packedLength = destination.length / 4;
+            for (int i = 0; i < packedLength; i++) {
+                destination[i] = (byte) quantized[4 * i];
+                destination[i + packedLength] = (byte) quantized[4 * i + 1];
+                destination[i + 2 * packedLength] = (byte) quantized[4 * i + 2];
+                destination[i + 3 * packedLength] = (byte) quantized[4 * i + 3];
             }
         }
 
@@ -273,6 +296,46 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
             };
         }
+
+        /**
+         * Resolves the quantization encoding from document and query bit widths.
+         *
+         * @throws IllegalArgumentException if the combination is unsupported
+         */
+        public static QuantEncoding fromDocAndQueryBits(byte docBits, byte queryBits) {
+            return switch (docBits) {
+                case 1 -> {
+                    if (queryBits == 1) {
+                        yield ONE_BIT_1BIT_QUERY;
+                    }
+                    if (queryBits == 4) {
+                        yield ONE_BIT_4BIT_QUERY;
+                    }
+                    throw new IllegalArgumentException("1-bit document quantization supports query bits 1 or 4, but got: " + queryBits);
+                }
+                case 2 -> {
+                    if (queryBits != 4) {
+                        throw new IllegalArgumentException(
+                            "2-bit document quantization requires 4-bit query quantization, but got: " + queryBits
+                        );
+                    }
+                    yield TWO_BIT_4BIT_QUERY;
+                }
+                case 4 -> {
+                    if (queryBits != 4) {
+                        throw new IllegalArgumentException("4-bit symmetric quantization requires query bits 4, but got: " + queryBits);
+                    }
+                    yield FOUR_BIT_SYMMETRIC;
+                }
+                case 7 -> {
+                    if (queryBits != 7) {
+                        throw new IllegalArgumentException("7-bit symmetric quantization requires query bits 7, but got: " + queryBits);
+                    }
+                    yield SEVEN_BIT_SYMMETRIC;
+                }
+                default -> throw new IllegalArgumentException("Unsupported document bits: " + docBits);
+            };
+        }
     }
 
     private final QuantEncoding quantEncoding;
@@ -285,12 +348,15 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
     private final int flatVectorThreshold;
+    private final String sliceField;
+    private final IvfFlushConfigSource ivfFlushConfigSource;
+    private final IvfMergeConfigResolver ivfMergeConfigResolver;
 
-    public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
+    public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
+        this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster, sliceField);
     }
 
-    public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
+    public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(
             quantEncoding,
             vectorPerCluster,
@@ -301,32 +367,10 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             1,
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-            defaultFlatThreshold(vectorPerCluster)
-        );
-    }
-
-    public ESNextDiskBBQVectorsFormat(
-        QuantEncoding quantEncoding,
-        int vectorPerCluster,
-        int centroidsPerParentCluster,
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
-        ExecutorService mergingExecutorService,
-        int maxMergingWorkers,
-        boolean doPrecondition,
-        int preconditioningBlockDimension
-    ) {
-        this(
-            quantEncoding,
-            vectorPerCluster,
-            centroidsPerParentCluster,
-            elementType,
-            useDirectIO,
-            mergingExecutorService,
-            maxMergingWorkers,
-            doPrecondition,
-            preconditioningBlockDimension,
-            defaultFlatThreshold(vectorPerCluster)
+            defaultFlatThreshold(vectorPerCluster),
+            sliceField,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -340,7 +384,73 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         int maxMergingWorkers,
         boolean doPrecondition,
         int preconditioningBlockDimension,
-        int flatVectorThreshold
+        String sliceField
+    ) {
+        this(
+            quantEncoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            doPrecondition,
+            preconditioningBlockDimension,
+            defaultFlatThreshold(vectorPerCluster),
+            sliceField,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
+        );
+    }
+
+    public ESNextDiskBBQVectorsFormat(
+        QuantEncoding quantEncoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        boolean doPrecondition,
+        int preconditioningBlockDimension,
+        int flatVectorThreshold,
+        String sliceField
+    ) {
+        this(
+            quantEncoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            doPrecondition,
+            preconditioningBlockDimension,
+            flatVectorThreshold,
+            sliceField,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
+        );
+    }
+
+    /**
+     * @param ivfFlushConfigSource optional per-field config on flush ({@code null} uses writer default)
+     * @param ivfMergeConfigResolver optional merged config on merge ({@code null} uses writer default)
+     */
+    public ESNextDiskBBQVectorsFormat(
+        QuantEncoding quantEncoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        boolean doPrecondition,
+        int preconditioningBlockDimension,
+        int flatVectorThreshold,
+        String sliceField,
+        IvfFlushConfigSource ivfFlushConfigSource,
+        IvfMergeConfigResolver ivfMergeConfigResolver
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -394,11 +504,14 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
+        this.sliceField = sliceField;
+        this.ivfFlushConfigSource = ivfFlushConfigSource;
+        this.ivfMergeConfigResolver = ivfMergeConfigResolver;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
     public ESNextDiskBBQVectorsFormat() {
-        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
+        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, null);
     }
 
     @Override
@@ -415,7 +528,10 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             numMergeWorkers,
             preconditioningBlockDimension,
             doPrecondition,
-            flatVectorThreshold
+            flatVectorThreshold,
+            sliceField,
+            ivfFlushConfigSource,
+            ivfMergeConfigResolver
         );
     }
 
@@ -435,7 +551,16 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return "ESNextDiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ", " + "mergeExec=" + (mergeExec != null) + ')';
+        return "ESNextDiskBBQVectorsFormat("
+            + "vectorPerCluster="
+            + vectorPerCluster
+            + ", "
+            + "mergeExec="
+            + (mergeExec != null)
+            + ", "
+            + "sliceField="
+            + sliceField
+            + ')';
     }
 
 }

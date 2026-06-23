@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 148974
+summary: Support form-encoded POST on PromQL HTTP query and discovery routes when security and HTTP TLS are enabled
+type: enhancement

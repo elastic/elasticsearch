@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -47,6 +48,10 @@ public class MvIntersection extends MvSetOperationFunction {
         "MvIntersection",
         MvIntersection::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvIntersection.class)
+        .binary(MvIntersection::new)
+        .capabilities("flattened")
+        .name("mv_intersection");
 
     @FunctionInfo(
         returnType = {
@@ -56,6 +61,7 @@ public class MvIntersection extends MvSetOperationFunction {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -67,6 +73,7 @@ public class MvIntersection extends MvSetOperationFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns values present in both multi-value fields.",
         description = "Returns the values that appear in both input fields. Returns `null` if either field is null or if no values match.",
         preview = true,
         examples = {
@@ -88,6 +95,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -111,6 +119,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

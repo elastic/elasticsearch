@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.stream.Collectors;
 
 public abstract class NodeUtils {
     public static <A extends Node<A>, B extends Node<B>> String diffString(A left, B right) {
@@ -61,42 +60,81 @@ public abstract class NodeUtils {
 
     private static final int TO_STRING_LIMIT = 52;
 
-    public static String toString(Collection<? extends Attribute> c, Node.NodeStringFormat format) {
-        return switch (format) {
-            case LIMITED -> limitedToString(c);
-            case FULL -> unlimitedToString(c);
-        };
+    public static void toString(
+        StringBuilder sb,
+        Collection<? extends Attribute> c,
+        Node.NodeStringFormat format,
+        NodeStringMapper mapper
+    ) {
+        // LIMITED truncates to keep human-readable toString bounded; FULL prints the whole list.
+        // Both routes render each attribute through nodeString with the supplied format + mapper so
+        // identifier mapping (anonymization) propagates correctly.
+        if (format == Node.NodeStringFormat.LIMITED) {
+            limitedToString(sb, c, format, mapper);
+        } else {
+            unlimitedToString(sb, c, format, mapper);
+        }
     }
 
-    private static String limitedToString(Collection<?> c) {
-        Iterator<?> it = c.iterator();
+    private static void limitedToString(
+        StringBuilder sb,
+        Collection<? extends Attribute> c,
+        Node.NodeStringFormat format,
+        NodeStringMapper mapper
+    ) {
+        Iterator<? extends Attribute> it = c.iterator();
         if (it.hasNext() == false) {
-            return "[]";
+            sb.append("[]");
+            return;
         }
 
-        // ..]
-        StringBuilder sb = new StringBuilder(TO_STRING_LIMIT + 4);
+        // track how many characters we've added since the opening '[' for the truncation limit
+        int start = sb.length();
         sb.append('[');
         for (;;) {
-            Object e = it.next();
-            String next = e == c ? "(this Collection)" : String.valueOf(e);
-            if (next.length() + sb.length() > TO_STRING_LIMIT) {
-                sb.append(next.substring(0, Math.max(0, TO_STRING_LIMIT - sb.length())));
+            Attribute a = it.next();
+            StringBuilder render = new StringBuilder();
+            if (a == null) {
+                render.append("null");
+            } else {
+                a.nodeString(render, format, mapper);
+            }
+            String next = render.toString();
+            int used = sb.length() - start;
+            if (next.length() + used > TO_STRING_LIMIT) {
+                sb.append(next, 0, Math.max(0, TO_STRING_LIMIT - used));
                 sb.append('.').append('.').append(']');
-                return sb.toString();
+                return;
             } else {
                 sb.append(next);
             }
             if (it.hasNext() == false) {
-                return sb.append(']').toString();
+                sb.append(']');
+                return;
             }
             sb.append(',').append(' ');
         }
     }
 
-    private static String unlimitedToString(Collection<? extends Attribute> c) {
-        return c.stream()
-            .map(s -> s != null ? s.nodeString(Node.NodeStringFormat.FULL) : "null")
-            .collect(Collectors.joining(", ", "[", "]"));
+    private static void unlimitedToString(
+        StringBuilder sb,
+        Collection<? extends Attribute> c,
+        Node.NodeStringFormat format,
+        NodeStringMapper mapper
+    ) {
+        sb.append('[');
+        boolean first = true;
+        for (Attribute s : c) {
+            if (first == false) {
+                sb.append(", ");
+            }
+            if (s == null) {
+                sb.append("null");
+            } else {
+                s.nodeString(sb, format, mapper);
+            }
+            first = false;
+        }
+        sb.append(']');
     }
 }

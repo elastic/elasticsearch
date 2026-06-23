@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -41,12 +42,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
  */
 public class Right extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Right", Right::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Right.class).binary(Right::new).name("right");
 
     private final Expression str;
     private final Expression length;
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns a substring of the specified length from the right side of a string.",
         description = "Return the substring that extracts *length* chars from *str* starting from the right.",
         examples = @Example(file = "string", tag = "right")
     )

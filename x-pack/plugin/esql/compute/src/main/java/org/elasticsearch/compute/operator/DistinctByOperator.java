@@ -19,8 +19,6 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 
-import java.util.Arrays;
-
 /**
  * Operator that filters rows to keep only the first occurrence of each distinct key value.
  * This is useful for deduplication by a key column (e.g., _tsid).
@@ -52,48 +50,51 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
-        BytesRefBlock keyBlock = page.getBlock(keyChannel);
-        BytesRef scratch = new BytesRef();
+        try {
+            BytesRefBlock keyBlock = page.getBlock(keyChannel);
+            BytesRef scratch = new BytesRef();
 
-        BytesRefVector vector = keyBlock.asVector();
-        if (vector != null && vector.isConstant()) {
-            BytesRef key = vector.getBytesRef(0, scratch);
-            long result = seenKeys.add(key);
-            if (result >= 0) {
-                return page.filter(false, 0);
+            BytesRefVector vector = keyBlock.asVector();
+            if (vector != null && vector.isConstant()) {
+                BytesRef key = vector.getBytesRef(0, scratch);
+                long result = seenKeys.add(key);
+                if (result >= 0) {
+                    return page.filter(false, 0);
+                } else {
+                    return null;
+                }
+            }
+
+            if (vector != null) {
+                OrdinalBytesRefVector ordinals = vector.asOrdinals();
+                if (ordinals != null) {
+                    return processOrdinalsVector(page, ordinals);
+                }
             } else {
-                page.releaseBlocks();
-                return null;
+                OrdinalBytesRefBlock ordinals = keyBlock.asOrdinals();
+                if (ordinals != null) {
+                    return processOrdinalsBlock(page, ordinals);
+                }
             }
+
+            int rowCount = 0;
+            int[] positions = new int[page.getPositionCount()];
+
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                if (keyBlock.isNull(p)) {
+                    continue;
+                }
+                BytesRef key = keyBlock.getBytesRef(p, scratch);
+                long result = seenKeys.add(key);
+                if (result >= 0) {
+                    positions[rowCount++] = p;
+                }
+            }
+
+            return filteredPage(page, positions, rowCount);
+        } finally {
+            page.releaseBlocks();
         }
-
-        if (vector != null) {
-            OrdinalBytesRefVector ordinals = vector.asOrdinals();
-            if (ordinals != null) {
-                return processOrdinalsVector(page, ordinals);
-            }
-        } else {
-            OrdinalBytesRefBlock ordinals = keyBlock.asOrdinals();
-            if (ordinals != null) {
-                return processOrdinalsBlock(page, ordinals);
-            }
-        }
-
-        int rowCount = 0;
-        int[] positions = new int[page.getPositionCount()];
-
-        for (int p = 0; p < page.getPositionCount(); p++) {
-            if (keyBlock.isNull(p)) {
-                continue;
-            }
-            BytesRef key = keyBlock.getBytesRef(p, scratch);
-            long result = seenKeys.add(key);
-            if (result >= 0) {
-                positions[rowCount++] = p;
-            }
-        }
-
-        return filteredPage(page, positions, rowCount);
     }
 
     /**
@@ -152,13 +153,12 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
 
     private static Page filteredPage(Page page, int[] positions, int rowCount) {
         if (rowCount == 0) {
-            page.releaseBlocks();
             return null;
         }
         if (rowCount == page.getPositionCount()) {
-            return page;
+            return page.shallowCopy();
         }
-        return page.filter(false, Arrays.copyOf(positions, rowCount));
+        return page.filter(false, positions, 0, rowCount);
     }
 
     @Override

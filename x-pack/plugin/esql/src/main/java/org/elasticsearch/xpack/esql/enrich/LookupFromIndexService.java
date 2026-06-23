@@ -58,8 +58,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LookupLogicalOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LookupPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -185,11 +185,22 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     ) {
         PhysicalPlan lookupNodePlan = mapFragmentToPhysical(request.rightPreJoinPlan);
         Expression rightOnlyFilter = lookupNodePlan instanceof FilterExec filterExec ? filterExec.condition() : null;
-        return buildQueryGenerator(request.matchFields, request.joinOnConditions, rightOnlyFilter, null, context, aliasFilter, warnings);
+        List<String> extractFieldNames = request.extractFields.stream().map(f -> f.name()).toList();
+        return buildQueryGenerator(
+            request.matchFields,
+            extractFieldNames,
+            request.joinOnConditions,
+            rightOnlyFilter,
+            null,
+            context,
+            aliasFilter,
+            warnings
+        );
     }
 
     private LookupEnrichQueryGenerator buildQueryGenerator(
         List<MatchConfig> matchFields,
+        List<String> extractFieldNames,
         @Nullable Expression joinOnConditions,
         @Nullable Expression rightOnlyFilter,
         @Nullable QueryBuilder pushedQuery,
@@ -216,6 +227,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 pushedQuery,
                 clusterService,
                 matchFields,
+                extractFieldNames,
                 joinOnConditions,
                 aliasFilter,
                 warnings
@@ -235,7 +247,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
-        return buildQueryGenerator(matchFields, joinOnConditions, null, pushedQuery, context, aliasFilter, warnings);
+        return buildQueryGenerator(matchFields, List.of(), joinOnConditions, null, pushedQuery, context, aliasFilter, warnings);
     }
 
     /**
@@ -525,13 +537,23 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
             super(blockFactory);
+            List<Page> readPages;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                this.pages = bsi.readCollectionAsList(Page::new);
+                readPages = bsi.readReleasableCollectionAsList(Page::new);
             }
-            if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
-                this.planString = in.readOptionalString();
-            } else {
-                this.planString = null;
+            boolean success = false;
+            try {
+                if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
+                    this.planString = in.readOptionalString();
+                } else {
+                    this.planString = null;
+                }
+                this.pages = readPages;
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(readPages);
+                }
             }
         }
 
@@ -657,7 +679,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             LookupExecutionPlanner.QueryListFromPlanFactory queryListFactory;
             if (configuration != null) {
                 LogicalPlan logicalPlan = extractOrBuildLogicalPlan(request);
-                physicalPlan = createLookupPhysicalPlan(logicalPlan, configuration, plannerSettings, foldCtx, searchStats, flags);
+                physicalPlan = createLookupPhysicalPlan(
+                    logicalPlan,
+                    configuration,
+                    plannerSettings,
+                    foldCtx,
+                    searchStats,
+                    flags,
+                    aliasFilter
+                );
                 queryListFactory = this::queryListFromPlan;
             } else {
                 // BWC: old data node without Configuration
@@ -891,17 +921,19 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         PlannerSettings plannerSettings,
         FoldContext foldCtx,
         SearchStats searchStats,
-        EsqlFlags flags
+        EsqlFlags flags,
+        AliasFilter aliasFilter
     ) {
         LogicalPlan optimizedLogical = new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats))
             .localOptimize(logicalPlan);
         PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(optimizedLogical);
-        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
+        LookupPhysicalOptimizerContext context = new LookupPhysicalOptimizerContext(
             plannerSettings,
             flags,
             configuration,
             foldCtx,
-            searchStats
+            searchStats,
+            aliasFilter
         );
         return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
     }

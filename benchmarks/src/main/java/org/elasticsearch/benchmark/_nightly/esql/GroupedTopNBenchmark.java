@@ -10,16 +10,18 @@
 package org.elasticsearch.benchmark._nightly.esql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
@@ -53,6 +55,10 @@ import java.util.stream.IntStream;
 @Fork(1)
 public class GroupedTopNBenchmark {
 
+    static {
+        Utils.configureBenchmarkLogging();
+    }
+
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("none"))
         .build();
@@ -73,38 +79,38 @@ public class GroupedTopNBenchmark {
     private static final String AND = "_and_";
 
     static {
-        Utils.configureBenchmarkLogging();
         // Smoke test all the expected values and force loading subclasses more like prod
-        selfTest();
-    }
-
-    static void selfTest() {
-        try {
-            for (String data : GroupedTopNBenchmark.class.getField("data").getAnnotationsByType(Param.class)[0].value()) {
-                for (String topCount : GroupedTopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
-                    for (String groupCount : GroupedTopNBenchmark.class.getField("groupCount").getAnnotationsByType(Param.class)[0]
-                        .value()) {
-                        for (String gk : GroupedTopNBenchmark.class.getField("groupKeys").getAnnotationsByType(Param.class)[0].value()) {
-                            run(data, Integer.parseInt(topCount), Integer.parseInt(groupCount), gk, SELF_TEST_PAGES);
-                        }
-                    }
-                }
-            }
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError();
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            selfTest();
         }
     }
 
-    @Param({ LONGS + ASC, LONGS + DESC, BYTES_REFS + ASC, LONGS + ASC + AND + LONGS + ASC, LONGS + ASC + AND + BYTES_REFS + ASC })
+    static void selfTest() {
+        for (String data : Utils.possibleValues(GroupedTopNBenchmark.class, "data")) {
+            for (String topCount : Utils.possibleValues(GroupedTopNBenchmark.class, "topCount")) {
+                for (String groupCount : Utils.possibleValues(GroupedTopNBenchmark.class, "groupCount")) {
+                    for (String gk : Utils.possibleValues(GroupedTopNBenchmark.class, "groupKeys")) {
+                        run(data, Integer.parseInt(topCount), Integer.parseInt(groupCount), gk, SELF_TEST_PAGES);
+                    }
+                }
+            }
+        }
+    }
+
+    @Param({ LONGS + ASC, LONGS + DESC, BYTES_REFS + ASC })
+    @ExtraParam({ LONGS + ASC + AND + LONGS + ASC, LONGS + ASC + AND + BYTES_REFS + ASC })
     public String data;
 
-    @Param({ "1", "10", "1000" })
+    @Param({ "1", "1000" })
+    @ExtraParam({ "10" })
     public int topCount;
 
-    @Param({ "10", "100", "1000" })
+    @Param({ "10", "1000" })
+    @ExtraParam({ "100" })
     public int groupCount;
 
-    @Param({ LONGS, BYTES_REFS, LONGS + AND + LONGS, BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
+    @Param({ LONGS, BYTES_REFS, LONGS + AND + LONGS })
+    @ExtraParam({ BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
     public String groupKeys;
 
     private static Operator operator(String data, int topCount, String groupKeys) {
@@ -128,7 +134,11 @@ public class GroupedTopNBenchmark {
             elementTypes,
             encoders,
             sortOrders,
-            new GroupKeyEncoder(groupKeyChannels, elementTypes, new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder")),
+            new GroupKeyEncoder(
+                groupKeyChannels,
+                elementTypes,
+                new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker(), "group-key-encoder", 64)
+            ),
             8 * 1024,
             Long.MAX_VALUE
         );

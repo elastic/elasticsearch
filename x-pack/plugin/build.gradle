@@ -42,17 +42,26 @@ artifacts {
 def restTestBlacklist = []
 // TODO: fix this rest test to not depend on a hardcoded port!
 restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
+// ES|QL YAML rest tests are run by :x-pack:plugin:esql:qa:server:single-node:yamlRestTest
+// via restResources.restTests.includeXpack 'esql'. Skip them here to avoid running the same
+// suite twice in CI.
+restTestBlacklist.add('esql/*')
+// ML YAML rest tests are run by :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
+// via restResources.restTests.includeXpack 'ml'. Skip them here to avoid running the
+// same suite twice in CI.
+restTestBlacklist.add('ml/*')
 if (buildParams.snapshotBuild == false) {
   // these tests attempt to install basic/internal licenses signed against the dev/public.key
   // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
   // private key, these tests are blacklisted in non-snapshot test runs
   restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
-
   // TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
   //  which require snapshot builds:
   // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
   // We disable these tests for snapshot builds to maintain release build coverage.
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
+  // Requires ESNext codec which is not available in release test. This should be removed once the production codec supports slices.
+  restTestBlacklist.add('search.vectors/47_knn_search_bbq_disk_slice/*')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {

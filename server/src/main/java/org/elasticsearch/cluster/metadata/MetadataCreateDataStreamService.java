@@ -251,6 +251,9 @@ public class MetadataCreateDataStreamService {
         if (currentProject.hasView(dataStreamName)) {
             throw new ResourceAlreadyExistsException("data_stream [{}] already exists as an ESQL view", dataStreamName);
         }
+        if (currentProject.hasDataset(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [{}] already exists as an ESQL dataset", dataStreamName);
+        }
 
         MetadataCreateIndexService.validateIndexOrAliasName(
             dataStreamName,
@@ -319,7 +322,6 @@ public class MetadataCreateDataStreamService {
                 rerouteListener,
                 dataStreamName,
                 systemDataStreamDescriptor,
-                isSystem,
                 template,
                 firstBackingIndexName
             );
@@ -390,7 +392,6 @@ public class MetadataCreateDataStreamService {
         ActionListener<Void> rerouteListener,
         String dataStreamName,
         SystemDataStreamDescriptor systemDataStreamDescriptor,
-        boolean isSystem,
         ComposableIndexTemplate template,
         String firstBackingIndexName
     ) throws Exception {
@@ -404,7 +405,7 @@ public class MetadataCreateDataStreamService {
             .nameResolvedInstant(request.startTime())
             .setMatchingTemplate(template);
 
-        if (isSystem) {
+        if (systemDataStreamDescriptor != null) {
             createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
         } else {
             createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);

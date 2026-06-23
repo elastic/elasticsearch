@@ -26,6 +26,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -177,6 +178,10 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 .entry("values", List.of(List.of(9)))
                 .entry("documents_found", greaterThan(0))
                 .entry("values_loaded", greaterThan(0))
+                .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+                .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+                .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("completion_time_in_millis", greaterThan(0L))
                 .entry("expiration_time_in_millis", greaterThan(0L))
                 .entry("start_time_in_millis", greaterThan(0L))
@@ -269,15 +274,6 @@ public class HeapAttackIT extends HeapAttackTestCase {
         }
         query.append("\\n| STATS MAX(a)\"}");
         return query(query.toString(), null);
-    }
-
-    private StringBuilder makeManyLongs(int count) {
-        StringBuilder query = startQuery();
-        query.append("FROM manylongs\\n| EVAL i0 = a + b, i1 = b + i0");
-        for (int i = 2; i < count; i++) {
-            query.append(", i").append(i).append(" = i").append(i - 2).append(" + ").append(i - 1);
-        }
-        return query.append("\\n");
     }
 
     public void testSmallConcat() throws IOException {
@@ -685,46 +681,6 @@ public class HeapAttackIT extends HeapAttackTestCase {
         query.append("| STATS dummy = SUM(vals_sum)\"}");
         String queryStr = query.toString().replace("\n", "\\n");
         return responseAsMap(query(queryStr, null));
-    }
-
-    private void initManyLongs(int countPerLong) throws IOException {
-        logger.info("loading many documents with longs");
-        StringBuilder bulk = new StringBuilder();
-        int flush = 0;
-        for (int a = 0; a < countPerLong; a++) {
-            for (int b = 0; b < countPerLong; b++) {
-                for (int c = 0; c < countPerLong; c++) {
-                    for (int d = 0; d < countPerLong; d++) {
-                        for (int e = 0; e < countPerLong; e++) {
-                            bulk.append(String.format(Locale.ROOT, """
-                                {"create":{}}
-                                {"a":%d,"b":%d,"c":%d,"d":%d,"e":%d}
-                                """, a, b, c, d, e));
-                            flush++;
-                            if (flush % 10_000 == 0) {
-                                bulk("manylongs", bulk.toString());
-                                bulk.setLength(0);
-                                logger.info(
-                                    "flushing {}/{} to manylongs",
-                                    flush,
-                                    countPerLong * countPerLong * countPerLong * countPerLong * countPerLong
-                                );
-
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        initIndex("manylongs", bulk.toString());
-    }
-
-    private void initSingleDocIndex() throws IOException {
-        logger.info("loading a single document");
-        initIndex("single", """
-            {"create":{}}
-            {"a":1}
-            """);
     }
 
     void initManyBigFieldsIndex(int docs, String type, boolean random, int fields) throws IOException {

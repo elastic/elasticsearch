@@ -64,8 +64,12 @@ public final class GcdCodecStage implements NumericCodecStage {
         long gcd = values[0];
         for (int i = 1; i < valueCount; i++) {
             gcd = MathUtil.gcd(gcd, values[i]);
+            if (Long.compareUnsigned(gcd, 1) <= 0) {
+                return;
+            }
         }
 
+        // Covers the valueCount == 1 case, where the loop body never runs and gcd is just values[0].
         if (Long.compareUnsigned(gcd, 1) <= 0) {
             return;
         }
@@ -93,6 +97,16 @@ public final class GcdCodecStage implements NumericCodecStage {
                 values[i] /= gcd;
             }
         }
+    }
+
+    public static void encodeStatic(final GcdCodecStage stage, final long[] values, int valueCount, final EncodingContext context)
+        throws IOException {
+        stage.encode(values, valueCount, context);
+    }
+
+    public static void decodeStatic(final GcdCodecStage stage, final long[] values, int valueCount, final DecodingContext context)
+        throws IOException {
+        stage.decode(values, valueCount, context);
     }
 
     private static void multiplyByGcd(final long[] values, final int valueCount, final long gcd) {

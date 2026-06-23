@@ -11,7 +11,6 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -64,6 +63,10 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         this.start = start;
         this.end = end;
         this.params = params;
+    }
+
+    protected QueryParams params() {
+        return params;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -309,7 +312,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             try {
                 // use DataTypes.DOUBLE for precise type
                 return Literal.fromDouble(source, StringUtils.parseDouble(text));
-            } catch (QlIllegalArgumentException ignored) {}
+            } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
         }

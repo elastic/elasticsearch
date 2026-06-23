@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -62,6 +63,7 @@ import static org.elasticsearch.xpack.kql.query.KqlQueryBuilder.TIME_ZONE_FIELD;
  */
 public class Kql extends FullTextFunction implements OptionalArgument, ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Kql", Kql::readFrom);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Kql.class).binaryConfig(Kql::new).name("kql");
 
     private final Configuration configuration;
 
@@ -80,7 +82,13 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a KQL query and returns true if it matches the row.",
         description = "Performs a KQL query. Returns true if the provided KQL query string matches the row.",
+        detailedDescription = """
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = {
             @Example(file = "kql-function", tag = "kql-with-field", description = "Use KQL to filter by a specific field value"),
             @Example(

@@ -21,11 +21,13 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.core.SuppressForbidden;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -46,11 +48,18 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.AbstractVectorTestCase {
     private static final float LIMIT_SCALE = 1f / ((1 << 7) - 1);
+
+    // Tolerance for bulk scores produced by the native SIMD path. SIMD bulk corrections
+    // (bbq_apply_corrections_*) use fast RCP (1/x) instructions, which have a higher relative error
+    // (~2^-12) wrt the scalar Lucene reference (which uses exact division).
+    // Matches the cross-scorer tolerance used by ES940OSQVectorsScorerTests.
+    private static final float NATIVE_BULK_DELTA = 1e-2f;
 
     @SuppressForbidden(reason = "require usage of OptimizedScalarQuantizer")
     private static OptimizedScalarQuantizer scalarQuantizer(VectorSimilarityFunction sim) {
@@ -61,9 +70,9 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;
 
-    // Tests that the provider instance is present or not on expected platforms/architectures
-    public void testSupport() {
-        supported();
+    @BeforeClass
+    public static void requiresHeapSegments() {
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
     }
 
     public void testSimple() throws IOException {
@@ -77,8 +86,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     void testSimpleImpl(long maxChunkSize) throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testSimpleImpl"), maxChunkSize)) {
             for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
@@ -143,168 +150,181 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         }
     }
 
-    public void testRandom() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_RANDOM_INT7_FUNC);
+    public void testRandomMMap() throws IOException {
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"))) {
+            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+        }
+    }
+
+    public void testRandomNIO() throws IOException {
+        try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
+            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+        }
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
-        testRandomSupplier(maxChunkSize, BYTE_ARRAY_RANDOM_INT7_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
+            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+        }
     }
 
     public void testRandomMax() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MAX_INT7_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMax"))) {
+            testRandomSupplier(dir, BYTE_ARRAY_MAX_INT7_FUNC);
+        }
     }
 
     public void testRandomMin() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MIN_INT7_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMin"))) {
+            testRandomSupplier(dir, BYTE_ARRAY_MIN_INT7_FUNC);
+        }
     }
 
-    void testRandomSupplier(long maxChunkSize, IntFunction<byte[]> byteArraySupplier) throws IOException {
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
+    void testRandomSupplier(Directory dir, IntFunction<byte[]> byteArraySupplier) throws IOException {
 
-        try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
-            final int dims = randomIntBetween(1, 4096);
-            final int size = randomIntBetween(2, 100);
-            final byte[][] vectors = new byte[size][];
-            final OptimizedScalarQuantizer.QuantizationResult[] quantizationResults = new OptimizedScalarQuantizer.QuantizationResult[size];
-            final float[] centroid = new float[dims];
+        final int dims = randomIntBetween(1, 4096);
+        final int size = randomIntBetween(2, 100);
+        final byte[][] vectors = new byte[size][];
+        final OptimizedScalarQuantizer.QuantizationResult[] quantizationResults = new OptimizedScalarQuantizer.QuantizationResult[size];
+        final float[] centroid = new float[dims];
 
-            String fileName = "testRandom-" + dims;
-            logger.info("Testing " + fileName);
-            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                for (int i = 0; i < size; i++) {
-                    var vec = byteArraySupplier.apply(dims);
-                    int componentSum = 0;
-                    for (int d = 0; d < dims; d++) {
-                        componentSum += Byte.toUnsignedInt(vec[d]);
-                    }
-                    float lowerInterval = randomFloat();
-                    float upperInterval = randomFloat() + lowerInterval;
-                    quantizationResults[i] = new OptimizedScalarQuantizer.QuantizationResult(
-                        lowerInterval,
-                        upperInterval,
-                        randomFloat(),
-                        componentSum
-                    );
-                    out.writeBytes(vec, 0, vec.length);
-                    out.writeInt(Float.floatToIntBits(lowerInterval));
-                    out.writeInt(Float.floatToIntBits(upperInterval));
-                    out.writeInt(Float.floatToIntBits(quantizationResults[i].additionalCorrection()));
-                    out.writeInt(componentSum);
-                    vectors[i] = vec;
+        String fileName = "testRandom-" + dims;
+        logger.info("Testing " + fileName);
+        try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+            for (int i = 0; i < size; i++) {
+                var vec = byteArraySupplier.apply(dims);
+                int componentSum = 0;
+                for (int d = 0; d < dims; d++) {
+                    componentSum += Byte.toUnsignedInt(vec[d]);
                 }
+                float lowerInterval = randomFloat();
+                float upperInterval = randomFloat() + lowerInterval;
+                quantizationResults[i] = new OptimizedScalarQuantizer.QuantizationResult(
+                    lowerInterval,
+                    upperInterval,
+                    randomFloat(),
+                    componentSum
+                );
+                out.writeBytes(vec, 0, vec.length);
+                out.writeInt(Float.floatToIntBits(lowerInterval));
+                out.writeInt(Float.floatToIntBits(upperInterval));
+                out.writeInt(Float.floatToIntBits(quantizationResults[i].additionalCorrection()));
+                out.writeInt(componentSum);
+                vectors[i] = vec;
             }
-            for (int i = 0; i < dims; i++) {
-                centroid[i] = randomFloat();
-            }
-            float centroidDP = VectorUtil.dotProduct(centroid, centroid);
-            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                for (int times = 0; times < TIMES; times++) {
-                    int idx0 = randomIntBetween(0, size - 1);
-                    int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
-                    for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                        var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
-                        float expected = luceneScore(
-                            sim,
-                            vectors[idx0],
-                            vectors[idx1],
-                            centroidDP,
-                            quantizationResults[idx0],
-                            quantizationResults[idx1]
-                        );
-                        var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
-                        var scorer = supplier.scorer();
-                        scorer.setScoringOrdinal(idx1);
-                        assertFloatEquals(expected, scorer.score(idx0), DELTA);
-                    }
+        }
+        for (int i = 0; i < dims; i++) {
+            centroid[i] = randomFloat();
+        }
+        float centroidDP = VectorUtil.dotProduct(centroid, centroid);
+        try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+            for (int times = 0; times < TIMES; times++) {
+                int idx0 = randomIntBetween(0, size - 1);
+                int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
+                for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
+                    var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
+                    float expected = luceneScore(
+                        sim,
+                        vectors[idx0],
+                        vectors[idx1],
+                        centroidDP,
+                        quantizationResults[idx0],
+                        quantizationResults[idx1]
+                    );
+                    var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(idx1);
+                    assertFloatEquals(expected, scorer.score(idx0), DELTA);
                 }
             }
         }
     }
 
-    public void testRandomScorer() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_RANDOM_FUNC);
+    public void testRandomScorerMMap() throws IOException {
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMMap"))) {
+            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+        }
+    }
+
+    public void testRandomScorerNIO() throws IOException {
+        try (Directory dir = new NIOFSDirectory(createTempDir("testRandomScorerNIO"))) {
+            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+        }
     }
 
     public void testRandomScorerMax() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_MAX_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMax"))) {
+            testRandomScorerImpl(dir, FLOAT_ARRAY_MAX_FUNC);
+        }
     }
 
     public void testRandomScorerChunkSizeSmall() throws IOException {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
-        testRandomScorerImpl(maxChunkSize, FLOAT_ARRAY_RANDOM_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerChunkSizeSmall"), maxChunkSize)) {
+            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+        }
     }
 
-    void testRandomScorerImpl(long maxChunkSize, IntFunction<float[]> floatArraySupplier) throws IOException {
+    void testRandomScorerImpl(Directory dir, IntFunction<float[]> floatArraySupplier) throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
-        try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
-            for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                var scalarQuantizer = new OptimizedScalarQuantizer(sim.function());
-                final int dims = randomIntBetween(1, 4096);
-                final int size = randomIntBetween(2, 100);
-                final float[] centroid = new float[dims];
-                for (int i = 0; i < dims; i++) {
-                    centroid[i] = randomFloat();
+        for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
+            var scalarQuantizer = new OptimizedScalarQuantizer(sim.function());
+            final int dims = randomIntBetween(1, 4096);
+            final int size = randomIntBetween(2, 100);
+            final float[] centroid = new float[dims];
+            for (int i = 0; i < dims; i++) {
+                centroid[i] = randomFloat();
+            }
+            final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
+            final float[][] vectors = new float[size][];
+            final byte[][] qVectors = new byte[size][];
+            final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
+
+            String fileName = "testRandom-" + sim + "-" + dims + ".vex";
+            logger.info("Testing " + fileName);
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                for (int i = 0; i < size; i++) {
+                    vectors[i] = floatArraySupplier.apply(dims);
+                    qVectors[i] = new byte[dims];
+                    corrections[i] = scalarQuantizer.scalarQuantize(vectors[i], qVectors[i], (byte) 7, centroid);
+                    out.writeBytes(qVectors[i], 0, qVectors[i].length);
+                    out.writeInt(Float.floatToIntBits(corrections[i].lowerInterval()));
+                    out.writeInt(Float.floatToIntBits(corrections[i].upperInterval()));
+                    out.writeInt(Float.floatToIntBits(corrections[i].additionalCorrection()));
+                    out.writeInt(corrections[i].quantizedComponentSum());
                 }
-                final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
-                final float[][] vectors = new float[size][];
-                final byte[][] qVectors = new byte[size][];
-                final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                for (int times = 0; times < TIMES; times++) {
+                    int idx0 = randomIntBetween(0, size - 1);
+                    int idx1 = randomIntBetween(0, size - 1);
+                    var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
 
-                String fileName = "testRandom-" + sim + "-" + dims + ".vex";
-                logger.info("Testing " + fileName);
-                try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                    for (int i = 0; i < size; i++) {
-                        vectors[i] = floatArraySupplier.apply(dims);
-                        qVectors[i] = new byte[dims];
-                        corrections[i] = scalarQuantizer.scalarQuantize(vectors[i], qVectors[i], (byte) 7, centroid);
-                        out.writeBytes(qVectors[i], 0, qVectors[i].length);
-                        out.writeInt(Float.floatToIntBits(corrections[i].lowerInterval()));
-                        out.writeInt(Float.floatToIntBits(corrections[i].upperInterval()));
-                        out.writeInt(Float.floatToIntBits(corrections[i].additionalCorrection()));
-                        out.writeInt(corrections[i].quantizedComponentSum());
-                    }
-                }
-                try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                    for (int times = 0; times < TIMES; times++) {
-                        int idx0 = randomIntBetween(0, size - 1);
-                        int idx1 = randomIntBetween(0, size - 1);
-                        var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
-
-                        var expected = luceneScore(sim, qVectors[idx0], qVectors[idx1], centroidDP, corrections[idx0], corrections[idx1]);
-                        var scorer = factory.getInt7uOSQVectorScorer(
-                            sim.function(),
-                            values,
-                            qVectors[idx0],
-                            corrections[idx0].lowerInterval(),
-                            corrections[idx0].upperInterval(),
-                            corrections[idx0].additionalCorrection(),
-                            corrections[idx0].quantizedComponentSum()
-                        ).get();
-                        assertFloatEquals(expected, scorer.score(idx1), DELTA);
-                    }
+                    var expected = luceneScore(sim, qVectors[idx0], qVectors[idx1], centroidDP, corrections[idx0], corrections[idx1]);
+                    var scorer = factory.getInt7uOSQVectorScorer(
+                        sim.function(),
+                        values,
+                        qVectors[idx0],
+                        corrections[idx0].lowerInterval(),
+                        corrections[idx0].upperInterval(),
+                        corrections[idx0].additionalCorrection(),
+                        corrections[idx0].quantizedComponentSum()
+                    ).get();
+                    assertFloatEquals(expected, scorer.score(idx1), DELTA);
                 }
             }
         }
     }
 
     public void testRandomSlice() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT7_FUNC);
     }
 
     void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> byteArraySupplier) throws IOException {
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandomSliceImpl"), maxChunkSize)) {
             for (int times = 0; times < TIMES; times++) {
@@ -358,8 +378,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     // Tests with a large amount of data (> 2GB), which ensures that data offsets do not overflow
     @Nightly
     public void testLarge() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testLarge"))) {
             final int dims = 8192;
@@ -404,8 +422,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
     // Test that the scorer works well when the IndexInput is greater than the directory segment chunk size
     public void testDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testDatasetGreaterThanChunkSize"), 8192)) {
             final int dims = 1024;
@@ -443,9 +459,19 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         }
     }
 
-    public void testBulk() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
+    public void testBulkMMap() throws IOException {
+        try (Directory dir = new MMapDirectory(createTempDir("testBulkMMap"))) {
+            testBulkImpl(dir);
+        }
+    }
+
+    public void testBulkNIO() throws IOException {
+        try (Directory dir = new NIOFSDirectory(createTempDir("testBulkNIO"))) {
+            testBulkImpl(dir);
+        }
+    }
+
+    void testBulkImpl(Directory dir) throws IOException {
 
         final int dims = 1024;
         final int size = randomIntBetween(1, 102);
@@ -453,46 +479,41 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         final byte[][] vectors = new byte[size][];
         final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
-        // Set maxChunkSize to be less than dims * size
-        try (Directory dir = new MMapDirectory(createTempDir("testBulk"))) {
-            String fileName = "testBulk-" + dims;
-            logger.info("Testing " + fileName);
-            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                for (int i = 0; i < size; i++) {
-                    var vec = vector(i, dims);
-                    var correction = randomCorrection(vec);
-                    writeVectorWithCorrection(out, vec, correction);
-                    vectors[i] = vec;
-                    corrections[i] = correction;
-                }
+        String fileName = "testBulk-" + dims;
+        logger.info("Testing " + fileName);
+        try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+            for (int i = 0; i < size; i++) {
+                var vec = vector(i, dims);
+                var correction = randomCorrection(vec);
+                writeVectorWithCorrection(out, vec, correction);
+                vectors[i] = vec;
+                corrections[i] = correction;
             }
+        }
 
-            List<Integer> ids = IntStream.range(0, size).boxed().collect(Collectors.toList());
-            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                for (int times = 0; times < TIMES; times++) {
-                    int idx0 = randomIntBetween(0, size - 1);
-                    int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
-                    for (var sim : List.of(EUCLIDEAN)) {
-                        QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
-                        float[] expected = new float[nodes.length];
-                        float[] scores = new float[nodes.length];
-                        var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
-                        referenceScorer.setScoringOrdinal(idx0);
-                        referenceScorer.bulkScore(nodes, expected, nodes.length);
-                        var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).orElseThrow();
-                        var testScorer = supplier.scorer();
-                        testScorer.setScoringOrdinal(idx0);
-                        testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertFloatArrayEquals(expected, scores, BULK_DELTA);
-                    }
+        List<Integer> ids = IntStream.range(0, size).boxed().collect(Collectors.toList());
+        try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+            for (int times = 0; times < TIMES; times++) {
+                int idx0 = randomIntBetween(0, size - 1);
+                int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
+                for (var sim : List.of(EUCLIDEAN)) {
+                    QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
+                    float[] expected = new float[nodes.length];
+                    float[] scores = new float[nodes.length];
+                    var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
+                    referenceScorer.setScoringOrdinal(idx0);
+                    referenceScorer.bulkScore(nodes, expected, nodes.length);
+                    var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).orElseThrow();
+                    var testScorer = supplier.scorer();
+                    testScorer.setScoringOrdinal(idx0);
+                    testScorer.bulkScore(nodes, scores, nodes.length);
+                    assertFloatArrayEquals(expected, scores, NATIVE_BULK_DELTA);
                 }
             }
         }
     }
 
     public void testBulkWithDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = 128;
@@ -530,8 +551,38 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertFloatArrayEquals(expected, scores, DELTA);
+                        assertFloatArrayEquals(expected, scores, NATIVE_BULK_DELTA);
                     }
+                }
+            }
+        }
+    }
+
+    // Verifies that bulkScore with zero nodes returns NEGATIVE_INFINITY without throwing,
+    // as Lucene's exactSearch path can call bulkScore with an empty batch when filters exclude all docs.
+    public void testBulkScoreWithZeroNodes() throws IOException {
+        final int dims = 1024;
+        final int size = randomIntBetween(2, 100);
+        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
+
+        try (Directory dir = new MMapDirectory(createTempDir("testBulkScoreWithZeroNodes"))) {
+            String fileName = "testBulkScoreWithZeroNodes-" + dims;
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                for (int i = 0; i < size; i++) {
+                    var vec = vector(i, dims);
+                    var correction = randomCorrection(vec);
+                    writeVectorWithCorrection(out, vec, correction);
+                }
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
+                    var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
+                    var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).orElseThrow();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(0);
+                    float result = scorer.bulkScore(new int[0], new float[0], 0);
+                    assertEquals(Float.NEGATIVE_INFINITY, result, 0f);
                 }
             }
         }
@@ -545,8 +596,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
     // Tests that copies in threads do not interfere with each other
     void testRaceImpl(org.elasticsearch.simdvec.VectorSimilarityType sim) throws Exception {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         final long maxChunkSize = 32;
         final int dims = 34; // dimensions that are larger than the chunk size, to force fallback

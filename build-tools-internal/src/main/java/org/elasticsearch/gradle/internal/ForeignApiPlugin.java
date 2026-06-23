@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.gradle.api.Named;
 import org.gradle.api.Plugin;
@@ -55,8 +54,6 @@ public class ForeignApiPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
 
-        int minRuntime = minimumRuntimeVersion(project);
-
         TaskProvider<ExtractForeignApiTask> extractTask = project.getTasks()
             .register(EXTRACT_FOREIGN_API_TASK_NAME, ExtractForeignApiTask.class, t -> {
                 t.getOutputJar().set(project.getLayout().getBuildDirectory().file("jdk21-foreign-api.jar"));
@@ -66,48 +63,41 @@ public class ForeignApiPlugin implements Plugin<Project> {
         Provider<RegularFile> jarFile = extractTask.flatMap(ExtractForeignApiTask::getOutputJar);
 
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
-            var provider = new ForeignAccessArgumentProvider(jarFile, compileTask.getOptions().getRelease(), minRuntime);
+            var provider = new ForeignAccessArgumentProvider(jarFile, compileTask.getOptions().getRelease());
             compileTask.getOptions().getCompilerArgumentProviders().add(provider);
         });
 
         project.getTasks().withType(Javadoc.class).configureEach(javadocTask -> {
-            if (minRuntime == 21) {
-                javadocTask.dependsOn(extractTask);
-                javadocTask.doFirst(t -> {
-                    File jar = jarFile.get().getAsFile();
+            javadocTask.dependsOn(extractTask);
+            javadocTask.doFirst(t -> {
+                File jar = jarFile.get().getAsFile();
+                if (jar.exists()) {
                     CoreJavadocOptions options = (CoreJavadocOptions) javadocTask.getOptions();
                     options.addStringOption("-patch-module", "java.base=" + jar.getAbsolutePath());
-                });
-            }
+                }
+            });
         });
 
-        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(jarFile, minRuntime));
-    }
-
-    private static int minimumRuntimeVersion(Project project) {
-        BuildParameterExtension params = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
-        return Integer.parseInt(params.getMinimumRuntimeVersion().getMajorVersion());
+        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(jarFile));
     }
 
     /**
      * Provides {@code --patch-module java.base=<jar>} compiler arguments when the
-     * compile release is 21 and the stub JAR exists.
+     * compile release is 21 and the stub JAR exists. The release is always set on
+     * every {@code JavaCompile} task by {@link ElasticsearchJavaBasePlugin}.
      */
     static class ForeignAccessArgumentProvider implements CommandLineArgumentProvider, Named {
         private final Provider<RegularFile> jarFile;
         private final Property<Integer> releaseProperty;
-        private final int minRuntime;
 
-        ForeignAccessArgumentProvider(Provider<RegularFile> jarFile, Property<Integer> releaseProperty, int minRuntime) {
+        ForeignAccessArgumentProvider(Provider<RegularFile> jarFile, Property<Integer> releaseProperty) {
             this.jarFile = jarFile;
             this.releaseProperty = releaseProperty;
-            this.minRuntime = minRuntime;
         }
 
         @Override
         public Iterable<String> asArguments() {
-            int release = releaseProperty.getOrElse(minRuntime);
-            if (release == 21 && jarFile.isPresent()) {
+            if (releaseProperty.isPresent() && releaseProperty.get() == 21 && jarFile.isPresent()) {
                 File jar = jarFile.get().getAsFile();
                 if (jar.exists()) {
                     return List.of("--patch-module", "java.base=" + jar.getAbsolutePath());

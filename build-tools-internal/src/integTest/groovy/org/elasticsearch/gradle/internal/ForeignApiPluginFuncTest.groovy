@@ -216,4 +216,28 @@ class ForeignApiPluginFuncTest extends AbstractJavaGradleFuncTest {
         result.task(":forbiddenApisMain").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, "Use MemorySegmentAdapter.getString() instead")
     }
+
+    // --- Per-task release version tests (mrjar + foreign-api) ---
+
+    def "compileJava does not get --patch-module when release is above 21"() {
+        assumeFalse("Requires JDK 22+", isJdk21())
+
+        given:
+        clazz('org.acme.Dummy')
+        buildFile << """
+            tasks.named('compileJava') {
+                doLast {
+                    def args = it.options.allCompilerArgs
+                    def idx = args.indexOf('--patch-module')
+                    assert idx == -1 : "must NOT get --patch-module when release > 21, but got: \${args}"
+                }
+            }
+        """.stripIndent()
+
+        when:
+        def result = gradleRunner('compileJava', '-g', gradleUserHome).build()
+
+        then:
+        result.task(":compileJava").outcome == TaskOutcome.SUCCESS
+    }
 }

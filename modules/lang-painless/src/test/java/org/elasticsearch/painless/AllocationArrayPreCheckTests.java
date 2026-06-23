@@ -163,8 +163,9 @@ public class AllocationArrayPreCheckTests extends ESTestCase {
     }
 
     public void testArrayBytesSaturatesOnOverflow() {
-        // A huge element count saturates the whole pad8(ARRAY_HEADER + fieldSize * length) computation rather than wrapping.
-        assertEquals(Long.MAX_VALUE, AllocSizes.arrayBytes(Long.MAX_VALUE, 4));
+        // A huge element count saturates the whole pad8(ARRAY_HEADER + fieldSize * length) computation rather than wrapping;
+        // the result is the largest 8-aligned long (pad8 keeps its multiple-of-8 invariant even when saturated).
+        assertEquals(Long.MAX_VALUE & ~7L, AllocSizes.arrayBytes(Long.MAX_VALUE, 4));
         // Small inputs match the exact formula.
         assertEquals(56L, AllocSizes.arrayBytes(10L, 4)); // pad8(16 + 4*10)
     }

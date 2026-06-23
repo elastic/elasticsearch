@@ -38,10 +38,7 @@ public final class AllocSizes {
 
     /** Rounds {@code bytes} up to the nearest 8-byte alignment boundary, saturating rather than overflowing near {@link Long#MAX_VALUE}. */
     public static long pad8(long bytes) {
-        if (bytes > Long.MAX_VALUE - 7L) {
-            return Long.MAX_VALUE;
-        }
-        return (bytes + 7L) & ~7L;
+        return addSat(bytes, 7L) & ~7L;
     }
 
     /**
@@ -51,23 +48,22 @@ public final class AllocSizes {
      * rather than silently wrap to a small value.
      */
     public static long mulSat(long a, long b) {
-        long low = a * b;
-        // The full 128-bit product fits in a signed long iff its high half is the sign extension of the low half.
-        if (Math.multiplyHigh(a, b) == (low >> 63)) {
-            return low;
+        try {
+            return Math.multiplyExact(a, b);
+        } catch (ArithmeticException overflow) {
+            // Clamp toward the sign the true product would have had (opposite signs -> negative).
+            return ((a ^ b) < 0) ? Long.MIN_VALUE : Long.MAX_VALUE;
         }
-        // Overflow: clamp toward the sign the true product would have had (opposite signs -> negative).
-        return ((a ^ b) < 0) ? Long.MIN_VALUE : Long.MAX_VALUE;
     }
 
     /** Signed add that saturates to {@link Long#MAX_VALUE}/{@link Long#MIN_VALUE} on overflow instead of wrapping. */
     private static long addSat(long a, long b) {
-        long r = a + b;
-        // Overflow occurred iff both operands share a sign that differs from the result's.
-        if (((a ^ r) & (b ^ r)) < 0) {
-            return r < 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+        try {
+            return Math.addExact(a, b);
+        } catch (ArithmeticException overflow) {
+            // Overflow only happens when both operands share a sign; clamp toward that sign.
+            return (a < 0) ? Long.MIN_VALUE : Long.MAX_VALUE;
         }
-        return r;
     }
 
     /** Returns the in-memory footprint of one field/element of the given type; references count as {@link #REFERENCE_SIZE}. */

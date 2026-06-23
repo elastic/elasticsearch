@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistOrderByBeforeInlineJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLimit;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopN;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.InlineView;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
@@ -197,6 +198,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     protected static Batch<LogicalPlan> operators() {
         return new Batch<>(
             "Operator Optimization",
+            // Fold any first-class View into its body before the pushdown rules run, so they optimize across it exactly
+            // as today's early substitution did. No-op until resolution starts producing View nodes.
+            new InlineView(),
             new HoistRemoteEnrichLimit(),
             new CombineProjections(),
             new CombineEvals(),

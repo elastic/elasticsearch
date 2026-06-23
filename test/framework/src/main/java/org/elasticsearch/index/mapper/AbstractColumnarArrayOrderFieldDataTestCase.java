@@ -40,10 +40,6 @@ public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends Mapper
     public void setUp() throws Exception {
         super.setUp();
         assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue(
-            "in-order binary doc values require the extended doc values feature flag",
-            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-        );
     }
 
     private MapperService columnarMapperService() throws IOException {

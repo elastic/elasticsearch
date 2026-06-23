@@ -137,7 +137,7 @@ The actions themselves sometimes dispatch downstream actions to other nodes in t
 > `TransportAction` `ActionType` naming conventions encode semantic information about the role, scope, plugins, modules and behaviours.
 > [ActionType] instances are mapped to permission privileges via the [ClusterPrivilegeResolver]. Security interceptors enforce access
 > control by invoking RBACEngine.checkPrivileges().
-> Indices-level [ActionType] strings generally follows the pattern: `indices:[data|admin|monitor]/[read|write|get]/[index|bulk|update]`.
+> Indices-level [ActionType] strings generally follow the pattern: `indices:[data|admin|monitor]/[read|write|get]/[index|bulk|update]`.
 > Cluster-level [ActionType] strings are prefixed by `cluster:` are often followed by a domain-specific such as `autoscaling`, `logstash`, `ingest`,
 > `xpack`.
 > - `internal:` is meant to executed by `_system` user.
@@ -284,7 +284,7 @@ state must ever be reloaded from persisted state.
 
 # Backwards Compatibility
 
-major releases are mostly about breaking compatibility and dropping deprecated functionality.
+Major releases are mostly about breaking compatibility and dropping deprecated functionality.
 
 Elasticsearch versions are composed of three pieces of information: the major version, the minor version, and the patch version,
 in that order (major.minor.patch). Patch releases are typically bug fixes; minor releases contain improvements / new features;
@@ -330,9 +330,37 @@ See the [public upgrade docs][] for the upgrade process.
 
 # Plugins
 
-(what warrants a plugin?)
+Elasticsearch uses plugins as a core extension mechanism.
 
-(what plugins do we have?)
+### Installable Plugins `/plugins` 
+Standalone plugins that can often be installed separately:
+
+- `analysis-*` (ICU, Kuromoji, Nori)
+- `repository-*` (S3, GCS, Azure)
+
+### Built-in Plugins `/modules`
+Plugins that ship with Elasticsearch and are always enabled:
+
+- `ingest-*` (ingest-common, ingest-geoip, ingest-user-agent)
+- `analysis-common`
+- `transport-netty4`
+
+### Feature Plugins `/x-pack/plugin`
+Official Elastic features implemented as plugins:
+
+- `security`
+- `ml` (machine learning)
+- `monitoring`
+- `core` (shared infrastructure)
+
+## What plugins do
+
+Across these locations, plugins:
+
+- Add REST endpoints and transport actions
+- Register ingest processors and analyzers
+- Provide transport and HTTP implementations
+- Contribute settings and interceptors (security)
 
 # Observability
 

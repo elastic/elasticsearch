@@ -262,7 +262,7 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Default way
+     * The default way of building a terms query.
      */
     protected static Query defaultTermsQuery(
         Collection<?> values,

@@ -54,11 +54,9 @@ public class DatasetResolver {
     }
 
     /**
-     * Dispatches one {@link EsqlResolveDatasetAction} per dataset-candidate relation in {@code parsed}, collects the
-     * per-relation {@link DatasetResolution}s, then completes {@code listener} with {@link DatasetRewriter#rewrite}
-     * applied to those results (or the untouched plan when nothing qualifies). Authorization failures from the resolve
-     * action (DLS/FLS rejection, and the {@code Unknown index} a rewrite raises for an explicit unauthorized dataset)
-     * propagate to the listener as-is.
+     * Completes {@code listener} with the rewritten plan (or the untouched plan when no relation qualifies).
+     * Authorization failures (DLS/FLS, and the {@code Unknown index} a rewrite raises for an explicit unauthorized
+     * dataset) propagate as-is.
      */
     public void replaceDatasets(
         LogicalPlan parsed,

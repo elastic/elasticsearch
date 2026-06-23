@@ -75,24 +75,10 @@ public final class DatasetRewriter {
     private DatasetRewriter() {}
 
     /**
-     * Per-relation engine-side resolution, called from {@link org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction}'s
-     * body (so wildcard expansion against authorized abstractions lives where authorization lives, not client-side).
-     *
-     * <p>Two parts:
-     * <ul>
-     *   <li><b>authorized datasets</b> — {@code authorizedIndices} is the relation's {@link IndicesRequest#indices()}
-     *       which, on a security-enabled cluster, the filter has already narrowed to the authorized concrete names (a
-     *       pass-through here); without security it equals {@code rawPatterns}. Resolved via
-     *       {@link IndexNameExpressionResolver#datasets} under the lenient {@link #RESOLVER_OPTIONS}.</li>
-     *   <li><b>non-dataset targets</b> — {@code rawPatterns} are the ORIGINAL patterns (un-narrowed by the filter),
-     *       resolved with an OPEN predicate so the action can tell whether the relation ALSO targets indices / aliases /
-     *       data streams; that drives the mixed-FROM rejection downstream.</li>
-     * </ul>
-     *
-     * <p>An explicitly-named dataset that resolves under the raw patterns but is absent from the authorized set is
-     * collected into {@link DatasetResolution#explicitUnauthorized()}; {@link #rewriteOne} surfaces it as
-     * {@code Unknown index} ({@code 400}) — the same error a missing index gives, so an unauthorized dataset is
-     * indistinguishable from a nonexistent name (no existence oracle). A wildcard simply drops it.
+     * Per-relation engine-side resolution, run from the {@code EsqlResolveDatasetAction} body. Returns the authorized
+     * dataset names, whether the relation also targets non-dataset abstractions (drives mixed-FROM rejection), and the
+     * explicitly-named-but-unauthorized datasets — which {@link #rewriteOne} surfaces as {@code Unknown index} (400),
+     * the same error a missing index gives, so an unauthorized dataset can't be told apart from a missing name.
      */
     public static DatasetResolution resolve(
         String[] authorizedIndices,
@@ -100,16 +86,14 @@ public final class DatasetRewriter {
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver iner
     ) {
-        // (a) authorized concrete dataset names, from the (filter-narrowed) request indices. An empty array means the
-        // filter authorized nothing here — short-circuit so we don't let an empty expression normalize to "_all" and
-        // re-expand to every dataset.
+        // (a) authorized datasets: request.indices(), which the filter already narrowed to the authorized subset on a
+        // secured cluster (and equals rawPatterns without security). Empty short-circuits, else an empty list would
+        // normalize to "_all" and re-expand to every dataset.
         Set<String> authorizedDatasets = authorizedIndices.length == 0
             ? new LinkedHashSet<>()
             : new LinkedHashSet<>(iner.datasets(projectMetadata, RESOLVER_OPTIONS, indicesRequestOf(authorizedIndices)));
 
-        // (b) open-predicate resolution of the ORIGINAL raw patterns: classify local abstractions into dataset vs
-        // non-dataset so the relation's mixed-FROM signal can be computed regardless of authorization, and so an
-        // explicitly-named-but-unauthorized dataset can be distinguished from a name that is simply not a dataset.
+        // (b) classify the raw (un-narrowed) patterns into dataset vs non-dataset under an open predicate.
         IndexAbstractionResolver resolver = new IndexAbstractionResolver(iner);
         Map<String, IndexAbstraction> indicesLookup = projectMetadata.getIndicesLookup();
         List<String> localNames = resolver.resolveIndexAbstractions(
@@ -126,9 +110,7 @@ public final class DatasetRewriter {
         for (String name : localNames) {
             IndexAbstraction abs = indicesLookup.get(name);
             if (abs == null) {
-                // Synthesized name (e.g. date math under ALLOW_UNAVAILABLE_TARGETS) — neither dataset nor real
-                // non-dataset; skipping doesn't suppress mixed-FROM rejection.
-                continue;
+                continue; // synthesized name (date math) — neither; skipping doesn't suppress mixed-FROM rejection
             }
             if (abs.getType() == IndexAbstraction.Type.DATASET) {
                 rawDatasetNames.add(name);
@@ -137,10 +119,8 @@ public final class DatasetRewriter {
             }
         }
 
-        // An explicitly-named (not wildcard/exclusion) dataset that is absent from the authorized set must error like a
-        // missing index, not silently drop from a multi-target FROM. We only flag it here; rewriteOne (session-side)
-        // raises it as Unknown index (400) — the same error a missing index gives, so an unauthorized dataset is not
-        // distinguishable from a nonexistent name (no existence oracle).
+        // Explicit (non-wildcard) dataset names absent from the authorized set — rewriteOne rejects these as Unknown
+        // index rather than silently dropping them from a multi-target FROM.
         Set<String> explicitUnauthorized = new LinkedHashSet<>();
         for (String pattern : rawPatterns) {
             if (pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern)) {
@@ -152,7 +132,6 @@ public final class DatasetRewriter {
             }
         }
 
-        // The authorized concrete dataset names the relation actually targets.
         Set<String> result = new LinkedHashSet<>(rawDatasetNames);
         result.retainAll(authorizedDatasets);
         return new DatasetResolution(result, hasNonDatasetTargets, explicitUnauthorized);
@@ -175,10 +154,9 @@ public final class DatasetRewriter {
 
     /**
      * Convenience entry for an unsecured context (security disabled, or tests): resolves every dataset-candidate
-     * relation in {@code parsed} with the full authorized set (no narrowing), then {@link #rewrite}s. This is the
-     * in-process equivalent of {@link DatasetResolver}'s dispatch + rewrite, minus the {@code EsqlResolveDatasetAction}
-     * round-trip — the action body and this method both funnel through {@link #resolve}, so they expand patterns and
-     * classify mixed FROMs identically. A {@code null} project, or one with no datasets registered, is a no-op.
+     * relation with the full authorized set and {@link #rewrite}s — the in-process equivalent of
+     * {@link DatasetResolver}'s dispatch, minus the {@code EsqlResolveDatasetAction} round-trip. {@code null} or
+     * dataset-free project is a no-op.
      */
     public static LogicalPlan rewriteUnsecured(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
         if (projectMetadata == null) {

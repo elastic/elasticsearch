@@ -541,7 +541,7 @@ public class MergedSegmentCacheEvictionIT extends AbstractStatelessPluginIntegTe
         refresh(indexName);
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
-        assertThat("all segments should be in a single BCC blob", blobsRegionsBeforeMerge.size(), equalTo(1));
+        assertThat("all segments should be in a single BCC blob", blobsRegionsAfterMerge.size(), equalTo(1));
 
         assertBusy(() -> {
             assertThat(

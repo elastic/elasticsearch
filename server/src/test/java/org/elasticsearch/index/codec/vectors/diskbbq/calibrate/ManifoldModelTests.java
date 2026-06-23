@@ -104,8 +104,18 @@ public class ManifoldModelTests extends ESTestCase {
         for (int i = 0; i < queryOrdinals.length; i++) {
             queryOrdinals[i] = i;
         }
-        CalibrationQueries queries = new CalibrationQueries(fvv, queryOrdinals, 8, false, false, null, 8);
-        double[] params = ManifoldModel.estimateManifoldParameters(VectorSimilarityFunction.EUCLIDEAN, 8, queries, fvv, corpusOrdinals, 10);
+        double[] params = ManifoldModel.estimateManifoldParameters(
+            VectorSimilarityFunction.EUCLIDEAN,
+            8,
+            fvv,
+            queryOrdinals,
+            8,
+            false,
+            false,
+            fvv,
+            corpusOrdinals,
+            10
+        );
         assertTrue(Double.isFinite(params[0]));
         assertTrue(Double.isFinite(params[1]));
     }
@@ -122,11 +132,14 @@ public class ManifoldModelTests extends ESTestCase {
         int numQueries = 64;
         ColinearFixture fixture = newColinearFixture(dim, corpusSize, numQueries, new Random(17));
 
-        CalibrationQueries queries = new CalibrationQueries(fixture.fvv(), fixture.queryOrdinals(), dim, false, false, null, dim);
         double[] params = ManifoldModel.estimateManifoldParameters(
             VectorSimilarityFunction.EUCLIDEAN,
             dim,
-            queries,
+            fixture.fvv(),
+            fixture.queryOrdinals(),
+            dim,
+            false,
+            false,
             fixture.fvv(),
             fixture.corpusOrdinals(),
             calibrationK
@@ -139,7 +152,11 @@ public class ManifoldModelTests extends ESTestCase {
         SweepDistances sweep = collectSweepDistances(
             VectorSimilarityFunction.EUCLIDEAN,
             dim,
-            queries,
+            fixture.fvv(),
+            fixture.queryOrdinals(),
+            dim,
+            false,
+            false,
             fixture.fvv(),
             fixture.corpusOrdinals(),
             calibrationK,
@@ -173,8 +190,8 @@ public class ManifoldModelTests extends ESTestCase {
     }
 
     /**
-     * {@link CalibrationQueries} with cosine normalization must use a query buffer sized to
-     * {@link CalibrationQueries#dimension()}, not the raw embedding dimension alone.
+     * Cosine-normalized calibration queries must use a buffer sized via
+     * {@link CalibrationUtils#calibrationQueryDimension(int, boolean)}, not the raw embedding dimension alone.
      */
     public void testEstimateManifoldParametersWithCosineCalibrationQueries() throws IOException {
         int dim = 8;
@@ -183,11 +200,14 @@ public class ManifoldModelTests extends ESTestCase {
         int numQueries = 32;
         ColinearFixture fixture = newColinearFixture(dim, corpusSize, numQueries, new Random(19), false);
 
-        CalibrationQueries queries = new CalibrationQueries(fixture.fvv(), fixture.queryOrdinals(), dim, true, false, null, dim);
         double[] params = ManifoldModel.estimateManifoldParameters(
             VectorSimilarityFunction.EUCLIDEAN,
             dim,
-            queries,
+            fixture.fvv(),
+            fixture.queryOrdinals(),
+            dim,
+            true,
+            false,
             fixture.fvv(),
             fixture.corpusOrdinals(),
             calibrationK
@@ -209,19 +229,14 @@ public class ManifoldModelTests extends ESTestCase {
         int liftedDim = dim + 1;
         ColinearFixture fixture = newColinearLiftedFixture(dim, corpusSize, numQueries, new Random(23));
 
-        CalibrationQueries queries = new CalibrationQueries(
+        double[] params = ManifoldModel.estimateManifoldParameters(
+            VectorSimilarityFunction.EUCLIDEAN,
+            dim,
             fixture.fvv(),
             fixture.queryOrdinals(),
             dim,
             false,
             true,
-            null,
-            liftedDim
-        );
-        double[] params = ManifoldModel.estimateManifoldParameters(
-            VectorSimilarityFunction.EUCLIDEAN,
-            dim,
-            queries,
             fixture.fvv(),
             fixture.corpusOrdinals(),
             calibrationK
@@ -417,7 +432,11 @@ public class ManifoldModelTests extends ESTestCase {
     private static SweepDistances collectSweepDistances(
         VectorSimilarityFunction similarityFunction,
         int dim,
-        CalibrationQueries queries,
+        FloatVectorValues querySource,
+        int[] queryOrdinals,
+        int baseDim,
+        boolean cosine,
+        boolean neyshabur,
         FloatVectorValues fvv,
         int[] corpusOrdinals,
         int calibrationK,
@@ -428,9 +447,10 @@ public class ManifoldModelTests extends ESTestCase {
         double[] logY = new double[m];
         int count = 0;
         int sampleStart = 0;
-        float[] queryScratch = new float[queries.dimension()];
-        ManifoldModel.ManifoldTopK[] topKs = new ManifoldModel.ManifoldTopK[queries.size()];
-        for (int qi = 0; qi < queries.size(); qi++) {
+        int dimWork = CalibrationUtils.calibrationQueryDimension(baseDim, neyshabur);
+        float[] queryScratch = new float[dimWork];
+        ManifoldModel.ManifoldTopK[] topKs = new ManifoldModel.ManifoldTopK[queryOrdinals.length];
+        for (int qi = 0; qi < queryOrdinals.length; qi++) {
             topKs[qi] = new ManifoldModel.ManifoldTopK(similarityFunction, 6 * calibrationK);
         }
         for (int i = 0; i < m; i++) {
@@ -439,13 +459,24 @@ public class ManifoldModelTests extends ESTestCase {
                 break;
             }
             double sum = 0;
-            for (int qi = 0; qi < queries.size(); qi++) {
-                queries.copyQuery(qi, false, queryScratch);
+            for (int qi = 0; qi < queryOrdinals.length; qi++) {
+                CalibrationUtils.materializeCalibrationQuery(
+                    querySource,
+                    queryOrdinals[qi],
+                    baseDim,
+                    dimWork,
+                    cosine,
+                    neyshabur,
+                    null,
+                    false,
+                    queryScratch,
+                    null
+                );
                 topKs[qi].add(queryScratch, fvv, corpusOrdinals, sampleStart, sampleEnd);
                 sum += topKs[qi].ithDistance(ranksForK[i]);
             }
             x[count] = Math.log(ranksForK[i]) - Math.log(sampleEnd);
-            logY[count] = Math.log(sum / queries.size());
+            logY[count] = Math.log(sum / queryOrdinals.length);
             count++;
             sampleStart = sampleEnd;
         }

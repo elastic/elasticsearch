@@ -98,18 +98,34 @@ public final class ManifoldModel {
 
     /**
      * Estimate manifold parameters (alpha, invDim) using default sample sizes.
-     * Query buffers are sized from {@link CalibrationQueries#dimension()} so cosine
-     * normalization and Neyshabur lift are supported.
+     * Query buffers are sized from {@link CalibrationUtils#calibrationQueryDimension(int, boolean)}
+     * so cosine normalization and Neyshabur lift are supported.
      */
     public static double[] estimateManifoldParameters(
         VectorSimilarityFunction similarityFunction,
         int dim,
-        CalibrationQueries queries,
+        FloatVectorValues querySource,
+        int[] queryOrdinals,
+        int baseDim,
+        boolean cosine,
+        boolean neyshabur,
         FloatVectorValues fvv,
         int[] corpusOrdinals,
         int k
     ) throws IOException {
-        return estimateManifoldParameters(similarityFunction, dim, queries, fvv, corpusOrdinals, k, ranksFromMultipliers(k));
+        return estimateManifoldParameters(
+            similarityFunction,
+            dim,
+            querySource,
+            queryOrdinals,
+            baseDim,
+            cosine,
+            neyshabur,
+            fvv,
+            corpusOrdinals,
+            k,
+            ranksFromMultipliers(k)
+        );
     }
 
     private static int[] ranksFromMultipliers(int k) {
@@ -133,22 +149,27 @@ public final class ManifoldModel {
     static double[] estimateManifoldParameters(
         VectorSimilarityFunction similarityFunction,
         int dim,
-        CalibrationQueries queries,
+        FloatVectorValues querySource,
+        int[] queryOrdinals,
+        int baseDim,
+        boolean cosine,
+        boolean neyshabur,
         FloatVectorValues fvv,
         int[] corpusOrdinals,
         int k,
         int[] ranksForK
     ) throws IOException {
-        int nQueries = queries.size();
+        int nQueries = queryOrdinals.length;
         int nDocsTotal = corpusOrdinals.length;
         int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);
+        int dimWork = CalibrationUtils.calibrationQueryDimension(baseDim, neyshabur);
 
         int logCount = 0;
         double[] logRanks = new double[m];
         double[] logSampleSizes = new double[m];
         double[] logDistances = new double[m];
 
-        float[] queryScratch = new float[queries.dimension()];
+        float[] queryScratch = new float[dimWork];
         ManifoldTopK[] topKs = new ManifoldTopK[nQueries];
         for (int qi = 0; qi < nQueries; qi++) {
             topKs[qi] = new ManifoldTopK(similarityFunction, 6 * k);
@@ -164,7 +185,18 @@ public final class ManifoldModel {
             double avgDist;
             double sum = 0;
             for (int qi = 0; qi < nQueries; qi++) {
-                queries.copyQuery(qi, false, queryScratch);
+                CalibrationUtils.materializeCalibrationQuery(
+                    querySource,
+                    queryOrdinals[qi],
+                    baseDim,
+                    dimWork,
+                    cosine,
+                    neyshabur,
+                    null,
+                    false,
+                    queryScratch,
+                    null
+                );
                 topKs[qi].add(queryScratch, fvv, corpusOrdinals, sampleStart, sampleEnd);
                 sum += topKs[qi].ithDistance(rank);
             }

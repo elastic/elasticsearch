@@ -47,9 +47,9 @@ Recommended execution order is the numbered list below.
 ## 3. Refactor: lean planner + config object + move operator to compute + scratch
 Bundle of four tightly-coupled comments — do together (the package move dictates where
 the config/query-building code must live).
-- **3a — ioanatia `LocalExecutionPlanner.java:1203`:** "way too much highlight specific
-  logic in `LocalExecutionPlanner` - push this to `HighlightExec` and `HighlightOperator`."
-- **3b — ioanatia `LocalExecutionPlanner.java:1223`:** "pass in the `HighlightOptions`
+- **3a — ioanatia `LocalExecutionPlanner.java:1203`:** "way too much highlight specific (Done)
+  logic in `LocalExecutionPlanner` - push this to `HighlightExec` and `HighlightOperator`." 
+- **3b — ioanatia `LocalExecutionPlanner.java:1223`:** "pass in the `HighlightOptions` Done
   directly to the `HighlightOperator` ... see `FuseScoreEval`/`RrfConfig`/`LinearConfig`."
 - **3c — ioanatia `HighlightOperator.java:8`:** "wrong place — should be in
   `compute/.../operator` with the rest of the operators ... move `HighlightOperatorTests` too."

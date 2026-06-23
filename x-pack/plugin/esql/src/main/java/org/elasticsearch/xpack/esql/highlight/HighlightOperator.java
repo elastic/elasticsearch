@@ -73,46 +73,21 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      */
     public static final String CONTENT_FIELD = "content";
 
-    public record Factory(String queryText, HighlightOptions options, List<ExpressionEvaluator.Factory> fieldEvaluatorFactories)
-        implements
-            OperatorFactory {
+    public record Factory(HighlightConfig config, List<ExpressionEvaluator.Factory> fieldEvaluatorFactories) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
             ExpressionEvaluator[] fieldEvaluators = fieldEvaluatorFactories.stream()
                 .map(factory -> factory.get(driverContext))
                 .toArray(ExpressionEvaluator[]::new);
-            // TODO: resolve a named analyzer from the AnalysisRegistry once the "analyzer" option is supported.
-            Analyzer analyzer = new StandardAnalyzer();
-            // TODO: support more query shapes here (phrase, fuzzy, wildcard, QSTR, KQL, MATCH, MATCH_PHRASE) instead of
-            // treating the query text as a bag of words.
-            Query query = new QueryBuilder(analyzer).createBooleanQuery(CONTENT_FIELD, queryText, BooleanClause.Occur.SHOULD);
-            if (query == null) {
-                query = new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
-            }
-            Encoder encoder = HighlightOptions.HTML_ENCODER.equals(options.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
-            PassageFormatter formatter = new CustomPassageFormatter(
-                options.preTag(),
-                options.postTag(),
-                encoder,
-                options.numberOfFragments()
-            );
-            return new HighlightOperator(
-                driverContext.blockFactory(),
-                query,
-                analyzer,
-                formatter,
-                options.numberOfFragments(),
-                options.fragmentSize(),
-                options.noMatchSize(),
-                fieldEvaluators
-            );
+            return new HighlightOperator(driverContext.blockFactory(), config, fieldEvaluators);
         }
 
         @Override
         public String describe() {
+            HighlightOptions options = config.options();
             return "HighlightOperator[query="
-                + queryText
+                + config.queryText()
                 + ", fields="
                 + fieldEvaluatorFactories.size()
                 + ", number_of_fragments="
@@ -126,53 +101,46 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     }
 
     private final BlockFactory blockFactory;
+    private final HighlightConfig config;
     private final Query query;
     private final Analyzer analyzer;
     private final PassageFormatter formatter;
-    private final int numberOfFragments;
-    private final int fragmentSize;
-    private final int noMatchSize;
     private final int maxAnalyzedOffset;
     private final int highlighterNumberOfFragments;
     private final Supplier<BreakIterator> breakIteratorSupplier;
     private final ExpressionEvaluator[] fieldEvaluators;
 
-    public HighlightOperator(
-        BlockFactory blockFactory,
-        Query query,
-        Analyzer analyzer,
-        PassageFormatter formatter,
-        int numberOfFragments,
-        int fragmentSize,
-        int noMatchSize,
-        ExpressionEvaluator[] fieldEvaluators
-    ) {
+    public HighlightOperator(BlockFactory blockFactory, HighlightConfig config, ExpressionEvaluator[] fieldEvaluators) {
         this.blockFactory = blockFactory;
-        this.query = query;
-        this.analyzer = analyzer;
-        this.formatter = formatter;
-        this.numberOfFragments = numberOfFragments;
-        this.fragmentSize = fragmentSize;
-        this.noMatchSize = noMatchSize;
-        this.maxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
+        this.config = config;
         this.fieldEvaluators = fieldEvaluators;
+        HighlightOptions options = config.options();
+        // TODO: resolve a named analyzer from the AnalysisRegistry once the "analyzer" option is supported.
+        this.analyzer = new StandardAnalyzer();
+        // TODO: support more query shapes here (phrase, fuzzy, wildcard, QSTR, KQL, MATCH, MATCH_PHRASE) instead of
+        // treating the query text as a bag of words.
+        Query parsedQuery = new QueryBuilder(analyzer).createBooleanQuery(CONTENT_FIELD, config.queryText(), BooleanClause.Occur.SHOULD);
+        this.query = parsedQuery != null ? parsedQuery : new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
+        Encoder encoder = HighlightOptions.HTML_ENCODER.equals(options.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
+        this.formatter = new CustomPassageFormatter(options.preTag(), options.postTag(), encoder, options.numberOfFragments());
+        this.maxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
         // Ask Lucene for every passage and trim to number_of_fragments ourselves. Lucene would otherwise keep the
         // top passages by score, which loses document order when several sentences tie. We want document order.
         this.highlighterNumberOfFragments = Integer.MAX_VALUE - 1;
         // TODO: honour boundary_scanner, boundary_scanner_locale, boundary_chars, boundary_max_scan, and order.
-        if (numberOfFragments == 0) {
+        if (options.numberOfFragments() == 0) {
             // One passage per (multi-)value: only break on the multi-value separator.
             this.breakIteratorSupplier = () -> new CustomSeparatorBreakIterator(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
         } else {
             // Fragment by sentence, bounded to fragment_size characters when a positive size is requested.
             this.breakIteratorSupplier = () -> new SplittingBreakIterator(
-                sentenceBreakIterator(),
+                sentenceBreakIterator(options.fragmentSize()),
                 CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR
             );
         }
     }
 
-    private BreakIterator sentenceBreakIterator() {
+    private static BreakIterator sentenceBreakIterator(int fragmentSize) {
         return fragmentSize > 0
             ? BoundedBreakIteratorScanner.getSentence(Locale.ROOT, fragmentSize)
             : BreakIterator.getSentenceInstance(Locale.ROOT);
@@ -258,7 +226,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             "",
             CONTENT_FIELD,
             query,
-            noMatchSize,
+            config.options().noMatchSize(),
             highlighterNumberOfFragments,
             maxAnalyzedOffset,
             QueryMaxAnalyzedOffset.create(-1, maxAnalyzedOffset),
@@ -276,6 +244,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      */
     private void appendSnippets(BytesRefBlock.Builder builder, Snippet[] snippets) {
         int length = snippets == null ? 0 : snippets.length;
+        int numberOfFragments = config.options().numberOfFragments();
         if (numberOfFragments > 0) {
             length = Math.min(length, numberOfFragments);
         }
@@ -294,15 +263,16 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
+        HighlightOptions options = config.options();
         return getClass().getSimpleName()
             + "[query="
             + query
             + ", number_of_fragments="
-            + numberOfFragments
+            + options.numberOfFragments()
             + ", fragment_size="
-            + fragmentSize
+            + options.fragmentSize()
             + ", no_match_size="
-            + noMatchSize
+            + options.noMatchSize()
             + ", fields="
             + Arrays.toString(fieldEvaluators)
             + "]";

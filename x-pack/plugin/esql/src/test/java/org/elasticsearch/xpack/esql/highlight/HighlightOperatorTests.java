@@ -7,16 +7,7 @@
 
 package org.elasticsearch.xpack.esql.highlight;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.highlight.DefaultEncoder;
-import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
-import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.QueryBuilder;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -27,7 +18,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
-import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.hamcrest.Matcher;
@@ -49,7 +39,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return factory("fox", 5, 0, 0);
+        return new HighlightOperator.Factory(config("fox", 5, 0, 0), List.of(dc -> identityEvaluator()));
     }
 
     @Override
@@ -77,14 +67,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     public void testNoMatchYieldsNull() {
-        BytesRefBlock result = highlightSingle(
-            query("nonexistent"),
-            formatter("<em>", "</em>", new DefaultEncoder()),
-            5,
-            0,
-            0,
-            "a plain sentence"
-        );
+        BytesRefBlock result = highlightSingle(config("nonexistent", 5, 0, 0), "a plain sentence");
         try {
             assertThat(result.isNull(0), equalTo(true));
         } finally {
@@ -93,14 +76,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     public void testNoMatchSizeReturnsLeadingText() {
-        BytesRefBlock result = highlightSingle(
-            query("nonexistent"),
-            formatter("<em>", "</em>", new DefaultEncoder()),
-            5,
-            0,
-            200,
-            "Gardens and flowers bloom in spring."
-        );
+        BytesRefBlock result = highlightSingle(config("nonexistent", 5, 0, 200), "Gardens and flowers bloom in spring.");
         try {
             assertThat(value(result, 0), equalTo("Gardens and flowers bloom in spring."));
         } finally {
@@ -109,15 +85,8 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     public void testEmptyQueryHasNoTermsAndDoesNotMatch() {
-        // An empty query analyzes to no terms; the planner turns that into a MatchNoDocsQuery, so nothing is highlighted.
-        BytesRefBlock result = highlightSingle(
-            Queries.NO_DOCS_INSTANCE,
-            formatter("<em>", "</em>", new DefaultEncoder()),
-            5,
-            0,
-            0,
-            "any text here"
-        );
+        // An empty query analyzes to no terms; the operator turns that into a MatchNoDocsQuery, so nothing is highlighted.
+        BytesRefBlock result = highlightSingle(config("", 5, 0, 0), "any text here");
         try {
             assertThat(result.isNull(0), equalTo(true));
         } finally {
@@ -127,7 +96,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     public void testMultiValuedFieldHighlightsEachValueInOrder() {
         BytesRefBlock input = bytesRefs(List.of(List.of("Senior Team Lead", "Lead Architect")));
-        BytesRefBlock result = highlight(query("lead"), formatter("<em>", "</em>", new DefaultEncoder()), 5, 0, 0, input);
+        BytesRefBlock result = highlight(config("lead", 5, 0, 0), input);
         try {
             assertThat(result.getValueCount(0), equalTo(2));
             int first = result.getFirstValueIndex(0);
@@ -141,7 +110,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     public void testNumberOfFragmentsCapsInDocumentOrder() {
         String text = "Elasticsearch is fast. Elasticsearch is scalable. Elasticsearch is open.";
-        BytesRefBlock result = highlightSingle(query("elasticsearch"), formatter("<em>", "</em>", new DefaultEncoder()), 2, 0, 0, text);
+        BytesRefBlock result = highlightSingle(config("elasticsearch", 2, 0, 0), text);
         try {
             assertThat(result.getValueCount(0), equalTo(2));
             int first = result.getFirstValueIndex(0);
@@ -155,7 +124,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     public void testFragmentSizeBoundsLongSentence() {
         String text = "Elasticsearch powers fast search across very many documents and shards in a single cluster.";
-        BytesRefBlock result = highlightSingle(query("elasticsearch"), formatter("<em>", "</em>", new DefaultEncoder()), 5, 20, 0, text);
+        BytesRefBlock result = highlightSingle(config("elasticsearch", 5, 20, 0), text);
         try {
             // With a 20-char bound the matched fragment is shorter than the full sentence.
             assertThat(value(result, 0).length(), lessThan(text.length() + "<em></em>".length()));
@@ -167,7 +136,15 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     public void testHtmlEncoderEscapesMarkup() {
         String text = "Use <b>bold</b> tags & special chars with the Ring.";
-        BytesRefBlock result = highlightSingle(query("ring"), formatter("<em>", "</em>", new SimpleHTMLEncoder()), 5, 0, 0, text);
+        HighlightOptions options = new HighlightOptions(
+            HighlightOptions.DEFAULT_PRE_TAG,
+            HighlightOptions.DEFAULT_POST_TAG,
+            HighlightOptions.HTML_ENCODER,
+            5,
+            0,
+            0
+        );
+        BytesRefBlock result = highlightSingle(new HighlightConfig("ring", options), text);
         try {
             assertThat(value(result, 0), equalTo("Use &lt;b&gt;bold&lt;&#x2F;b&gt; tags &amp; special chars with the <em>Ring</em>."));
         } finally {
@@ -179,12 +156,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         try (
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
-                query("fox"),
-                new StandardAnalyzer(),
-                formatter("<em>", "</em>", new DefaultEncoder()),
-                5,
-                0,
-                0,
+                config("fox", 5, 0, 0),
                 new ExpressionEvaluator[] { identityEvaluator() }
             )
         ) {
@@ -201,36 +173,13 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    private BytesRefBlock highlightSingle(
-        Query query,
-        PassageFormatter formatter,
-        int fragments,
-        int fragmentSize,
-        int noMatchSize,
-        String text
-    ) {
-        return highlight(query, formatter, fragments, fragmentSize, noMatchSize, bytesRefs(List.of(List.of(text))));
+    private BytesRefBlock highlightSingle(HighlightConfig config, String text) {
+        return highlight(config, bytesRefs(List.of(List.of(text))));
     }
 
-    private BytesRefBlock highlight(
-        Query query,
-        PassageFormatter formatter,
-        int fragments,
-        int fragmentSize,
-        int noMatchSize,
-        BytesRefBlock input
-    ) {
+    private BytesRefBlock highlight(HighlightConfig config, BytesRefBlock input) {
         try (
-            HighlightOperator operator = new HighlightOperator(
-                blockFactory(),
-                query,
-                new StandardAnalyzer(),
-                formatter,
-                fragments,
-                fragmentSize,
-                noMatchSize,
-                new ExpressionEvaluator[] { identityEvaluator() }
-            )
+            HighlightOperator operator = new HighlightOperator(blockFactory(), config, new ExpressionEvaluator[] { identityEvaluator() })
         ) {
             Page result = operator.process(new Page(input));
             BytesRefBlock highlighted = result.getBlock(result.getBlockCount() - 1);
@@ -261,29 +210,18 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    private static Query query(String text) {
-        Query query = new QueryBuilder(new StandardAnalyzer()).createBooleanQuery(
-            HighlightOperator.CONTENT_FIELD,
-            text,
-            BooleanClause.Occur.SHOULD
+    private static HighlightConfig config(String queryText, int fragments, int fragmentSize, int noMatchSize) {
+        return new HighlightConfig(
+            queryText,
+            new HighlightOptions(
+                HighlightOptions.DEFAULT_PRE_TAG,
+                HighlightOptions.DEFAULT_POST_TAG,
+                HighlightOptions.DEFAULT_ENCODER,
+                fragments,
+                fragmentSize,
+                noMatchSize
+            )
         );
-        return query == null ? Queries.NO_DOCS_INSTANCE : query;
-    }
-
-    private static PassageFormatter formatter(String preTag, String postTag, Encoder encoder) {
-        return new CustomPassageFormatter(preTag, postTag, encoder, 5);
-    }
-
-    private static HighlightOperator.Factory factory(String queryText, int fragments, int fragmentSize, int noMatchSize) {
-        HighlightOptions options = new HighlightOptions(
-            HighlightOptions.DEFAULT_PRE_TAG,
-            HighlightOptions.DEFAULT_POST_TAG,
-            HighlightOptions.DEFAULT_ENCODER,
-            fragments,
-            fragmentSize,
-            noMatchSize
-        );
-        return new HighlightOperator.Factory(queryText, options, List.of(dc -> identityEvaluator()));
     }
 
     // Returns the input block unchanged, so the operator highlights channel 0 directly.

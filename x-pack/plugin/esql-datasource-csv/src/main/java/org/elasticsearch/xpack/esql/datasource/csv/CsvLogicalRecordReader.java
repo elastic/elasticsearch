@@ -23,8 +23,19 @@ final class CsvLogicalRecordReader {
     private final int maxRecordBytes;
     private final Charset charset;
     private final boolean utf8;
+    /**
+     * Whether {@link #quoteChar} opens a quoted field at field start. {@code false} for the no-quote
+     * modes ({@code plain}/{@code escaped}), where a quote byte is ordinary data and a raw line
+     * terminator always ends the record — the property that keeps no-quote records from ever gluing
+     * across lines on a stray quote.
+     */
+    private final boolean quoteAware;
 
     CsvLogicalRecordReader(Reader reader, char quoteChar, char delimiter, int maxRecordBytes, Charset charset) {
+        this(reader, quoteChar, delimiter, maxRecordBytes, charset, true);
+    }
+
+    CsvLogicalRecordReader(Reader reader, char quoteChar, char delimiter, int maxRecordBytes, Charset charset, boolean quoteAware) {
         if (reader.markSupported() == false) {
             throw new IllegalArgumentException("Reader must support mark/reset");
         }
@@ -37,6 +48,7 @@ final class CsvLogicalRecordReader {
         this.maxRecordBytes = maxRecordBytes;
         this.charset = charset;
         this.utf8 = StandardCharsets.UTF_8.equals(charset);
+        this.quoteAware = quoteAware;
     }
 
     String readRecord(boolean bracketAware) throws IOException {
@@ -107,7 +119,7 @@ final class CsvLogicalRecordReader {
                 fieldHasNonWhitespace = false;
                 continue;
             }
-            if (ch == quoteChar && fieldHasNonWhitespace == false) {
+            if (quoteAware && ch == quoteChar && fieldHasNonWhitespace == false) {
                 inQuotes = true;
                 sb.append((char) ch);
                 continue;

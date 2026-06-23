@@ -36,7 +36,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldStorageVerifier;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -117,10 +116,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
-        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
             checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
         }
-        if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
             checker.registerConflictCheck("index", b -> b.field("index", false));
         }
     }
@@ -704,8 +703,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected DocValuesType expectedSingleValuedDocValuesType() {
-        // match_only_text defaults to HIGH cardinality, which uses binary doc values
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        // match_only_text defaults to HIGH cardinality, which uses binary doc values — that path is unchanged by the write-side fix
         return DocValuesType.BINARY;
     }
 
@@ -716,10 +715,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesEnabled() throws IOException {
-        assumeTrue(
-            "match_only_text field doc_values feature must be enabled",
-            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-        );
+        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertTrue("doc_values should be enabled", fieldType.hasDocValues());
@@ -727,10 +723,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue(
-            "match_only_text field doc_values feature must be enabled",
-            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-        );
+        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -753,10 +746,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * introduction in 9.4.0. This test pins that contract for the current index version.
      */
     public void testDocValuesUsesSeparateCountFormat() throws IOException {
-        assumeTrue(
-            "match_only_text field doc_values feature must be enabled",
-            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-        );
+        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
@@ -773,10 +763,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * doc values write path must produce SeparateCount output so the read path can decode it.
      */
     public void testDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
-        assumeTrue(
-            "match_only_text field doc_values feature must be enabled",
-            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-        );
+        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
         DocumentMapper mapper = createMapperService(
             legacyVersion,
@@ -887,20 +874,14 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesExplicitlyDisabled() throws IOException {
-        assumeTrue(
-            "match_only_text field doc_values feature must be enabled",
-            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-        );
+        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", false)));
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertFalse("doc_values should be disabled", fieldType.hasDocValues());
     }
 
     public void testPhraseQueryWithDocValuesEnabled() throws IOException {
-        assumeTrue(
-            "match_only_text field doc_values feature must be enabled",
-            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-        );
+        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
 
         try (Directory directory = newDirectory()) {

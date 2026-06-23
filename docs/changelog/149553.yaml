@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 149553
+summary: Data node direct recovery cancellation
+type: feature

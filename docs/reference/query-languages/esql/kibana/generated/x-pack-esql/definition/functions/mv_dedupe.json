@@ -3,7 +3,7 @@
   "type" : "scalar",
   "name" : "mv_dedupe",
   "description" : "Remove duplicate values from a multivalued field.",
-  "note" : "`MV_DEDUPE` may, but won???t always, sort the values in the column.",
+  "note" : "`MV_DEDUPE` may, but won’t always, sort the values in the column.",
   "signatures" : [
     {
       "params" : [

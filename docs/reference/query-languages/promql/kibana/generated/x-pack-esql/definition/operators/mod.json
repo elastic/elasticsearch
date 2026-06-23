@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "%",
   "name" : "mod",
-  "description" : "Returns the remainder of dividing the left operand by the right operand element-wise. For vector???vector operations, the metric name is dropped.",
+  "description" : "Returns the remainder of dividing the left operand by the right operand element-wise. For vector–vector operations, the metric name is dropped.",
   "signatures" : [
     {
       "params" : [

@@ -29,9 +29,10 @@ import org.gradle.plugins.ide.idea.IdeaPlugin;
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -206,7 +207,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
     }
 
     private static void writeCommandsExamplesFile(File outputFile, FileTree mdFiles) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
+        try (BufferedWriter writer = Files.newBufferedWriter(outputFile.toPath(), StandardCharsets.UTF_8)) {
             for (File file : mdFiles) {
                 writer.write(file.getParentFile().getName() + "/" + file.getName());
                 writer.newLine();
@@ -287,6 +288,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                 if (countImages <= 100) {
                     spec.preserve(preserveSpec -> preserveSpec.include("**/*.svg"));
                 }
+                spec.setFilteringCharset("UTF-8");
                 spec.filter(replaceFont);
             });
         }
@@ -329,6 +331,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                         preserveSpec.include(sub + "/**");
                     }
                 });
+                spec.setFilteringCharset("UTF-8");
                 spec.filter(replaceLinks);
             });
         }

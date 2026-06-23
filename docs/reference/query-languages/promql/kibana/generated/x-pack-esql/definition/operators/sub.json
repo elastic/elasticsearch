@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "-",
   "name" : "sub",
-  "description" : "Subtracts the right operand from the left operand element-wise. For vector???vector operations, the metric name is dropped.",
+  "description" : "Subtracts the right operand from the left operand element-wise. For vector–vector operations, the metric name is dropped.",
   "signatures" : [
     {
       "params" : [

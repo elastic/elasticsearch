@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "+",
   "name" : "add",
-  "description" : "Adds the two operands element-wise. For vector???vector operations, the metric name is dropped.",
+  "description" : "Adds the two operands element-wise. For vector–vector operations, the metric name is dropped.",
   "signatures" : [
     {
       "params" : [

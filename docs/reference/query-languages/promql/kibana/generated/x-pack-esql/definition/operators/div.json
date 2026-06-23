@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "/",
   "name" : "div",
-  "description" : "Divides the left operand by the right operand element-wise. For vector???vector operations, the metric name is dropped.",
+  "description" : "Divides the left operand by the right operand element-wise. For vector–vector operations, the metric name is dropped.",
   "signatures" : [
     {
       "params" : [

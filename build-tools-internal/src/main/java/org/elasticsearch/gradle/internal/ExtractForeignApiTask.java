@@ -46,7 +46,7 @@ import static org.objectweb.asm.Opcodes.V21;
  * {@code MemorySegment} and related types without {@code --enable-preview}.
  *
  * <p>This task is registered automatically per-project by
- * {@link ElasticsearchJavaBasePlugin#enableForeignAccess} and must run with
+ * {@link ForeignApiPlugin} and must run with
  * JDK 21 as the Gradle JDK (the Foreign Function &amp; Memory API is preview
  * only in JDK 21). The Elasticsearch build uses JDK 21 as its Gradle JDK by
  * default, so no extra configuration is needed.

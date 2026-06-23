@@ -260,21 +260,25 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     protected void doStop() {
         closed = true;
         // Dispose of the connection provider first and wait for it to complete before we close the event loop.
-        connectionProvider.disposeLater()
-            .timeout(Duration.ofSeconds(10))    // Limit how long we wait for the connection provider to close
-            .doFinally(signalType -> {
-                if (signalType != SignalType.ON_COMPLETE) {
-                    logger.info("Got unexpected signal type disposing connection provider: {}", signalType);
-                }
-                // Now it's safe to shut down the event loop
-                try {
-                    FutureUtils.get(eventLoopGroup.shutdownGracefully(), 10, TimeUnit.SECONDS);
-                } finally {
-                    // Now everything is shut down, reset the factory to clear any cached schedulers
-                    Schedulers.resetFactory();
-                }
-            })
-            .subscribe(null, throwable -> logger.warn("Error shutting down connection provider", throwable));
+        try {
+            connectionProvider.disposeLater()
+                .timeout(Duration.ofSeconds(5))    // Limit how long we wait for the connection provider to close
+                .doFinally(signalType -> {
+                    if (signalType != SignalType.ON_COMPLETE) {
+                        logger.info("Got unexpected signal type disposing connection provider: {}", signalType);
+                    }
+                    // Now it's safe to shut down the event loop
+                    try {
+                        FutureUtils.get(eventLoopGroup.shutdownGracefully(), 5, TimeUnit.SECONDS);
+                    } finally {
+                        // Now everything is shut down, reset the factory to clear any cached schedulers
+                        Schedulers.resetFactory();
+                    }
+                })
+                .block(Duration.ofSeconds(15));
+        } catch (RuntimeException e) {
+            logger.warn("Error shutting down connection provider", e);
+        }
     }
 
     @Override

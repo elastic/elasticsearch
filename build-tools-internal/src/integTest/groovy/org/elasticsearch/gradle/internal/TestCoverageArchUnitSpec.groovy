@@ -70,6 +70,7 @@ class TestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin",
         "org.elasticsearch.gradle.internal.DependenciesInfoPlugin",
         "org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin",
+        "org.elasticsearch.gradle.internal.ElasticsearchBasePlugin",
         "org.elasticsearch.gradle.internal.EmbeddedProviderPlugin",
         "org.elasticsearch.gradle.internal.InternalAvailableTcpPortProviderPlugin",
         "org.elasticsearch.gradle.internal.InternalPluginBuildPlugin",

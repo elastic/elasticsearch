@@ -443,7 +443,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
-            if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
+            if (expectNonEnrichableFields == false && supportedInEnrich(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
             expectedColumns = expectedColumns.entry(
@@ -480,7 +480,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
-            if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
+            if (expectNonEnrichableFields == false && supportedInEnrich(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
             expectedValues = expectedValues.entry(
@@ -1040,7 +1040,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             policyConfig.field("match_field", LOOKUP_ID_FIELD);
             List<String> enrichFields = new ArrayList<>();
             for (DataType type : DataType.values()) {
-                if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false || supportedInEnrich(type) == false) {
+                if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false
+                    || supportedInEnrich(type, minimumVersionAcrossAllNodes) == false) {
                     continue;
                 }
                 enrichFields.add(fieldName(type));
@@ -1239,13 +1240,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     /**
      * Is the type supported in enrich policies?
      */
-    private static boolean supportedInEnrich(DataType t) {
+    private static boolean supportedInEnrich(DataType t, TransportVersion minimumVersion) {
         return switch (t) {
             // Enrich policies don't work with types that have mandatory fields in the mapping.
             // https://github.com/elastic/elasticsearch/issues/127350
             case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
                 // https://github.com/elastic/elasticsearch/issues/139255
                 EXPONENTIAL_HISTOGRAM, TDIGEST -> false;
+            // EnrichResultBuilderForLongRange was added with tech preview; old nodes throw on execution.
+            case DATE_RANGE -> DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false);
             default -> true;
         };
     }

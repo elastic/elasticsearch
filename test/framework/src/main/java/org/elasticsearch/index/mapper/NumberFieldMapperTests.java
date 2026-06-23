@@ -13,16 +13,19 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -588,5 +591,49 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage(),
             containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
+    }
+
+    public void testColumnarModeSkippers() throws IOException {
+        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        {
+            // In columnar mode, non-indexed numeric fields use skippers
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+            MapperService mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
+        }
+
+        {
+            // The index.mapping.use_doc_values_skipper has no effect here
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
+                .build();
+
+            MapperService mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
+        }
+
+        {
+            // Skippers are only used for indexes created after the relevant version
+            IndexVersion preColumnarSkippers = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_NUMERICS_USE_SKIPPERS);
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
+                .build();
+
+            MapperService mapperService = createMapperService(preColumnarSkippers, settings, fieldMapping(this::minimalMapping));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
+        }
+
+        {
+            // If index=true then we use points and not skippers
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+            MapperService mapperService = createMapperService(IndexVersions.COLUMNAR_NUMERICS_USE_SKIPPERS, settings, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("index", true);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.points(true, true)));
+        }
     }
 }

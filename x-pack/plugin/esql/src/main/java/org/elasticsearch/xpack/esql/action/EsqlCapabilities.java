@@ -3187,6 +3187,14 @@ public class EsqlCapabilities {
          */
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
 
+        /**
+         * Fix for PromQL {@code without} and ES|QL {@code TS_WITHOUT}: passthrough alias names (e.g. OTel
+         * {@code cpu} for the concrete dimension {@code attributes.cpu}) are now correctly resolved in the
+         * {@code _timeseries} block loader so excluded labels are actually removed from the series key.
+         * https://github.com/elastic/elasticsearch/issues/151540
+         */
+        FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

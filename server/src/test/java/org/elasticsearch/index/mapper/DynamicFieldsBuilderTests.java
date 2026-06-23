@@ -103,7 +103,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
     }
 
     public void testCreateDynamicStringFieldWithoutAutoTextSubfield() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false).build();
         String source = "{\"f1\": \"foobar\"}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);

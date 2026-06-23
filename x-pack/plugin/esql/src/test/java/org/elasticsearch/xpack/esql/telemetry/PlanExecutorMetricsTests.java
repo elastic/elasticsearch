@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -109,6 +110,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             null,
             new InferenceService(mock(Client.class), clusterService),
             UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
             CrossProjectModeDecider.NOOP

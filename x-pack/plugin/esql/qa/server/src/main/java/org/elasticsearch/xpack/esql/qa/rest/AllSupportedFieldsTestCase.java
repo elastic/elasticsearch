@@ -1125,6 +1125,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             case DATE_RANGE -> {
                 if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
+                    if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                        // Old snapshot nodes (before tech preview) returned inclusive upper bounds
+                        // without the +1 conversion added in DateRangeDocValuesLoader.
+                        yield anyOf(
+                            equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
+                            equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z")
+                        );
+                    }
                     yield equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z");
                 }
                 yield nullValue();

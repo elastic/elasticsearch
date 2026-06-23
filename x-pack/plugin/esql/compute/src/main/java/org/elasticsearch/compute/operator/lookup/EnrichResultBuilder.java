@@ -58,6 +58,7 @@ abstract class EnrichResultBuilder implements Releasable {
             case FLOAT -> new EnrichResultBuilderForFloat(blockFactory, channel);
             case BOOLEAN -> new EnrichResultBuilderForBoolean(blockFactory, channel);
             case BYTES_REF -> new EnrichResultBuilderForBytesRef(blockFactory, channel);
+            case LONG_RANGE -> new EnrichResultBuilderForLongRange(blockFactory, channel);
             default -> throw new IllegalArgumentException("no enrich result builder for [" + elementType + "]");
         };
     }

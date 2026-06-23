@@ -845,6 +845,15 @@ public class CsvTestsDataLoader {
 
         request = new Request("POST", "/_enrich/policy/" + policy.policyName + "/_execute");
         client.performRequest(request);
+
+        // _execute is synchronous but only guarantees the enrich index is created, not that its searchable copy
+        // is active on search nodes. In a stateless cluster the backing index follows the same stateless race as
+        // lookup indices: health green before the search-node copy is active. Subsequent ENRICH queries fail with
+        // NoShardAvailableActionException. Poll until a search succeeds on the backing index.
+        awaitSearchable(
+            client,
+            new Request("GET", "/.enrich-" + policy.policyName() + "-*/_search?size=0&allow_partial_search_results=false")
+        );
     }
 
     private static void loadView(RestClient client, ViewConfig view) throws IOException {

@@ -9,62 +9,40 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.license.License;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.junit.After;
-import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 
-public class SemanticFieldMapperTests extends MapperTestCase {
+public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
     private static String INFERENCE_ID = "inference-id";
-    private final License.OperationMode operationMode;
-    private ModelRegistry globalModelRegistry;
-    private TestThreadPool threadPool;
 
     public SemanticFieldMapperTests(License.OperationMode operationMode) {
-        this.operationMode = operationMode;
+        super(operationMode);
     }
 
     @BeforeClass
@@ -72,24 +50,9 @@ public class SemanticFieldMapperTests extends MapperTestCase {
         assumeTrue("Semantic field feature flag is not enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
     }
 
-    @Before
-    private void initializeTestEnvironment() {
-        threadPool = createThreadPool();
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        var modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool));
-        globalModelRegistry = spy(modelRegistry);
-        globalModelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
-            @Override
-            public boolean localNodeMaster() {
-                return false;
-            }
-        });
+    @Override
+    protected void registerDefaultEndpoints() {
         registerMultiModalEisEndpoint();
-    }
-
-    @After
-    private void stopThreadPool() {
-        threadPool.close();
     }
 
     @ParametersFactory
@@ -114,20 +77,6 @@ public class SemanticFieldMapperTests extends MapperTestCase {
                 mock(InferenceService.class)
             )
         );
-    }
-
-    @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new InferencePlugin(Settings.EMPTY) {
-            @Override
-            protected Supplier<ModelRegistry> getModelRegistry() {
-                return () -> globalModelRegistry;
-            }
-        }, new XPackClientPlugin(), switch (operationMode) {
-            case ENTERPRISE -> SemanticTextFieldMapperTests.VariableLicenseDiskBBQPlugin.ENTERPRISE;
-            case BASIC -> SemanticTextFieldMapperTests.VariableLicenseDiskBBQPlugin.BASIC;
-            default -> throw new AssertionError("unknown operation mode: " + operationMode);
-        });
     }
 
     public void testSemanticFieldNotSupportedOnOldIndices() throws IOException {
@@ -226,71 +175,15 @@ public class SemanticFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleValueForDocument() {
-        return null;
-    }
-
-    @Override
     protected Object getSampleObjectForDocument() {
         return
             Map.of("type", "image", "value", "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==");
     }
 
     @Override
-    protected boolean supportsIgnoreMalformed() {
-        return false;
-    }
-
-    @Override
-    protected boolean supportsStoredFields() {
-        return false;
-    }
-
-    @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerIgnoredParameter("inference_id");
-        checker.registerIgnoredParameter("search_inference_id");
-        checker.registerIgnoredParameter("model_settings");
-        checker.registerIgnoredParameter("index_options");
-        checker.registerIgnoredParameter("chunking_settings");
-    }
-
-    @Override
-    protected Object generateRandomInputValue(MappedFieldType ft) {
-        assumeFalse("doc_values are not supported in semantic", true);
-        return null;
-    }
-
-    @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected List<SortShortcutSupport> getSortShortcutSupport() {
-        return List.of();
-    }
-
-    @Override
-    protected boolean supportsDocValuesSkippers() {
-        return false;
-    }
-
-    @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(SemanticFieldMapper.SemanticFieldType.class));
         assertTrue(fieldType.isSearchable());
-    }
-
-    @Override
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        // Until a doc is indexed, the query is rewritten as match no docs
-        assertThat(query, instanceOf(MatchNoDocsQuery.class));
     }
 
     @Override

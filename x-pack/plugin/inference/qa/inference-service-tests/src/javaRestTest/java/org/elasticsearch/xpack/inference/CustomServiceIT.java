@@ -62,6 +62,8 @@ public class CustomServiceIT extends InferenceBaseRestTest {
         }
         """;
 
+    private static final String INFERENCE_INPUT = "hello";
+
     private static MockWebServer webServer;
 
     @BeforeClass
@@ -98,7 +100,7 @@ public class CustomServiceIT extends InferenceBaseRestTest {
         var apiKey = "test-key";
 
         putModel(ENDPOINT_ID, customModelConfig(url, apiKey), TaskType.TEXT_EMBEDDING);
-        var result = infer(ENDPOINT_ID, TaskType.TEXT_EMBEDDING, List.of("hello"));
+        var result = infer(ENDPOINT_ID, TaskType.TEXT_EMBEDDING, List.of(INFERENCE_INPUT));
 
         assertNonEmptyInferenceResults(result, 1, TaskType.TEXT_EMBEDDING);
 
@@ -113,7 +115,7 @@ public class CustomServiceIT extends InferenceBaseRestTest {
             .forEach(req -> assertThat(req.getHeader(HttpHeaders.AUTHORIZATION), equalTo(Strings.format("Bearer %s", apiKey))));
 
         // The request body must contain the substituted input.
-        assertThat(webServer.requests().get(1).getBody(), containsString("hello"));
+        assertThat(webServer.requests().get(1).getBody(), containsString(INFERENCE_INPUT));
 
         deleteModel(ENDPOINT_ID, TaskType.TEXT_EMBEDDING);
     }

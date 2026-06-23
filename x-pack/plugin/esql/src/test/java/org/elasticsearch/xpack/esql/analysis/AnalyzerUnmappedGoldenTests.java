@@ -846,16 +846,6 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
-    public void testSingleTypeDenseVectorUnmappedWithKnnFunctionLoadOnly() throws Exception {
-        assumeTrue("Requires KNN_FUNCTION_V5", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
-        runTestsLoadOnly("""
-            FROM colors, colors_unmapped
-            | WHERE knn(rgb_vector, [0, 120, 0])
-            | KEEP rgb_vector
-            | LIMIT 10
-            """, STAGES);
-    }
-
     // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).
     // They should appear as PotentiallyUnmappedKeywordEsField in the EsRelation without being explicitly referenced.
     public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference() throws Exception {

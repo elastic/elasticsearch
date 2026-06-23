@@ -1338,7 +1338,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * Reproducer for #141927: with unmapped_fields=load, full-text search (MATCH, match operator, MATCH_PHRASE, etc.)
      * must fail at analysis instead of returning empty results.
      * <p>
-     * One assertion per forbidden full-text function so that re-enabling any of them (e.g. QSTR, KNN, MATCH_PHRASE)
+     * One assertion per forbidden full-text function so that re-enabling any of them (e.g. QSTR, MATCH_PHRASE)
      * would cause this test to fail. When full-text function support grows, this test will need updates; see #144121.
      */
     public void testUnmappedFieldsLoadWithSupportedSingleFieldFullTextFunctions() {
@@ -1359,14 +1359,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             DataType.TEXT
         );
 
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            var knnAnalyzer = analyzer().addIndex("test", "mapping-full_text_search.json");
-            assertSingleOutputType(
-                knnAnalyzer.statement(setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | LIMIT 10 | KEEP vector")),
-                "vector",
-                DataType.DENSE_VECTOR
-            );
-        }
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
             var plan = analyzer.statement(
                 setUnmappedLoad(

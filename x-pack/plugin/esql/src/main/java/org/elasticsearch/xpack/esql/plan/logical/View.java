@@ -7,43 +7,40 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 /**
- * First-class representation of a {@code FROM <view>} reference in the logical plan.
+ * First-class representation of a {@code FROM <view>} reference in the logical plan — the boundary today's
+ * {@code ViewResolver} substitution erases too early.
  * <p>
- * A {@code View} is the boundary that today's {@code ViewResolver} substitution erases too early. It is a <b>leaf</b>
- * (the body is held as a field, <i>not</i> a tree child) so the boundary is opaque by default — the optimizer stops at
- * the view and does not push through it until the {@code InlineView} rule deliberately expands it. This is the Calcite
- * "expand on demand" shape rather than Spark's unary-wrap-the-child, chosen because a remote or materialized view has no
- * local body to hang as a child: the body slot is a locally-resolved {@link LogicalPlan} for a local view, and becomes a
- * remote handle / is absent for remote and materialized views (added in later phases).
+ * For a <b>local</b> view this is a <b>unary</b> node wrapping the view's resolved body as its child. Keeping the body a
+ * real child (rather than a leaf-with-held-body) is what preserves parity: {@code PreAnalyzer} collects field-caps
+ * patterns by walking the tree's naked relation leaves ({@code forEachUp(UnresolvedRelation.class, ...)}), and the
+ * analyzer's {@code ResolveTable} resolves them — both descend into a child but not into a leaf's hidden field. So the
+ * existing resolution chain sees through the {@code View} unchanged, and {@code output()} delegates to the body's output
+ * (its schema). This is Spark Catalyst's {@code View} + {@code EliminateView} shape. A <b>remote</b> or
+ * <b>materialized</b> view — which has no local child to wrap — is a later variant (a handle in place of the child).
  * <p>
- * The node carries the view's <b>output schema</b> ({@link #output()}) as the contract callers plan against. Per
- * ES|QL's dynamic-schema model the schema is resolved for <i>this</i> query, not frozen at view-creation time.
+ * The view is opaque to the optimizer only after analysis: {@code InlineView} folds it into its body (the peer-through
+ * strategy) before the pushdown rules run, reproducing today's behaviour; the keep-opaque alternative is the
+ * boundary-aware phase.
  * <p>
- * <b>Transient:</b> in the parity phase every {@code View} is inlined by {@code InlineView} before physical mapping, so it
- * never crosses the wire — {@link #writeTo} therefore throws. Wire-serialization (with a {@code TransportVersion} gate)
- * lands with the remote-view phase, alongside the contract + rights-mode fields.
+ * <b>Transient:</b> every {@code View} is inlined before physical mapping, so it never crosses the wire —
+ * {@link #writeTo} throws and the node is not registered in {@code PlanWritables}. Wire-serialization (with a
+ * {@code TransportVersion} gate), the contract/rights-mode fields, and the remote handle land in later phases.
  */
-public class View extends LeafPlan {
+public class View extends UnaryPlan {
 
     private final String name;
-    private final LogicalPlan body;
-    private final List<Attribute> output;
 
-    public View(Source source, String name, LogicalPlan body, List<Attribute> output) {
-        super(source);
+    public View(Source source, String name, LogicalPlan body) {
+        super(source, body);
         this.name = name;
-        this.body = body;
-        this.output = output;
     }
 
     /** The view name as written in the query (its identity). */
@@ -53,24 +50,24 @@ public class View extends LeafPlan {
 
     /** The resolved plan of the view's stored query — the implementation the {@code InlineView} rule folds in. */
     public LogicalPlan body() {
-        return body;
+        return child();
     }
 
     @Override
-    public List<Attribute> output() {
-        return output;
+    public UnaryPlan replaceChild(LogicalPlan newChild) {
+        return new View(source(), name, newChild);
     }
 
     @Override
     public boolean expressionsResolved() {
-        // A View is produced already resolved (body attached, schema pinned). The body's own resolution is independent
-        // and verified where it is analyzed; the leaf itself has no expressions of its own to resolve.
+        // A View wraps an already-resolved body and has no expressions of its own; resolution of the body is governed
+        // by childrenResolved().
         return true;
     }
 
     @Override
     protected NodeInfo<View> info() {
-        return NodeInfo.create(this, View::new, name, body, output);
+        return NodeInfo.create(this, View::new, name, child());
     }
 
     @Override
@@ -80,8 +77,7 @@ public class View extends LeafPlan {
 
     @Override
     public String getWriteableName() {
-        // Not registered in PlanWritables while transient; a stable name for diagnostics until the remote-view phase
-        // adds real serialization.
+        // Not registered in PlanWritables while transient; a stable name for diagnostics until the remote-view phase.
         return "View";
     }
 
@@ -92,7 +88,7 @@ public class View extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, body, output);
+        return Objects.hash(name, child());
     }
 
     @Override
@@ -104,6 +100,6 @@ public class View extends LeafPlan {
             return false;
         }
         View other = (View) obj;
-        return Objects.equals(name, other.name) && Objects.equals(body, other.body) && Objects.equals(output, other.output);
+        return Objects.equals(name, other.name) && Objects.equals(child(), other.child());
     }
 }

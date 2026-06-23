@@ -25,7 +25,7 @@ public class InlineViewTests extends ESTestCase {
 
     public void testFoldsViewToItsBody() {
         EsRelation body = relation();
-        View view = new View(Source.EMPTY, "my_view", body, body.output());
+        View view = new View(Source.EMPTY, "my_view", body);
 
         LogicalPlan folded = new InlineView().apply(view);
 

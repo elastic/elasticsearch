@@ -87,10 +87,19 @@ public record LibraryModel(
         String simpleName = element.getSimpleName().toString();
         String packageName = env.getElementUtils().getPackageOf(element).getQualifiedName().toString();
 
-        List<String> unavailableOn = extractUnavailableOn(element, messager);
+        AnnotationMirror specMirror = findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
+        List<String> unavailableOn = extractUnavailableOn(specMirror);
 
         List<MethodModel> methods = new ArrayList<>();
-        boolean hasError = false;
+        boolean hasError = unavailableOn.containsAll(ALL_PLATFORM_NAMES);
+        if (hasError) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@LibrarySpecification.unavailableOn lists all known platforms; the library will never be natively loaded",
+                element,
+                specMirror
+            );
+        }
         for (var enclosed : element.getEnclosedElements()) {
             if (enclosed.getKind() != ElementKind.METHOD) {
                 continue;
@@ -108,20 +117,15 @@ public record LibraryModel(
             }
         }
 
-        return (hasError || unavailableOn == null)
-            ? null
-            : new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods, unavailableOn);
+        return hasError ? null : new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods, unavailableOn);
     }
 
     /**
      * Extracts the {@code unavailableOn} attribute from the {@code @LibrarySpecification} annotation mirror
      * as a list of enum constant names. Uses annotation mirror APIs to avoid loading the {@code Platform}
-     * class at processing time.
-     *
-     * <p>Emits a {@link Kind#ERROR} if every known platform is listed (the library would never load natively).
+     * class at processing time. Pure extraction — validation is the caller's responsibility.
      */
-    private static List<String> extractUnavailableOn(TypeElement element, Messager messager) {
-        AnnotationMirror specMirror = findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
+    private static List<String> extractUnavailableOn(AnnotationMirror specMirror) {
         if (specMirror == null) {
             return List.of();
         }
@@ -140,15 +144,6 @@ public record LibraryModel(
                 if (item instanceof AnnotationValue av && av.getValue() instanceof VariableElement ve) {
                     platformNames.add(ve.getSimpleName().toString());
                 }
-            }
-            if (platformNames.containsAll(ALL_PLATFORM_NAMES)) {
-                messager.printMessage(
-                    Kind.ERROR,
-                    "@LibrarySpecification.unavailableOn lists all known platforms; the library will never be natively loaded",
-                    element,
-                    specMirror
-                );
-                return null;
             }
             return List.copyOf(platformNames);
         }

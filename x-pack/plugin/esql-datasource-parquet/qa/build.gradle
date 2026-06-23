@@ -87,7 +87,7 @@ tasks.register('generateParquetFixtures') {
   dependsOn generateParquetTasks
 }
 
-sourceSets.javaRestTest.resources.srcDir file("${buildDir}/parquet-fixtures")
+sourceSets.javaRestTest.resources.srcDir layout.buildDirectory.get().dir("parquet-fixtures")
 tasks.named('processJavaRestTestResources').configure {
   dependsOn generateParquetFixtures
 }
@@ -118,14 +118,5 @@ tasks.named('javaRestTest') {
     events = ["passed", "skipped", "failed"]
     exceptionFormat = "full"
     showStandardStreams = false
-  }
-}
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
-  }
-  restTests {
-    includeXpack 'esql'
   }
 }

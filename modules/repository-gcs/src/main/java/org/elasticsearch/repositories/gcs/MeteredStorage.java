@@ -114,13 +114,13 @@ public class MeteredStorage {
     public MeteredWriteChannel meteredWriter(
         OperationPurpose purpose,
         BlobInfo blobInfo,
-        OptionalInt resumableWriteBuffer,
+        OptionalInt resumableWriteBufferSize,
         Storage.BlobWriteOption... writeOptions
     ) throws IOException {
         var initStats = new OperationStats(purpose, INSERT);
         return statsCollector.continueWithIOSupplier(initStats, () -> {
             var channel = new MeteredWriteChannel(statsCollector, initStats, storage.writer(blobInfo, writeOptions));
-            resumableWriteBuffer.ifPresent(channel::setChunkSize);
+            resumableWriteBufferSize.ifPresent(channel::setChunkSize);
             return channel;
         });
     }

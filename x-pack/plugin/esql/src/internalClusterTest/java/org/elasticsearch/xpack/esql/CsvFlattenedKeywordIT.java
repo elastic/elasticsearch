@@ -19,7 +19,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ListMatcher;
-import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -55,6 +54,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
@@ -258,46 +259,11 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             throw new IllegalStateException("Could not find docs/reference/query-languages/esql/kibana/generated at " + kibanaDir);
         }
 
-        KeywordToFlattenedStrategy strategy;
-        if (indexLoadStrategy instanceof KeywordToFlattenedStrategy) {
-            strategy = (KeywordToFlattenedStrategy) indexLoadStrategy;
-        } else {
-            strategy = new KeywordToFlattenedStrategy();
-        }
+        KeywordToFlattenedStrategy strategy = (KeywordToFlattenedStrategy) indexLoadStrategy;
 
         Set<String> coveredArguments = new HashSet<>();
         for (CsvSpecReader.CsvTestCase testCase : KeywordToFlattenedStrategy.loadAllCsvSpecTestCases()) {
-            boolean skip = false;
-            for (String cap : testCase.requiredCapabilities) {
-                if (cap.equals("ts_info_command") || cap.equals("metrics_info_command")) {
-                    skip = true;
-                    break;
-                }
-            }
-            if (skip) continue;
-
-            String skipReason = testCase.skipFlattenedRewrite;
-            if (skipReason != null && skipReason.isBlank() == false) {
-                continue;
-            }
-
-            String originalQuery = testCase.query;
-            if (originalQuery == null || originalQuery.isBlank()) {
-                continue;
-            }
-
-            List<String> expectedColumnOrder = KeywordToFlattenedStrategy.parseExpectedColumnOrder(testCase.expectedResults);
-            try {
-                AstKeywordFieldRewriter.RewriteResult result = AstKeywordFieldRewriter.rewrite(
-                    originalQuery,
-                    strategy::resolveKeywordPathsForQuery,
-                    KeywordToFlattenedTransformer.WRAPPER_SUBKEY,
-                    expectedColumnOrder
-                );
-                coveredArguments.addAll(result.coveredArguments());
-            } catch (Exception e) {
-                // Ignore parse errors from tests with invalid queries
-            }
+            coveredArguments.addAll(getCoveredArguments(strategy, testCase));
         }
 
         Set<String> candidates = new HashSet<>();
@@ -373,16 +339,52 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             mappedCovered.add(indexToName.getOrDefault(c, c));
         }
 
-        List<String> missing = new ArrayList<>(mappedCandidates);
-        missing.removeAll(mappedCovered);
-        missing.sort(Comparator.naturalOrder());
+        List<String> errors = new ArrayList<>();
+        for (String candidate : mappedCandidates) {
+            if (mappedCovered.contains(candidate) == false) {
+                errors.add(candidate + " is missing");
+            }
+        }
+        for (String covered : mappedCovered) {
+            if (mappedCandidates.contains(covered) == false) {
+                errors.add(covered + " is unexpected");
+            }
+        }
+        errors.sort(Comparator.naturalOrder());
 
-        ListMatcher expectedMatcher = ListMatcher.matchesList();
+        ListMatcher expectedMatcher = matchesList();
         for (String m : EXPECTED_MISSING) {
-            expectedMatcher = expectedMatcher.item(m);
+            expectedMatcher = expectedMatcher.item(m + " is missing");
         }
 
-        MapMatcher.assertMap("Missing field_extract coverage for parameters\n", missing, expectedMatcher);
+        assertMap("Missing field_extract coverage for parameters\n", errors, expectedMatcher);
+    }
+
+    private static Set<String> getCoveredArguments(KeywordToFlattenedStrategy strategy, CsvSpecReader.CsvTestCase testCase) {
+        for (String cap : testCase.requiredCapabilities) {
+            if (cap.equals("ts_info_command") || cap.equals("metrics_info_command")) {
+                return Set.of();
+            }
+        }
+
+        String skipReason = testCase.skipFlattenedRewrite;
+        if (skipReason != null && skipReason.isBlank() == false) {
+            return Set.of();
+        }
+
+        String originalQuery = testCase.query;
+        if (originalQuery == null || originalQuery.isBlank()) {
+            return Set.of();
+        }
+
+        List<String> expectedColumnOrder = KeywordToFlattenedStrategy.parseExpectedColumnOrder(testCase.expectedResults);
+        AstKeywordFieldRewriter.RewriteResult result = AstKeywordFieldRewriter.rewrite(
+            originalQuery,
+            strategy::resolveKeywordPathsForQuery,
+            KeywordToFlattenedTransformer.WRAPPER_SUBKEY,
+            expectedColumnOrder
+        );
+        return result.coveredArguments();
     }
 
     @AfterClass
@@ -1463,7 +1465,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "GREATEST:rest",
         "HASH:algorithm",
         "IN:field",
-        "IN:inlist",
         "JSON_EXTRACT:string",
         "KNN:field",
         "KQL:query",
@@ -1526,10 +1527,8 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "TO_DOUBLE:field",
         "TO_GEOHASH:field",
         "TO_GEOHEX:field",
-        "TO_GEOPOINT:field",
         "TO_GEOSHAPE:field",
         "TO_GEOTILE:field",
-        "TO_IP:field",
         "TO_TIMEDURATION:field",
         "TO_UNSIGNED_LONG:field",
         "TO_VERSION:field",

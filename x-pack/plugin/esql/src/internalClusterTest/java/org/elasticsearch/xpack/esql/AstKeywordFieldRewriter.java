@@ -178,6 +178,39 @@ public final class AstKeywordFieldRewriter {
 
     private AstKeywordFieldRewriter() {}
 
+    private static final Map<String, String> CLASS_NAME_TO_OPERATOR_NAME = new java.util.HashMap<>();
+    static {
+        for (DocsV3Support.OperatorConfig config : DocsV3Support.OPERATORS.values()) {
+            CLASS_NAME_TO_OPERATOR_NAME.put(config.clazz().getName(), config.name().toUpperCase(Locale.ROOT));
+        }
+    }
+
+    private static String getExpressionName(Expression expression) {
+        if (expression instanceof org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction unf) {
+            String name = unf.name().toUpperCase(Locale.ROOT);
+            if (name.equals("TO_INT")) return "TO_INTEGER";
+            return name;
+        }
+
+        String opName = CLASS_NAME_TO_OPERATOR_NAME.get(expression.getClass().getName());
+        if (opName != null) {
+            return opName;
+        }
+
+        if (expression instanceof Function function) {
+            String name = function.functionName().toUpperCase(Locale.ROOT);
+            if (name.equals("TOINTEGER")) return "TO_INTEGER";
+            if (name.equals("TOGEOPOINT")) return "TO_GEOPOINT";
+            if (name.equals("TOSTRING")) return "TO_STRING";
+            if (name.equals("TOIPLEADINGZEROSREJECTED")) return "TO_IP";
+            if (name.equals("WILDCARDLIKELIST")) return "LIKE";
+            if (name.equals("RLIKELIST")) return "RLIKE";
+            return name;
+        }
+
+        return null;
+    }
+
     /**
      * Rewrites {@code query} by parsing it, walking its pipeline commands, and wrapping every
      * reference to a field in scope as {@code field_extract(field, "wrapperSubKey")}. The supplied
@@ -818,28 +851,21 @@ public final class AstKeywordFieldRewriter {
                 return;
             }
 
-            boolean isFunction = expression instanceof Function;
-            String expressionName = null;
-            if (isFunction) {
-                if (expression instanceof org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction unf) {
-                    expressionName = unf.name().toUpperCase(Locale.ROOT);
-                } else {
-                    expressionName = ((Function) expression).functionName().toUpperCase(Locale.ROOT);
-                }
-            } else {
-                expressionName = expression.getClass().getSimpleName().toUpperCase(Locale.ROOT);
-            }
-
-            for (DocsV3Support.OperatorConfig config : DocsV3Support.OPERATORS.values()) {
-                if (config.clazz().getName().equals(expression.getClass().getName())) {
-                    expressionName = config.name().toUpperCase(Locale.ROOT);
-                    break;
-                }
+            String expressionName = getExpressionName(expression);
+            if ("FIELD_EXTRACT".equals(expressionName)) {
+                expressionName = null;
             }
 
             int i = 0;
             for (Expression child : expression.children()) {
-                String nextTrackingContext = expressionName + ":" + i;
+                // Heuristic to map variadic args to the last named param, or just skip if we don't care
+                // but IN and CONCAT can just cap at 1.
+                int argIndex = i;
+                if (expressionName != null) {
+                    if (expressionName.equals("CONCAT") && argIndex > 1) argIndex = 1;
+                    if (expressionName.equals("IN") && argIndex > 1) argIndex = 1;
+                }
+                String nextTrackingContext = expressionName != null ? expressionName + ":" + argIndex : trackingContext;
                 wrapExpression(child, scope, nextTrackingContext);
                 i++;
             }

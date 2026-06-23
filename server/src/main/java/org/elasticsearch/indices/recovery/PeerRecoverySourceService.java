@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -132,13 +133,18 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         if (DiscoveryNode.canContainData(clusterService.getSettings())) {
             clusterService.addListener(this);
         }
+        this.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void beforeStop() {
+                ongoingRecoveries.cancelAllPendingRecoveries();
+            }
+        });
     }
 
     @Override
     protected void doStop() {
         final ClusterService clusterService = indicesService.clusterService();
         if (DiscoveryNode.canContainData(clusterService.getSettings())) {
-            ongoingRecoveries.cancelAllPendingRecoveries();
             ongoingRecoveries.awaitEmpty();
             indicesService.clusterService().removeListener(this);
         }

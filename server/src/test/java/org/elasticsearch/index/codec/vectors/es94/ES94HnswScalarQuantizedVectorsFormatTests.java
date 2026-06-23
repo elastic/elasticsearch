@@ -17,7 +17,6 @@ import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -36,27 +35,26 @@ import static org.hamcrest.Matchers.is;
 
 public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnswVectorsFormatTestCase {
 
-    private static int bits;
-
-    @BeforeClass
-    public static void initBits() {
-        bits = randomFrom(1, 2, 4, 7);
-    }
-
     @Override
     protected KnnVectorsFormat createFormat() {
         return new ES94HnswScalarQuantizedVectorsFormat(
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            bits,
+            randomFrom(1, 2, 4, 7),
             false
         );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES94HnswScalarQuantizedVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT, bits, false);
+        return new ES94HnswScalarQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            randomFrom(1, 2, 4, 7),
+            false
+        );
     }
 
     @Override
@@ -65,7 +63,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            bits,
+            randomFrom(1, 2, 4, 7),
             false,
             numMergeWorkers,
             service
@@ -129,7 +127,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            bits,
+            randomFrom(1, 2, 4, 7),
             false,
             numMergeWorkers,
             service,

@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -21,11 +24,13 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
@@ -39,7 +44,7 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
     private static final int TEST_RATE_LIMIT = 20;
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+    public void testUpdateServiceSettings_RateLimit_IsUpdated() {
         var originalServiceSettings = new AmazonBedrockChatCompletionServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
@@ -47,7 +52,7 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
-            createChatCompletionRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), TEST_RATE_LIMIT)
+            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)))
         );
 
         assertThat(
@@ -63,16 +68,37 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+    public void testUpdateServiceSettings_EmptyRateLimitObject_DoesNotChangeSettings() {
         var originalServiceSettings = new AmazonBedrockChatCompletionServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_PROVIDER,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()))
+        );
 
         assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
+    public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
+        var serviceSettings = new AmazonBedrockChatCompletionServiceSettings(
+            INITIAL_TEST_REGION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROVIDER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        for (String immutableField : List.of(REGION_FIELD, MODEL_FIELD, PROVIDER_FIELD)) {
+            var e = expectThrows(
+                XContentParseException.class,
+                () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
+            );
+            assertThat(
+                e.getMessage(),
+                endsWith(Strings.format("[%s] unknown field [%s]", ModelConfigurations.SERVICE_SETTINGS, immutableField))
+            );
+        }
     }
 
     private static HashMap<String, Object> createChatCompletionRequestSettingsMap(

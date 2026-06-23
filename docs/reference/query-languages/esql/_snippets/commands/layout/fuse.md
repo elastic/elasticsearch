@@ -36,6 +36,12 @@ However, as a best practice and to avoid issues when upgrading to newer versions
 
 ::::
 
+:::{note}
+Previously, `FUSE` collected all values for each passthrough column across fork branches. `FUSE` now picks the first non-null value, or null in the absence of a value.
+Since all `FORK` branches read the same underlying document, any non-null value for a passthrough column is that document's actual field value. Note that natively multi-valued fields (for example, `tags: ["a", "b"]`) are preserved intact, while the runtime-generated cross-branch union is dropped.
+Columns of type `aggregate_metric_double`, `histogram`, and `date_range` are not yet supported and must be dropped using [`DROP`](/reference/query-languages/esql/commands/drop.md) before `FUSE`.
+:::
+
 ## Syntax
 
 Use default parameters:
@@ -89,7 +95,8 @@ When `fuse_method` is `LINEAR`, `options` supports the following parameters:
 :   Defaults to `_fork`. Designates which column represents the result set.
 
 `key_columns`
-:   Defaults to `_id, _index`. Rows with matching `key_columns` values are merged.
+:   Defaults to `_id, _index`. Rows with matching `key_columns` values are merged. Each remaining column value
+    of the merged row is the first non-null value across the fork branches, or null in the absence of a value.
 
 ## Examples
 
@@ -156,4 +163,3 @@ These limitations can be present either when:
   1. `FUSE` assumes that `key_columns` are single valued. When `key_columns` are multivalued, `FUSE` can produce unreliable relevance scores.
   1. `FUSE` automatically assigns a score value of `NULL` if the `<score_column>` or `<group_column>` are multivalued.
   1. `FUSE` assumes that the combination of `key_columns` and `group_column` is unique. If not, `FUSE` can produce unreliable relevance scores.
-

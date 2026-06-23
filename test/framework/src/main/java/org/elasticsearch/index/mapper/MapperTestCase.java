@@ -2220,7 +2220,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testMultiValueFalseAcceptsSingleValue() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
@@ -2231,7 +2231,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testMultiValueFalseRejectsArray() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
@@ -2248,7 +2248,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testMultiValueFalseDocValuesType() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
@@ -2283,7 +2283,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * only verify the structural invariant: docs 0 and 2 are non-null, doc 1 is null.
      */
     public void testMultiValueFalseBlockLoader() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
 
         // getSampleValueForDocument() is deterministic for most types, so a single call is enough.

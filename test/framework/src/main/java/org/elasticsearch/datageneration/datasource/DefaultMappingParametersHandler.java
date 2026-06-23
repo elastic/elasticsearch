@@ -9,11 +9,11 @@
 
 package org.elasticsearch.datageneration.datasource;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -312,8 +312,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     }
 
     protected Object extendedDocValuesParams() {
-        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-        if (Build.current().isSnapshot() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             return ESTestCase.randomBoolean();
         }
 

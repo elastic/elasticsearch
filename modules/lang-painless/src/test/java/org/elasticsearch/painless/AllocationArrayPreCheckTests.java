@@ -144,6 +144,31 @@ public class AllocationArrayPreCheckTests extends ESTestCase {
         );
     }
 
+    public void testMultiDimExtentOverflowTripsLimit() {
+        // 3000000^3 overflows long; without saturation the product wraps to a small/negative charge that slips past the
+        // limit, letting MULTIANEWARRAY proceed and OOM the node. The saturating fold charges Long.MAX_VALUE and trips first.
+        assertTripsLimit("int n = 3000000; int[][][] a = new int[n][n][n]; return \"x\";");
+    }
+
+    public void testMulSatExactBelowOverflow() {
+        // No overflow: returns the true product.
+        assertEquals(6L, AllocSizes.mulSat(2L, 3L));
+        assertEquals(9_000_000_000_000L, AllocSizes.mulSat(3_000_000L, 3_000_000L));
+    }
+
+    public void testMulSatSaturatesHighOnOverflow() {
+        // 3000000^3 overflows; the fold (mulSat applied left to right) saturates to Long.MAX_VALUE.
+        assertEquals(Long.MAX_VALUE, AllocSizes.mulSat(AllocSizes.mulSat(3_000_000L, 3_000_000L), 3_000_000L));
+        assertEquals(Long.MAX_VALUE, AllocSizes.mulSat(Long.MAX_VALUE, 2L));
+    }
+
+    public void testArrayBytesSaturatesOnOverflow() {
+        // A huge element count saturates the whole pad8(ARRAY_HEADER + fieldSize * length) computation rather than wrapping.
+        assertEquals(Long.MAX_VALUE, AllocSizes.arrayBytes(Long.MAX_VALUE, 4));
+        // Small inputs match the exact formula.
+        assertEquals(56L, AllocSizes.arrayBytes(10L, 4)); // pad8(16 + 4*10)
+    }
+
     private static Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.baseWhiteList());

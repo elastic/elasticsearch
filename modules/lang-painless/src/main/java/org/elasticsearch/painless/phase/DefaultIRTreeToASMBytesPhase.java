@@ -535,14 +535,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         }
     }
 
-    /** Replaces the {@code long} on top of the stack with {@code pad8(x)} = {@code (x + 7) & ~7} (8-byte alignment). */
-    private static void writePad8(MethodWriter methodWriter) {
-        methodWriter.push(7L);
-        methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
-        methodWriter.push(~7L);
-        methodWriter.math(MethodWriter.AND, Type.LONG_TYPE);
-    }
-
     @Override
     public void visitField(FieldNode irFieldNode, WriteScope writeScope) {
         int access = ClassWriter.buildAccess(irFieldNode.getDecorationValue(IRDModifiers.class), true);
@@ -1480,8 +1472,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 methodWriter.newArray(MethodWriter.getType(expressionType.getComponentType()));
             }
         } else {
-            // Tracking on: charge pad8(ARRAY_HEADER + fieldSize(innermostType) * product(dims)). Spill dims to locals
-            // first so they can be reloaded for the allocation instruction after the check.
+            // Tracking on: charge AllocSizes.arrayBytes(product(dims), fieldSize(innermostType)). The product is folded with
+            // a saturating multiply so an overflowing multi-dim extent yields Long.MAX_VALUE and trips the limit rather than
+            // wrapping to a small, under-counted charge. Spill dims to locals first so they can be reloaded for the
+            // allocation instruction after the check.
             int dimCount = irArgumentNodes.size();
             Class<?> innermostComponentType = expressionType;
             for (int k = 0; k < dimCount; ++k) {
@@ -1502,13 +1496,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             for (int k = 1; k < dimCount; ++k) {
                 methodWriter.visitVarInsn(Opcodes.ILOAD, dimSlots[k]);
                 methodWriter.visitInsn(Opcodes.I2L);
-                methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
+                methodWriter.invokeStatic(WriterConstants.ALLOC_SIZES_TYPE, WriterConstants.ALLOC_MUL_SAT);
             }
-            methodWriter.push((long) AllocSizes.fieldSize(innermostComponentType));
-            methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
-            methodWriter.push((long) AllocSizes.ARRAY_HEADER);
-            methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
-            writePad8(methodWriter);
+            methodWriter.push(AllocSizes.fieldSize(innermostComponentType));
+            methodWriter.invokeStatic(WriterConstants.ALLOC_SIZES_TYPE, WriterConstants.ALLOC_ARRAY_BYTES);
             methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
             for (int k = 0; k < dimCount; ++k) {
                 methodWriter.visitVarInsn(Opcodes.ILOAD, dimSlots[k]);

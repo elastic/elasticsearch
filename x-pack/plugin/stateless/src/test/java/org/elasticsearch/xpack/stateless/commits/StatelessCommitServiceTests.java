@@ -1680,15 +1680,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         Request request,
                         ActionListener<Response> listener
                     ) {
-                        assert action == TransportNewCommitNotificationAction.TYPE || action == TransportFetchShardCommitsInUseAction.TYPE
-                            : "Unexpected ActionType: " + action;
                         if (activateSearchNode.get()) {
                             fakeSearchNode.doExecute(action, request, listener);
-                        } else if (request instanceof FetchShardCommitsInUseAction.Request) {
-                            ((ActionListener<FetchShardCommitsInUseAction.Response>) listener).onResponse(
-                                new FetchShardCommitsInUseAction.Response(ClusterName.DEFAULT, List.of(), List.of())
-                            );
                         } else {
+                            assert action == TransportNewCommitNotificationAction.TYPE : "Unexpected ActionType: " + action;
                             ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(
                                 new NewCommitNotificationResponse(Set.of())
                             );

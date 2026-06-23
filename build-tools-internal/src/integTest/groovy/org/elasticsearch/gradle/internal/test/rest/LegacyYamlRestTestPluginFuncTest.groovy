@@ -140,7 +140,10 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         def result = gradleRunner("yamlRestTest", "--console", 'plain').buildAndFail()
 
         then:
-        result.task(":distribution:archives:integ-test-zip:buildExpanded").outcome == TaskOutcome.SUCCESS
+        def buildExpanded = result.task(":distribution:archives:integ-test-zip:buildExpanded")
+        assert buildExpanded != null : "Expected buildExpanded to execute but it was not in the task graph. Executed tasks: " +
+            result.tasks.collect { it.path }.join(", ")
+        buildExpanded.outcome == TaskOutcome.SUCCESS
         result.getOutput().contains(expectedInstallLog)
 
         where:

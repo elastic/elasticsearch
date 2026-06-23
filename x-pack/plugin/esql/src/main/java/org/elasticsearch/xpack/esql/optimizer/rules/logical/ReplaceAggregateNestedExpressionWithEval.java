@@ -183,6 +183,10 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
     ) {
         Expression result = af;
 
+        if (skipOptimisingAgg(af)) {
+            return af;
+        }
+
         Expression field = af.field();
         // if the field is a nested expression (not attribute or literal), replace it
         if (field instanceof Attribute == false && field.foldable() == false) {

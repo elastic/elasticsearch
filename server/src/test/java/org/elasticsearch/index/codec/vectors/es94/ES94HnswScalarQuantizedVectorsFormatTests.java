@@ -35,13 +35,17 @@ import static org.hamcrest.Matchers.is;
 
 public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnswVectorsFormatTestCase {
 
+    private static int randomBitsPerValue() {
+        return randomFrom(1, 2, 4, 7);
+    }
+
     @Override
     protected KnnVectorsFormat createFormat() {
         return new ES94HnswScalarQuantizedVectorsFormat(
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            randomFrom(1, 2, 4, 7),
+            randomBitsPerValue(),
             false
         );
     }
@@ -52,7 +56,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            randomFrom(1, 2, 4, 7),
+            randomBitsPerValue(),
             false
         );
     }
@@ -63,7 +67,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            randomFrom(1, 2, 4, 7),
+            randomBitsPerValue(),
             false,
             numMergeWorkers,
             service
@@ -127,7 +131,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            randomFrom(1, 2, 4, 7),
+            randomBitsPerValue(),
             false,
             numMergeWorkers,
             service,

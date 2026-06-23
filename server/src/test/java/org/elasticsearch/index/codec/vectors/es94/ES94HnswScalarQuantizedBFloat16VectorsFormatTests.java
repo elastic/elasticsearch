@@ -32,13 +32,17 @@ import static org.hamcrest.Matchers.hasEntry;
 
 public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantizedHnswBFloat16VectorsFormatTestCase {
 
+    private static int randomBitsPerValue() {
+        return randomFrom(1, 2, 4, 7);
+    }
+
     @Override
     protected KnnVectorsFormat createFormat() {
         return new ES94HnswScalarQuantizedVectorsFormat(
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            randomFrom(1, 2, 4, 7),
+            randomBitsPerValue(),
             false
         );
     }
@@ -49,7 +53,7 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            randomFrom(1, 2, 4, 7),
+            randomBitsPerValue(),
             false
         );
     }
@@ -60,7 +64,7 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            randomFrom(1, 2, 4, 7),
+            randomBitsPerValue(),
             false,
             numMergeWorkers,
             service
@@ -79,7 +83,7 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             16,
             100,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            randomFrom(1, 2, 4, 7),
+            randomBitsPerValue(),
             false,
             1,
             null,

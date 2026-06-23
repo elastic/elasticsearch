@@ -988,7 +988,7 @@ public class SearchTransportService {
      */
     public static <T> Writeable.Reader<T> countingReader(Writeable.Reader<T> reader, LongConsumer resultBytesConsumer) {
         return in -> {
-            int before = in.available();
+            long before = in.available();
             T result = reader.read(in);
             resultBytesConsumer.accept(before - in.available());
             return result;

@@ -24,7 +24,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -175,7 +174,7 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testHighCardinality() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", FIELD_TYPE).startObject("doc_values").field("cardinality", "high").endObject())
         );
@@ -341,7 +340,7 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testHighCardinalityRejectedForIndexSortField() {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")

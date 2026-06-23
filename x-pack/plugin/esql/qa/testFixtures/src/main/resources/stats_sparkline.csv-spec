@@ -34,7 +34,7 @@ sparkline:long
 
 
 sparklineWithWeightedAvg
-required_capability: fn_sparkline
+required_capability: fn_sparkline_duplicate_surrogates
 FROM employees
 | STATS sparkline = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
 ;

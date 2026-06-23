@@ -150,7 +150,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
      * target field while keeping generated documents single-valued, so the enforced mapping is exercised without rejecting documents.
      */
     private static Collection<DataSourceHandler> withSingleValueDocValues(String fieldType, Collection<DataSourceHandler> customHandlers) {
-        boolean singleValueRun = FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        boolean singleValueRun = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
             && SINGLE_VALUE_ENFORCING_TYPES.contains(fieldType)
             && ESTestCase.randomBoolean();
         if (singleValueRun == false) {

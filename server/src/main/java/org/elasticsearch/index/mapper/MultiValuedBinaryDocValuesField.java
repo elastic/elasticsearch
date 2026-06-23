@@ -45,6 +45,10 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         UNSORTED
     }
 
+    // Heuristic initial capacity for the ArrayList-backed orderings. Sized for the common
+    // small multi-valued case to avoid the default 0→10 grow on the first add.
+    private static final int INITIAL_VALUES_CAPACITY = 4;
+
     protected final ValueOrdering ordering;
     protected final Collection<BytesRef> values;
     protected int docValuesByteCount = 0;
@@ -52,7 +56,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     MultiValuedBinaryDocValuesField(String name, ValueOrdering ordering) {
         super(name);
         this.ordering = ordering;
-        this.values = ordering == ValueOrdering.SORTED_UNIQUE ? new TreeSet<>() : new ArrayList<>();
+        this.values = ordering == ValueOrdering.SORTED_UNIQUE ? new TreeSet<>() : new ArrayList<>(INITIAL_VALUES_CAPACITY);
     }
 
     public void add(BytesRef value) {

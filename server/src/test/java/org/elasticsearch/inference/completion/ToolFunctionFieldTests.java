@@ -14,7 +14,7 @@ import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
 import java.util.List;
 import java.util.Map;
 
-public class FunctionFieldTests extends InferenceObjectRamBytesUsedTest<Tool.FunctionField> {
+public class ToolFunctionFieldTests extends InferenceObjectRamBytesUsedTest<Tool.FunctionField> {
     private static final String DESCRIPTION = "description";
     private static final String NAME = "name";
     private static final String KEY_ONE = "key 1";

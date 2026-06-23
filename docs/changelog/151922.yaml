@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 148505
+pr: 151922
+summary: Expand usage of X-Elastic-Product-Use-Case header
+type: bug

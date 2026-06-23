@@ -12,6 +12,7 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import nmcp.NmcpAggregationExtension
 
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
@@ -19,7 +20,6 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.internal.testfixtures.DockerComposeThrottle
 
 import groovy.xml.XmlParser;
 import groovy.xml.XmlNodePrinter;
@@ -65,8 +65,13 @@ version = VersionProperties.elasticsearch
  * indicating the artifact is meant for beeing published to maven central.
  * */
 nmcpAggregation {
-  // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
-  publishAllProjectsProbablyBreakingProjectIsolation()
+}
+
+def nmcpConsumerConfiguration = extensions.getByType(NmcpAggregationExtension).'getConsumerConfiguration$nmcp'()
+allprojects { publishedProject ->
+  publishedProject.pluginManager.withPlugin('maven-publish') {
+    rootProject.dependencies.add(nmcpConsumerConfiguration.name, rootProject.dependencies.project(path: publishedProject.path))
+  }
 }
 
 tasks.named('zipAggregation').configure {
@@ -92,11 +97,7 @@ tasks.named('zipAggregation').configure {
  * }
  *
  * */
-ext.testArtifact = { p, String name = "test" ->
-  p.capabilities {
-    requireCapabilities("${p.group}:${p.name}-${name}-artifacts")
-  };
-}
+
 
 class StepExpansion {
   String templatePath
@@ -312,8 +313,8 @@ allprojects {
 
   plugins.withType(BaseInternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {
-      compileOnly project(":server")
-      testImplementation project(":test:framework")
+      compileOnly project(path: ":server")
+      testImplementation project(path: ":test:framework")
     }
   }
 
@@ -581,8 +582,6 @@ tasks.named("checkPart1").configure {
   ],
   releaseTestCheckEsqlDatasourceQa: [
     ':x-pack:plugin:esql-datasource-csv:qa',
-    ':x-pack:plugin:esql-datasource-gcs:qa',
-    ':x-pack:plugin:esql-datasource-grpc:qa',
     ':x-pack:plugin:esql-datasource-iceberg:qa',
     ':x-pack:plugin:esql-datasource-ndjson:qa',
     ':x-pack:plugin:esql-datasource-orc:qa',
@@ -590,7 +589,6 @@ tasks.named("checkPart1").configure {
     ':x-pack:plugin:esql-datasource-parquet-rs',
     ':x-pack:plugin:esql-datasource-parquet-rs:qa',
     ':x-pack:plugin:esql-datasource-parquet:qa',
-    ':x-pack:plugin:esql-datasource-s3',
     ':x-pack:plugin:esql-datasource-snappy',
     ':x-pack:plugin:esql-datasource-zstd',
   ],

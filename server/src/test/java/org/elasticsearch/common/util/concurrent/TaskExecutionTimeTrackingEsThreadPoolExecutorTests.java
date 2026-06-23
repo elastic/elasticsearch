@@ -27,10 +27,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for the automatic queue resizing of the {@code QueueResizingEsThreadPoolExecutorTests}
@@ -226,6 +228,29 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         }
     }
 
+    public void testEwmrUtilizationTracking() throws Exception {
+        final int poolSize = randomIntBetween(1, 4);
+        final TaskExecutionTimeTrackingEsThreadPoolExecutor executor = buildExecutor(
+            "test-threadpool",
+            poolSize,
+            settableWrapper(TimeUnit.MILLISECONDS.toNanos(10)),
+            EsExecutors.TaskTrackingConfig.builder().threadUtilizationEwmrHalfLife(randomTimeValue(10, 100, TimeUnit.SECONDS)).build()
+        );
+        try {
+            assertThat(executor.getAverageActiveThreads(), equalTo(0.0));
+            assertThat(executor.getAverageUtilization(), equalTo(0.0));
+
+            executeTask(executor, poolSize * 5);
+            assertBusy(() -> {
+                assertThat(executor.getCompletedTaskCount(), equalTo((long) poolSize * 5));
+                assertThat(executor.getAverageActiveThreads(), allOf(greaterThan(0.0), lessThanOrEqualTo((double) poolSize)));
+                assertThat(executor.getAverageUtilization(), allOf(greaterThan(0.0), lessThanOrEqualTo(1.0)));
+            });
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
     /** Use a runnable wrapper that simulates a task with unknown failures. */
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
@@ -299,6 +324,84 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         assertBusy(() -> assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0)));
         assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L));
         ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+    }
+
+    public void testEwmrUtilizationMetricPublished() throws Exception {
+        final var threadPoolName = randomIdentifier();
+        final int poolSize = randomIntBetween(1, 4);
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        var executor = buildExecutor(
+            threadPoolName,
+            poolSize,
+            settableWrapper(TimeUnit.MILLISECONDS.toNanos(10)),
+            EsExecutors.TaskTrackingConfig.builder().threadUtilizationEwmrHalfLife(randomTimeValue(10, 100, TimeUnit.SECONDS)).build()
+        );
+        executor.setupMetrics(meterRegistry, threadPoolName);
+
+        try {
+            executeTask(executor, poolSize * 5);
+            assertBusy(() -> assertThat(executor.getCompletedTaskCount(), equalTo((long) poolSize * 5)));
+
+            meterRegistry.getRecorder().collect();
+
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.DOUBLE_GAUGE,
+                    ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR
+                );
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.get(0).getDouble(), greaterThan(0.0));
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testEwmrUtilizationMetricNotPublishedWhenDisabled() {
+        final var threadPoolName = randomIdentifier();
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        var executor = buildExecutor(
+            threadPoolName,
+            1,
+            TimedRunnable::new,
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build()
+        );
+        executor.setupMetrics(meterRegistry, threadPoolName);
+
+        try {
+            meterRegistry.getRecorder().collect();
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(
+                        InstrumentType.DOUBLE_GAUGE,
+                        ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR
+                    ),
+                hasSize(0)
+            );
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    private TaskExecutionTimeTrackingEsThreadPoolExecutor buildExecutor(
+        String threadPoolName,
+        int poolSize,
+        Function<Runnable, WrappedRunnable> wrapper,
+        EsExecutors.TaskTrackingConfig config
+    ) {
+        return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            threadPoolName,
+            poolSize,
+            poolSize,
+            1000,
+            TimeUnit.MILLISECONDS,
+            ConcurrentCollections.newBlockingQueue(),
+            wrapper,
+            TestEsExecutors.testOnlyDaemonThreadFactory("test-" + threadPoolName),
+            new EsAbortPolicy(),
+            new ThreadContext(Settings.EMPTY),
+            config,
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
+        );
     }
 
     public void testQueueLatencyHistogramMetrics() {

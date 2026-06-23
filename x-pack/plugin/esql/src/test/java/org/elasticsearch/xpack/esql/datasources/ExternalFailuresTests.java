@@ -102,4 +102,96 @@ public class ExternalFailuresTests extends ESTestCase {
             assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
         }
     }
+
+    public void testSurfaceRethrowsErrorUnchanged() {
+        AssertionError error = new AssertionError("boom");
+        AssertionError thrown = expectThrows(AssertionError.class, () -> ExternalFailures.surface(error, "ctx"));
+        assertSame(error, thrown);
+    }
+
+    public void testSurfaceReturnsRuntimeExceptionAsIs() {
+        // Plain RuntimeException, status carriers, and IllegalArgumentException share the same passthrough
+        // branch — they self-describe their status (or lack of one) and the worker context is not relevant.
+        RuntimeException plain = new RuntimeException("oops");
+        assertSame(plain, ExternalFailures.surface(plain, "ctx"));
+
+        var carrier = new ExternalClientException("already typed", new IOException("io"));
+        assertSame(carrier, ExternalFailures.surface(carrier, "ctx"));
+
+        var iae = new IllegalArgumentException("bad arg");
+        assertSame(iae, ExternalFailures.surface(iae, "ctx"));
+    }
+
+    public void testSurfaceWrapsIoExceptionAsExternalClient() {
+        IOException ioe = new IOException("record exceeded max_record_size");
+        RuntimeException surfaced = ExternalFailures.surface(ioe, "Streaming parallel parsing failed");
+        assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertSame(ioe, surfaced.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Streaming parallel parsing failed"));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("record exceeded max_record_size"));
+    }
+
+    public void testSurfaceWrapsUncheckedIoExceptionAsExternalClient() {
+        // UncheckedIOException is a RuntimeException — but it represents an underlying IO failure, so it must
+        // route through the IO branch (400 + context prefix), not the generic RuntimeException passthrough.
+        IOException cause = new IOException("upstream");
+        UncheckedIOException uioe = new UncheckedIOException("wrapped", cause);
+        RuntimeException surfaced = ExternalFailures.surface(uioe, "Failed to read CSV batch");
+        assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertSame(uioe, surfaced.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Failed to read CSV batch"));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("wrapped"));
+    }
+
+    public void testSurfaceDoesNotRescueIoBuriedUnderRuntimeException() {
+        // surface() cannot recover a status signal already destroyed by an intermediate RuntimeException
+        // wrapper — the documented contract is that callers pass the raw stored throwable, not a pre-wrap.
+        RuntimeException wrapper = new RuntimeException("wrapper", new IOException("inner"));
+        assertSame(wrapper, ExternalFailures.surface(wrapper, "ctx"));
+    }
+
+    public void testSurfaceComposesIdempotentlyForCheckedNonIo() {
+        // The other main coordinator path: a stored InterruptedException produces an ExternalServerException
+        // at surface(), which classify() then passes through unchanged at the read boundary.
+        InterruptedException interrupted = new InterruptedException("worker interrupted");
+        RuntimeException surfaced = ExternalFailures.surface(interrupted, "Parallel parsing failed");
+        RuntimeException classified = ExternalFailures.classify(surfaced);
+        assertSame(surfaced, classified);
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
+    }
+
+    public void testSurfaceWrapsCheckedNonIoAsExternalServer() {
+        // Bare InterruptedException stored after a worker thread was interrupted is the canonical case here:
+        // we have no evidence of bad input, so the bug stays visible as a 500 with the context prefix.
+        InterruptedException interrupted = new InterruptedException("worker interrupted");
+        RuntimeException surfaced = ExternalFailures.surface(interrupted, "Parallel parsing failed");
+        assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalServerException.class));
+        assertSame(interrupted, surfaced.getCause());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(surfaced));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Parallel parsing failed"));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("worker interrupted"));
+    }
+
+    public void testSurfaceFallsBackToClassNameWhenMessageIsNull() {
+        // detail() returns the class's simple name when getMessage() is null, so the formatted message reads
+        // "<prefix>: InterruptedException" rather than the unhelpful "<prefix>: null".
+        InterruptedException interrupted = new InterruptedException();
+        RuntimeException surfaced = ExternalFailures.surface(interrupted, "Parallel parsing failed");
+        assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalServerException.class));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("InterruptedException"));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("null")));
+    }
+
+    public void testSurfaceComposesIdempotentlyWithClassify() {
+        // The expected composition at production sites: surface() runs at the worker rethrow, classify() runs
+        // at the read boundary. surface()'s typed output must pass through classify() as the same instance
+        // so the prefix and status the worker site set are preserved end-to-end.
+        IOException ioe = new IOException("truncated");
+        RuntimeException surfaced = ExternalFailures.surface(ioe, "Failed to read NDJSON page");
+        RuntimeException classified = ExternalFailures.classify(surfaced);
+        assertSame("classify must pass an already-typed surface() result through unchanged", surfaced, classified);
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+    }
 }

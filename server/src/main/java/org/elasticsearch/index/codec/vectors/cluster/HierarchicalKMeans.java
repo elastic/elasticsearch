@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
+import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -825,7 +826,7 @@ public class HierarchicalKMeans<V> {
      * @param targetSize       target number of vectors per cluster
      * @return clustering result with assignments and SOAR assignments
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings({ "rawtypes", "unchecked", "cast" })
     public KMeansResult<float[]> clusterByInsertion(
         ClusteringFloatVectorValues vectors,
         ClusteringFloatVectorValues initialCentroids,
@@ -910,7 +911,7 @@ public class HierarchicalKMeans<V> {
      * @param targetSize         target vectors per cluster
      * @return clustering result
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings({ "rawtypes", "unchecked", "cast" })
     public KMeansResult<float[]> clusterByConcatenation(
         ClusteringFloatVectorValues vectors,
         ClusteringFloatVectorValues allPriorCentroids,
@@ -1137,22 +1138,14 @@ public class HierarchicalKMeans<V> {
         int maxClusterSize = Integer.MIN_VALUE;
 
         // Use Welford's algorithm to compute the variance in one pass and compute min/max in the same loop
-        int count = 0;
-        double meanClusterSize = 0.0;
-        double M2 = 0.0; // Running sum of squares of differences
-
+        WelfordVariance clusterSizeStats = new WelfordVariance();
         for (int x : clusterSizes) {
-            count++;
-            double delta = x - meanClusterSize;
-            meanClusterSize += delta / count;
-            double delta2 = x - meanClusterSize;
-            M2 += delta * delta2;
+            clusterSizeStats.add(x);
             minClusterSize = Math.min(minClusterSize, x);
             maxClusterSize = Math.max(maxClusterSize, x);
         }
 
-        // M2 / clusterSizes.length is the variance
-        double stdClusterSizes = Math.sqrt(M2 / clusterSizes.length);
+        double stdClusterSizes = clusterSizeStats.populationStdDev();
 
         logger.debug(
             "Inertia: {}; Centroid count: {} min: {} max: {} mean: {} stdDev: {}",
@@ -1160,7 +1153,7 @@ public class HierarchicalKMeans<V> {
             clusterSizes.length,
             minClusterSize,
             maxClusterSize,
-            meanClusterSize,
+            clusterSizeStats.mean(),
             stdClusterSizes
         );
     }

@@ -36,6 +36,7 @@ public class SigtermAzureRestartIT extends ESRestTestCase {
     public static StatelessElasticsearchCluster cluster = StatelessElasticsearchCluster.local()
         .module("stateless")
         .module("stateless-sigterm")
+        .module("secure-settings")
         .setting("xpack.ml.enabled", "false")
         .user("admin-user", "x-pack-test-password")
         .setting("xpack.watcher.enabled", "false")
@@ -80,6 +81,10 @@ public class SigtermAzureRestartIT extends ESRestTestCase {
         }
 
         cluster.restartNodeInPlace(nodeIndex, false);
+        // the restarted node will use a different port, but clients are not updated accordingly
+        // dead hosts are removed internally, but another process picking up the old port can lead to random failures.
+        closeClients();
+        initClient();
 
         assertBusy(() -> {
             try {

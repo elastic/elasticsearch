@@ -18,13 +18,14 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LongValues;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
 /**
  * Clone of {@link SortedNumericDocValues} for long values.
  */
-public abstract class SortedNumericLongValues implements ProcessedDocValues {
+public abstract class SortedNumericLongValues {
 
     private final boolean isSingleton;
     private final DocIdSetIterator docIdSetIterator;
@@ -59,6 +60,21 @@ public abstract class SortedNumericLongValues implements ProcessedDocValues {
         }
     };
 
+    /** Advance the iterator to exactly {@code target} and return whether
+     *  {@code target} has a value.
+     *  {@code target} must be greater than or equal to the current
+     *  doc ID and must be a valid doc ID, ie. &ge; 0 and
+     *  &lt; {@code maxDoc}.*/
+    public abstract boolean advanceExact(int target) throws IOException;
+
+    /**
+     * Retrieves the number of values for the current document.  This must always
+     * be greater than zero.
+     * It is illegal to call this method after {@link #advanceExact(int)}
+     * returned {@code false}.
+     */
+    public abstract int docValueCount();
+
     /**
      * Iterates to the next value in the current document. Do not call this more than
      * {@link #docValueCount} times for the document.
@@ -69,7 +85,7 @@ public abstract class SortedNumericLongValues implements ProcessedDocValues {
         return isSingleton;
     }
 
-    @Override
+    @Nullable
     public DocIdSetIterator docIdIterator() {
         return docIdSetIterator;
     }
@@ -108,7 +124,15 @@ public abstract class SortedNumericLongValues implements ProcessedDocValues {
      * Converts a {@link LongValues} to a {@link SortedNumericLongValues}
      */
     public static SortedNumericLongValues singleton(LongValues values) {
-        return new SortedNumericLongValues(true, null) {
+        return singleton(values, null);
+    }
+
+    /**
+     * Converts a {@link LongValues} to a {@link SortedNumericLongValues} and preserves
+     * the associated {@link DocIdSetIterator}.
+     */
+    public static SortedNumericLongValues singleton(LongValues values, DocIdSetIterator docIdSetIterator) {
+        return new SortedNumericLongValues(true, docIdSetIterator) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
@@ -184,7 +208,7 @@ public abstract class SortedNumericLongValues implements ProcessedDocValues {
                     }
                 };
             }
-            return singleton(longValues);
+            return singleton(longValues, singleton);
         } else {
             return wrap(values);
         }
@@ -200,18 +224,23 @@ public abstract class SortedNumericLongValues implements ProcessedDocValues {
     public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
-            final LongValues longValues = new LongValues() {
+            // It's more efficient to access singleton doc values via the unwrapped singleton
+            return new SortedNumericLongValues(true, singleton) {
                 @Override
-                public long longValue() throws IOException {
-                    return singleton.longValue();
+                public boolean advanceExact(int target) throws IOException {
+                    return singleton.advanceExact(target);
                 }
 
                 @Override
-                public boolean advanceExact(int doc) throws IOException {
-                    return singleton.advanceExact(doc);
+                public int docValueCount() {
+                    return 1;
+                }
+
+                @Override
+                public long nextValue() throws IOException {
+                    return singleton.longValue();
                 }
             };
-            return singleton(longValues);
         } else {
             return new SortedNumericLongValues(false, values) {
                 @Override

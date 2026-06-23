@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 150978
+summary: Fix PromQL name matchers
+type: bug

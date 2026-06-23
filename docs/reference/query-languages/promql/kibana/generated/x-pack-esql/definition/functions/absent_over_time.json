@@ -20,6 +20,5 @@
   "examples" : [
     "absent_over_time(nonexistent_metric[5m])"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -19,6 +20,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92PanamaInt7VectorsScorer;
+import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
@@ -90,6 +92,11 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
     public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimension, int vectorLengthInBytes)
         throws IOException {
         return new DefaultES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+    }
+
+    @Override
+    public FlatVectorsScorer newFlatVectorsScorer() {
+        return new PanamaFlatVectorScorer();
     }
 
     @Override

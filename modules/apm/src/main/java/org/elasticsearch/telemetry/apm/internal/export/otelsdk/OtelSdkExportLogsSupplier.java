@@ -75,8 +75,8 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             .setEndpoint(endpoint)
             .setTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings).toDuration())
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT.get(settings).toDuration())
-            .setRetryPolicy(OtelSdkExportMeterSupplier.buildRetryPolicy(settings));
-        String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
+            .setRetryPolicy(OtlpExporterUtils.buildRetryPolicy(settings));
+        String authHeader = OtlpExporterUtils.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             exporterBuilder.addHeader("Authorization", authHeader);
         }

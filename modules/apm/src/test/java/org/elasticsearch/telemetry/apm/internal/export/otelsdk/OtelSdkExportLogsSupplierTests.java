@@ -26,6 +26,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
 public class OtelSdkExportLogsSupplierTests extends ESTestCase {
@@ -86,6 +87,24 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
         supplier.install();
         supplier.close();
         supplier.close();
+    }
+
+    public void testRetryDisabledWhenMaxAttemptsIsOne() {
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS.getKey(), 1).build();
+        assertThat(OtlpExporterUtils.buildRetryPolicy(settings), nullValue());
+    }
+
+    public void testRetryPolicyReflectsSettings() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS.getKey(), 3)
+            .put(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF.getKey(), "2s")
+            .put(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER.getKey(), 2.0)
+            .build();
+        var policy = OtlpExporterUtils.buildRetryPolicy(settings);
+        assertNotNull(policy);
+        assertThat(policy.getMaxAttempts(), equalTo(3));
+        assertThat(policy.getInitialBackoff().toSeconds(), equalTo(2L));
+        assertThat(policy.getBackoffMultiplier(), equalTo(2.0));
     }
 
     /**

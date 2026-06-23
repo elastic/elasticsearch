@@ -59,7 +59,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .setEndpoint(endpoint)
             .setMeterProvider(meterProvider)
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST);
-        String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
+        String authHeader = OtlpExporterUtils.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }

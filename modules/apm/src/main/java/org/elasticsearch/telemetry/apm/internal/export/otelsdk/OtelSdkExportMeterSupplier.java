@@ -17,15 +17,12 @@ import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
-import io.opentelemetry.sdk.common.export.RetryPolicy;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
 import java.nio.file.Path;
@@ -121,38 +118,12 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
             .setTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings).toDuration())
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT.get(settings).toDuration())
-            .setRetryPolicy(buildRetryPolicy(settings));
-        String authHeader = buildOtlpAuthorizationHeader(settings);
+            .setRetryPolicy(OtlpExporterUtils.buildRetryPolicy(settings));
+        String authHeader = OtlpExporterUtils.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }
         return builder.build();
-    }
-
-    static RetryPolicy buildRetryPolicy(Settings settings) {
-        int maxAttempts = OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS.get(settings);
-        if (maxAttempts <= 1) {
-            return null;
-        }
-        return RetryPolicy.builder()
-            .setMaxAttempts(maxAttempts)
-            .setInitialBackoff(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF.get(settings).toDuration())
-            .setBackoffMultiplier(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER.get(settings))
-            .build();
-    }
-
-    static String buildOtlpAuthorizationHeader(Settings settings) {
-        try (SecureString apiKey = APMAgentSettings.TELEMETRY_API_KEY_SETTING.get(settings)) {
-            if (apiKey.isEmpty() == false) {
-                return "ApiKey " + apiKey;
-            }
-        }
-        try (SecureString secretToken = APMAgentSettings.TELEMETRY_SECRET_TOKEN_SETTING.get(settings)) {
-            if (secretToken.isEmpty() == false) {
-                return "Bearer " + secretToken;
-            }
-        }
-        return null;
     }
 
     /** Flushes the meter provider. Callers must join the result with an appropriate timeout. */

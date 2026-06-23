@@ -14,7 +14,6 @@ import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;

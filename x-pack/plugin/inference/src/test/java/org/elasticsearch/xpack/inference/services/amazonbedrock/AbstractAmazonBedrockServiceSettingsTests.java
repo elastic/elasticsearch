@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -33,7 +32,8 @@ import static org.hamcrest.Matchers.is;
  * (model identity, endpoint URL, and rate limiting) so they are exercised once for each task type instead of being duplicated in
  * every concrete settings test. Task-specific tests live in the concrete subclasses.
  */
-public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends AmazonBedrockServiceSettings> extends AbstractBWCSerializationTestCase<T> {
+public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends AmazonBedrockServiceSettings> extends
+    AbstractBWCSerializationTestCase<T> {
 
     public static final String TEST_REGION = "test-region";
     private static final String INITIAL_TEST_REGION = "initial-test-region";
@@ -78,7 +78,10 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
             randomFrom(ConfigurationParseContext.values())
         );
 
-        assertThat(serviceSettings, is(createServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), new RateLimitSettings(DEFAULT_RATE_LIMIT))));
+        assertThat(
+            serviceSettings,
+            is(createServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
     }
 
     public void testFromMap_EmptyRateLimitObject_UsesDefaultValue() {
@@ -87,7 +90,10 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
 
         var serviceSettings = fromMap(map, randomFrom(ConfigurationParseContext.values()));
 
-        assertThat(serviceSettings, is(createServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), new RateLimitSettings(DEFAULT_RATE_LIMIT))));
+        assertThat(
+            serviceSettings,
+            is(createServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
     }
 
     public void testFromMap_NoRegion_ThrowsException() {
@@ -101,12 +107,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
 
         assertThat(
             thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "[%s] does not contain the required setting [%s]",
-                    ModelConfigurations.SERVICE_SETTINGS, REGION_FIELD
-                )
-            )
+            is(Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, REGION_FIELD))
         );
     }
 
@@ -121,12 +122,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
 
         assertThat(
             thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "[%s] does not contain the required setting [%s]",
-                    ModelConfigurations.SERVICE_SETTINGS, MODEL_FIELD
-                )
-            )
+            is(Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, MODEL_FIELD))
         );
     }
 
@@ -141,12 +137,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
 
         assertThat(
             thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "[%s] does not contain the required setting [%s]",
-                    ModelConfigurations.SERVICE_SETTINGS, PROVIDER_FIELD
-                )
-            )
+            is(Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, PROVIDER_FIELD))
         );
     }
 
@@ -163,7 +154,14 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
 
         assertThat(
             updatedServiceSettings,
-            is(createServiceSettings(INITIAL_TEST_REGION, INITIAL_TEST_MODEL_ID, INITIAL_TEST_PROVIDER.toString(), new RateLimitSettings(TEST_RATE_LIMIT)))
+            is(
+                createServiceSettings(
+                    INITIAL_TEST_REGION,
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_PROVIDER.toString(),
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
         );
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -37,7 +38,7 @@ public class HighlightExec extends UnaryExec {
 
     private final String prefix;
     private final Expression query;
-    private final List<Expression> fields;
+    private final List<NamedExpression> fields;
     private final MapExpression options;
     private final List<Attribute> generatedFields;
 
@@ -46,7 +47,7 @@ public class HighlightExec extends UnaryExec {
         PhysicalPlan child,
         String prefix,
         Expression query,
-        List<Expression> fields,
+        List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields
     ) {
@@ -64,7 +65,7 @@ public class HighlightExec extends UnaryExec {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readString(),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
             // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
             (MapExpression) in.readOptionalNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class)
@@ -95,7 +96,7 @@ public class HighlightExec extends UnaryExec {
         return query;
     }
 
-    public List<Expression> fields() {
+    public List<NamedExpression> fields() {
         return fields;
     }
 

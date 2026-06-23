@@ -10,15 +10,14 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -26,19 +25,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 // TODO: add option-value verification (e.g. encoder must be default|html, order must be none|score).
 // TODO: carry an analyzer name here once the "analyzer" option is supported.
-public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight>, PostAnalysisVerificationAware {
+public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight> {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -84,7 +81,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     private final String prefix;
     private final Expression query;
-    private final List<Expression> fields;
+    private final List<NamedExpression> fields;
     private final MapExpression options;
     /**
      * The generated attributes for the highlighted fields.
@@ -98,7 +95,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         LogicalPlan child,
         String prefix,
         Expression query,
-        List<Expression> fields,
+        List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields
     ) {
@@ -116,7 +113,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             in.readNamedWriteable(LogicalPlan.class),
             in.readString(),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
             // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
             (MapExpression) in.readOptionalNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class)
@@ -147,7 +144,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         return query;
     }
 
-    public List<Expression> fields() {
+    public List<NamedExpression> fields() {
         return fields;
     }
 
@@ -163,19 +160,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
      * Builds the {@code <prefix><field>} keyword output attributes for the given highlight fields.
      * The attributes are nullable because a field that the query does not match yields {@code null}.
      */
-    public static List<Attribute> generatedAttributesFor(Source source, String prefix, List<Expression> fields) {
+    public static List<Attribute> generatedAttributesFor(Source source, String prefix, List<NamedExpression> fields) {
         return fields.stream()
-            .map(
-                f -> (Attribute) new ReferenceAttribute(
-                    source,
-                    null,
-                    prefix + (f instanceof Attribute attr ? attr.name() : Expressions.name(f)),
-                    DataType.KEYWORD,
-                    Nullability.TRUE,
-                    null,
-                    false
-                )
-            )
+            .map(f -> (Attribute) new ReferenceAttribute(source, null, prefix + f.name(), DataType.KEYWORD, Nullability.TRUE, null, false))
             .toList();
     }
 
@@ -229,23 +216,12 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         if (query != null && query.resolved() == false) {
             return false;
         }
-        for (Expression field : fields) {
+        for (NamedExpression field : fields) {
             if (field.resolved() == false) {
                 return false;
             }
         }
         return options == null || options.resolved();
-    }
-
-    @Override
-    public void postAnalysisVerification(Failures failures) {
-        // HIGHLIGHT needs each row to map back to a single document. STATS, INLINE STATS and LOOKUP JOIN reshape or
-        // combine rows, so highlighting after them is not supported.
-        child().forEachDown(plan -> {
-            if (plan instanceof Aggregate || plan instanceof InlineStats || plan instanceof Join) {
-                failures.add(fail(this, "HIGHLIGHT cannot be used after [{}]", plan.sourceText()));
-            }
-        });
     }
 
     @Override

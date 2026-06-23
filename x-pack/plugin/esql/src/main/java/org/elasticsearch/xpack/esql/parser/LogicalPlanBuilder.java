@@ -1438,7 +1438,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // commands such as STATS, INLINESTATS, and LOOKUP JOIN.
         Expression query = ctx.queryText == null ? null : visitString(ctx.queryText);
         // TODO: support `HIGHLIGHT ON *` and deriving ON fields from the resolved query. Today fields must be listed.
-        List<Expression> fields = ctx.highlightFields.qualifiedName().stream().map(qn -> (Expression) visitQualifiedName(qn)).toList();
+        List<NamedExpression> fields = ctx.highlightFields.qualifiedName()
+            .stream()
+            .map(qn -> (NamedExpression) visitQualifiedName(qn))
+            .toList();
         // Recompute generatedFields when fields can be derived after analysis.
         List<Attribute> generatedFields = Highlight.generatedAttributesFor(source, prefix, fields);
         return p -> applyHighlightOptions(

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -26,7 +27,7 @@ public class HighlightExecSerializationTests extends AbstractPhysicalPlanSeriali
     protected HighlightExec createTestInstance() {
         Source source = randomSource();
         PhysicalPlan child = randomChild(0);
-        List<Expression> fields = randomFields();
+        List<NamedExpression> fields = randomFields();
         return new HighlightExec(
             source,
             child,
@@ -42,7 +43,7 @@ public class HighlightExecSerializationTests extends AbstractPhysicalPlanSeriali
     protected HighlightExec mutateInstance(HighlightExec instance) throws IOException {
         PhysicalPlan child = instance.child();
         Expression query = instance.query();
-        List<Expression> fields = instance.fields();
+        List<NamedExpression> fields = instance.fields();
         MapExpression options = instance.options();
 
         switch (between(0, 3)) {
@@ -54,11 +55,11 @@ public class HighlightExecSerializationTests extends AbstractPhysicalPlanSeriali
         return new HighlightExec(instance.source(), child, Highlight.DEFAULT_PREFIX, query, fields, options, generatedFor(fields));
     }
 
-    private static List<Expression> randomFields() {
+    private static List<NamedExpression> randomFields() {
         return randomList(1, 5, () -> randomReferenceAttribute(false));
     }
 
-    private static List<Attribute> generatedFor(List<Expression> fields) {
+    private static List<Attribute> generatedFor(List<NamedExpression> fields) {
         return Highlight.generatedAttributesFor(Source.EMPTY, Highlight.DEFAULT_PREFIX, fields);
     }
 

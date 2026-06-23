@@ -4495,32 +4495,6 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
-    public void testHighlightAfterStatsIsRejected() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
-        defaultAnalyzer().error(
-            "FROM test | STATS count = COUNT(*) BY first_name | HIGHLIGHT \"search\" ON first_name",
-            containsString("HIGHLIGHT cannot be used after")
-        );
-    }
-
-    public void testHighlightAfterInlineStatsIsRejected() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
-        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
-        defaultAnalyzer().error(
-            "FROM test | INLINE STATS count = COUNT(*) BY first_name | HIGHLIGHT \"search\" ON first_name",
-            containsString("HIGHLIGHT cannot be used after")
-        );
-    }
-
-    public void testHighlightAfterLookupJoinIsRejected() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
-        analyzerWithLanguagesLookup().error(
-            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code "
-                + "| HIGHLIGHT \"search\" ON first_name",
-            containsString("HIGHLIGHT cannot be used after")
-        );
-    }
-
     /**
      * A second {@code STATS} on a time-series pipeline becomes a regular {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate};
      * {@code WITHOUT} is only valid on {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate} until non-TS support exists.

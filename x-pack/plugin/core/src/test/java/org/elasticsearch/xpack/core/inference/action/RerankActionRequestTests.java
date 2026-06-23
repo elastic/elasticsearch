@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.core.inference.action.RerankAction.Request
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCase<RerankAction.Request> {
     private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
@@ -137,6 +138,39 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
             validationException.validationErrors().getFirst(),
             is(Strings.format("Field [input] contains unsupported [type] value %s at index 1", inputWithUnsupportedType.dataType()))
         );
+    }
+
+    public void testValidate_WithImageInputAndQuery_ReturnsNoValidationException() {
+        var imageInputs = randomList(1, 5, () -> InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.IMAGE)));
+        var imageQuery = InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.IMAGE));
+        var request = new RerankAction.Request(
+            randomAlphanumericOfLength(8),
+            new RerankRequest(imageInputs, imageQuery, null, null, Map.of()),
+            new InferenceContext(randomAlphaOfLength(10)),
+            TimeValue.timeValueMillis(randomLongBetween(1, 2048))
+        );
+
+        assertThat(request.validate(), is(nullValue()));
+    }
+
+    public void testValidate_WithMixedTextAndImageInputs_ReturnsNoValidationException() {
+        var request = new RerankAction.Request(
+            randomAlphanumericOfLength(8),
+            new RerankRequest(
+                List.of(
+                    InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)),
+                    InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.IMAGE))
+                ),
+                randomInferenceString(),
+                null,
+                null,
+                Map.of()
+            ),
+            new InferenceContext(randomAlphaOfLength(10)),
+            TimeValue.timeValueMillis(randomLongBetween(1, 2048))
+        );
+
+        assertThat(request.validate(), is(nullValue()));
     }
 
     public void testValidate_WithNullQuery_ReturnsValidationException() {

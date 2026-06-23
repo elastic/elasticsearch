@@ -443,13 +443,26 @@ public class TopNOperator implements Operator, Accountable {
 
     /**
      * Offer an update to {@link #minCompetitive} if it is non-null.
+     * <p>
+     * Also detects single-key {@code NULLS FIRST} exhaustion: {@code inputQueue.top()} is the
+     * least-competitive row currently kept, so if even it is null then the whole top-K is null.
+     * Under {@code NULLS FIRST} nulls are the most competitive rows, so no later non-null row can
+     * compete and the source can stop entirely. This is the {@code BYTES_REF} counterpart to
+     * {@link NumericTopNOperator}'s {@code markNoFurtherCandidates} on a null-saturated heap.
      */
     private void updateMinCompetitive() {
         if (minCompetitive == null || inputQueue == null || inputQueue.size() < inputQueue.topCount) {
             return;
         }
-        if (minCompetitive.offer(inputQueue.top().keys.bytesRefView())) {
+        BytesRef worstKept = inputQueue.top().keys.bytesRefView();
+        if (minCompetitive.offer(worstKept)) {
             minCompetitiveUpdates++;
+        }
+        if (sortOrders.size() == 1) {
+            SortOrder order = sortOrders.get(0);
+            if (order.nullsFirst() && worstKept.length > 0 && worstKept.bytes[worstKept.offset] == order.nul()) {
+                minCompetitive.markNoFurtherCandidates();
+            }
         }
     }
 

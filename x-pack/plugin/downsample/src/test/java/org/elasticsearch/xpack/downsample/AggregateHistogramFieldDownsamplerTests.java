@@ -268,6 +268,39 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
     }
 
+    /**
+     * Delta temporality with an empty bucket between two non-empty buckets:
+     * the empty bucket should produce a null downsampled value.
+     */
+    public void testDeltaHistogramEmptyBucketBetweenNonEmpty() throws IOException {
+        var producer = new ExponentialHistogramFieldDownsampler.AggregateHistogram("my-histogram", null);
+
+        // Bucket 1: two histograms merged
+        IntArrayList docIdBuffer = IntArrayList.from(1, 0);
+        long[] timeValues = new long[] { 20, 10 };
+        ExponentialHistogram h1 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0, 2.0);
+        ExponentialHistogram h2 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 3.0);
+        ExponentialHistogramValuesReader values = createHistogramValues(docIdBuffer, h1, h2);
+        producer.collect(values, timeValues, docIdBuffer, Temporality.DELTA);
+        assertThat(producer.downsampledValue().valueCount(), equalTo(3L));
+
+        producer.reset();
+
+        // Bucket 2: empty (no documents in this time range)
+        assertThat(producer.isEmpty(), equalTo(true));
+        assertThat(producer.downsampledValue(), nullValue());
+
+        producer.reset();
+
+        // Bucket 3: one histogram
+        docIdBuffer = IntArrayList.from(2);
+        timeValues = new long[] { 50 };
+        ExponentialHistogram h3 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 4.0, 5.0);
+        values = createHistogramValues(docIdBuffer, h3);
+        producer.collect(values, timeValues, docIdBuffer, Temporality.DELTA);
+        assertThat(producer.downsampledValue().valueCount(), equalTo(2L));
+    }
+
     public void testIsAggregateDownsamplerConsistentWithCreate() {
         assertThat(ExponentialHistogramFieldDownsampler.isAggregateDownsampler(DownsampleConfig.SamplingMethod.AGGREGATE), equalTo(true));
         assertThat(

@@ -203,10 +203,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
 
             @Override
             public ExponentialHistogram downsampledValue() {
-                if (merger == null) {
-                    return ExponentialHistogram.empty();
-                }
-                return merger.get();
+                return merger != null ? merger.get() : null;
             }
 
             @Override

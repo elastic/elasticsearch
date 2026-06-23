@@ -26,7 +26,12 @@ public class InferenceStringGroupRamBytesUsedTests extends InferenceObjectRamByt
             // Larger value
             new InferenceStringGroup(List.of(new InferenceString(DataType.TEXT, INFERENCE_STRING.value().repeat(5)))),
             // More values
-            new InferenceStringGroup(List.of(new InferenceString(DataType.TEXT, INFERENCE_STRING.value()), new InferenceString(DataType.TEXT, INFERENCE_STRING.value())))
+            new InferenceStringGroup(
+                List.of(
+                    new InferenceString(DataType.TEXT, INFERENCE_STRING.value()),
+                    new InferenceString(DataType.TEXT, INFERENCE_STRING.value())
+                )
+            )
         );
     }
 }

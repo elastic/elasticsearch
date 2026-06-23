@@ -1306,6 +1306,61 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testTimeMicrosNullableLogicalType() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("start_time")
+            .named("test_schema");
+
+        long rawMicros = 3_600_000_000L; // 01:00:00 in µs
+        long expectedNanos = rawMicros * 1_000L;
+
+        byte[] data = createParquetFile(schema, f -> {
+            Group g1 = f.newGroup(); // null row
+            Group g2 = f.newGroup().append("start_time", rawMicros);
+            return List.of(g1, g2);
+        });
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertTrue("first row should be null", block.isNull(0));
+            assertEquals("TIME_MICROS must be converted to nanoseconds (×1_000)", expectedNanos, block.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testTimeNanosNullableLogicalType() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("start_time")
+            .named("test_schema");
+
+        long rawNanos = 3_600_000_000_000L; // 01:00:00 in ns
+
+        byte[] data = createParquetFile(schema, f -> {
+            Group g1 = f.newGroup(); // null row
+            Group g2 = f.newGroup().append("start_time", rawNanos);
+            return List.of(g1, g2);
+        });
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertTrue("first row should be null", block.isNull(0));
+            assertEquals("TIME_NANOS value is already nanoseconds, stored as-is", rawNanos, block.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
     // --- JSON/BSON logical type tests ---
 
     public void testJsonLogicalType() throws Exception {

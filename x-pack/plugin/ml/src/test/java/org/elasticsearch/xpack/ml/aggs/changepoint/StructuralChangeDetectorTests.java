@@ -61,7 +61,7 @@ public class StructuralChangeDetectorTests extends ESTestCase {
         for (int i = 0; i < values.length; i++) {
             values[i] = i < cp ? 0.05 * i : 0.05 * cp + 0.25 * (i - cp);
         }
-        List<Integer> breaks = breakIndexes(new StructuralChangeDetector(20, 1.0, MAX_DEGREE, P_VALUE).detect(values));
+        List<Integer> breaks = breakIndexes(new StructuralChangeDetector(20, MAX_DEGREE, P_VALUE).detect(values));
         assertTrue("expected a break near the slope change, got " + breaks, hasNear(breaks, cp, 14));
     }
 
@@ -147,7 +147,7 @@ public class StructuralChangeDetectorTests extends ESTestCase {
             double mean = i < cp ? 0.05 * i : 0.05 * cp + 0.30 * (i - cp);
             values[i] = mean + random.nextGaussian() * 0.5;
         }
-        List<Integer> breaks = breakIndexes(new StructuralChangeDetector(20, 1.0, MAX_DEGREE, P_VALUE).detect(values));
+        List<Integer> breaks = breakIndexes(new StructuralChangeDetector(20, MAX_DEGREE, P_VALUE).detect(values));
         assertTrue("expected a trend change in noise near " + cp + ", got " + breaks, hasNear(breaks, cp, 16));
     }
 

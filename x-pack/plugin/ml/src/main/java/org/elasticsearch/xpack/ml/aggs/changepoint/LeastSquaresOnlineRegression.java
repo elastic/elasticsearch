@@ -24,15 +24,6 @@ class LeastSquaresOnlineRegression {
         this.Nz = new Array2DRowRealMatrix(this.N, 1);
     }
 
-    public double slopeSign() {
-        if (N < 2) {
-            return 0.0;
-        }
-        // Sign of the OLS slope = sign of Cov(x, y) = E[xy] - E[x] E[y]. From statisticAdj the moment
-        // layout is E[x] = stats[1], E[y] = stats[2 * N - 1], E[xy] = stats[2 * N].
-        return Math.signum(statistics.stats[2 * N] - statistics.stats[1] * statistics.stats[2 * N - 1]);
-    }
-
     public double residualVariance() {
         return residualVarianceForDegree(N - 1);
     }
@@ -89,6 +80,50 @@ class LeastSquaresOnlineRegression {
 
         double resVar = residualVariance();
         return Math.min(Math.max(1.0 - resVar / var, 0.0), 1.0);
+    }
+
+    public double slopeSign() {
+        if (N < 2) {
+            return 0.0;
+        }
+        // Sign of the OLS slope = sign of Cov(x, y) = E[xy] - E[x] E[y]. From statisticAdj the moment
+        // layout is E[x] = stats[1], E[y] = stats[2N-1], E[xy] = stats[2N].
+        return Math.signum(statistics.stats[2 * N] - statistics.stats[1] * statistics.stats[2 * N - 1]);
+    }
+
+    /**
+     * The fitted polynomial coefficients (lowest order first) in the coordinate basis the points were
+     * added in, or a mean-only fit ({@code {E[y], 0, ...}}) when the normal-equation system is singular
+     * (the same condition under which {@link #residualVariance()} falls back to a lower degree).
+     */
+    public double[] parameters() {
+        double[] params = new double[N];
+        if (statistics.count <= 0.0) {
+            return params;
+        }
+        params[0] = statistics.stats[2 * N - 1]; // mean-only fallback (intercept = E[y], higher orders zero)
+        if (N < 2) {
+            return params;
+        }
+        Array2DRowRealMatrix m = new Array2DRowRealMatrix(N, N);
+        Array2DRowRealMatrix b = new Array2DRowRealMatrix(N, 1);
+        for (int i = 0; i < N; ++i) {
+            m.setEntry(i, i, statistics.stats[i + i]);
+            b.setEntry(i, 0, statistics.stats[i + 2 * N - 1]);
+            for (int j = i + 1; j < N; ++j) {
+                m.setEntry(i, j, statistics.stats[i + j]);
+                m.setEntry(j, i, statistics.stats[i + j]);
+            }
+        }
+        SingularValueDecomposition svd = new SingularValueDecomposition(m);
+        double[] singularValues = svd.getSingularValues();
+        if (singularValues[0] <= SINGLE_VALUE_DECOMPOSITION_MAX_COND * singularValues[N - 1]) {
+            RealMatrix r = svd.getSolver().solve(b);
+            for (int i = 0; i < N; ++i) {
+                params[i] = r.getEntry(i, 0);
+            }
+        }
+        return params;
     }
 
     private double[] statisticAdj(double x, double y) {

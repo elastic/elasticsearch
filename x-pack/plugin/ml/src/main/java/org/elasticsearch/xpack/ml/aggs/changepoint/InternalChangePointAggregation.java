@@ -25,11 +25,9 @@ import java.util.Objects;
 
 public class InternalChangePointAggregation extends InternalAggregation {
 
-    // Multi-bucket change points. Before this version the result carried a single optional bucket and a single
-    // change type on the wire; from this version it carries a (possibly null-containing) list of buckets and a
-    // list of change types. The negotiated transport version is min(local, remote), so an older peer downgrades
-    // both sides to the single-bucket format automatically (see doWriteTo / the StreamInput constructor).
-    public static final TransportVersion CHANGE_POINT_MULTI_BUCKET = TransportVersion.fromName("change_point_multi_bucket");
+    // Multi change points. Before this version the result carried had a single optional change on the wire;
+    // from this version it carries a (possibly null-containing) list of changes.
+    public static final TransportVersion MULTI_CHANGE_POINT = TransportVersion.fromName("multi_change_point");
 
     private final List<ChangePointBucket> buckets;
     private final List<ChangeType> changeTypes;
@@ -47,7 +45,7 @@ public class InternalChangePointAggregation extends InternalAggregation {
 
     public InternalChangePointAggregation(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().supports(CHANGE_POINT_MULTI_BUCKET)) {
+        if (in.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
             buckets = in.readCollectionAsList(i -> i.readOptionalWriteable(ChangePointBucket::new));
             changeTypes = in.readNamedWriteableCollectionAsList(ChangeType.class);
         } else {
@@ -61,7 +59,7 @@ public class InternalChangePointAggregation extends InternalAggregation {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(CHANGE_POINT_MULTI_BUCKET)) {
+        if (out.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
             out.writeCollection(buckets, StreamOutput::writeOptionalWriteable);
             out.writeNamedWriteableCollection(changeTypes);
         } else {

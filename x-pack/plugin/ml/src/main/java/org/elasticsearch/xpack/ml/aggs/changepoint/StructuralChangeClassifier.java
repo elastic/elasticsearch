@@ -20,13 +20,32 @@ import java.util.TreeSet;
  */
 public class StructuralChangeClassifier {
 
-    private static final Logger logger = LogManager.getLogger(StructuralChangeDetector.class);
+    private static final Logger logger = LogManager.getLogger(StructuralChangeClassifier.class);
 
-    public StructuralChangeClassifier(int minSegmentLength, int maxDegree, double pValueThreshold) {
+    /**
+     * @param effectiveSampleFactor the fraction of the samples that are statistically independent (1.0 for a
+     * raw value channel; {@code stride/window} for an overlapping dispersion channel, whose adjacent samples
+     * are correlated). It scales the BIC's data term and effective {@code n}, so the verifier does not over-
+     * count the evidence from correlated samples and emit spurious changes.
+     * @param detectVarianceShifts when true, a boundary whose mean (pooled) split is not significant but whose
+     * per-segment (profiled) split is — i.e. a change driven by a variance shift rather than a mean shift — is
+     * reported as a {@link ChangeType.DistributionChange}. Used on the value channel to catch a short, strong
+     * variance change the (coarser, conservatively-discounted) dispersion channel misses. Off for the dispersion
+     * channel itself, where a "variance of the variance" change is meaningless.
+     */
+    public StructuralChangeClassifier(
+        int minSegmentLength,
+        int maxDegree,
+        double pValueThreshold,
+        double effectiveSampleFactor,
+        boolean detectVarianceShifts
+    ) {
         this.minSegmentLength = minSegmentLength;
         this.maxDegree = maxDegree;
         this.pValueThreshold = pValueThreshold;
         this.deltaBicThreshold = toBic(pValueThreshold);
+        this.effectiveSampleFactor = effectiveSampleFactor;
+        this.detectVarianceShifts = detectVarianceShifts;
     }
 
     /**
@@ -50,7 +69,7 @@ public class StructuralChangeClassifier {
      *       widens a neighbour's window and a genuine localized change cannot be lost.</li>
      * </ol>
      */
-    List<ChangeType> selectAndClassify(double[] values, double[] weights, int[] structuralCandidates) {
+    List<ChangeType> selectAndClassify(double[] values, double[] weights, int[] structuralCandidates, double offset) {
         int n = values.length;
         int[] interior = interiorCandidates(structuralCandidates, n);
         int m = interior.length + 2;
@@ -103,7 +122,7 @@ public class StructuralChangeClassifier {
             int leftIdx = k == 0 ? 0 : kept[k - 1];
             int cpIdx = kept[k];
             int rightIdx = k == kept.length - 1 ? m - 1 : kept[k + 1];
-            ChangeType labelled = labelChange(intervalRss, intervalNoise, leftIdx, cpIdx, rightIdx, grid);
+            ChangeType labelled = labelChange(values, weights, offset, intervalRss, intervalNoise, leftIdx, cpIdx, rightIdx, grid);
             if (labelled != null) {
                 logger.trace(
                     "candidate boundary at index [{}] between [{}] and [{}] is classified as [{}]",
@@ -118,13 +137,16 @@ public class StructuralChangeClassifier {
 
         // No surviving boundary: report the whole series as stationary or non-stationary, as verifyAndClassify does.
         if (verified.isEmpty()) {
+            Bic constant = constantBic(intervalRss[0][m - 1][0], grid[m - 1] - grid[0], intervalNoise[0][m - 1]);
             Bic noChange = bestNoChangeBic(intervalRss[0][m - 1], grid[m - 1] - grid[0], intervalNoise[0][m - 1]);
             if (noChange.degree() == 0) {
                 verified.add(new ChangeType.Stationary());
             } else {
+                double trendGain = constant.bic() - noChange.bic();
+                double logPValue = -0.5 * Math.max(trendGain, 0.0);
                 verified.add(
                     new ChangeType.NonStationary(
-                        pValueThreshold,
+                        logPValue,
                         noChange.r2(),
                         slopeSign(values, weights, 0, n) < 0.0 ? "decreasing" : "increasing"
                     )
@@ -231,22 +253,110 @@ public class StructuralChangeClassifier {
      * this pass does not re-test it. All fits read the cached interval RSS, and it is a single pass
      * — removing a sub-threshold boundary never widens a neighbour's window.
      */
-    private ChangeType labelChange(double[][][] intervalRss, double[][] intervalNoise, int leftIdx, int cpIdx, int rightIdx, int[] grid) {
+    private ChangeType labelChange(
+        double[] values,
+        double[] weights,
+        double offset,
+        double[][][] intervalRss,
+        double[][] intervalNoise,
+        int leftIdx,
+        int cpIdx,
+        int rightIdx,
+        int[] grid
+    ) {
         int cp = grid[cpIdx];
         int windowLength = grid[rightIdx] - grid[leftIdx];
         double localNoiseVariance = intervalNoise[leftIdx][rightIdx];
 
         Bic bicNoChange = bestNoChangeBic(intervalRss[leftIdx][rightIdx], windowLength, localNoiseVariance);
-        Bic change = symmetricSplit(intervalRss, leftIdx, cpIdx, rightIdx, windowLength, localNoiseVariance);
-        double pValue = toPValue(bicNoChange.bic() - change.bic());
-        if (pValue >= pValueThreshold) {
-            return null;
+        Bic meanSplit = symmetricSplit(intervalRss, leftIdx, cpIdx, rightIdx, windowLength, localNoiseVariance);
+        double meanGain = bicNoChange.bic() - meanSplit.bic();
+
+        if (toPValue(meanGain) < pValueThreshold) {
+            // A mean change (level or trend). log p-value = -gain/2 exactly (p = exp(-deltaBic/2)).
+            double logPValue = -0.5 * Math.max(meanGain, 0.0);
+            // Local level and slope on a short shoulder window each side of the boundary. The series
+            // is mean-shifted, so add the offset back for a level-relative percentage; the step size
+            // and slope are themselves shift-invariant. The denominator is floored by the local noise
+            // scale so a near-zero baseline (a zero error count, a flat->ramp leak) does not blow the
+            // percentage up.
+            double floor = Math.max(Math.sqrt(Math.max(localNoiseVariance, 0.0)), MAGNITUDE_FLOOR);
+            int shoulder = Math.min(minSegmentLength, windowLength);
+            double[] left = localLine(values, weights, Math.max(grid[leftIdx], cp - shoulder), cp, cp);
+            double[] right = localLine(values, weights, cp, Math.min(grid[rightIdx], cp + shoulder), cp);
+            double levelBefore = left[0] + offset;
+            double levelAfter = right[0] + offset;
+            if (meanSplit.degree() == 0) {
+                double stepPercent = 100.0 * (levelAfter - levelBefore) / Math.max(Math.abs(levelBefore), floor);
+                return new ChangeType.StepChange(logPValue, cp, stepPercent);
+            }
+            double r2 = Math.max(0.0, Math.min(1.0, 1.0 - (meanSplit.rss() / Math.max(bicNoChange.rss(), 1e-10))));
+            double levelAtChange = 0.5 * (levelBefore + levelAfter);
+            double gradientPercent = 100.0 * (right[1] - left[1]) / Math.max(Math.abs(levelAtChange), floor);
+            return new ChangeType.TrendChange(logPValue, gradientPercent, r2, cp);
         }
-        if (change.degree() == 0) {
-            return new ChangeType.StepChange(pValue, cp);
+
+        if (detectVarianceShifts) {
+            // Not a significant mean change, but the two sides may have different noise levels. Estimate
+            // each side's noise with a robust scale: the IQR of its first differences. First-differencing
+            // removes level/trend, and the IQR's 25%-per-tail breakdown ignores a small fraction of outliers,
+            // so a lone spike (which would inflate an RSS-based variance) cannot pose as a variance regime.
+            // This makes the value channel a robust, full-resolution backstop for a short, strong variance
+            // change the (coarser, discounted) dispersion channel misses. Scored as a one-variance null vs
+            // a two-variance split, in the same BIC currency.
+            int start = grid[leftIdx];
+            int end = grid[rightIdx];
+            int nLeft = cp - start;
+            int nRight = end - cp;
+            double varLeft = Stats.interquartileNoiseVariance(values, start, cp);
+            double varRight = Stats.interquartileNoiseVariance(values, cp, end);
+            // Floor both scales at one quantization step squared. Below the measurement granularity the
+            // IQR of a discrete first-difference distribution is unstable: a near-constant integer series
+            // (e.g. a 4/5/6 oscillation) has differences on {0, +/-1}, and two halves with slightly different
+            // transition densities read as a large (sub-unit) variance ratio that, over a long window, the
+            // BIC calls overwhelmingly significant. Flooring at q^2 makes both sides equal when the noise
+            // is unresolved (so no change is claimed), while leaving continuous data (q ~ 0) and any genuine
+            // above-granularity variance change (scales >> q) untouched.
+            double quantum = Stats.quantizationStep(values, start, end);
+            double varFloor = quantum * quantum;
+            varLeft = Math.max(varLeft, varFloor);
+            varRight = Math.max(varRight, varFloor);
+            double varWindow = (nLeft * varLeft + nRight * varRight) / windowLength;
+            // Discount the effective sample size for the variance test. A robust IQR-of-first-differences
+            // scale carries far less information per sample than a least-squares residual: the IQR has
+            // ~0.35 asymptotic efficiency for a Gaussian scale and first-differencing correlates adjacent
+            // terms, so the estimate is much noisier than its n suggests. Discounting to this efficiency
+            // calibrates the test so it fires only on a genuinely strong variance change.
+            double varianceEffectiveFactor = effectiveSampleFactor * 0.35;
+            double noChangeBic = bicFromRss(varWindow * windowLength, windowLength, 1, varianceEffectiveFactor);
+            double splitBic = bicFromRss(varLeft * nLeft, nLeft, 1, varianceEffectiveFactor)
+                + bicFromRss(varRight * nRight, nRight, 1, varianceEffectiveFactor);
+            double varianceGain = noChangeBic - splitBic;
+            if (toPValue(varianceGain) < pValueThreshold) {
+                double logPValue = -0.5 * Math.max(varianceGain, 0.0);
+                double scaleBefore = Math.sqrt(varLeft);
+                double scaleAfter = Math.sqrt(varRight);
+                double scaleFloor = Math.max(Math.sqrt(Math.max(localNoiseVariance, 0.0)), MAGNITUDE_FLOOR);
+                double magnitudePercent = 100.0 * (scaleAfter - scaleBefore) / Math.max(scaleBefore, scaleFloor);
+                return new ChangeType.DistributionChange(logPValue, cp, magnitudePercent);
+            }
         }
-        double r2 = Math.max(0.0, Math.min(1.0, 1.0 - (change.rss() / Math.max(bicNoChange.rss(), 1e-10))));
-        return new ChangeType.TrendChange(pValue, r2, cp);
+    }
+
+    /**
+     * Reads the fitted level (at {@code atIndex}) and slope (per bucket) of a weighted linear fit over
+     * {@code [start, end)}, returned as {@code {value at atIndex, slope per bucket}}, used for a reported
+     * change magnitude.
+     */
+    private double[] localLine(double[] values, double[] weights, int start, int end, int atIndex) {
+        int length = end - start;
+        double centre = 0.5 * (length - 1);
+        double scale = centre > 0.0 ? centre : 1.0;
+        double[] coefficients = fitPolynomial(values, weights, start, end, 1).parameters();
+        double mappedX = ((atIndex - start) - centre) / scale;
+        double value = coefficients[0] + coefficients[1] * mappedX;
+        double slopePerBucket = coefficients[1] / scale;
+        return new double[] { value, slopePerBucket };
     }
 
     /**
@@ -275,6 +385,23 @@ public class StructuralChangeClassifier {
             }
         }
         return new Bic(bestBic, bestRss, 0.0, bestDegree);
+    }
+
+    /**
+     * Calculates BIC for a constant model by regularizing its RSS with local noise variance.
+     */
+    private Bic calculateConstantBic(double rss, int windowLength, double localNoiseVariance) {
+        double stabilizedRss = Stats.stabilizeRss(rss, windowLength, localNoiseVariance);
+        double bic = bicFromRss(stabilizedRss, windowLength, 1);
+        return new Bic(bic, stabilizedRss, 0.0, 0);
+    }
+
+    /**
+     * Calculates BIC for the no-change model by fitting a single polynomial and regularizing its RSS with
+     * local noise variance.
+     */
+    private Bic calculateNoChangeBic(double[] values, double[] weights, int start, int end, double localNoiseVariance) {
+        return bestNoChangeBic(rssByDegree(values, weights, start, end), end - start, localNoiseVariance);
     }
 
     /** The best (minimum-BIC) no-change polynomial degree for an interval, read from its cached per-degree RSS. */
@@ -328,14 +455,6 @@ public class StructuralChangeClassifier {
     }
 
     /**
-     * Calculates BIC for the no-change model by fitting a single polynomial and regularizing its
-     * RSS with local noise variance.
-     */
-    private Bic calculateNoChangeBic(double[] values, double[] weights, int start, int end, double localNoiseVariance) {
-        return bestNoChangeBic(rssByDegree(values, weights, start, end), end - start, localNoiseVariance);
-    }
-
-    /**
      * The weighted RSS at every degree {@code 0..maxDegree} over {@code [start, end)}. Degree 0 is the
      * weighted RSS about the mean; higher degrees are read off a <em>single</em> {@code maxDegree}
      * accumulation via {@link LeastSquaresOnlineRegression#residualVarianceForDegree} (each lower-degree
@@ -356,9 +475,9 @@ public class StructuralChangeClassifier {
     }
 
     /**
-     * Checks if the BIC gain of the full data is above threshold and not predominantly driven by
-     * a small number of extreme values, as approximated by the gain with muted weights in the
-     * candidate change point's vicinity.
+     * Checks if the BIC gain of the full data is above threshold and not predominantly driven
+     * by a small number of extreme values, as approximated by the gain with muted weights in
+     * the candidate change point's vicinity.
      */
     private boolean changePersists(double fullGain, double mutedGain) {
         if (fullGain < deltaBicThreshold || mutedGain <= 0.0) {
@@ -373,9 +492,21 @@ public class StructuralChangeClassifier {
         return (mutedGain / fullGain) >= MIN_MUTED_GAIN_RATIO;
     }
 
-    /** Computes standard BIC for RSS-based Gaussian residual models. */
+    /**
+     * BIC for an RSS-based Gaussian residual model, with the sample count discounted to the
+     * number of statistically independent observations ({@code effectiveSampleFactor * n}).
+     * The per-sample variance estimate {@code rss/n} still uses the actual {@code n}, but the
+     * log-likelihood weight and the complexity penalty use the effective count, so a channel
+     * of correlated (overlapping) samples is not credited with more evidence than it carries.
+     * For {@code effectiveSampleFactor == 1} this is the standard BIC unchanged.
+     */
     private double bicFromRss(double rss, int n, int k) {
-        return n * Math.log(Math.max(rss, 1e-10) / n) + k * Math.log(n);
+        return bicFromRss(rss, n, k, effectiveSampleFactor);
+    }
+
+    private double bicFromRss(double rss, int n, int k, double effectiveFactor) {
+        double effectiveN = Math.max(effectiveFactor * n, 2.0);
+        return effectiveFactor * n * Math.log(Math.max(rss, 1e-10) / n) + k * Math.log(effectiveN);
     }
 
     /** Fits left/right polynomial models split at the candidate boundary and sums their RSS. */
@@ -433,6 +564,10 @@ public class StructuralChangeClassifier {
     private static final double MUTED_WEIGHT_FACTOR = 0.1;
     private static final double MIN_MUTED_GAIN_RATIO = 0.2;
 
+    // Absolute floor for the denominator of a percent-change magnitude, to avoid division by zero
+    // when both the baseline level and the local noise scale are ~0 (a perfectly constant series).
+    private static final double MAGNITUDE_FLOOR = 1e-10;
+
     private final int minSegmentLength;
     // Highest polynomial order the validator may fit, applied symmetrically to the single no-change
     // (null) model and to each segment of the change (alternative) model. The alternative is the same
@@ -444,6 +579,14 @@ public class StructuralChangeClassifier {
     private final int maxDegree;
     private final double pValueThreshold;
     private final double deltaBicThreshold;
+    // Fraction of the channel's samples that are statistically independent (1.0 for a raw value channel;
+    // stride/window for an overlapping dispersion channel). Discounts the BIC evidence so correlated
+    // samples are not over-counted.
+    private final double effectiveSampleFactor;
+    // When true, a variance-driven boundary (per-segment profiled split significant, mean split not) is
+    // reported as a DistributionChange. On for the value channel (a backstop for short, strong variance
+    // changes); off for the dispersion channel.
+    private final boolean detectVarianceShifts;
 
     private record Bic(double bic, double rss, double r2, int degree) {}
 }

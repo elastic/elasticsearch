@@ -85,12 +85,11 @@ public class PulseDetector {
         // monotonic (so the gate still asks the value-based question "is this magnitude one we see at other
         // times?") but removes the magnitude dependence so one bandwidth is valid across orders of magnitude.
         //
-        // Two distinct scales are used deliberately. The KDE NULL is the stabilised background values: it
-        // carries the heavy-tail mass, so a magnitude that recurs elsewhere has neighbours and is not surprising. The
-        // BANDWIDTH (the kernel's smoothing width) is taken from the stabilised RESIDUALS, not the stabilised
-        // values: a level change makes the value distribution bimodal and would inflate a value-derived width,
-        // making the gate suppress genuine within-regime spike after a step is missed. The residual removes
-        // the step, so the width reflects within-regime noise and stays sensitive.
+        // Two distinct scales are used deliberately. The KDE null is the stabilised background values: so a
+        // magnitude that recurs elsewhere has neighbours and is not surprising. The bandwidth (the kernel's
+        // smoothing width) is taken from the stabilised residuals, not the stabilised values: a level change
+        // makes the value distribution bimodal and would inflate a value-derived width, making the gate
+        // suppress genuine within-regime spike after a step.
         double[] backgroundValues = backgroundExcluding(values, excursions, n);
         double stabilizingScale = Stats.asinhScale(backgroundValues);
         double[] stabilizedBackground = Stats.asinhStabilize(backgroundValues, stabilizingScale);
@@ -99,11 +98,21 @@ public class PulseDetector {
         List<ChangeType> pulses = new ArrayList<>();
         for (Excursion e : excursions) {
             double stabilizedValue = Stats.asinh(values[e.peak()] / stabilizingScale);
-            double tail = Stats.kdeTailProbability(stabilizedValue, stabilizedBackground, bandwidth, e.sign());
-            // Bonferroni over the n points scanned to pick the extremes.
-            double pValue = Math.max(Double.MIN_VALUE, Math.min(1.0, tail * n));
+            // Bonferroni-corrected over the n points scanned to pick the extremes.
+            double logPValue = Math.min(0.0, Stats.kdeLogTailProbability(stabilizedValue, stabilizedBackground, bandwidth, e.sign()) + logN);
+            double pValue = Math.exp(logPValue);
             if (pValue < pValueThreshold) {
-                pulses.add(e.sign() > 0 ? new ChangeType.Spike(pValue, e.peak()) : new ChangeType.Dip(pValue, e.peak()));
+                // Percent deviation of the peak from the local rolling-median baseline (signed: + for a spike,
+                // - for a dip). Floored by the robust residual scale so a baseline near zero does not blow the
+                // percentage up.
+                double deviation = residuals[e.peak()];
+                double baseline = values[e.peak()] - deviation;
+                double magnitudePercent = 100.0 * deviation / Math.max(Math.abs(baseline), scale);
+                pulses.add(
+                    e.sign() > 0
+                        ? new ChangeType.Spike(logPValue, magnitudePercent, e.peak())
+                        : new ChangeType.Dip(logPValue, magnitudePercent, e.peak())
+                );
             }
         }
         pulses.sort(Comparator.comparingInt(ChangeType::changePoint));

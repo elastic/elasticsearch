@@ -155,6 +155,39 @@ public class Stats {
     }
 
     /**
+     * The data's quantization step over {@code [start, end)}: a low percentile ({@link #QUANTIZATION_STEP_PERCENTILE})
+     * of the positive magnitudes among the first differences, or 0 if the segment is exactly constant. This is the
+     * finest level difference the series resolves — 1 for integer counts, the tick size for a rounded metric, a
+     * negligible float gap for genuinely continuous data. It lets a noise-scale test refuse to claim a variance change
+     * below the measurement granularity, where the IQR of a discrete first-difference distribution is unstable (a 4/5
+     * integer oscillation can read as a spurious variance step purely from how its {0, +/-1} differences fall across
+     * the quartiles). A low percentile rather than the strict minimum is deliberate: an almost-always-integer series
+     * with the odd smaller difference (a rare fractional value) would otherwise collapse the step to that lone small
+     * gap and defeat the floor, so we ignore the smallest couple of percent and recover the bulk granularity.
+     */
+    public static double quantizationStep(double[] values, int start, int end) {
+        int count = 0;
+        for (int i = start + 1; i < end; i++) {
+            if (values[i] != values[i - 1]) {
+                count++;
+            }
+        }
+        if (count == 0) {
+            return 0.0;
+        }
+        double[] positiveDiffs = new double[count];
+        int k = 0;
+        for (int i = start + 1; i < end; i++) {
+            double d = Math.abs(values[i] - values[i - 1]);
+            if (d > 0.0) {
+                positiveDiffs[k++] = d;
+            }
+        }
+        Arrays.sort(positiveDiffs);
+        return quantile(positiveDiffs, QUANTIZATION_STEP_PERCENTILE);
+    }
+
+    /**
      * Residuals of each value from the median of a centred window, used as a local-deviation signal.
      */
     public static double[] rollingMedianResiduals(double[] values, int halfWindow) {
@@ -184,23 +217,31 @@ public class Stats {
      * {@code window/2 + window * k}.
      */
     static double[] windowedDispersion(double[] values, int minSegmentLength, int window) {
-        int n = values.length;
-        if (n < 2 * minSegmentLength * window) {
-            return null;
-        }
+        return windowedDispersion(values, minSegmentLength, window, window);
+    }
 
-        double[] dispersion = new double[(n + window - 1) / window];
-        int m = 0;
-        for (int a = 0; a < n; a += window) {
-            int b = Math.min(n, a + window);
-            if (b - a < 2) {
-                break; // Drop a length-1 trailing window (no meaningful spread).
-            }
-            dispersion[m] = Math.log1p(Math.sqrt(interquartileNoiseVariance(values, a, b)));
-            m++;
-        }
-        if (m < 2 * minSegmentLength) {
+    /**
+     * The dispersion channel with a sliding window of {@code window} points stepped by {@code stride}. With
+     * {@code stride == window} this is the non-overlapping channel above; with {@code stride < window} it keeps
+     * the robust per-window IQR estimate but produces ~{@code window/stride}x more samples, restoring resolution.
+     * The price is autocorrelation between overlapping samples, which the caller must offset with a larger channel
+     * {@code minSegmentLength} so the segmenter does not over-detect. Sample {@code k} covers original indices
+     * {@code [k*stride, k*stride + window)}; a level change at sample {@code k} corresponds to roughly original
+     * index {@code k*stride + window/2}.
+     */
+    static double[] windowedDispersion(double[] values, int minSegmentLength, int window, int stride) {
+        int n = values.length;
+        if (window < 2 || stride < 1 || n < window) {
             return null;
+        }
+        int maxSamples = (n - window) / stride + 1;
+        if (maxSamples < 2 * minSegmentLength) {
+            return null;
+        }
+        double[] dispersion = new double[maxSamples];
+        int m = 0;
+        for (int a = 0; a + window <= n; a += stride) {
+            dispersion[m++] = Math.log1p(Math.sqrt(interquartileNoiseVariance(values, a, a + window)));
         }
         return Arrays.copyOf(dispersion, m);
     }
@@ -295,9 +336,19 @@ public class Stats {
      * empirical distribution, so we return the empirical tail fraction.
      */
     public static double kdeTailProbability(double value, double[] background, double bandwidth, int sign) {
+        return Math.exp(kdeLogTailProbability(value, background, bandwidth, sign));
+    }
+
+    /**
+     * Log of {@link #kdeTailProbability}: the same Gaussian-KDE tail, but computed by log-sum-exp over the
+     * kernels so it does not underflow to {@code log(0) = -inf} for a value far in the tail, where every
+     * {@code erfc} term is sub-normal. This is the spike/dip analogue of carrying a structural change's log
+     * p-value.
+     */
+    public static double kdeLogTailProbability(double value, double[] background, double bandwidth, int sign) {
         int m = background.length;
         if (m == 0) {
-            return 1.0;
+            return 0.0; // tail probability 1
         }
         if (bandwidth <= 0.0) {
             int beyond = 0;
@@ -306,15 +357,46 @@ public class Stats {
                     beyond++;
                 }
             }
-            return (double) beyond / m;
+            // Floor at half a count so a value beyond all of the background still has a finite log-tail.
+            return Math.log(Math.max(beyond, 0.5) / m);
         }
         double scale = bandwidth * Math.sqrt(2.0);
-        double sum = 0.0;
-        for (double x : background) {
-            double arg = sign > 0 ? (value - x) / scale : (x - value) / scale;
-            sum += 0.5 * Erf.erfc(arg);
+        double logHalf = Math.log(0.5);
+        double[] terms = new double[m];
+        double maxTerm = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < m; i++) {
+            double arg = sign > 0 ? (value - background[i]) / scale : (background[i] - value) / scale;
+            terms[i] = logHalf + logErfc(arg);
+            if (terms[i] > maxTerm) {
+                maxTerm = terms[i];
+            }
         }
-        return sum / m;
+        double sum = 0.0;
+        for (double term : terms) {
+            sum += Math.exp(term - maxTerm);
+        }
+        return maxTerm + Math.log(sum) - Math.log(m);
+    }
+
+    /**
+     * Numerically stable natural log of {@code erfc(x)}.
+     * 
+     * For moderate {@code x} this is {@code log(erfc(x))}.
+     * 
+     * For large {@code x}, where {@code erfc} underflows to zero, it uses the asymptotic expansion
+     * {@code erfc(x) ~ exp(-x^2)/(x*sqrt(pi)) * (1 - 1/(2x^2) + 3/(4x^4))}.
+     */
+    public static double logErfc(double x) {
+        if (x <= 0.0) {
+            return Math.log(Erf.erfc(x)); // erfc(x) in [1, 2] here, so the direct log is safe
+        }
+        double erfc = Erf.erfc(x);
+        if (erfc > 1e-300) {
+            return Math.log(erfc);
+        }
+        double x2 = x * x;
+        double series = -1.0 / (2.0 * x2) + 3.0 / (4.0 * x2 * x2);
+        return -x2 - Math.log(x) - 0.5 * Math.log(Math.PI) + Math.log1p(series);
     }
 
     /**
@@ -377,6 +459,10 @@ public class Stats {
     // stabilizeRss): a small regularizer so a near-perfect fit cannot earn an unbounded log-likelihood and
     // dominate the model comparison on numerical noise.
     private static final double VARIANCE_FLOOR_SCALE = 0.01;
+    // Percentile of positive first differences used as the quantization step: low enough to track the true
+    // granularity, high enough to ignore the odd sub-granularity difference (a rare fractional value among
+    // integers).
+    private static final double QUANTIZATION_STEP_PERCENTILE = 0.02;
     // Silverman's rule-of-thumb bandwidth on the background, using the robust {@code min(std, IQR/1.349)}
     // spread so a residual heavy tail in the background cannot inflate it.
     private static final double SILVERMAN_FACTOR = 0.9;

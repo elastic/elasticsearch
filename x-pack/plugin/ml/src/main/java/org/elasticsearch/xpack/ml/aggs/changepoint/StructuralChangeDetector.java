@@ -24,13 +24,43 @@ public class StructuralChangeDetector {
     private static final Logger logger = LogManager.getLogger(StructuralChangeDetector.class);
 
     public StructuralChangeDetector(int minSegmentLength, int classifierMaxDegree, double pValueThreshold) {
-        this(minSegmentLength, BETA_MULTIPLIER, classifierMaxDegree, pValueThreshold);
+        this(minSegmentLength, BETA_MULTIPLIER, classifierMaxDegree, pValueThreshold, 1.0, false);
     }
 
-    public StructuralChangeDetector(int minSegmentLength, double betaMultiplier, int classifierMaxDegree, double pValueThreshold) {
+    public StructuralChangeDetector(
+        int minSegmentLength,
+        int classifierMaxDegree,
+        double pValueThreshold,
+        double effectiveSampleFactor,
+        boolean detectVarianceShifts
+    ) {
+        this(minSegmentLength, BETA_MULTIPLIER, classifierMaxDegree, pValueThreshold, effectiveSampleFactor, detectVarianceShifts);
+    }
+
+    /**
+     * @param effectiveSampleFactor fraction of the channel's samples that are statistically independent — 1.0 for a
+     * raw value channel, {@code stride/window} for an overlapping dispersion channel — passed to the verifier so it
+     * does not over-count the evidence from correlated samples.
+     * @param detectVarianceShifts whether the verifier reports a variance-driven boundary as a distribution change
+     * (on for the value channel, off for the dispersion channel).
+     */
+    public StructuralChangeDetector(
+        int minSegmentLength,
+        double betaMultiplier,
+        int classifierMaxDegree,
+        double pValueThreshold,
+        double effectiveSampleFactor,
+        boolean detectVarianceShifts
+    ) {
         this.minSegmentLength = minSegmentLength;
         this.betaMultiplier = betaMultiplier;
-        this.classifier = new StructuralChangeClassifier(minSegmentLength, classifierMaxDegree, pValueThreshold);
+        this.classifier = new StructuralChangeClassifier(
+            minSegmentLength,
+            classifierMaxDegree,
+            pValueThreshold,
+            effectiveSampleFactor,
+            detectVarianceShifts
+        );
     }
 
     /**
@@ -55,7 +85,7 @@ public class StructuralChangeDetector {
         double sigma2 = Stats.globalNoiseVariance(shiftedValues);
         int[] candidates = runPelt(shiftedValues, weights, sigma2, minSegmentLength);
 
-        return classifier.selectAndClassify(shiftedValues, weights, candidates);
+        return classifier.selectAndClassify(shiftedValues, weights, candidates, offset);
     }
 
     private static double[] shift(double[] values, double delta) {
@@ -233,31 +263,17 @@ public class StructuralChangeDetector {
         if (w <= 0.0) {
             return 0.0;
         }
-        double ex = (pX[t] - pX[tau]) / w;
-        double exx = (pXX[t] - pXX[tau]) / w;
-        double ey = (pY[t] - pY[tau]) / w;
-        double exy = (pXY[t] - pXY[tau]) / w;
-        double eyy = (pYY[t] - pYY[tau]) / w;
+        double meanX = (pX[t] - pX[tau]) / w;
+        double meanY = (pY[t] - pY[tau]) / w;
+        double varX = (pXX[t] - pXX[tau]) / w - meanX * meanX;
+        double covXY = (pXY[t] - pXY[tau]) / w - meanX * meanY;
+        double varY = (pYY[t] - pYY[tau]) / w - meanY * meanY;
 
-        double varRaw = eyy - ey * ey;
-        double var = Math.max(varRaw, LeastSquaresOnlineRegression.variancePrecisionFloor(ey));
-
-        // Normal-equation matrix [[1, ex], [ex, exx]] (symmetric PSD), so its singular values are
-        // its eigenvalues.
-        double trace = 1.0 + exx;
-        double diff = 1.0 - exx;
-        double disc = Math.sqrt(Math.max(0.0, diff * diff + 4.0 * ex * ex));
-        double lambdaMax = 0.5 * (trace + disc);
-        double lambdaMin = 0.5 * (trace - disc);
-        double det = exx - ex * ex; // Var(x); equals the product of the eigenvalues
-        if (det <= 0.0 || lambdaMin <= 0.0 || lambdaMax > SVD_MAX_COND * lambdaMin) {
-            return var; // ill-conditioned: fall back to the mean-only fit, as residualVariance() does.
+        double var = Math.max(varY, LeastSquaresOnlineRegression.variancePrecisionFloor(meanY));
+        if (varX <= MIN_X_VARIANCE) {
+            return var; // no spread in x (a single point or zero weights): mean-only fit
         }
-
-        double b = (exy - ex * ey) / det; // slope
-        double a = ey - ex * b;           // intercept
-        double tMean = ey - (a + b * ex);
-        double residual = (eyy - (a * ey + b * exy)) - tMean * tMean;
+        double residual = varY - covXY * covXY / varX;
         if (Double.isFinite(residual) == false) {
             return var;
         }
@@ -368,10 +384,10 @@ public class StructuralChangeDetector {
     // then re-tests each candidate with its own (independent) alternative-model degree. This can't be
     // changed without changing {@code segmentResidualVariance}.
     private static final int SEGMENT_DEGREE = 1;
-    // Maximum singular-value condition number for the linear segment fit before we fall back to the
-    // mean-only fit, matching LeastSquaresOnlineRegression's SVD guard so segmentResidualVariance
-    // reproduces residualVariance().
-    private static final double SVD_MAX_COND = 1e12;
+    // Minimum spread in x (variance of the segment's indices about their weighted mean) for a linear
+    // fit to be identifiable; below this the segment is degenerate and segmentResidualVariance falls
+    // back to a mean-only fit.
+    private static final double MIN_X_VARIANCE = 1e-8;
     // Per-break penalty bias (multiple of the BIC penalty beta). >1 biases the scale-invariant cost
     // toward fewer segments, so a smooth oscillation does not accrue borderline piecewise-linear splits
     // while genuine steps/trends (far stronger evidence) are unaffected.

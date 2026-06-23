@@ -43,10 +43,22 @@ public class EventDetector {
 
     public EventDetector(int minSegmentLength, double pValueThreshold) {
         this.minSegmentLength = minSegmentLength;
-        this.dispersionMinSegment = Math.max(3, minSegmentLength / DISPERSION_WINDOW);
+        // Minimum variance regime in value-index units (at least two windows, to absorb the sliding-window
+        // smear and keep the over-detection guard honest), converted to channel samples via the stride.
+        int dispersionMinRegime = Math.max(2 * DISPERSION_WINDOW, minSegmentLength);
+        this.dispersionMinSegment = Math.max(3, dispersionMinRegime / DISPERSION_STRIDE);
         this.pulseDetector = new PulseDetector(minSegmentLength, pValueThreshold);
-        this.detectorForValues = new StructuralChangeDetector(minSegmentLength, VALUE_MAX_DEGREE, pValueThreshold);
-        this.detectorForDispersions = new StructuralChangeDetector(dispersionMinSegment, DISPERSION_MAX_DEGREE, pValueThreshold);
+        // Value channel runs at full sample independence (1.0) and reports a variance-driven boundary as a
+        // distribution change (the full-resolution backstop for a short, strong variance change the coarser
+        // dispersion channel misses).
+        this.detectorForValues = new StructuralChangeDetector(
+            minSegmentLength, VALUE_MAX_DEGREE, pValueThreshold, 1.0, true
+        );
+        // The sliding dispersion window overlaps, so the verifier must discount the BIC evidence or it over-
+        // detects on the correlated channel (see DISPERSION_SAMPLE_INDEPENDENCE).
+        this.detectorForDispersions = new StructuralChangeDetector(
+            dispersionMinSegment, DISPERSION_MAX_DEGREE, pValueThreshold, DISPERSION_SAMPLE_INDEPENDENCE, false
+        );
     }
 
     public List<ChangeType> detect(MlAggsHelper.DoubleBucketValues bucketValues) {
@@ -67,19 +79,32 @@ public class EventDetector {
 
         List<ChangeType> events = new ArrayList<>();
 
-        // Distribution (variance) changes: structural changes on the dispersion channel, relabelled and remapped
-        // from channel-sample space to value-index space.
-        double[] dispersion = Stats.windowedDispersion(values, dispersionMinSegment, DISPERSION_WINDOW);
+        // Distribution (variance) changes: structural changes on the dispersion channel, relabelled and
+        // remapped from channel-sample space to value-index space.
+        double[] dispersion = Stats.windowedDispersion(values, dispersionMinSegment, DISPERSION_WINDOW, DISPERSION_STRIDE);
         if (dispersion != null) {
+            // Typical noise scale across the channel (log1p^-1 of its median), used to floor the percent-
+            // change denominator so a quiet->noisy transition (scale before ~ 0) does not produce an
+            // unbounded percentage.
+            double typicalScale = Math.expm1(Stats.median(dispersion));
+            int magnitudeWindow = Math.max(1, dispersionMinSegment);
             for (ChangeType e : detectorForDispersions.detect(dispersion)) {
-                if (e.isChange() == false) {
+                if (e.isChangePoint() == false) {
                     continue;
                 }
-                // For window length w, the channel change-point k = first sample of the new regime, centred
-                // at value index w * k + w / 2; the previous sample is centred at w * k - w / 2, so the regime
-                // boundary sits between them, at value index w * k.
-                int valueIndex = Math.min(values.length - 1, DISPERSION_WINDOW * e.changePoint());
-                events.add(new ChangeType.DistributionChange(e.pValue(), valueIndex));
+                int k = e.changePoint();
+                // Sliding-window channel: sample k covers value indices [stride*k, stride*k + window). A sharp
+                // variance change is smeared over the windows straddling it; the channel settles once the window
+                // clears the old regime (start at ~stride*k), so the boundary maps to stride*k. Localisation is
+                // inherently +/- ~window/2.
+                int valueIndex = Math.min(values.length - 1, DISPERSION_STRIDE * k);
+                // Percent change in the noise scale across the boundary. The channel holds log1p(scale),
+                // so invert it before differencing and average a few samples either side for stability.
+                double scaleBefore = Math.expm1(meanRange(dispersion, k - magnitudeWindow, k));
+                double scaleAfter = Math.expm1(meanRange(dispersion, k, k + magnitudeWindow));
+                double floor = Math.max(0.1 * typicalScale, 1e-10);
+                double magnitudePercent = 100.0 * (scaleAfter - scaleBefore) / Math.max(scaleBefore, floor);
+                events.add(new ChangeType.DistributionChange(e.logPValue(), magnitudePercent, valueIndex));
             }
         }
 
@@ -106,6 +131,21 @@ public class EventDetector {
         return events.stream()
             .map(e -> e.isChange() ? e.remapChangePoint(sampledBucketValues.getBucketIndex(e.changePoint())) : e)
             .toList();
+    }
+
+
+    /** Mean of {@code a} over {@code [lo, hi)}, clamped to the array bounds; 0 if the clamped range is empty. */
+    private static double meanRange(double[] a, int lo, int hi) {
+        lo = Math.max(0, lo);
+        hi = Math.min(a.length, hi);
+        if (hi <= lo) {
+            return 0.0;
+        }
+        double sum = 0.0;
+        for (int i = lo; i < hi; i++) {
+            sum += a[i];
+        }
+        return sum / (hi - lo);
     }
 
     /**
@@ -161,6 +201,15 @@ public class EventDetector {
     // The dispersion channel holds one sample per this many points (non-overlapping windows). A channel sample is
     // centred on the middle of its window, so channel index k corresponds to value index window/2 + window * k.
     private static final int DISPERSION_WINDOW = 8;
+    // The window slides by this stride (< window, i.e. overlapping). Overlap restores the resolution the windowing
+    // would otherwise discard. The induced autocorrelation is offset by setting the channel minSegment in value-
+    // index units (>= two windows). Channel sample k covers value indices [stride*k, stride*k + window).
+    private static final int DISPERSION_STRIDE = 2;
+    // Fraction of the overlapping dispersion samples the verifier treats as statistically independent, discounting
+    // its BIC evidence so it does not over-count correlated samples. We use the maximally-conservative bound,
+    // stride/window: every window/stride overlapping samples count as one independent observation. This holds the
+    // null false-positive rate at the non-overlapping level.
+    private static final double DISPERSION_SAMPLE_INDEPENDENCE = (double) DISPERSION_STRIDE / DISPERSION_WINDOW;
     // Because we downsample the dispersion channel it has significantly fewer values original time series. To
     // compensate we also use shorter segments. This means high degree trends overfit and we limit to linear only.
     private static final int DISPERSION_MAX_DEGREE = 1;

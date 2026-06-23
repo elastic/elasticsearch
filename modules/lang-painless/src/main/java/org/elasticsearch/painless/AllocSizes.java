@@ -75,26 +75,6 @@ public final class AllocSizes {
         return pad8(ARRAY_HEADER + fieldSize(componentType) * length);
     }
 
-    /**
-     * Returns the total heap size of a multi-dimensional array allocation, charging every level: the outer arrays-of-arrays
-     * (each element a reference) plus the innermost arrays of {@code innermostComponentType} elements. {@code dims} are the
-     * lengths actually being allocated, outermost first. Level {@code k} holds {@code dims[0]*...*dims[k-1]} arrays.
-     *
-     * <p>The code generator emits the equivalent arithmetic inline at the allocation site; this method is the single
-     * definition of the formula and the basis for tests.
-     */
-    public static long multiArraySize(Class<?> innermostComponentType, int... dims) {
-        int innermostElem = fieldSize(innermostComponentType);
-        long total = 0L;
-        long level = 1L; // number of arrays at the current level
-        for (int k = 0; k < dims.length; k++) {
-            int elemAtLevel = (k < dims.length - 1) ? REFERENCE_SIZE : innermostElem;
-            total += level * pad8(ARRAY_HEADER + (long) elemAtLevel * dims[k]);
-            level *= dims[k];
-        }
-        return total;
-    }
-
     /** Returns the heap size of a lambda/reference capture object holding {@code captureCount} captured references. */
     public static long captureSize(int captureCount) {
         return pad8(ARRAY_HEADER + (long) REFERENCE_SIZE * captureCount);

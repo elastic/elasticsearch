@@ -23,10 +23,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * End-to-end tests for PR 4 array runtime-size pre-checks: {@code new T[n]} (size known only at runtime) and multi-dimensional
- * {@code new T[d0][d1]...} (every level charged). The size is computed inline before the allocating instruction, so an
- * oversized array trips the limit (an uncatchable {@link PainlessError}, surfaced as {@link ScriptException}) before the JVM
- * attempts the allocation.
+ * End-to-end tests for runtime-sized array allocation pre-checks: {@code new T[n]} and multi-dimensional
+ * {@code new T[d0][d1]...}. The size is computed as {@code pad8(ARRAY_HEADER + fieldSize(innermostType) * totalElements)}
+ * before the allocating instruction, so an oversized array trips the limit (an uncatchable {@link PainlessError},
+ * surfaced as {@link ScriptException}) before the JVM attempts the allocation.
  */
 public class AllocationArrayPreCheckTests extends ESTestCase {
 
@@ -68,28 +68,38 @@ public class AllocationArrayPreCheckTests extends ESTestCase {
         assertEquals(AllocSizes.arraySize(long.class, 4), allocatedBytes("int n = 4; long[] a = new long[n]; return \"x\";"));
     }
 
+    public void testOneDimByteArray() {
+        // new byte[10] => pad8(16 + 1*10) = 32 bytes; exercises fieldSize returning 1 for byte.
+        assertEquals(AllocSizes.arraySize(byte.class, 10), allocatedBytes("byte[] b = new byte[10]; return \"x\";"));
+    }
+
+    public void testOneDimZeroLength() {
+        // new int[0] => pad8(16 + 4*0) = 16 bytes (just the array header).
+        assertEquals(AllocSizes.arraySize(int.class, 0), allocatedBytes("int[] a = new int[0]; return \"x\";"));
+    }
+
     public void testOneDimPreemptsHugeAllocation() {
         // The 2GB array would OOM if actually allocated; the pre-check trips first.
         assertTripsLimit("byte[] b = new byte[Integer.MAX_VALUE]; return \"x\";");
     }
 
     public void testTwoDimChargedExactly() {
-        // new int[2][3]: outer pad8(16+8*2)=32, plus 2 * pad8(16+4*3)=2*32 => 96 bytes total.
-        assertEquals(AllocSizes.multiArraySize(int.class, 2, 3), allocatedBytes("int[][] a = new int[2][3]; return \"x\";"));
+        // new int[2][3] => pad8(16 + 4 * (2*3)) = pad8(40) = 40 bytes.
+        assertEquals(AllocSizes.arraySize(int.class, 2 * 3), allocatedBytes("int[][] a = new int[2][3]; return \"x\";"));
     }
 
     public void testThreeDimChargedExactly() {
-        assertEquals(AllocSizes.multiArraySize(int.class, 2, 2, 2), allocatedBytes("int[][][] a = new int[2][2][2]; return \"x\";"));
+        assertEquals(AllocSizes.arraySize(int.class, 2 * 2 * 2), allocatedBytes("int[][][] a = new int[2][2][2]; return \"x\";"));
     }
 
     public void testMultiDimPreemptsHugeAllocation() {
-        // new int[10][1_000_000_000] would attempt ~40GB; the all-levels pre-check trips before MULTIANEWARRAY.
+        // new int[10][1_000_000_000]: product overflows int but not long; pre-check trips before MULTIANEWARRAY.
         assertTripsLimit("int[][] a = new int[10][1000000000]; return \"x\";");
     }
 
     public void testTwoDimVariableLengthsCharged() {
         assertEquals(
-            AllocSizes.multiArraySize(int.class, 3, 4),
+            AllocSizes.arraySize(int.class, 3 * 4),
             allocatedBytes("int x = 3; int y = 4; int[][] a = new int[x][y]; return \"x\";")
         );
     }

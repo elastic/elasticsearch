@@ -1476,7 +1476,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 methodWriter.arrayStore(MethodWriter.getType(expressionType.getComponentType()));
             }
         } else if (isAllocationTrackingActive(writeScope) == false) {
-            // Tracking off: bit-identical to before allocation tracking existed.
+            // Tracking off: no allocation-tracking overhead.
             for (ExpressionNode irArgumentNode : irArgumentNodes) {
                 visit(irArgumentNode, writeScope);
             }
@@ -1486,88 +1486,47 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             } else {
                 methodWriter.newArray(MethodWriter.getType(expressionType.getComponentType()));
             }
-        } else if (irArgumentNodes.size() == 1) {
-            // new T[n], 1-D: size is runtime. Evaluate n, spill it, charge pad8(16 + elemSize*n), then allocate.
-            // Reference component types (e.g. new String[n]) use REFERENCE_SIZE per element via fieldSize.
-            Class<?> componentType = expressionType.getComponentType();
-            visit(irArgumentNodes.get(0), writeScope);
-            Variable length = writeScope.defineInternalVariable(int.class, "arrayLength");
-            methodWriter.visitVarInsn(Opcodes.ISTORE, length.getSlot());
-
-            loadScriptPointer(writeScope, methodWriter);
-            methodWriter.visitVarInsn(Opcodes.ILOAD, length.getSlot());
-            methodWriter.visitInsn(Opcodes.I2L);
-            methodWriter.push((long) AllocSizes.fieldSize(componentType));
-            methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
-            methodWriter.push((long) AllocSizes.ARRAY_HEADER);
-            methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
-            writePad8(methodWriter);
-            methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
-
-            methodWriter.visitVarInsn(Opcodes.ILOAD, length.getSlot());
-            methodWriter.newArray(MethodWriter.getType(componentType));
         } else {
-            // new T[d0][d1]...[dN-1], multi-dim (MULTIANEWARRAY): all dims are provided. Charge every level via the
-            // inline equivalent of AllocSizes.multiArraySize. Evaluate dims in source order, spill to locals, then
-            // accumulate total = Σ level_k * pad8(16 + elemAtLevel_k * dim_k), where level_k = dim_0*...*dim_(k-1).
+            // Tracking on: treat the array as flat — pad8(ARRAY_HEADER + fieldSize(innermostType) * d0 * d1 * ... * dN).
+            // For multi-dim this omits the overhead of the outer reference-array levels, which is small relative to any
+            // realistic limit. Evaluate all dims in source order and spill to locals (needed for reload before the
+            // allocation instruction), then compute the product and charge.
             int dimCount = irArgumentNodes.size();
+            Class<?> innermostComponentType = expressionType;
+            for (int k = 0; k < dimCount; ++k) {
+                innermostComponentType = innermostComponentType.getComponentType();
+            }
             int[] dimSlots = new int[dimCount];
             for (int k = 0; k < dimCount; ++k) {
                 visit(irArgumentNodes.get(k), writeScope);
                 dimSlots[k] = writeScope.defineInternalVariable(int.class, "arrayDim" + k).getSlot();
             }
-            // Dims are on the stack as [d0, d1, ..., d(N-1)] with d(N-1) on top; spill in reverse.
+            // Dims evaluated in order; stack is [d0, ..., dN-1] with dN-1 on top; spill in reverse.
             for (int k = dimCount - 1; k >= 0; --k) {
                 methodWriter.visitVarInsn(Opcodes.ISTORE, dimSlots[k]);
             }
-
-            Class<?> innermostComponentType = expressionType;
-            for (int k = 0; k < dimCount; ++k) {
-                innermostComponentType = innermostComponentType.getComponentType();
-            }
-            int innermostElemSize = AllocSizes.fieldSize(innermostComponentType);
-
-            Variable total = writeScope.defineInternalVariable(long.class, "allocSize");
-            Variable level = writeScope.defineInternalVariable(long.class, "allocLevel");
-            methodWriter.push(0L);
-            methodWriter.visitVarInsn(Opcodes.LSTORE, total.getSlot());
-            methodWriter.push(1L);
-            methodWriter.visitVarInsn(Opcodes.LSTORE, level.getSlot());
-
-            for (int k = 0; k < dimCount; ++k) {
-                int elemAtLevel = (k < dimCount - 1) ? AllocSizes.REFERENCE_SIZE : innermostElemSize;
-                // perArray = pad8(16 + elemAtLevel * (long) dim_k)
+            loadScriptPointer(writeScope, methodWriter);
+            methodWriter.visitVarInsn(Opcodes.ILOAD, dimSlots[0]);
+            methodWriter.visitInsn(Opcodes.I2L);
+            for (int k = 1; k < dimCount; ++k) {
                 methodWriter.visitVarInsn(Opcodes.ILOAD, dimSlots[k]);
                 methodWriter.visitInsn(Opcodes.I2L);
-                methodWriter.push((long) elemAtLevel);
                 methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
-                methodWriter.push((long) AllocSizes.ARRAY_HEADER);
-                methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
-                writePad8(methodWriter);
-                // total += level * perArray
-                methodWriter.visitVarInsn(Opcodes.LLOAD, level.getSlot());
-                methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
-                methodWriter.visitVarInsn(Opcodes.LLOAD, total.getSlot());
-                methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
-                methodWriter.visitVarInsn(Opcodes.LSTORE, total.getSlot());
-                // level *= dim_k (not needed past the innermost level)
-                if (k < dimCount - 1) {
-                    methodWriter.visitVarInsn(Opcodes.LLOAD, level.getSlot());
-                    methodWriter.visitVarInsn(Opcodes.ILOAD, dimSlots[k]);
-                    methodWriter.visitInsn(Opcodes.I2L);
-                    methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
-                    methodWriter.visitVarInsn(Opcodes.LSTORE, level.getSlot());
-                }
             }
-
-            loadScriptPointer(writeScope, methodWriter);
-            methodWriter.visitVarInsn(Opcodes.LLOAD, total.getSlot());
+            methodWriter.push((long) AllocSizes.fieldSize(innermostComponentType));
+            methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
+            methodWriter.push((long) AllocSizes.ARRAY_HEADER);
+            methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
+            writePad8(methodWriter);
             methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
-
             for (int k = 0; k < dimCount; ++k) {
                 methodWriter.visitVarInsn(Opcodes.ILOAD, dimSlots[k]);
             }
-            methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(expressionType).getDescriptor(), dimCount);
+            if (dimCount == 1) {
+                methodWriter.newArray(MethodWriter.getType(innermostComponentType));
+            } else {
+                methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(expressionType).getDescriptor(), dimCount);
+            }
         }
     }
 

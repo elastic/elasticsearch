@@ -33,7 +33,7 @@ public final class CalibrationUtils {
 
     /**
      * Materializes one calibration query from {@code querySource} at {@code queryOrdinal} into
-     * {@code dst}. {@code dst.length} must be at least {@code dimWork}. When
+     * {@code queryScratch}. {@code queryScratch.length} must be at least {@code dimWork}. When
      * {@code usePreconditioned} is true and {@code preconditioner} is non-null, applies it using
      * {@code preconditionScratch} (length at least {@code dimWork}).
      */
@@ -46,21 +46,21 @@ public final class CalibrationUtils {
         boolean neyshabur,
         Preconditioner preconditioner,
         boolean usePreconditioned,
-        float[] dst,
+        float[] queryScratch,
         float[] preconditionScratch
     ) throws IOException {
         float[] raw = querySource.vectorValue(queryOrdinal);
-        System.arraycopy(raw, 0, dst, 0, baseDim);
+        System.arraycopy(raw, 0, queryScratch, 0, baseDim);
         if (cosine) {
-            ESVectorUtil.l2Normalize(dst, baseDim);
+            ESVectorUtil.l2Normalize(queryScratch, baseDim);
         }
         if (neyshabur) {
-            dst[baseDim] = 0f;
+            queryScratch[baseDim] = 0f;
         }
         if (usePreconditioned && preconditioner != null) {
             Objects.requireNonNull(preconditionScratch, "preconditionScratch");
-            preconditioner.applyTransform(dst, preconditionScratch);
-            System.arraycopy(preconditionScratch, 0, dst, 0, dimWork);
+            preconditioner.applyTransform(queryScratch, preconditionScratch);
+            System.arraycopy(preconditionScratch, 0, queryScratch, 0, dimWork);
         }
     }
 }

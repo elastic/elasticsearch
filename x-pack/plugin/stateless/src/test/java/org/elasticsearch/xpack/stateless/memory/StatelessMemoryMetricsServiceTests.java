@@ -150,9 +150,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies the shard and index heap helpers against the node-level heap usage calculations. The node-level estimate mirrors
-     * {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)} and intentionally excludes points memory because points
-     * are part of the search-tier shard estimate.
+     * Verifies that {@link StatelessMemoryMetricsService#computeIndexHeapUsage} and
+     * {@link StatelessMemoryMetricsService#computeShardHeapUsage} do not diverge from what is used internally in the
+     * {@link StatelessMemoryMetricsService}'s node-level heap usage calculations (routing placement, same rules as
+     * {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)}).
      */
     private void compareAgainstSumOfIndividualShards(StatelessMemoryMetricsService service, ClusterState clusterState) {
         final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState);
@@ -180,8 +181,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 if (shardMemoryMetrics == null) {
                     shardMemoryMetrics = service.newUninitialisedShardMemoryMetrics(nowNanos);
                 }
-                final long searchTierShardHeap = service.computeShardHeapUsage(shardMemoryMetrics);
-                final long nodeShardHeap = computeShardHeapUsageForNodeEstimate(service, shardMemoryMetrics);
+                final long shardHeap = service.computeShardHeapUsage(shardMemoryMetrics);
                 final var seenIndices = perNodeSeenIndices.computeIfAbsent(nodeId, key -> new HashSet<>());
 
                 long indexHeap = 0L;
@@ -191,14 +191,14 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
                 var perShardUsages = service.getShardHeapUsages();
                 if (perShardUsages.containsKey(shardId)) {
-                    assertThat(perShardUsages.get(shardId).shardHeapUsageBytes(), equalTo(searchTierShardHeap));
+                    assertThat(perShardUsages.get(shardId).shardHeapUsageBytes(), equalTo(shardHeap));
                     assertThat(
                         perShardUsages.get(shardId).indexHeapUsageBytes(),
                         equalTo(service.computeIndexHeapUsage(shardMemoryMetrics))
                     );
                 }
 
-                perNodeOnlyIndexAndShardMemoryUsage.merge(nodeId, nodeShardHeap + indexHeap, Long::sum);
+                perNodeOnlyIndexAndShardMemoryUsage.merge(nodeId, shardHeap + indexHeap, Long::sum);
             }
         }
 

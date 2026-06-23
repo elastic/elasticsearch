@@ -1,0 +1,5 @@
+area: Suggesters
+issues: []
+pr: 150608
+summary: "Return 400 instead of 500 for suggest requests across indices with different analysis chains."
+type: enhancement

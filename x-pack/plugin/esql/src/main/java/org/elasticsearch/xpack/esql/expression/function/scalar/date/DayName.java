@@ -47,6 +47,7 @@ public class DayName extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns the name of the weekday for a date.",
         description = "Returns the name of the weekday for date based on the configured Locale.",
         examples = @Example(file = "date", tag = "docsDayName"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }

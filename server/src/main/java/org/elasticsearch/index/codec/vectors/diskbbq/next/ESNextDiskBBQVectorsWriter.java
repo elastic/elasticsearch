@@ -36,6 +36,7 @@ import org.apache.lucene.util.packed.DirectWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
@@ -52,6 +53,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.TieredMergeStrategy;
@@ -157,8 +161,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
     @Override
     protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition);
-        return mergeConfigResolver.resolve(fieldInfo, mergeState, codec);
+        return mergeConfigResolver.resolve(fieldInfo, mergeState, IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition));
     }
 
     private static IvfSegmentConfig requireSegmentConfig(IvfSegmentConfig cfg) {
@@ -567,24 +570,19 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private static void printClusterQualityStatistics(int[] clusterSizes) {
         float min = Float.MAX_VALUE;
         float max = Float.MIN_VALUE;
-        float mean = 0;
-        float m2 = 0;
-        int count = 0;
+        WelfordVariance clusterSizeStats = new WelfordVariance();
         for (int size : clusterSizes) {
-            count += 1;
-            float delta = size - mean;
-            mean += delta / count;
-            m2 += delta * (size - mean);
+            clusterSizeStats.add(size);
             min = Math.min(min, size);
             max = Math.max(max, size);
         }
-        float variance = m2 / (clusterSizes.length - 1);
+        double variance = clusterSizeStats.m2() / (clusterSizes.length - 1);
         logger.debug(
             "Centroid count: {} min: {} max: {} mean: {} stdDev: {} variance: {}",
             clusterSizes.length,
             min,
             max,
-            mean,
+            clusterSizeStats.mean(),
             Math.sqrt(variance),
             variance
         );
@@ -939,16 +937,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
                     reader = perFieldReader.getFieldReader(fieldInfo.name);
                 }
-                if (reader instanceof IVFVectorsReader<?> ivfReader) {
-                    FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(fieldInfo.name);
-                    if (readerFieldInfo == null) {
-                        segmentSizes[i] = 0;
-                        segmentCentroidCounts[i] = 0;
-                        continue;
-                    }
-                    FloatVectorValues vectorValues = mergeState.knnVectorsReaders[i].getFloatVectorValues(fieldInfo.name);
-                    segmentSizes[i] = vectorValues != null ? vectorValues.size() : 0;
-                    segmentCentroidData[i] = ivfReader.readCentroidData(readerFieldInfo);
+                if (reader instanceof IVFVectorsReader<?> ivfReader && mergeState.fieldInfos[i].fieldInfo(fieldInfo.name) != null) {
+                    segmentSizes[i] = ivfReader.getFloatVectorValues(fieldInfo.name).size();
+                    segmentCentroidData[i] = ivfReader.readCentroidData(fieldInfo.name);
                     segmentCentroidCounts[i] = segmentCentroidData[i] != null ? segmentCentroidData[i].numCentroids() : 0;
                 } else {
                     segmentSizes[i] = 0;

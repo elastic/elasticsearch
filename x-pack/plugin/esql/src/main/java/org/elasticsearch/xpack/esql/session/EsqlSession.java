@@ -284,7 +284,9 @@ public class EsqlSession {
             this.crossProjectModeDecider,
             indicesExpressionGrouper,
             planTelemetry,
-            verifier
+            verifier,
+            services.client(),
+            services.transportService().getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
     }
 
@@ -1201,13 +1203,30 @@ public class EsqlSession {
 
         TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
         datasetResolutionProfile.start();
-        // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
-        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
-        // expansion (wildcards, exclusions, date math, etc.) flows through the same
-        // IndexNameExpressionResolver path indices use. The rewriter bails internally when there are
-        // no datasets registered (the feature flag gates the CRUD layer that puts datasets there).
-        parsed = schemaService.rewriteDatasets(parsed, projectMetadata);
-        datasetResolutionProfile.stop();
+        // Authorize and rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
+        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Only datasets the caller can
+        // read are rewritten (the resolve is a security-filtered action); the rest of analysis runs in the callback once
+        // it completes. The resolve bails synchronously when no FROM pattern could match a registered dataset.
+        schemaService.resolveDatasets(
+            parsed,
+            projectMetadata,
+            configuration.projectRouting(),
+            crossProjectModeDecider.crossProjectEnabled(),
+            logicalPlanListener.delegateFailureAndWrap((l, rewrittenPlan) -> {
+                datasetResolutionProfile.stop();
+                analyzeRewrittenPlan(rewrittenPlan, unmappedResolution, configuration, executionInfo, requestFilter, l);
+            })
+        );
+    }
+
+    private void analyzeRewrittenPlan(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
+    ) {
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);

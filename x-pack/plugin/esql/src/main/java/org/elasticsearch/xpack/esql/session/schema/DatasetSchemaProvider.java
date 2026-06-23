@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.session.schema;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
@@ -23,25 +26,61 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executor;
+
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 /**
- * Schema for datasets and external sources. A {@code FROM <dataset>} target is first rewritten into an external
- * relation by {@link DatasetRewriter} (a pre-analysis plan rewrite); its schema is then read from the source
- * metadata by {@link ExternalSourceResolver}. The two steps run at different points in the pipeline, so the
- * provider keeps them as separate entry points rather than one call.
+ * Schema for datasets and external sources. A {@code FROM <dataset>} target is authorized for {@code read} and then
+ * rewritten into an external relation; its schema is read from the source metadata by {@link ExternalSourceResolver}.
+ * Authorization goes through {@link EsqlResolveDatasetAction} — a security-filtered {@code indices:data/read/...} action
+ * that authorizes the dataset names exactly as an index read is authorized — so only datasets the caller can read are
+ * rewritten. The two steps run at different points in the pipeline, so the provider keeps them as separate entry points.
  */
 final class DatasetSchemaProvider {
 
     private final ExternalSourceResolver externalSourceResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Client client;
+    private final Executor executor;
 
-    DatasetSchemaProvider(ExternalSourceResolver externalSourceResolver, IndexNameExpressionResolver indexNameExpressionResolver) {
+    DatasetSchemaProvider(
+        ExternalSourceResolver externalSourceResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client,
+        Executor executor
+    ) {
         this.externalSourceResolver = externalSourceResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.client = client;
+        this.executor = executor;
     }
 
-    LogicalPlan rewriteDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata) {
-        return DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
+    /**
+     * Authorize the dataset names referenced by {@code parsed} for {@code read}, then rewrite the authorized ones into
+     * external relations. When no FROM pattern could match a registered dataset, the plan is returned unchanged with no
+     * authorization round-trip. A dataset the caller cannot read makes the resolve action fail (403), which propagates.
+     */
+    void resolveDatasets(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        String projectRouting,
+        boolean cpsEnabled,
+        ActionListener<LogicalPlan> listener
+    ) {
+        Set<String> candidatePatterns = DatasetRewriter.datasetCandidatePatterns(parsed, projectMetadata);
+        if (candidatePatterns.isEmpty()) {
+            listener.onResponse(parsed);
+            return;
+        }
+        var request = new EsqlResolveDatasetAction.Request(REST_MASTER_TIMEOUT_DEFAULT, cpsEnabled);
+        request.indices(candidatePatterns.toArray(String[]::new));
+        request.setProjectRouting(projectRouting);
+        client.execute(EsqlResolveDatasetAction.TYPE, request, new ThreadedActionListener<>(executor, listener.map(response -> {
+            Set<String> authorized = Set.copyOf(response.datasetNames());
+            return DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver, authorized);
+        })));
     }
 
     /**

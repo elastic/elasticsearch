@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -75,6 +76,20 @@ public final class DatasetRewriter {
      * regardless of whether the user wrote {@code FROM <dataset>} or inline {@code EXTERNAL}).
      */
     public static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
+        return rewrite(parsed, projectMetadata, iner, null);
+    }
+
+    /**
+     * As {@link #rewrite(LogicalPlan, ProjectMetadata, IndexNameExpressionResolver)} but only rewrites datasets the
+     * caller is authorized to read. {@code authorizedDatasetNames == null} disables the filter (all allowed) — for
+     * callers without a security context, e.g. tests.
+     */
+    public static LogicalPlan rewrite(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        Set<String> authorizedDatasetNames
+    ) {
         if (projectMetadata == null) {
             return parsed;
         }
@@ -86,7 +101,7 @@ public final class DatasetRewriter {
         IndexAbstractionResolver resolver = new IndexAbstractionResolver(iner);
         return parsed.transformUp(
             UnresolvedRelation.class,
-            r -> rewriteOne(r, projectMetadata, datasetMetadata, dataSourceMetadata, resolver)
+            r -> rewriteOne(r, projectMetadata, datasetMetadata, dataSourceMetadata, resolver, authorizedDatasetNames)
         );
     }
 
@@ -95,7 +110,8 @@ public final class DatasetRewriter {
         ProjectMetadata projectMetadata,
         DatasetMetadata datasets,
         DataSourceMetadata dataSources,
-        IndexAbstractionResolver resolver
+        IndexAbstractionResolver resolver,
+        Set<String> authorizedDatasetNames
     ) {
         List<String> patterns = Arrays.asList(Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern()));
 
@@ -117,7 +133,7 @@ public final class DatasetRewriter {
             REWRITER_OPTIONS,
             projectMetadata,
             componentSelector -> indicesLookup.keySet(),
-            (name, selector) -> true,
+            (name, selector) -> authorizedDatasetNames == null || authorizedDatasetNames.contains(name),
             true
         );
 
@@ -232,6 +248,38 @@ public final class DatasetRewriter {
             }
         }
         return false;
+    }
+
+    /**
+     * The local (non cluster-prefixed) FROM patterns that could match a registered dataset — the input to the
+     * authorization resolve. Empty when no datasets are registered or nothing could match, so the caller skips the
+     * resolve entirely.
+     */
+    public static Set<String> datasetCandidatePatterns(LogicalPlan parsed, ProjectMetadata projectMetadata) {
+        if (projectMetadata == null) {
+            return Set.of();
+        }
+        Set<String> datasetNames = DatasetMetadata.get(projectMetadata).datasets().keySet();
+        if (datasetNames.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> candidates = new LinkedHashSet<>();
+        parsed.forEachUp(UnresolvedRelation.class, relation -> {
+            List<String> patterns = Arrays.asList(Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern()));
+            for (String pattern : patterns) {
+                if (RemoteClusterAware.isRemoteIndexName(pattern)) {
+                    return; // datasets are local-only
+                }
+            }
+            if (anyPatternCouldMatchDataset(patterns, datasetNames)) {
+                for (String pattern : patterns) {
+                    if (pattern.isEmpty() == false && pattern.charAt(0) != '-') {
+                        candidates.add(pattern);
+                    }
+                }
+            }
+        });
+        return candidates;
     }
 
     /**

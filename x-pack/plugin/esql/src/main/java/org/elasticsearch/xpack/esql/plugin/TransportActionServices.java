@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,5 +35,6 @@ public record TransportActionServices(
     IpLocationService ipLocationService,
     BlockFactoryProvider blockFactoryProvider,
     PlannerSettings.Holder plannerSettings,
-    CrossProjectModeDecider crossProjectModeDecider
+    CrossProjectModeDecider crossProjectModeDecider,
+    Client client
 ) {}

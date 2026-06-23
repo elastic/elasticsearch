@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session.schema;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
 /**
@@ -48,7 +50,9 @@ public final class SchemaService {
         CrossProjectModeDecider crossProjectModeDecider,
         IndicesExpressionGrouper indicesExpressionGrouper,
         PlanTelemetry planTelemetry,
-        Verifier verifier
+        Verifier verifier,
+        Client client,
+        Executor executor
     ) {
         this.indexProvider = new IndexSchemaProvider(
             indexResolver,
@@ -59,7 +63,7 @@ public final class SchemaService {
             verifier
         );
         this.viewProvider = new ViewSchemaProvider(viewResolver);
-        this.datasetProvider = new DatasetSchemaProvider(externalSourceResolver, indexNameExpressionResolver);
+        this.datasetProvider = new DatasetSchemaProvider(externalSourceResolver, indexNameExpressionResolver, client, executor);
     }
 
     /** Expand any view in {@code plan} into its underlying query. A plan rewrite, not a flat schema fetch. */
@@ -72,9 +76,18 @@ public final class SchemaService {
         viewProvider.replaceViews(plan, projectRouting, parser, listener);
     }
 
-    /** Rewrite {@code FROM <dataset>} targets into external relations so analysis treats them like {@code EXTERNAL}. */
-    public LogicalPlan rewriteDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata) {
-        return datasetProvider.rewriteDatasets(parsed, projectMetadata);
+    /**
+     * Authorize and rewrite {@code FROM <dataset>} targets into external relations so analysis treats them like the
+     * inline {@code EXTERNAL} command. Only datasets the caller can {@code read} are rewritten.
+     */
+    public void resolveDatasets(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        String projectRouting,
+        boolean cpsEnabled,
+        ActionListener<LogicalPlan> listener
+    ) {
+        datasetProvider.resolveDatasets(parsed, projectMetadata, projectRouting, cpsEnabled, listener);
     }
 
     /** Resolve the schema of external sources (Iceberg tables / Parquet files) referenced by the query. */

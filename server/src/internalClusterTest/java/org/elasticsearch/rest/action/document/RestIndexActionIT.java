@@ -935,8 +935,14 @@ public class RestIndexActionIT extends ESIntegTestCase {
                 "match_all": {}
               }
             }""");
-        Response wrongSliceResponse = getRestClient().performRequest(explainWithWrongSlice);
-        ObjectPath wrongSliceObjectPath = ObjectPath.createFromResponse(wrongSliceResponse);
+        // Document "1" exists only in slice s1, so explaining it in slice s2 must find no document (per-slice scoping) —
+        // not the s1 document. Like _explain of any missing id, that is a 404 with matched:false, not a 200.
+        ResponseException wrongSliceException = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(explainWithWrongSlice)
+        );
+        assertThat(wrongSliceException.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        ObjectPath wrongSliceObjectPath = ObjectPath.createFromResponse(wrongSliceException.getResponse());
         assertThat(wrongSliceObjectPath.evaluate("matched"), equalTo(false));
 
         Request createDisabled = new Request("PUT", "/slice-explain-disabled");

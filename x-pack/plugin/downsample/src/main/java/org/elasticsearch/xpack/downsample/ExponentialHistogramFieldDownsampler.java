@@ -191,6 +191,8 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
          * For {@link Temporality#DELTA} and {@link Temporality#DEFAULT} temporality, merges all histograms in the bucket.
          */
         static class DeltaCollector implements TemporalityAwareCollector {
+
+            // The merger doesn't need to be closed: it uses a no-op circuit breaker
             private ExponentialHistogramMerger merger = null;
 
             @Override
@@ -203,15 +205,15 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
 
             @Override
             public ExponentialHistogram downsampledValue() {
-                return merger != null ? merger.get() : null;
+                ExponentialHistogram result = merger != null ? merger.get() : null;
+                // Reset to null to prevent accidental changes to the returned histogram
+                merger = null;
+                return result;
             }
 
             @Override
             public void reset() {
-                if (merger != null) {
-                    merger.close();
-                    merger = null;
-                }
+                merger = null;
             }
 
             @Override
@@ -237,6 +239,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
         static class CumulativeCollector implements TemporalityAwareCollector {
 
             private final String name;
+            // No need to close: uses a no-op circuit breaker
             private final ExponentialHistogramMerger diffMerger = ExponentialHistogramMerger.create(
                 ExponentialHistogramCircuitBreaker.noop()
             );
@@ -308,9 +311,6 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
 
             @Override
             public void reset() {
-                if (previousBucketValueHolder != null) {
-                    previousBucketValueHolder.close();
-                }
                 previousBucketValueHolder = downsampledHolder;
                 downsampledHolder = null;
                 lastTimestamp = -1;
@@ -320,14 +320,8 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
             @Override
             public void tsidReset() {
                 reset();
-                if (previousValueHolder != null) {
-                    previousValueHolder.close();
-                    previousValueHolder = null;
-                }
-                if (previousBucketValueHolder != null) {
-                    previousBucketValueHolder.close();
-                    previousBucketValueHolder = null;
-                }
+                previousValueHolder = null;
+                previousBucketValueHolder = null;
             }
 
             /**
@@ -352,6 +346,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
             }
 
             private static CompressedExponentialHistogramHolder createHolder(ExponentialHistogram value) {
+                // No need to close: uses a no-op circuit breaker
                 CompressedExponentialHistogramHolder holder = CompressedExponentialHistogramHolder.create(
                     ExponentialHistogramCircuitBreaker.noop()
                 );

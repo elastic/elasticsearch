@@ -1,5 +1,7 @@
 ---
 setup:
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
         indices.create:
@@ -14,6 +16,8 @@ setup:
 "Get field mapping with no index":
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         fields: text
 
@@ -22,6 +26,8 @@ setup:
 ---
 "Get field mapping by index only":
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: test_index
         fields: text
@@ -32,6 +38,8 @@ setup:
 "Get field mapping by field, with another field that doesn't exist":
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: test_index
         fields: [ text , text1 ]
@@ -43,6 +51,8 @@ setup:
 "Get field mapping with include_defaults":
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: test_index
         fields: text

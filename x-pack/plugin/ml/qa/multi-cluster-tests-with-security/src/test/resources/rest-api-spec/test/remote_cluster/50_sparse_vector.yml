@@ -5,7 +5,7 @@ setup:
       cluster_features: [ "gte_v8.15.0" ]
       reason: "sparse_vector query introduced in 8.15.0"
   - skip:
-      features: headers
+      features: [headers, allowed_warnings]
   - do:
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
@@ -264,6 +264,8 @@ teardown:
   - do:
       headers:
         Content-Type: application/json
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: sparse_vector_pruning_test
         fields: ml.tokens
@@ -277,6 +279,8 @@ teardown:
   - do:
       headers:
         Content-Type: application/json
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: sparse_vector_pruning_test
         fields: ml.tokens

@@ -211,9 +211,10 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      * {@code java.lang.foreign} classes have the {@code @PreviewFeature} annotation
      * stripped. Also enables forbidden-API checking for renamed preview APIs, so that
      * direct usage of methods like {@code getUtf8String} or {@code allocateUtf8String}
-     * is caught at build time. Call from a project's {@code build.gradle}:
+     * is caught at build time. Prefer applying the {@code elasticsearch.foreign-api}
+     * plugin in a project's {@code build.gradle}:
      * <pre>{@code
-     *   ElasticsearchJavaBasePlugin.enableForeignAccess(project)
+     *   apply plugin: 'elasticsearch.foreign-api'
      * }</pre>
      */
     public static void enableForeignAccess(Project project) {

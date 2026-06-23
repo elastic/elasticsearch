@@ -7,13 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.mrjar'
-
-ElasticsearchJavaBasePlugin.enableForeignAccess(project)
+apply plugin: 'elasticsearch.foreign-api'
 
 dependencies {
   api project(':libs:core')

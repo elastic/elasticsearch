@@ -21,10 +21,8 @@ class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
         internalBuild()
 
         buildFile << """
-            import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin
-
             apply plugin: 'java'
-            ElasticsearchJavaBasePlugin.enableForeignAccess(project)
+            apply plugin: 'elasticsearch.foreign-api'
         """.stripIndent()
     }
 
@@ -166,11 +164,10 @@ class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
         buildFile << """
             import org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
             import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
-            import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin
 
             apply plugin: 'java'
             apply plugin: ForbiddenApisPrecommitPlugin
-            ElasticsearchJavaBasePlugin.enableForeignAccess(project)
+            apply plugin: 'elasticsearch.foreign-api'
 
             tasks.withType(CheckForbiddenApisTask).configureEach {
                 replaceSignatureFiles '${sigFile}'

@@ -105,7 +105,7 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
 
     private boolean ignoreFailures = false;
     private boolean ignoreMissingClasses = false;
-    private File foreignApiJar;
+    private Provider<RegularFile> foreignApiJar;
 
     @Input
     @Optional
@@ -239,9 +239,7 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     public void checkForeignApiUsage(Provider<RegularFile> jarFile) {
         if (Runtime.version().feature() == 21) {
             addSignatureFiles("jdk-foreign-signatures");
-            if (jarFile.isPresent()) {
-                setForeignApiJar(jarFile.get().getAsFile());
-            }
+            this.foreignApiJar = jarFile;
         } else {
             addSignatureFiles("jdk-foreign-signatures22");
         }
@@ -437,8 +435,8 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
             parameters.getIgnoreMissingClasses().set(getIgnoreMissingClasses());
             parameters.getSuccessMarker().set(getSuccessMarker());
             parameters.getSignaturesFiles().from(getSignaturesFiles());
-            if (foreignApiJar != null) {
-                parameters.getForeignApiJar().set(foreignApiJar);
+            if (foreignApiJar != null && foreignApiJar.isPresent()) {
+                parameters.getForeignApiJar().set(foreignApiJar.get().getAsFile());
             }
         });
     }

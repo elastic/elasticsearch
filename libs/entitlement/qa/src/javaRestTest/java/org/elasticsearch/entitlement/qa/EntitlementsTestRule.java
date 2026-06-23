@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.qa;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.PluginInstallSpec;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -29,6 +30,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+@SuppressForbidden(reason = "TemporaryFolder.getRoot() returns java.io.File; System.out used for test setup debug logging")
 class EntitlementsTestRule implements TestRule {
 
     // entitlements that test methods may use, see EntitledActions
@@ -87,6 +89,7 @@ class EntitlementsTestRule implements TestRule {
         testDir = new TemporaryFolder();
         var tempDirSetup = new ExternalResource() {
             @Override
+            @SuppressForbidden(reason = "TemporaryFolder.getRoot() returns java.io.File")
             protected void before() throws Throwable {
                 Path testPath = testDir.getRoot().toPath();
                 Files.createDirectory(testPath.resolve("read_dir"));

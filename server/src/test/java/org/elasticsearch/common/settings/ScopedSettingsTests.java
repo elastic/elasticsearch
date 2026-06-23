@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.TestLoggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
@@ -1283,8 +1284,21 @@ public class ScopedSettingsTests extends ESTestCase {
             assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
+            assertWarnings(
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                    + " This behavior is deprecated and will change in a future major version."
+            );
             settings.applySettings(Settings.builder().build());
             assertEquals(property, LogManager.getRootLogger().getLevel());
+            // Resetting root also descends into org.elasticsearch.deprecation (set to TRACE by the
+            // previous call). When property allows WARN-level logging to pass through, a second
+            // deprecation warning fires and must be consumed here.
+            if (property != Level.TRACE && property.intLevel() >= Level.WARN.intLevel()) {
+                assertWarnings(
+                    "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                        + " This behavior is deprecated and will change in a future major version."
+                );
+            }
             settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
             assertEquals(Level.TRACE, LogManager.getLogger("test").getLevel());
             settings.applySettings(Settings.builder().build());
@@ -1293,6 +1307,51 @@ public class ScopedSettingsTests extends ESTestCase {
             Loggers.setLevel(LogManager.getRootLogger(), level);
             Loggers.setLevel(LogManager.getLogger("test"), testLevel);
         }
+    }
+
+    /**
+     * Verifies that a deprecation warning is emitted when a dynamic cluster settings update sets a parent logger and
+     * would override an explicitly-configured child logger. The programmatic {@code Loggers.setLevel} path (used at
+     * startup and in tests) must not emit any warnings — only the API path inside {@code LoggingSettingUpdater} does.
+     */
+    public void testLoggingUpdatesWarnOnChildLoggerOverride() {
+        TestLoggers.runWithLoggersRestored(() -> {
+            ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+            // Set up an explicit Log4j level on the child directly (not via the cluster settings API) to
+            // simulate a child configured in log4j2.properties or by a prior API call that is not part
+            // of the same settings batch. Using applySettings for the child would include the child key in
+            // the diff of the next applySettings call, where it would be processed as a removal (null)
+            // before the parent key is processed, wiping the LoggerConfig before the descent loop runs.
+            Loggers.setLevel(LogManager.getLogger("test.deprecation.parent.child"), Level.TRACE);
+            assertEquals(Level.TRACE, LogManager.getLogger("test.deprecation.parent.child").getLevel());
+
+            // Setting the parent via the cluster settings API should override the child and emit a deprecation warning.
+            settings.applySettings(Settings.builder().put("logger.test.deprecation.parent", "INFO").build());
+            assertWarnings(
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                    + " This behavior is deprecated and will change in a future major version."
+            );
+        });
+    }
+
+    /**
+     * Verifies that no deprecation warning is emitted when a parent logger is set and no child logger has an
+     * explicitly-configured level (the common, unaffected case).
+     */
+    public void testLoggingUpdatesNoWarnWithoutChildLoggerOverride() {
+        TestLoggers.runWithLoggersRestored(() -> {
+            final Level parentOriginal = LogManager.getLogger("test.nodeprecation").getLevel();
+            try {
+                ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+                // Set a parent logger that has no explicitly-configured children — no deprecation warning expected.
+                settings.applySettings(Settings.builder().put("logger.test.nodeprecation", "DEBUG").build());
+                assertEquals(Level.DEBUG, LogManager.getLogger("test.nodeprecation").getLevel());
+                assertWarnings(); // no warnings
+            } finally {
+                Loggers.setLevel(LogManager.getLogger("test.nodeprecation"), parentOriginal);
+            }
+        });
     }
 
     public void testFallbackToLoggerLevel() {
@@ -1305,6 +1364,10 @@ public class ScopedSettingsTests extends ESTestCase {
             assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
+            assertWarnings(
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                    + " This behavior is deprecated and will change in a future major version."
+            );
             settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.
             assertEquals(Level.ERROR, LogManager.getRootLogger().getLevel());
         } finally {

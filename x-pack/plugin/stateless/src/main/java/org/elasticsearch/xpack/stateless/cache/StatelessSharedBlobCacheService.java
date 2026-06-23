@@ -119,10 +119,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         return cacheBoostEnabled;
     }
 
-    static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {
-        return StatelessCacheEvictionPolicyType.fromSettings(settings).create(clusterService);
-    }
-
     /**
      * Fetches and writes in cache a blob byte range, given the {@link CacheBlobReader} and the blob's associated {@link FileCacheKey}.
      */

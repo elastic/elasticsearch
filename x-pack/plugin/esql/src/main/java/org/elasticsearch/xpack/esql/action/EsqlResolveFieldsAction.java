@@ -97,7 +97,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
             }
         }
 
-        var schema = Maps.transformValues(resolveIndexAbstractions(request), list -> list.stream().map(this::resolveSchema).toList());
+        var localSchema = Maps.transformValues(resolveIndexAbstractions(request), list -> list.stream().map(this::resolveSchema).toList());
+        var combinedSchema = new LinkedHashMap<String, List<IndexAbstractionSchema>>(localSchema);
 
         fieldCapsAction.executeRequest(task, request, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
@@ -130,8 +131,14 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
             }
 
             @Override
+            public void onRemoteResponse(EsqlResolveFieldsResponse response) {
+                // TODO merge assuming possible collisions
+                combinedSchema.putAll(response.schema());
+            }
+
+            @Override
             public EsqlResolveFieldsResponse wrapPrimary(FieldCapabilitiesResponse primary) {
-                return new EsqlResolveFieldsResponse(primary, schema);
+                return new EsqlResolveFieldsResponse(primary, combinedSchema);
             }
 
             @Override

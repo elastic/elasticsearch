@@ -40,7 +40,11 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
         super(valueBuffer, validityBuffer, offsetBuffer, valueCount, offsetCount, blockFactory);
     }
 
-    public static BooleanArrowBufBlock of(BitVector bitVector, BlockFactory blockFactory) {
+    public static BooleanBlock of(BitVector bitVector, BlockFactory blockFactory) {
+        BooleanBlock constant = tryConstant(bitVector, blockFactory);
+        if (constant != null) {
+            return constant;
+        }
         var result = new BooleanArrowBufBlock(
             bitVector.getDataBuffer(),
             bitVector.getNullCount() == 0 ? null : bitVector.getValidityBuffer(),
@@ -52,6 +56,30 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
 
         ArrowUtils.retainBuffers(result.valueBuffer, result.validityBuffer);
         return result;
+    }
+
+    /**
+     * Returns a constant block when the bit vector is fully present and all bits are identical,
+     * a constant-null block when all values are null, or {@code null} when the caller should
+     * fall through to the zero-copy {@link BooleanArrowBufBlock} path.
+     */
+    private static BooleanBlock tryConstant(BitVector bitVector, BlockFactory blockFactory) {
+        int rowCount = bitVector.getValueCount();
+        if (rowCount == 0) {
+            return null;
+        }
+        if (bitVector.getNullCount() == rowCount) {
+            return (BooleanBlock) blockFactory.newConstantNullBlock(rowCount);
+        }
+        if (bitVector.getNullCount() != 0) {
+            return null;
+        }
+        ArrowBuf valueBuffer = bitVector.getDataBuffer();
+        if (ArrowBufConstantDetection.isUniformBits(valueBuffer, rowCount) == false) {
+            return null;
+        }
+        boolean value = (valueBuffer.getByte(0) & 0x01) != 0;
+        return blockFactory.newConstantBooleanBlockWith(value, rowCount);
     }
 
     @Override
@@ -121,17 +149,17 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
     }
 
     @Override
-    public BooleanBlock filter(boolean mayContainDuplicates, int... positions) {
+    public BooleanBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         var allocator = blockFactory.arrowAllocator();
 
         if (offsetBuffer == null) {
             ArrowBuf newValues = null, newValidity = null;
             boolean success = false;
             try {
-                newValues = allocator.buffer(bitBufferLength(positions.length));
+                newValues = allocator.buffer(bitBufferLength(length));
                 newValues.setZero(0, newValues.capacity());
                 if (validityBuffer != null) {
-                    newValidity = allocator.buffer(bitBufferLength(positions.length));
+                    newValidity = allocator.buffer(bitBufferLength(length));
                     newValidity.setZero(0, newValidity.capacity());
                 }
                 success = true;
@@ -141,19 +169,19 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
                 }
             }
 
-            for (int i = 0; i < positions.length; i++) {
-                int pos = positions[i];
+            for (int i = 0; i < length; i++) {
+                int pos = positions[offset + i];
                 copyBit(valueBuffer, pos, newValues, i);
                 if (newValidity != null && isNull(pos) == false) {
                     setBit(newValidity, i);
                 }
             }
-            return new BooleanArrowBufBlock(newValues, newValidity, null, positions.length, 0, blockFactory);
+            return new BooleanArrowBufBlock(newValues, newValidity, null, length, 0, blockFactory);
         }
 
         int totalValues = 0;
-        for (int pos : positions) {
-            totalValues += getValueCount(pos);
+        for (int i = offset, end = offset + length; i < end; i++) {
+            totalValues += getValueCount(positions[i]);
         }
 
         ArrowBuf newValues = null, newValidity = null, newOffsets = null;
@@ -162,10 +190,10 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
             newValues = allocator.buffer(bitBufferLength(totalValues));
             newValues.setZero(0, newValues.capacity());
             if (validityBuffer != null) {
-                newValidity = allocator.buffer(bitBufferLength(positions.length));
+                newValidity = allocator.buffer(bitBufferLength(length));
                 newValidity.setZero(0, newValidity.capacity());
             }
-            newOffsets = allocator.buffer((long) (positions.length + 1) * Integer.BYTES);
+            newOffsets = allocator.buffer((long) (length + 1) * Integer.BYTES);
             success = true;
         } finally {
             if (success == false) {
@@ -174,8 +202,8 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
         }
 
         int valueIdx = 0;
-        for (int i = 0; i < positions.length; i++) {
-            int pos = positions[i];
+        for (int i = 0; i < length; i++) {
+            int pos = positions[offset + i];
             newOffsets.setInt((long) i * Integer.BYTES, valueIdx);
             if (isNull(pos) == false) {
                 if (newValidity != null) {
@@ -189,8 +217,8 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
                 valueIdx += count;
             }
         }
-        newOffsets.setInt((long) positions.length * Integer.BYTES, valueIdx);
-        return new BooleanArrowBufBlock(newValues, newValidity, newOffsets, positions.length, positions.length + 1, blockFactory);
+        newOffsets.setInt((long) length * Integer.BYTES, valueIdx);
+        return new BooleanArrowBufBlock(newValues, newValidity, newOffsets, length, length + 1, blockFactory);
     }
 
     @Override

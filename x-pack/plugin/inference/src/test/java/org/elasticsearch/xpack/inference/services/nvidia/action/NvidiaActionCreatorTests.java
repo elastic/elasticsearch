@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
@@ -757,7 +758,11 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, PASSAGES_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(PASSAGES_VALUE)),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS_TWO_RESULTS)));
@@ -801,7 +806,11 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, PASSAGES_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(PASSAGES_VALUE)),
+                null,
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
             assertThat(

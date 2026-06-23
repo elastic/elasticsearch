@@ -93,6 +93,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     @FunctionInfo(
         returnType = { "long", "double", "dense_vector" },
+        briefSummary = "Returns the sum of a numeric expression.",
         description = "The sum of a numeric expression.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -185,6 +186,24 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     @Override
     public Sum withFilter(Expression filter) {
         return new Sum(source(), field(), filter, window(), summationMode, longOverflowMode);
+    }
+
+    /** Returns a new {@code Sum} with the field replaced, preserving all other properties. */
+    public Sum withField(Expression field) {
+        return new Sum(source(), field, filter(), window(), summationMode, longOverflowMode);
+    }
+
+    /**
+     * Returns true when this {@code Sum} has no filter and uses the default (no) window.
+     * Used by optimizations that can only rewrite bare {@code SUM(expr)} aggregations.
+     *
+     * <p>The assertion below guards against {@code Sum} gaining new properties without
+     * this method being updated: if {@link #info()} ever returns more or fewer than 5
+     * properties, this method must be reviewed.
+     */
+    public boolean isSimpleSum() {
+        assert info().properties().size() == 5 : "Sum has changed; update isSimpleSum";
+        return hasFilter() == false && NO_WINDOW.equals(window());
     }
 
     @Override

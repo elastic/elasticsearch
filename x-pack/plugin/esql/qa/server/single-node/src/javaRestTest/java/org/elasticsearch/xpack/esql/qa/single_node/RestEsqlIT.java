@@ -19,6 +19,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -66,11 +67,13 @@ import static org.elasticsearch.xpack.esql.planner.PlannerSettings.LUCENE_TOPN_L
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -352,6 +355,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     sig,
                     matchesList().item("LuceneSourceOperator")
                         .item("ValuesSourceReaderOperator")
+                        .item("EvalOperator")
                         .item("AggregationOperator")
                         .item("ExchangeSinkOperator")
                 );
@@ -832,28 +836,39 @@ public class RestEsqlIT extends RestEsqlTestCase {
      */
     private void doTestSuggestedCast(String queryFormat, String castedQueryFormat) throws IOException {
         // TODO: Figure out how best to make sure we don't leave out new types
-        Map<DataType, String> typesAndValues = Map.ofEntries(
-            Map.entry(DataType.BOOLEAN, "\"true\""),
-            Map.entry(DataType.LONG, "-1234567890234567"),
-            Map.entry(DataType.INTEGER, "123"),
-            Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
-            Map.entry(DataType.DOUBLE, "12.4"),
-            Map.entry(DataType.KEYWORD, "\"keyword\""),
-            Map.entry(DataType.TEXT, "\"some text\""),
-            Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
-            Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
-            Map.entry(DataType.IP, "\"192.168.30.1\""),
-            Map.entry(DataType.VERSION, "\"8.19.0\""),
-            Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
-            Map.entry(DataType.GEO_SHAPE, """
-                {
-                  "type": "Point",
-                  "coordinates": [-77.03653, 38.897676]
-                }
-                """)
+        Map<DataType, String> typesAndValues = new HashMap<>(
+            Map.ofEntries(
+                Map.entry(DataType.BOOLEAN, "\"true\""),
+                Map.entry(DataType.LONG, "-1234567890234567"),
+                Map.entry(DataType.INTEGER, "123"),
+                Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
+                Map.entry(DataType.DOUBLE, "12.4"),
+                Map.entry(DataType.KEYWORD, "\"keyword\""),
+                Map.entry(DataType.TEXT, "\"some text\""),
+                Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
+                Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
+                Map.entry(DataType.IP, "\"192.168.30.1\""),
+                Map.entry(DataType.VERSION, "\"8.19.0\""),
+                Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
+                Map.entry(DataType.GEO_SHAPE, """
+                    {
+                      "type": "Point",
+                      "coordinates": [-77.03653, 38.897676]
+                    }
+                    """)
+            )
         );
+        if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled()) {
+            typesAndValues.put(DataType.FLATTENED, """
+                {
+                  "foo": "a",
+                  "o": {
+                    "bar": "b"
+                  }
+                }
+                """);
+        }
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()) {
-            typesAndValues = new HashMap<>(typesAndValues);
             typesAndValues.put(DataType.AGGREGATE_METRIC_DOUBLE, """
                 {
                   "max": 14983.1
@@ -874,7 +889,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.DATE_RANGE);
         shouldBeSupported.remove(DataType.TDIGEST);
         shouldBeSupported.remove(DataType.HISTOGRAM);
-        shouldBeSupported.remove(DataType.FLATTENED); // TO_STRING not yet supported for flattened
+        if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled() == false) {
+            shouldBeSupported.remove(DataType.FLATTENED);
+        }
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
@@ -1248,7 +1265,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("operators", instanceOf(List.class))
             .entry("sleeps", matchesMap().extraOk())
             .entry("documents_found", greaterThanOrEqualTo(0))
-            .entry("values_loaded", greaterThanOrEqualTo(0));
+            .entry("values_loaded", greaterThanOrEqualTo(0))
+            .entry("rows_emitted", greaterThanOrEqualTo(0L))
+            .entry("bytes_read", greaterThanOrEqualTo(0L))
+            .entry("read_nanos", greaterThanOrEqualTo(0L));
     }
 
     public void testProfileConditionalBlockLoader() throws IOException {
@@ -1310,6 +1330,66 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
     }
 
+    public void testConditionalBlockLoaderSwitchesStrategyAcrossSegments() throws IOException {
+        assumeTrue(
+            "requires fixed ValuesReader state after conditional block loaders switch strategies across segments",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FIX_VALUES_READER_STALE_ROW_STRIDE_READER.capabilityName()))
+        );
+        createIndex(testIndexName(), Settings.builder().put("index.number_of_shards", "1").build(), """
+            {
+              "properties": {
+                "sort": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        CheckedConsumer<Map.Entry<Integer, String>, IOException> indexMessageDoc = doc -> {
+            Request request = new Request("POST", testIndexName() + "/_doc");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity(String.format(Locale.ROOT, "{\"sort\": %d, \"message\": \"%s\"}", doc.getKey(), doc.getValue()));
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), oneOf(200, 201));
+        };
+
+        String longMessage = "words ".repeat(256);
+        String shortMessage = "words words words";
+        indexMessageDoc.accept(Map.entry(0, longMessage));
+        indexMessageDoc.accept(Map.entry(1, shortMessage));
+
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(fromIndex() + " | SORT sort ASC | KEEP message")
+                .profile(true)
+                .pragmas(
+                    Settings.builder()
+                        .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
+                        .put(QueryPragmas.PAGE_SIZE.getKey(), 1000)
+                        .build()
+                )
+                .pragmasOk()
+        );
+
+        ListMatcher schemaMatcher = matchesList().item(Map.of("name", "message", "type", "text"));
+        ListMatcher rowsMatcher = matchesList().item(List.of(longMessage)).item(List.of(shortMessage));
+        assertResultMap(result, getResultMatcher(result).entry("profile", getProfileMatcher()), schemaMatcher, rowsMatcher);
+
+        Map<String, Object> reader = findSingleReaderProfile("node_reduce", result);
+        @SuppressWarnings("unchecked")
+        Map<String, Integer> readersBuilt = (Map<String, Integer>) ((Map<String, Object>) reader.get("status")).get("readers_built");
+        assertThat(readersBuilt, hasKey("message:column_at_a_time:Delegating[to=message.keyword, impl=BytesRefsFromOrds.Singleton]"));
+        assertThat(readersBuilt, hasKey(allOf(startsWith("message:row_stride:["), endsWith("/BlockSourceReader.Bytes]"))));
+    }
+
     public void testAutoPartitioning() throws IOException {
         indexTimestampData(1);
         assumeTrue("require pragmas", Build.current().isSnapshot());
@@ -1361,7 +1441,11 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 for (Map<String, Object> o : operators) {
                     String name = signature(o);
                     if (name.equals("LuceneSourceOperator")) {
-                        MapMatcher status = matchesMap().entry("total_slices", greaterThan(1))
+                        // AUTO routes to DOC (docs_threshold_auto_partitioning=20 is below this
+                        // index's 1000 docs), but the DOC partitioner floors slice size at
+                        // MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index must stay on a
+                        // single slice — the previous behavior over-split tiny indices.
+                        MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
                             .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
                             .extraOk();
                         assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
@@ -1404,6 +1488,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
+        profile.put("rows_emitted", ((Number) profile.get("rows_emitted")).longValue());
+        profile.put("bytes_read", ((Number) profile.get("bytes_read")).longValue());
+        profile.put("read_nanos", ((Number) profile.get("read_nanos")).longValue());
     }
 
     static String signature(Map<String, Object> o) {
@@ -1425,10 +1512,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))
@@ -1467,6 +1556,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
                 .entry("slice_index", 0)
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             default -> throw new AssertionError("unexpected status: " + o);
         };
@@ -1589,6 +1679,29 @@ public class RestEsqlIT extends RestEsqlTestCase {
         } finally {
             // Clean up
             deleteIndex(indexName);
+        }
+    }
+
+    public void testBucketColumnMetadataCsvTxtFormat() throws IOException {
+        assumeTrue("requires column_metadata_bucket capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled());
+
+        Request indexRequest = new Request("POST", "/bucket_csv_test/_doc/");
+        indexRequest.addParameter("refresh", "true");
+        indexRequest.setJsonEntity("{\"date\":\"1985-07-09T00:00:00.000Z\"}");
+        assertOK(client().performRequest(indexRequest));
+
+        try {
+            String query = "FROM bucket_csv_test | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month) | LIMIT 10";
+            // CSV: verify the writer handles a metadata-bearing bucket column without error and produces correct output
+            String csvBody = runEsqlAsTextWithFormat(requestObjectBuilder().query(query), "csv", null, mode);
+            assertThat(csvBody, equalTo("c,bucket\r\n1,1985-07-01T00:00:00.000Z\r\n"));
+
+            // TXT: smoke-check only — the columnar writer pads/aligns differently, no exact match needed
+            String txtBody = runEsqlAsTextWithFormat(requestObjectBuilder().query(query), "txt", null, mode);
+            assertThat(txtBody, containsString("bucket"));
+            assertThat(txtBody, containsString("1985-07-01T00:00:00.000Z"));
+        } finally {
+            deleteIndex("bucket_csv_test");
         }
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -37,12 +38,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
@@ -67,6 +69,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
@@ -77,12 +80,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
-import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
-import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
@@ -117,8 +119,26 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     public static TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
         return new TypeParser(
             (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get(), c.getVectorsFormatProviders()),
-            List.of(notFromDynamicTemplates(CONTENT_TYPE))
+            List.of(notFromDynamicTemplates(CONTENT_TYPE), restrictToNewIndices())
         );
+    }
+
+    private static BiConsumer<String, MappingParserContext> restrictToNewIndices() {
+        return (name, context) -> {
+            if (context.indexVersionCreated().before(IndexVersions.SEMANTIC_FIELD_TYPE)) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + name
+                        + "] of type ["
+                        + SemanticFieldMapper.CONTENT_TYPE
+                        + "] is not supported on indices created before version ["
+                        + IndexVersions.SEMANTIC_FIELD_TYPE
+                        + "]. Please create a new index to use ["
+                        + SemanticFieldMapper.CONTENT_TYPE
+                        + "]"
+                );
+            }
+        };
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -342,9 +362,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                 CHUNKED_EMBEDDINGS_FIELD,
                 indexVersionCreated,
+                indexSettings.getMode(),
                 false,
                 experimentalFeaturesEnabled,
-                vectorsFormatProviders
+                vectorsFormatProviders,
+                false
             );
             ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                 ? getExtendedDenseVectorIndexOptions(indexOptions.get())
@@ -826,6 +848,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return CONTENT_TYPE;
         }
 
+        @Override
+        public String getDefaultHighlighter() {
+            return SemanticTextHighlighter.NAME;
+        }
+
         public String getInferenceId() {
             return inferenceId;
         }
@@ -901,34 +928,26 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 );
             }
             if (format != null) {
-                return new SemanticFieldValueFetcher(
-                    this,
-                    getChunksField().bitsetProducer(),
-                    context.searcher(),
-                    SemanticFieldValueFetcher.Mode.TEXT
-                );
+                return new ChunkValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
             }
 
-            return originalValueFetcher(context);
+            return valueFetcher(context);
         }
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockSourceReader.BytesRefsBlockLoader(allValuesFetcher(blContext), BlockSourceReader.lookupMatchingAll());
+            return new BlockSourceReader.BytesRefsBlockLoader(valueFetcher(blContext), BlockSourceReader.lookupMatchingAll());
         }
 
-        /**
-         * Get a {@link ValueFetcher} for the original value(s) directly written to this field.
-         */
-        protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
-            return SourceValueFetcher.toString(name(), context, null);
+        protected ValueFetcher valueFetcher(SearchExecutionContext context) {
+            return new OriginalValuesSemanticFieldValueFetcher(name(), context);
         }
 
-        /**
-         * Get a {@link ValueFetcher} for all values written to this field, both directly and via {@code copy_to}.
-         */
-        protected ValueFetcher allValuesFetcher(MappedFieldType.BlockLoaderContext blContext) {
-            return SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
+        protected ValueFetcher valueFetcher(MappedFieldType.BlockLoaderContext blContext) {
+            return new OriginalValuesSemanticFieldValueFetcher(
+                blContext.sourcePaths(name()),
+                blContext.indexSettings().getIgnoredSourceFormat()
+            );
         }
 
         /**

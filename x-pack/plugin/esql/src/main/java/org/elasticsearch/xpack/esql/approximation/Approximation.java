@@ -8,109 +8,38 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
-import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteApproximationPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.FillNull;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
-import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UriParts;
-import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Result;
 
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
- * This class computes approximate results for certain classes of ES|QL queries.
- * Approximate results are usually much faster to compute than exact results.
+ * Generates subplans to obtain a good sample probability for approximation
+ * and the final main plan.
  * <p>
- * A query is currently suitable for approximation if:
- * <ul>
- *   <li> it contains exactly one {@code STATS} command
- *   <li> the other processing commands are from the supported set
- *        ({@link Approximation#SUPPORTED_COMMANDS}); this set contains almost all
- *        unary commands, and some non-unary ones; most notably not {@code FORK}.
- *   <li> the aggregate functions are from the supported set
- *        ({@link Approximation#SUPPORTED_SINGLE_VALUED_AGGS} and
- *         {@link Approximation#SUPPORTED_MULTIVALUED_AGGS})
- * </ul>
- * Some of these restrictions may be lifted in the future.
- * <p>
- * When these conditions are met, the query is replaced by an approximation query
- * that samples documents before the STATS, and extrapolates the aggregate
- * functions if needed. This new logical plan is generated by
- * {@link ApproximationPlan#get}. The substitution of the original query by the
- * approximation query happens during logical plan optimization, in the rule
- * {@link SubstituteApproximationPlan}.
- * <p>
- * In addition to approximate results, confidence intervals are also computed.
- * This is done by dividing the sampled rows {@link ApproximationPlan#TRIAL_COUNT}
- * times into {@link ApproximationPlan#BUCKET_COUNT} buckets, computing the aggregate
- * functions for each bucket, and using these sampled values to compute
- * confidence intervals with the bias-corrected and accelerated (BCa) bootstrap
- * method, see also {@link ConfidenceInterval}.
- * <p>
- * The initial approximation plan contains a placeholder for the sample probability,
- * which is determined during subplan execution, and is based on results set size.
  * To obtain an appropriate sample probability, first a target number of rows
  * is set. This is determined via the {@link ApproximationSettings}.
  * Next, the total number of rows in the source index is counted via the subplan
@@ -133,151 +62,7 @@ import java.util.Set;
  * final probability is used to compute the probability using for approximating
  * the original query.
  */
-public class Approximation {
-
-    public record QueryProperties(boolean hasGrouping, boolean canDecreaseRowCount, boolean canIncreaseRowCount) {}
-
-    /**
-     * These processing commands are fully supported.
-     * <p>
-     * When a command is not supported, it should be added to
-     * ApproximationSupportTests.UNSUPPORTED_COMMANDS
-     * to make sure all commands are captured.
-     */
-    static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS;
-    static {
-        Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS_BUILDER = new HashSet<>(
-            List.of(
-                Aggregate.class,
-                Completion.class,
-                Dissect.class,
-                Enrich.class,
-                EsRelation.class,
-                Eval.class,
-                // FillNull is a SurrogateLogicalPlan that expands to Project(Eval(child)) before
-                // SubstituteApproximationPlan runs, so approximation never sees a FillNull node.
-                // Its expansion is built from supported commands, so the original is supported too.
-                FillNull.class,
-                Filter.class,
-                Grok.class,
-                Insist.class,
-                LocalRelation.class,
-                MvExpand.class,
-                OrderBy.class,
-                Project.class,
-                RegexExtract.class,
-                RegisteredDomain.class,
-                Rerank.class,
-                Row.class,
-                Sample.class,
-                SampledAggregate.class,
-                UriParts.class,
-                UserAgent.class
-            )
-        );
-        if (EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled()) {
-            SUPPORTED_COMMANDS_BUILDER.add(Join.class);
-        }
-        if (EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled()) {
-            SUPPORTED_COMMANDS_BUILDER.add(InlineJoin.class);
-            SUPPORTED_COMMANDS_BUILDER.add(StubRelation.class);  // temporary node
-        }
-        SUPPORTED_COMMANDS = Collections.unmodifiableSet(SUPPORTED_COMMANDS_BUILDER);
-    }
-
-    /**
-     * These processing commands are only supported after the initial STATS.
-     */
-    static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS_AFTER_STATS = Set.of(
-        // It makes no sense to approximate "FROM index | LIMIT N | STATS ...".
-        // Furthermore, the LIMIT here breaks the estimation of the sample probability.
-        Limit.class,
-        // Same for LIMIT BY, SORT, or SORT + LIMIT BY
-        LimitBy.class,
-        TopN.class,
-        TopNBy.class,
-        // CHANGE_POINT implicitly uses LIMIT
-        ChangePoint.class
-    );
-
-    /**
-     * These index modes of EsRelation are supported.
-     * <p>
-     * Note: LOOKUP is added to make query validation output nicer messages
-     * ("query with [LOOKUP JOIN ...] ..." instead of "query with [test_lookup] ...").
-     */
-    private static final Set<IndexMode> SUPPORTED_INDEX_MODES = Set.of(IndexMode.STANDARD, IndexMode.LOOKUP);
-
-    /**
-     * These commands preserve all rows, making it easy to predict the number of output rows.
-     */
-    private static final Set<Class<? extends LogicalPlan>> ROW_PRESERVING_COMMANDS = Set.of(
-        Completion.class,
-        Dissect.class,
-        Enrich.class,
-        Eval.class,
-        Grok.class,
-        Insist.class,
-        OrderBy.class,
-        Project.class,
-        RegexExtract.class,
-        Rerank.class
-    );
-
-    /**
-     * These commands never increase the number of all rows, making it easier to predict the number of output rows.
-     */
-    private static final Set<Class<? extends LogicalPlan>> ROW_NON_INCREASING_COMMANDS = Sets.union(
-        Set.of(Filter.class, Limit.class, Sample.class, TopN.class, LimitBy.class, TopNBy.class),
-        ROW_PRESERVING_COMMANDS
-    );
-
-    /**
-     * These commands never decrease the number of all rows, making it easier to predict the number of output rows.
-     */
-    private static final Set<Class<? extends LogicalPlan>> ROW_NON_DECREASING_COMMANDS = Sets.union(
-        Set.of(MvExpand.class),
-        ROW_PRESERVING_COMMANDS
-    );
-
-    /**
-     * These aggregate functions behave well with random sampling, in the sense
-     * that they converge to the true value as the sample size increases.
-     * <p>
-     * Aggregation functions that depend on the value of many or all of the
-     * individual rows (like AVG, COUNT, MEDIAN) will generally satisfy the CLT
-     * and are suitable for approximation.
-     * On the other hand, aggregation functions that depend on a small subset of
-     * rows (like COUNT DISTINCT, MAX, PRESENT) are not.
-     * Aggregation function that depend on all values, but are very sensitive to
-     * some (outlier) values (like STDDEV, PERCENTILE for low/high percentiles)
-     * are challenging to approximate. They are supported, but may require a
-     * larger sample size to obtain good accuracy.
-     * <p>
-     * When an aggregation is not supported, it should be added to
-     * ApproximationSupportTests.UNSUPPORTED_AGGS
-     * to make sure all aggregations are captured.
-     */
-    static final Set<Class<? extends AggregateFunction>> SUPPORTED_SINGLE_VALUED_AGGS = Set.of(
-        Avg.class,
-        Count.class,
-        CountApproximate.class,
-        Median.class,
-        MedianAbsoluteDeviation.class,
-        Percentile.class,
-        StdDev.class,
-        Sum.class,
-        Variance.class,
-        WeightedAvg.class
-    );
-
-    /**
-     * These multivalued aggregate functions work well with random sampling.
-     * However, confidence intervals make no sense anymore and are dropped.
-     */
-    static final Set<Class<? extends AggregateFunction>> SUPPORTED_MULTIVALUED_AGGS = Set.of(
-        org.elasticsearch.xpack.esql.expression.function.aggregate.Sample.class
-    );
+public class Approximation implements ApproximationDriver {
 
     /**
      * The target number of sampled rows to estimate the total number of rows
@@ -331,16 +116,18 @@ public class Approximation {
     private static final AggregateFunction COUNT_ALL_ROWS_APPROXIMATE = new CountApproximate(Source.EMPTY, WILDCARD);
 
     private final LogicalPlan logicalPlan;
-    private final QueryProperties queryProperties;
+    private final ApproximationVerifier.QueryProperties queryProperties;
     private final int sampleRowCount;
-    private final double sampleProbabilityThreshold;
+    private final double maxSampleProbability;
 
     private Double nextSubPlanSampleProbability;
     private int subPlanIterationCount;
     private final SetOnce<Long> sourceRowCount;
+    private final SetOnce<Double> minSampleProbability;
 
-    public Approximation(LogicalPlan logicalPlan, ApproximationSettings settings) {
-        this.queryProperties = verifyPlanOrThrow(logicalPlan);
+    Approximation(LogicalPlan logicalPlan, ApproximationVerifier.QueryProperties queryProperties, ApproximationSettings settings) {
+        this.queryProperties = queryProperties;
+
         // The plan is executed multiple times. Use CopyingLocalSupplier to
         // make sure the page is not released between executions.
         this.logicalPlan = logicalPlan.transformUp(LocalRelation.class, lr -> {
@@ -352,122 +139,23 @@ public class Approximation {
 
         if (settings.rows() != null) {
             sampleRowCount = settings.rows();
-        } else if (queryProperties.hasGrouping) {
+        } else if (queryProperties.hasGrouping()) {
             sampleRowCount = DEFAULT_ROW_COUNT_WITH_GROUPING;
         } else {
             sampleRowCount = DEFAULT_ROW_COUNT_WITHOUT_GROUPING;
         }
-        sampleProbabilityThreshold = settings.confidenceLevel() == null ? 1.0 : SAMPLE_PROBABILITY_THRESHOLD;
+        maxSampleProbability = settings.confidenceLevel() == null ? 1.0 : SAMPLE_PROBABILITY_THRESHOLD;
 
         nextSubPlanSampleProbability = null;
         subPlanIterationCount = 0;
         sourceRowCount = new SetOnce<>();
-    }
-
-    /**
-     * Verifies that a plan is suitable for approximation.
-     * @return the query properties relevant for approximation if it's suitable, or null otherwise
-     * Adds warning headers as a side effect when the plan is not suitable
-     */
-    public static QueryProperties verifyPlan(LogicalPlan logicalPlan) {
-        try {
-            return verifyPlanOrThrow(logicalPlan);
-        } catch (VerificationException e) {
-            HeaderWarning.addWarning(e.getMessage());
-            return null;
-        }
-    }
-
-    static QueryProperties verifyPlanOrThrow(LogicalPlan logicalPlan) {
-        // The plan must contain a STATS command.
-        if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {
-            Location location = logicalPlan.collectLeaves().getFirst().source().source();
-            throw new VerificationException(
-                "line {}:{}: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated",
-                location.getLineNumber(),
-                location.getColumnNumber()
-            );
-        }
-        // Verify that all commands are supported.
-        logicalPlan.forEachUp(plan -> {
-            if ((SUPPORTED_COMMANDS.contains(plan.getClass()) == false && SUPPORTED_COMMANDS_AFTER_STATS.contains(plan.getClass()) == false)
-                || (plan instanceof EsRelation esRelation && SUPPORTED_INDEX_MODES.contains(esRelation.indexMode()) == false)) {
-                // TODO: ideally just return the command from the source
-                throw new VerificationException(
-                    "line {}:{}: approximation not supported: query with [{}] cannot be approximated",
-                    plan.source().source().getLineNumber(),
-                    plan.source().source().getColumnNumber(),
-                    plan.sourceText()
-                );
-            }
-        });
-
-        Holder<Boolean> encounteredStats = new Holder<>(false);
-        Holder<Boolean> hasGrouping = new Holder<>();
-        Holder<Boolean> canIncreaseRowCount = new Holder<>(false);
-        Holder<Boolean> canDecreaseRowCount = new Holder<>(false);
-
-        logicalPlan.forEachUp(plan -> {
-            if (encounteredStats.get() == false) {
-                if (SUPPORTED_COMMANDS_AFTER_STATS.contains(plan.getClass())) {
-                    throw new VerificationException(
-                        "line {}:{}: approximation not supported: query with [{}] before [STATS] cannot be approximated",
-                        plan.source().source().getLineNumber(),
-                        plan.source().source().getColumnNumber(),
-                        plan.sourceText()
-                    );
-                }
-                if (plan instanceof Aggregate aggregate) {
-                    // Verify that the aggregate functions are supported.
-                    encounteredStats.set(true);
-                    hasGrouping.set(aggregate.groupings().isEmpty() == false);
-                    plan.forEachExpression(AggregateFunction.class, aggFn -> {
-                        if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
-                            && SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
-                            // TODO: ideally just return aggregate function from the source
-                            throw new VerificationException(
-                                "line {}:{}: approximation not supported: aggregation function [{}] cannot be approximated",
-                                aggFn.source().source().getLineNumber(),
-                                aggFn.source().source().getColumnNumber(),
-                                aggFn.sourceText()
-                            );
-                        }
-                        if (aggFn.dataType().isNumeric() == false) {
-                            throw new VerificationException(
-                                "line {}:{}: approximation not supported: aggregation function [{}] must return a numeric value; got [{}]",
-                                aggFn.source().source().getLineNumber(),
-                                aggFn.source().source().getColumnNumber(),
-                                aggFn.sourceText(),
-                                aggFn.dataType()
-                            );
-                        }
-                    });
-                } else if (plan instanceof LeafPlan == false) {
-                    if (ROW_NON_DECREASING_COMMANDS.contains(plan.getClass()) == false) {
-                        canDecreaseRowCount.set(true);
-                    }
-                    if (ROW_NON_INCREASING_COMMANDS.contains(plan.getClass()) == false) {
-                        canIncreaseRowCount.set(true);
-                    }
-                }
-            } else {
-                // Multiple STATS commands are not supported.
-                if (plan instanceof Aggregate) {
-                    throw new VerificationException(
-                        "line {}:{}: approximation not supported: query with multiple [STATS] cannot be approximated",
-                        plan.source().source().getLineNumber(),
-                        plan.source().source().getColumnNumber()
-                    );
-                }
-            }
-        });
-
-        return new QueryProperties(hasGrouping.get(), canDecreaseRowCount.get(), canIncreaseRowCount.get());
+        minSampleProbability = new SetOnce<>();
     }
 
     /**
      * Returns the first subplan to execute for approximation, or null if the main plan can be executed directly.
      */
+    @Override
     public LogicalPlan firstSubPlan() {
         if (sourceRowCount.get() == null) {
             return sourceCountSubPlan();
@@ -478,16 +166,25 @@ public class Approximation {
         }
     }
 
+    @Override
+    public LogicalPlan newMainPlan(LogicalPlan mainPlan, Result result) {
+        Double p = processResult(rowCount(result));
+        if (p == null) {
+            return mainPlan;
+        }
+        return ApproximationPlan.substituteSampleProbability(mainPlan, p);
+    }
+
     /**
      * Processes the subplan results.
      * Returns the sample probability suitable for approximation if possible,
      * or null if more subplans need to be executed to obtain it.
      */
-    public Double processResult(Result result) {
+    Double processResult(long rowCount) {
         if (sourceRowCount.get() == null) {
-            return processSourceCount(rowCount(result));
+            return processSourceCount(rowCount);
         } else {
-            return processCount(rowCount(result));
+            return processCount(rowCount);
         }
     }
 
@@ -504,7 +201,7 @@ public class Approximation {
             Source.EMPTY,
             leaf,
             List.of(),
-            List.of(new Alias(Source.EMPTY, "$source_count", COUNT_ALL_ROWS_EXACT))
+            List.of(new Alias(Source.EMPTY, Attribute.rawTemporaryName("source_count"), COUNT_ALL_ROWS_EXACT))
         );
         sourceCountPlan.setOptimized();
         return sourceCountPlan;
@@ -513,11 +210,12 @@ public class Approximation {
     /**
      * Returns the leftmost leaf of a plan, which is the large source index for approximation.
      */
-    private LogicalPlan getLeftmostLeaf(LogicalPlan plan) {
+    private static LogicalPlan getLeftmostLeaf(LogicalPlan plan) {
         while (plan instanceof LeafPlan == false) {
             plan = switch (plan) {
                 case UnaryPlan unaryPlan -> unaryPlan.child();
                 case Join join -> join.left();
+                case Fork fork -> fork.children().getFirst();
                 default -> throw new IllegalStateException("unsupported plan type: " + plan.getClass());
             };
         }
@@ -532,19 +230,22 @@ public class Approximation {
     private Double processSourceCount(long sourceRowCount) {
         logger.debug("total number of source rows: [{}] rows", sourceRowCount);
         this.sourceRowCount.set(sourceRowCount);
-        if (sourceRowCount == 0) {
-            // If there are no rows, run the original query.
+        // At least `sampleRowCount` source rows must be sampled.
+        // When there are too few, process all of them without sampling.
+        if (sourceRowCount <= sampleRowCount) {
+            // If there are few source rows, run the original query.
             nextSubPlanSampleProbability = null;
             return 1.0;
         }
-        double sampleProbability = Math.min(1.0, (double) sampleRowCount / sourceRowCount);
-        if (queryProperties.canIncreaseRowCount == false && sampleProbability >= sampleProbabilityThreshold) {
-            // If the query cannot increase the number of rows, and the sample probability is large,
-            // we can directly run the original query without sampling.
-            logger.debug("using original plan (too few rows)");
+        double sampleProbability = (double) sampleRowCount / sourceRowCount;
+        minSampleProbability.set(sampleProbability);
+
+        if (sampleProbability >= maxSampleProbability) {
+            // If the sample probability is large, we can directly run the original query without sampling.
+            logger.debug("using original plan (too few source rows)");
             nextSubPlanSampleProbability = null;
             return 1.0;
-        } else if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
+        } else if (queryProperties.preservesRows()) {
             // If the query preserves all rows, we can directly approximate with the sample probability.
             nextSubPlanSampleProbability = null;
             return sampleProbability;
@@ -570,13 +271,12 @@ public class Approximation {
                 if (plan instanceof Aggregate aggregate) {
                     // The STATS function should be replaced by a STATS COUNT(*).
                     encounteredStats.set(true);
+                    String aggName = Attribute.rawTemporaryName("count");
                     if (sampleProbability == 1.0) {
-                        List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, "$count_p=1", COUNT_ALL_ROWS_EXACT));
+                        List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, aggName, COUNT_ALL_ROWS_EXACT));
                         plan = new Aggregate(Source.EMPTY, aggregate.child(), List.of(), aggregations);
                     } else {
-                        List<NamedExpression> aggregations = List.of(
-                            new Alias(Source.EMPTY, "$count_p=" + sampleProbability, COUNT_ALL_ROWS_APPROXIMATE)
-                        );
+                        List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, aggName, COUNT_ALL_ROWS_APPROXIMATE));
                         plan = new SampledAggregate(
                             Source.EMPTY,
                             aggregate.child(),
@@ -644,7 +344,7 @@ public class Approximation {
      * To be safe, the maximum iteration count is capped at 10, and an exception is thrown
      * when this count is exceeded.
      */
-    private Double processCount(long rowCount) {
+    Double processCount(long rowCount) {
         subPlanIterationCount += 1;
         if (subPlanIterationCount > 10) {
             throw new IllegalStateException("Approximation count iteration limit exceeded");
@@ -655,7 +355,8 @@ public class Approximation {
         rowCount = Math.round(sampleProbability * rowCount);
         logger.debug("estimated number of rows reaching STATS (p=[{}]): [{}] rows", sampleProbability, rowCount);
         double newSampleProbability = Math.min(1.0, sampleProbability * sampleRowCount / Math.max(1, rowCount));
-        if (newSampleProbability >= sampleProbabilityThreshold) {
+        newSampleProbability = Math.max(newSampleProbability, minSampleProbability.get());
+        if (newSampleProbability >= maxSampleProbability) {
             // If the new sample probability is large, run the original query.
             logger.debug("using original plan (too few rows)");
             nextSubPlanSampleProbability = null;
@@ -674,7 +375,7 @@ public class Approximation {
     /**
      * Returns the row count in the result and closes the result.
      */
-    private long rowCount(Result countResult) {
+    static long rowCount(Result countResult) {
         assert countResult.pages().size() == 1;
         assert countResult.pages().getFirst().getBlockCount() == 1;
         assert countResult.pages().getFirst().getPositionCount() == 1;

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TRIM` function [esql-trim]
 
-:::{include} ../../_snippets/functions/layout/trim.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/trim.md
 :::

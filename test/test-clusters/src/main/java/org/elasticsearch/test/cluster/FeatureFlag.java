@@ -31,8 +31,9 @@ public enum FeatureFlag {
     TSDB_NO_SEQNO("es.tsdb_no_tsbd_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     IGNORED_SOURCE_AS_DOC_VALUES_FF("es.ignored_source_as_doc_values_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     PROMETHEUS_FEATURE_FLAG("es.prometheus_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
-    OTLP_TRACES("es.otlp_traces_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
-    OTLP_LOGS("es.otlp_logs_feature_flag_enabled=true", Version.fromString("9.4.0"), null);
+    COLUMNAR_INDEX_MODE_FEATURE_FLAG("es.columnar_index_mode_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    ES95_CODEC_FEATURE_FLAG("es.es95_codec_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    SLICE_INDEXING("es.slice_indexing_feature_flag_enabled=true", Version.fromString("9.5.0"), null);
 
     public final String systemProperty;
     public final Version from;

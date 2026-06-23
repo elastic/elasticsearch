@@ -14,29 +14,25 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.AbstractCohereServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.hamcrest.Matchers.is;
 
-public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereCompletionServiceSettings> {
+public class CohereCompletionServiceSettingsTests extends AbstractCohereServiceSettingsTests<CohereCompletionServiceSettings> {
 
-    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
-
-    private static final String TEST_URL = "https://www.test.com";
-    private static final String INITIAL_TEST_URL = "https://www.initial-test.com";
-
-    private static final String TEST_MODEL_ID = "test-model-id";
     private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
 
     private static final int TEST_RATE_LIMIT = 20;
@@ -45,33 +41,48 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
     private static final RateLimitSettings DEFAULT_COHERE_COMPLETION_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     public static CohereCompletionServiceSettings createRandom() {
+        var apiVersion = randomFrom(CohereCommonServiceSettings.CohereApiVersion.values());
+        var modelId = apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2 ? randomAlphaOfLength(8) : randomAlphaOfLengthOrNull(8);
         return new CohereCompletionServiceSettings(
-            randomAlphaOfLength(8),
-            randomAlphaOfLength(8),
-            RateLimitSettingsTests.createRandom(),
-            randomFrom(CohereServiceSettings.CohereApiVersion.values())
+            new CohereCommonServiceSettings(modelId, RateLimitSettingsTests.createRandom(), apiVersion)
         );
     }
 
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var settingsMap = buildServiceSettingsMap(CohereServiceSettings.CohereApiVersion.V2.toString());
+    @Override
+    protected CohereCompletionServiceSettings createGivenCommonSettings(
+        Map<String, Object> commonSettings,
+        ConfigurationParseContext context
+    ) {
+        return CohereCompletionServiceSettings.fromMap(new HashMap<>(commonSettings), context);
+    }
 
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(CohereCompletionServiceSettings instance, XContentBuilder builder)
+        throws IOException {
+        return instance.toXContentFragmentOfExposedFields(builder, null);
+    }
+
+    public void testUpdateServiceSettings_AllUpdatableFields() {
         var originalServiceSettings = new CohereCompletionServiceSettings(
-            INITIAL_TEST_URL,
-            INITIAL_TEST_MODEL_ID,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
-            CohereServiceSettings.CohereApiVersion.V1
+            new CohereCommonServiceSettings(
+                INITIAL_TEST_MODEL_ID,
+                new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+                CohereCommonServiceSettings.CohereApiVersion.V1
+            )
         );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+        );
 
         assertThat(
             updatedServiceSettings,
             is(
                 new CohereCompletionServiceSettings(
-                    INITIAL_TEST_URL,
-                    INITIAL_TEST_MODEL_ID,
-                    new RateLimitSettings(TEST_RATE_LIMIT),
-                    CohereServiceSettings.CohereApiVersion.V1
+                    new CohereCommonServiceSettings(
+                        INITIAL_TEST_MODEL_ID,
+                        new RateLimitSettings(TEST_RATE_LIMIT),
+                        CohereCommonServiceSettings.CohereApiVersion.V1
+                    )
                 )
             )
         );
@@ -79,10 +90,11 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
         var originalServiceSettings = new CohereCompletionServiceSettings(
-            INITIAL_TEST_URL,
-            INITIAL_TEST_MODEL_ID,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
-            CohereServiceSettings.CohereApiVersion.V1
+            new CohereCommonServiceSettings(
+                INITIAL_TEST_MODEL_ID,
+                new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+                CohereCommonServiceSettings.CohereApiVersion.V1
+            )
         );
         var serviceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
 
@@ -96,10 +108,11 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
             serviceSettings,
             is(
                 new CohereCompletionServiceSettings(
-                    (String) null,
-                    null,
-                    DEFAULT_COHERE_COMPLETION_RATE_LIMIT_SETTINGS,
-                    CohereServiceSettings.CohereApiVersion.V1
+                    new CohereCommonServiceSettings(
+                        null,
+                        DEFAULT_COHERE_COMPLETION_RATE_LIMIT_SETTINGS,
+                        CohereCommonServiceSettings.CohereApiVersion.V1
+                    )
                 )
             )
         );
@@ -107,7 +120,7 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
 
     public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = CohereCompletionServiceSettings.fromMap(
-            buildServiceSettingsMap(CohereServiceSettings.CohereApiVersion.V2.toString()),
+            buildServiceSettingsMap(CohereCommonServiceSettings.CohereApiVersion.V2.toString()),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -115,10 +128,11 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
             serviceSettings,
             is(
                 new CohereCompletionServiceSettings(
-                    TEST_URL,
-                    TEST_MODEL_ID,
-                    new RateLimitSettings(TEST_RATE_LIMIT),
-                    CohereServiceSettings.CohereApiVersion.V2
+                    new CohereCommonServiceSettings(
+                        TEST_MODEL_ID,
+                        new RateLimitSettings(TEST_RATE_LIMIT),
+                        CohereCommonServiceSettings.CohereApiVersion.V2
+                    )
                 )
             )
         );
@@ -126,10 +140,11 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new CohereCompletionServiceSettings(
-            TEST_URL,
-            TEST_MODEL_ID,
-            new RateLimitSettings(TEST_RATE_LIMIT),
-            CohereServiceSettings.CohereApiVersion.V1
+            new CohereCommonServiceSettings(
+                TEST_MODEL_ID,
+                new RateLimitSettings(TEST_RATE_LIMIT),
+                CohereCommonServiceSettings.CohereApiVersion.V1
+            )
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -138,47 +153,20 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
 
         assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
-              "url": "%s",
               "model_id": "%s",
               "rate_limit": {
                 "requests_per_minute": %d
               },
               "api_version": "%s"
             }
-            """, TEST_URL, TEST_MODEL_ID, TEST_RATE_LIMIT, CohereServiceSettings.CohereApiVersion.V1))));
-    }
-
-    public void testToXContentFragmentOfExposedFields_DoesNotWriteApiVersion() throws IOException {
-        var serviceSettings = new CohereCompletionServiceSettings(
-            TEST_URL,
-            TEST_MODEL_ID,
-            new RateLimitSettings(TEST_RATE_LIMIT),
-            CohereServiceSettings.CohereApiVersion.V1
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject();
-        serviceSettings.toXContentFragmentOfExposedFields(builder, null);
-        builder.endObject();
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
-            {
-              "url": "%s",
-              "model_id": "%s",
-              "rate_limit": {
-                "requests_per_minute": %d
-              }
-            }
-            """, TEST_URL, TEST_MODEL_ID, TEST_RATE_LIMIT))));
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT, CohereCommonServiceSettings.CohereApiVersion.V1))));
     }
 
     private static HashMap<String, Object> buildServiceSettingsMap(@Nullable String apiVersion) {
         var result = new HashMap<String, Object>();
-        result.put(ServiceFields.URL, CohereCompletionServiceSettingsTests.TEST_URL);
         result.put(ServiceFields.MODEL_ID, CohereCompletionServiceSettingsTests.TEST_MODEL_ID);
         if (apiVersion != null) {
-            result.put(CohereServiceSettings.API_VERSION, apiVersion);
+            result.put(CohereCommonServiceSettings.API_VERSION, apiVersion);
         }
         result.put(
             RateLimitSettings.FIELD_NAME,
@@ -199,33 +187,27 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
 
     @Override
     protected CohereCompletionServiceSettings mutateInstance(CohereCompletionServiceSettings instance) throws IOException {
-        URI uri = instance.uri();
-        var uriString = uri == null ? null : uri.toString();
-        var modelId = instance.modelId();
-        var rateLimitSettings = instance.rateLimitSettings();
-        var apiVersion = instance.apiVersion();
-        switch (randomInt(3)) {
-            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomAlphaOfLengthOrNull(8));
-            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(8));
-            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
-            case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomFrom(CohereServiceSettings.CohereApiVersion.values()));
-            default -> throw new AssertionError("Illegal randomisation branch");
-        }
-
-        return new CohereCompletionServiceSettings(uriString, modelId, rateLimitSettings, apiVersion);
+        var commonSettings = instance.commonSettings();
+        commonSettings = randomValueOtherThan(instance.commonSettings(), () -> CohereCommonServiceSettingsTests.createRandom());
+        return new CohereCompletionServiceSettings(commonSettings);
     }
 
     @Override
     protected CohereCompletionServiceSettings mutateInstanceForVersion(CohereCompletionServiceSettings instance, TransportVersion version) {
         if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
             return new CohereCompletionServiceSettings(
-                instance.uri(),
-                instance.modelId(),
-                instance.rateLimitSettings(),
-                CohereServiceSettings.CohereApiVersion.V1
+                new CohereCommonServiceSettings(
+                    instance.modelId(),
+                    instance.rateLimitSettings(),
+                    CohereCommonServiceSettings.CohereApiVersion.V1
+                )
             );
         }
-
         return instance;
+    }
+
+    @Override
+    protected CohereCompletionServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return CohereCompletionServiceSettings.createParser(ignoreUnknownFields, PARSE_CONTEXT).apply(parser, PARSE_CONTEXT).build();
     }
 }

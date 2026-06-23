@@ -71,6 +71,25 @@ public class TestConfigurationTests extends ESTestCase {
         }
     }
 
+    public void testQueryQuantizeBitsParsing() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "index_type": "ivf",
+              "quantize_bits": 1,
+              "query_quantize_bits": 1
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertEquals(KnnIndexTester.IndexType.IVF, config.indexType());
+            assertEquals(1, config.quantizeBits().intValue());
+            assertEquals(1, config.queryQuantizeBits().intValue());
+        }
+    }
+
     public void testHelp() throws Exception {
         KnnIndexTester.main(new String[] { "--help" });
     }
@@ -140,8 +159,6 @@ public class TestConfigurationTests extends ESTestCase {
             TestConfiguration config = TestConfiguration.fromXContent(parser);
             assertThat(config.datasetConfig(), instanceOf(DatasetConfig.RandomGenerated.class));
             DatasetConfig.RandomGenerated pg = (DatasetConfig.RandomGenerated) config.datasetConfig();
-            assertEquals(100, pg.numPartitions());
-            assertEquals(DatasetConfig.PartitionDistribution.UNIFORM, pg.partitionDistribution());
             assertEquals(42L, pg.generatorSeed());
         }
     }

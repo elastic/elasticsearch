@@ -11,15 +11,20 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
@@ -98,6 +103,24 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
+    public void testDefaultsColumnarMode() throws IOException {
+        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+
+        assertEquals(1, fields.size());
+
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertFalse(fieldType.stored());
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertThat(fieldType.docValuesType(), equalTo(DocValuesType.BINARY));
+    }
+
     public void testIPv6WithMaxHextets() throws Exception {
         // IPv6 addresses starting with "::" followed by exactly 7 hextets.
         // These are valid addresses that should be indexed correctly.
@@ -120,21 +143,6 @@ public class IpFieldMapperTests extends MapperTestCase {
             final IndexableField dvField = fields.get(1);
             assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ipAddress))), dvField.binaryValue());
         }
-    }
-
-    public void testNotIndexed() throws Exception {
-
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "ip");
-            b.field("index", false);
-        }));
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
-
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
     }
 
     public void testNoDocValues() throws Exception {
@@ -340,14 +348,25 @@ public class IpFieldMapperTests extends MapperTestCase {
     private static class IpSyntheticSourceSupport implements SyntheticSourceSupport {
         private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
         private final boolean ignoreMalformed;
+        // Decided once per instance so that the generated mapping is stable across the throwaway and per-document examples.
+        private final boolean extendedDocValues = FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+            && randomBoolean();
+        private final String cardinality = ESTestCase.randomFrom("low", "high");
+        private final boolean enforceSingleValue = extendedDocValues && randomBoolean();
 
         private IpSyntheticSourceSupport(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
         }
 
         @Override
+        public boolean enforcesSingleValue() {
+            return enforceSingleValue;
+        }
+
+        @Override
         public SyntheticSourceExample example(int maxValues) {
-            if (randomBoolean()) {
+            // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+            if (enforceSingleValue || randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
                 if (v.v2() instanceof InetAddress a) {
                     return new SyntheticSourceExample(v.v1(), NetworkAddress.format(a), this::mapping);
@@ -407,9 +426,12 @@ public class IpFieldMapperTests extends MapperTestCase {
             if (ignoreMalformed) {
                 b.field("ignore_malformed", true);
             }
-            if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() && randomBoolean()) {
+            if (extendedDocValues) {
                 b.startObject("doc_values");
-                b.field("cardinality", ESTestCase.randomFrom("low", "high"));
+                b.field("cardinality", cardinality);
+                if (enforceSingleValue) {
+                    b.field("multi_value", false);
+                }
                 b.endObject();
             }
         }
@@ -455,22 +477,14 @@ public class IpFieldMapperTests extends MapperTestCase {
         };
     }
 
-    public void testMultiValueSortedSet() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createSytheticSourceMapperService(
-            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "sorted_set").endObject())
-        );
-        IpFieldMapper mapper = (IpFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(
-            mapper.docValuesParameters(),
-            equalTo(
-                new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
-                )
-            )
-        );
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        return DocValuesType.SORTED_SET;
     }
 
     /**
@@ -514,59 +528,15 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testMultiValueDefaultIsSortedSet() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "ip")));
-        IpFieldMapper mapper = (IpFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET));
-    }
-
-    public void testMultiValueSortedNotAllowed() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        var e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(
-                fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "sorted").endObject())
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
-        );
-    }
-
-    public void testMultiValueNoAcceptsSingleValue() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "no").endObject())
-        );
-        mapper.parse(source(b -> b.field("field", "::1")));
-    }
-
-    public void testMultiValueNoRejectsArray() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "no").endObject())
-        );
-        DocumentParsingException e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", "::1", "::2")))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
-        );
-    }
-
     /**
      * Single malformed value routes to the {@code _ignored} fallback. Only one {@link FieldMapper#parse(DocumentParserContext)} call
      * fires, so enforcement does not trip.
      */
-    public void testMultiValueNoAcceptsSingleIgnoreMalformedValue() throws IOException {
+    public void testMultiValueFalseAcceptsSingleIgnoreMalformedValue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", false).endObject();
         }));
         mapper.parse(source(b -> b.field("field", "not-an-ip")));
     }
@@ -575,11 +545,11 @@ public class IpFieldMapperTests extends MapperTestCase {
      * Both values are malformed and would route to the {@code _ignored} fallback. Enforcement still throws on the second
      * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
      */
-    public void testMultiValueNoRejectsTwoIgnoreMalformedFallbacks() throws IOException {
+    public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", false).endObject();
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -587,15 +557,15 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
-    public void testMultiValueNoRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
+    public void testMultiValueFalseRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", false).endObject();
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -603,19 +573,20 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
     /**
-     * Mirror of {@link #testMultiValueNoRejectsNormalPlusIgnoreMalformedFallback} with the order reversed: first value is malformed
-     * and would route to the {@code _ignored} fallback, second is a valid IP. Enforcement still fires on the second parse call.
+     * Mirror of {@link #testMultiValueFalseRejectsNormalPlusIgnoreMalformedFallback} with the order reversed: first value is
+     * malformed and would route to the {@code _ignored} fallback, second is a valid IP. Enforcement still fires on the second parse
+     * call.
      */
-    public void testMultiValueNoRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
+    public void testMultiValueFalseRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", false).endObject();
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -623,8 +594,48 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
+    }
+
+    public void testHighCardinalityRejectedForIndexSortField() {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
+            .build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+            b.startObject("field");
+            b.field("type", "ip");
+            b.startObject("doc_values").field("cardinality", "high").endObject();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "field [field] cannot use [cardinality: high] because it is configured as an"
+                    + " index sort field, which requires sortable doc values"
+            )
+        );
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "ip").endObject()))
+            .documentMapper();
+
+        // Arrival order differs from the binary-sorted order (10.0.0.1 < 172.16.5.4 < 192.168.1.10); duplicate and null must survive.
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("field");
+            b.value("192.168.1.10");
+            b.value("10.0.0.1");
+            b.nullValue();
+            b.value("172.16.5.4");
+            b.value("192.168.1.10");
+            b.endArray();
+        });
+        assertThat(result, containsString("\"field\":[\"192.168.1.10\",\"10.0.0.1\",null,\"172.16.5.4\",\"192.168.1.10\"]"));
     }
 
     @Override

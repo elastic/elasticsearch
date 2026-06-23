@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
@@ -20,7 +22,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.flattenedCases;
 import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.unlimitedSuppliers;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.anyOf;
 
 public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestCase {
@@ -29,28 +33,58 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        List<DataType> searchFieldTypes = List.of(
-            DataType.INTEGER,
-            DataType.LONG,
-            DataType.DOUBLE,
-            DataType.KEYWORD,
-            DataType.TEXT,
-            DataType.IP,
-            DataType.BOOLEAN,
-            DataType.DATETIME,
-            DataType.DATE_NANOS
+        List<DataType> searchFieldTypes = new ArrayList<>(
+            List.of(
+                DataType.INTEGER,
+                DataType.LONG,
+                DataType.DOUBLE,
+                DataType.KEYWORD,
+                DataType.TEXT,
+                DataType.IP,
+                DataType.BOOLEAN,
+                DataType.DATETIME,
+                DataType.DATE_NANOS
+            )
         );
 
+        Set<DataType> taggedTypes = new HashSet<>();
+        if (isFirst) {
+            List<DataType> extra = List.of(
+                DataType.VERSION,
+                DataType.DENSE_VECTOR,
+                DataType.EXPONENTIAL_HISTOGRAM,
+                DataType.CARTESIAN_POINT,
+                DataType.CARTESIAN_SHAPE,
+                DataType.GEO_POINT,
+                DataType.GEO_SHAPE,
+                DataType.GEOHASH,
+                DataType.GEOTILE,
+                DataType.GEOHEX,
+                DataType.UNSIGNED_LONG,
+                DataType.TDIGEST
+            );
+            searchFieldTypes.addAll(extra);
+            taggedTypes.addAll(extra);
+            searchFieldTypes.add(DataType.FLATTENED);
+        }
+
+        FunctionAppliesTo newIn95 = appliesTo(FunctionAppliesToLifecycle.GA, "9.5.0", "", true);
         List<DataType> sortFieldTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS, DataType.NULL);
 
+        int flattenedRows = 20;
         for (DataType searchFieldType : searchFieldTypes) {
-            for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(searchFieldType, rows, rows)) {
+            int valueRows = searchFieldType == DataType.FLATTENED ? flattenedRows : rows;
+            var rawSuppliers = searchFieldType == DataType.FLATTENED
+                ? flattenedCases(flattenedRows, flattenedRows)
+                : unlimitedSuppliers(searchFieldType, rows, rows);
+            for (TestCaseSupplier.TypedDataSupplier valueSupplier : rawSuppliers) {
+                var taggedValueSupplier = taggedTypes.contains(searchFieldType) ? valueSupplier.withAppliesTo(newIn95) : valueSupplier;
                 for (DataType sortFieldType : sortFieldTypes) {
                     var sortSuppliers = sortFieldType == DataType.NULL
-                        ? MultiRowTestCaseSupplier.nullCases(rows, rows)
-                        : unlimitedSuppliers(sortFieldType, rows, rows);
+                        ? MultiRowTestCaseSupplier.nullCases(valueRows, valueRows)
+                        : unlimitedSuppliers(sortFieldType, valueRows, valueRows);
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : sortSuppliers) {
-                        suppliers.add(makeSupplier(valueSupplier, sortSupplier, isFirst));
+                        suppliers.add(makeSupplier(taggedValueSupplier, sortSupplier, isFirst));
                     }
                 }
             }
@@ -72,10 +106,13 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                 Set<Object> expected = new HashSet<>();
                 TestCaseSupplier.TypedData values = valueSupplier.get();
                 TestCaseSupplier.TypedData sorts = sortSupplier.get();
-                List<?> valuesList = (List<?>) values.data();
+                List<?> valuesList = (List<?>) values.originalData();
+
+                // DENSE_VECTOR reuses the Float suppliers, so the evaluator class name is Float-based
+                DataType effectiveValueType = values.type() == DataType.DENSE_VECTOR ? DataType.FLOAT : values.type();
 
                 if (sorts.type() == DataType.NULL) {
-                    evaluatorStr = standardAggregatorNameAllBytesTheSame("Any", values.type());
+                    evaluatorStr = standardAggregatorNameAllBytesTheSame("Any", effectiveValueType);
                     expected.addAll(valuesList);
                 } else {
                     Long firstSort = null;
@@ -93,7 +130,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                     evaluatorStr = String.format(
                         Locale.ROOT,
                         "All%sBy%s",
-                        standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", values.type()),
+                        standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", effectiveValueType),
                         standardAggregatorNameAllBytesTheSame("", sorts.type())
                     );
                 }

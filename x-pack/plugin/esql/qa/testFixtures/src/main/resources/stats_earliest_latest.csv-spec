@@ -290,3 +290,149 @@ x:integer
 10001..10100
 ;
 
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on extended scalar types
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types
+
+ROW rows = [
+"2025-01-01T00:00:01.000Z | 1.0.0 | 100",
+"2025-01-01T00:00:02.000Z | 2.0.0 | 200",
+"2025-01-01T00:00:03.000Z | 3.0.0 | 300"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{@timestamp} | %{ver} | %{n}"""
+| EVAL @timestamp = TO_DATETIME(@timestamp), v = TO_VERSION(ver), ul = TO_UNSIGNED_LONG(n)
+| STATS
+  first_v  = EARLIEST(v),
+  first_ul = EARLIEST(ul)
+;
+
+first_v:version | first_ul:unsigned_long
+1.0.0           | 100
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on spatial types
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types
+
+FROM k8s
+| STATS
+  first_geo_pt   = EARLIEST(event_city),
+  first_cart_pt  = EARLIEST(event_location),
+  first_cart_shp = EARLIEST(event_shape)
+;
+
+first_geo_pt:geo_point | first_cart_pt:cartesian_point | first_cart_shp:cartesian_shape
+POINT(-4.0333 5.3167)  | POINT (8455502.60394535 3613330.7325705294) | MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)), ((2 0, 3 0, 3 1, 2 1, 2 0)), ((2 2, 3 2, 3 3, 2 3, 2 2)), ((0 2, 1 2, 1 3, 0 3, 0 2)))
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on geo_shape type
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types
+
+ROW rows = [
+"2025-01-01T00:00:01.000Z | POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39.6334))",
+"2025-01-01T00:00:02.000Z | POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{@timestamp} | %{shape}"""
+| EVAL @timestamp = TO_DATETIME(@timestamp), gs = TO_GEOSHAPE(shape)
+| STATS first_shape = EARLIEST(gs)
+;
+
+first_shape:geo_shape
+POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39.6334))
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on spatial grid types
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types
+required_capability: spatial_grid_types
+
+ROW rows = [
+"2025-01-01T00:00:01.000Z | u3bu | 4/8/5 | 841f059ffffffff",
+"2025-01-01T00:00:03.000Z | dr5r | 3/4/2 | 812bbffffffffff",
+"2025-01-01T00:00:02.000Z | 9q8y | 2/2/1 | 81397ffffffffff"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{@timestamp} | %{hash} | %{tile} | %{hex}"""
+| EVAL @timestamp = TO_DATETIME(@timestamp), gh = TO_GEOHASH(hash), gt = TO_GEOTILE(tile), ghex = TO_GEOHEX(hex)
+| STATS
+  first_gh   = EARLIEST(gh),
+  first_gt   = EARLIEST(gt),
+  first_ghex = EARLIEST(ghex)
+;
+
+first_gh:geohash | first_gt:geotile | first_ghex:geohex
+u3bu             | 4/8/5            | 841f059ffffffff
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on dense_vector type
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types_2
+
+FROM colors
+| WHERE id < 5
+| EVAL @timestamp = id
+| STATS first_rgb = EARLIEST(rgb_vector)
+;
+
+first_rgb:dense_vector
+[128.0, 0.0, 0.0]
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on exponential_histogram type
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types_2
+
+FROM exp_histo_sample
+| WHERE instance == "dummy-empty"
+| STATS first_hist = EARLIEST(responseTime)
+;
+
+first_hist:exponential_histogram
+"{""scale"":0}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on tdigest type
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS first_td = EARLIEST(responseTime)
+;
+
+first_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on flattened type
+required_capability: earliest_latest_aggs
+required_capability: flattened_datatype
+required_capability: first_agg_extended_types_3
+
+FROM flattened_otel_logs
+| STATS earliest_attrs = EARLIEST(resource.attributes)
+;
+
+earliest_attrs:flattened
+"{""host.name"":""equal-host""}"
+;

@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
@@ -98,6 +99,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final boolean useInternalFilesReplicatedContentForSearchShards;
     private final SnapshotsCommitService snapshotsCommitService;
     private final ClusterService clusterService;
+    private final StatelessRecoveryMetricsCollector recoveryMetricsCollector;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -114,7 +116,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         ClusterSettings clusterSettings,
         StatelessSharedBlobCacheService cacheService,
         SnapshotsCommitService snapshotsCommitService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        StatelessRecoveryMetricsCollector recoveryMetricsCollector
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -133,6 +136,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         );
         this.snapshotsCommitService = snapshotsCommitService;
         this.clusterService = clusterService;
+        this.recoveryMetricsCollector = recoveryMetricsCollector;
     }
 
     @Override
@@ -269,6 +273,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         final var recoveryInfoFromSource = statelessCommitService.getRecoveryInfoFromSourceEntry(indexShard.shardId());
         final var sourceBlobsInfo = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.sourceBlobsInfo();
         final var hasRecentIdLookup = recoveryInfoFromSource == null ? false : recoveryInfoFromSource.hasRecentIdLookup();
+        final long readIndexingShardStateStartMillis = threadPool.relativeTimeInMillis();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
             if (shardContainer == null) {
                 ActionListener.completeWith(l, () -> ObjectStoreService.IndexingShardState.EMPTY);
@@ -286,9 +291,12 @@ class StatelessIndexEventListener implements IndexEventListener {
                 sourceBlobsInfo,
                 l
             );
-        })
-            .<Void>andThen((l, state) -> recoverBatchedCompoundCommitOnIndexShard(indexShard, state, hasRecentIdLookup, l))
-            .addListener(listener);
+        }).<Void>andThen((l, state) -> {
+            recoveryMetricsCollector.recordRelocationTargetReadIndexingShardStateDuration(
+                threadPool.relativeTimeInMillis() - readIndexingShardStateStartMillis
+            );
+            recoverBatchedCompoundCommitOnIndexShard(indexShard, state, hasRecentIdLookup, l);
+        }).addListener(listener);
     }
 
     private void recoverBatchedCompoundCommitOnIndexShard(
@@ -559,11 +567,6 @@ class StatelessIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
-        hollowShardsService.onMutableOperation(indexShard, permitAcquired, listener);
-    }
-
-    @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
         // Index shards only.
         if (indexShard.routingEntry().isPromotableToPrimary()) {
@@ -580,6 +583,12 @@ class StatelessIndexEventListener implements IndexEventListener {
         // Can be null if there was a problem creating the shard.
         if (indexShard != null) {
             splitTargetService.cancelSplits(indexShard);
+        }
+    }
+
+    @Override
+    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        if (indexShard != null) {
             splitSourceService.cancelSplits(indexShard);
         }
     }

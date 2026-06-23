@@ -35,6 +35,11 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
+    public LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch) {
+        return scratch.reset(fromBlock.getLong(valueIndex), toBlock.getLong(valueIndex));
+    }
+
+    @Override
     protected void closeInternal() {
         Releasables.close(fromBlock, toBlock);
     }
@@ -132,13 +137,13 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
-    public LongRangeBlock filter(boolean mayContainDuplicates, int... positions) {
+    public LongRangeBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         LongRangeBlock result = null;
         LongBlock newFromBlock = null;
         LongBlock newToBlock = null;
         try {
-            newFromBlock = fromBlock.filter(mayContainDuplicates, positions);
-            newToBlock = toBlock.filter(mayContainDuplicates, positions);
+            newFromBlock = fromBlock.filter(mayContainDuplicates, positions, offset, length);
+            newToBlock = toBlock.filter(mayContainDuplicates, positions, offset, length);
             result = new LongRangeArrayBlock(newFromBlock, newToBlock);
             return result;
         } finally {
@@ -179,8 +184,23 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public LongRangeBlock expand() {
-        this.incRef();
-        return this;
+        if (doesHaveMultivaluedFields() == false) {
+            incRef();
+            return this;
+        }
+        LongRangeBlock result = null;
+        LongBlock newFromBlock = null;
+        LongBlock newToBlock = null;
+        try {
+            newFromBlock = fromBlock.expand();
+            newToBlock = toBlock.expand();
+            result = new LongRangeArrayBlock(newFromBlock, newToBlock);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(newFromBlock, newToBlock);
+            }
+        }
     }
 
     @Override

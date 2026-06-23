@@ -11,11 +11,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,12 +28,14 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Unit tests for EXTERNAL command analysis.
@@ -138,7 +144,7 @@ public class AnalyzerExternalTests extends ESTestCase {
 
         external().error(
             "EXTERNAL \"" + S3_PATH + "\" | WHERE KQL(\"first_name: foo\")",
-            containsString("function cannot be used after EXTERNAL")
+            containsString("[KQL] function cannot be used after [EXTERNAL \"" + S3_PATH + "\"]")
         );
     }
 
@@ -150,7 +156,7 @@ public class AnalyzerExternalTests extends ESTestCase {
 
         external().error(
             "EXTERNAL \"" + S3_PATH + "\" | WHERE QSTR(\"first_name: foo\")",
-            containsString("function cannot be used after EXTERNAL")
+            containsString("[QSTR] function cannot be used after [EXTERNAL \"" + S3_PATH + "\"]")
         );
     }
 
@@ -166,6 +172,104 @@ public class AnalyzerExternalTests extends ESTestCase {
             "EXTERNAL \"" + S3_PATH + "\" | WHERE KNN(vector, [3, 100, 0])",
             containsString("function cannot operate on [vector], which is not a field from an index mapping")
         );
+    }
+
+    /**
+     * {@code _file.name} resolves to an {@link ExternalMetadataAttribute} with type KEYWORD.
+     * Verified via the {@link ExternalRelation} output (the plan's top-level output strips virtual columns by design).
+     */
+    public void testFileMetadataResolvesToExternalMetadataAttribute() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        var plan = external().query("EXTERNAL \"" + S3_PATH + "\" | STATS c = COUNT_DISTINCT(`_file.name`)");
+
+        var externalRelations = new ArrayList<ExternalRelation>();
+        plan.forEachDown(ExternalRelation.class, externalRelations::add);
+        assertThat(externalRelations, hasSize(1));
+
+        Attribute fileNameAttr = externalRelations.get(0)
+            .output()
+            .stream()
+            .filter(a -> a.name().equals("_file.name"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("_file.name not found in ExternalRelation output"));
+
+        assertThat(fileNameAttr, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, fileNameAttr.dataType());
+    }
+
+    /**
+     * Multiple {@code _file.*} columns resolve with correct types in the external relation schema.
+     */
+    public void testFileMetadataMultiColumnProjection() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        var plan = external().query(
+            "EXTERNAL \"" + S3_PATH + "\" | STATS n = COUNT_DISTINCT(`_file.name`), " + "s = MIN(`_file.size`), m = MAX(`_file.modified`)"
+        );
+
+        var externalRelations = new ArrayList<ExternalRelation>();
+        plan.forEachDown(ExternalRelation.class, externalRelations::add);
+        assertThat(externalRelations, hasSize(1));
+
+        var output = externalRelations.get(0).output();
+        Attribute nameAttr = output.stream().filter(a -> a.name().equals("_file.name")).findFirst().orElseThrow();
+        Attribute sizeAttr = output.stream().filter(a -> a.name().equals("_file.size")).findFirst().orElseThrow();
+        Attribute modifiedAttr = output.stream().filter(a -> a.name().equals("_file.modified")).findFirst().orElseThrow();
+
+        assertThat(nameAttr, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, nameAttr.dataType());
+        assertThat(sizeAttr, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(LONG, sizeAttr.dataType());
+        assertThat(modifiedAttr, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(DATETIME, modifiedAttr.dataType());
+    }
+
+    /**
+     * An unknown {@code _file.} column is rejected by the analyzer.
+     */
+    public void testFileMetadataUnknownColumnRejected() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        external().error("EXTERNAL \"" + S3_PATH + "\" | KEEP _file.nonexistent", containsString("Unknown column [_file.nonexistent]"));
+    }
+
+    /**
+     * {@code KEEP *} does not include virtual columns ({@code _file.*}).
+     */
+    public void testFileMetadataExcludedFromStar() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        var plan = external().query("EXTERNAL \"" + S3_PATH + "\" | KEEP *");
+        for (Attribute attr : plan.output()) {
+            assertFalse("Virtual attribute " + attr.name() + " should not appear in KEEP * output", attr instanceof VirtualAttribute);
+        }
+        assertEquals(employeesSchema().size(), plan.output().size());
+    }
+
+    /**
+     * {@code KEEP _file*} pattern resolves all five {@code _file.*} columns.
+     * Verified by piping into STATS (since the final plan output strips virtual columns).
+     */
+    public void testFileMetadataExplicitPatternMatches() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        var plan = external().query("EXTERNAL \"" + S3_PATH + "\" | KEEP _file* | STATS c = COUNT(*)");
+
+        var projects = new ArrayList<Project>();
+        plan.forEachDown(Project.class, projects::add);
+
+        boolean foundFileMetadataProject = false;
+        for (Project project : projects) {
+            var fileAttrs = project.output().stream().filter(a -> a instanceof ExternalMetadataAttribute).toList();
+            if (fileAttrs.size() == FileMetadataColumns.NAMES.size()) {
+                foundFileMetadataProject = true;
+                for (Attribute attr : fileAttrs) {
+                    assertTrue("Expected _file.* column but got: " + attr.name(), FileMetadataColumns.NAMES.contains(attr.name()));
+                }
+            }
+        }
+        assertTrue("No Project node found with all 5 _file.* columns", foundFileMetadataProject);
     }
 
     public static TestAnalyzer external() {

@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 
 import java.time.Instant;
 import java.util.List;
@@ -34,7 +33,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  *   └── OrderBy([dimension_fields ASC])
  *         └── Aggregate([dimension_fields], [dimension_fields])  -- STATS BY for dedup
  *               └── MvExpand(dimension_fields)
- *                     └── TsInfo
+ *                     └── MetricsInfo
  *                           └── Filter(timeCond [AND OR(selectorConds...)])
  *                                 └── UnresolvedRelation(index, TS)
  * </pre>
@@ -61,7 +60,7 @@ final class PrometheusLabelsPlanBuilder {
     static LogicalPlan buildPlan(String index, List<String> matchSelectors, Instant start, Instant end, int limit) {
         LogicalPlan plan = PrometheusPlanBuilderUtils.tsSource(index);
         plan = new Filter(Source.EMPTY, plan, PrometheusPlanBuilderUtils.filterExpression(matchSelectors, start, end));
-        plan = new TsInfo(Source.EMPTY, plan);
+        plan = PrometheusPlanBuilderUtils.metricsInfo(Source.EMPTY, plan);
 
         // Expand the multivalued dimension_fields column into one row per label name
         UnresolvedAttribute dimField = new UnresolvedAttribute(Source.EMPTY, PrometheusPlanBuilderUtils.DIMENSION_FIELDS);

@@ -10,10 +10,14 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -28,14 +32,16 @@ import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_
 import static org.elasticsearch.inference.InferenceString.FORMAT_FIELD;
 import static org.elasticsearch.inference.InferenceString.TYPE_FIELD;
 import static org.elasticsearch.inference.InferenceString.VALUE_FIELD;
+import static org.elasticsearch.inference.InferenceString.fromStringList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class InferenceStringTests extends AbstractBWCSerializationTestCase<InferenceString> {
     public static final String TEST_DATA_URI = "data:mime/type;base64,abcd";
 
     public void testConstructorWithNoFormat_usesDefault() {
-        assertThat(new InferenceString(DataType.TEXT, "value").dataFormat(), is(DataFormat.TEXT));
+        assertThat(InferenceString.ofText("value").dataFormat(), is(DataFormat.TEXT));
         assertThat(new InferenceString(DataType.IMAGE, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
         assertThat(new InferenceString(DataType.AUDIO, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
         assertThat(new InferenceString(DataType.VIDEO, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
@@ -313,15 +319,28 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         }
     }
 
+    public void testFromStringList_CreatesExpectedList() {
+        var strings = randomList(1, 5, () -> randomAlphanumericOfLength(8));
+        var inferenceStrings = fromStringList(strings);
+
+        assertThat(inferenceStrings, hasSize(strings.size()));
+        for (int i = 0; i < strings.size(); ++i) {
+            var inferenceString = inferenceStrings.get(i);
+            assertThat(inferenceString.dataType(), is(DataType.TEXT));
+            assertThat(inferenceString.dataFormat(), is(DataFormat.TEXT));
+            assertThat(inferenceString.value(), is(strings.get(i)));
+        }
+    }
+
     public void testToStringList_withAllTextInferenceStrings() {
         var rawStrings = List.of("one", "two", "three", "four");
-        var inferenceStrings = rawStrings.stream().map(s -> new InferenceString(DataType.TEXT, s)).toList();
+        var inferenceStrings = rawStrings.stream().map(InferenceString::ofText).toList();
         assertThat(InferenceString.toStringList(inferenceStrings), is(rawStrings));
     }
 
     public void testToStringList_throwsAssertionError_whenAnyInferenceStringIsNotText() {
         var rawStrings = List.of("one", "two", "three", "four");
-        var inferenceStrings = rawStrings.stream().map(s -> new InferenceString(DataType.TEXT, s)).collect(Collectors.toList());
+        var inferenceStrings = rawStrings.stream().map(InferenceString::ofText).collect(Collectors.toList());
         // Add a non-text InferenceString randomly in the list
         inferenceStrings.add(randomInt(inferenceStrings.size()), new InferenceString(DataType.IMAGE, TEST_DATA_URI));
         AssertionError assertionError = expectThrows(AssertionError.class, () -> InferenceString.toStringList(inferenceStrings));
@@ -417,5 +436,26 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public static boolean isAudioVideoOrPdf(InferenceString testInstance) {
         return testInstance.isAudio() || testInstance.isVideo() || testInstance.isPdf();
+    }
+
+    public static DataType randomDataTypeSupportingBase64() {
+        var dataTypesSupportingBase64 = Arrays.stream(DataType.values())
+            .filter(type -> type.getSupportedFormats().contains(DataFormat.BASE64))
+            .collect(Collectors.toSet());
+        return randomFrom(dataTypesSupportingBase64);
+    }
+
+    public static String randomDataURI() {
+        return TEST_DATA_URI + randomAlphanumericOfLength(5);
+    }
+
+    public static Map<String, Object> inferenceStringToMap(InferenceString inferenceString) {
+        try {
+            var builder = XContentFactory.contentBuilder(XContentType.JSON);
+            inferenceString.toXContent(builder, null);
+            return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        } catch (IOException ioException) {
+            throw new AssertionError("Exception when converting InferenceString to map", ioException);
+        }
     }
 }

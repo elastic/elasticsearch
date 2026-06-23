@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringTests;
@@ -76,11 +75,8 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
             var expectedRequest = new RerankAction.Request(
                 inferenceId,
                 new RerankRequest(
-                    List.of(
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, firstInputText),
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, secondInputText)
-                    ),
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, queryText),
+                    List.of(InferenceString.ofText(firstInputText), InferenceString.ofText(secondInputText)),
+                    InferenceString.ofText(queryText),
                     topN,
                     returnDocuments,
                     Map.of("field", "value")
@@ -159,7 +155,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
     public void testValidate_WithEmptyQuery_ReturnsValidationException() {
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(List.of(randomInferenceString()), new InferenceString(DataType.TEXT, ""), null, null, Map.of()),
+            new RerankRequest(List.of(randomInferenceString()), InferenceString.ofText(""), null, null, Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -258,8 +254,8 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
 
     private static RerankRequest randomRerankRequest() {
         return new RerankRequest(
-            List.of(new InferenceString(DataType.TEXT, randomAlphanumericOfLength(8))),
-            new InferenceString(DataType.TEXT, randomAlphanumericOfLength(8)),
+            List.of(InferenceString.ofText(randomAlphanumericOfLength(8))),
+            InferenceString.ofText(randomAlphanumericOfLength(8)),
             randomInt(),
             randomBoolean(),
             Map.of(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8))

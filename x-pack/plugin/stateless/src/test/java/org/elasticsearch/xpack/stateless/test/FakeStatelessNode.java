@@ -361,6 +361,7 @@ public class FakeStatelessNode implements Closeable {
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
             SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
+            SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
             SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
@@ -368,7 +369,8 @@ public class FakeStatelessNode implements Closeable {
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
-            DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING
+            DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
+            ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL
         );
     }
 
@@ -442,7 +444,7 @@ public class FakeStatelessNode implements Closeable {
         ThreadPool threadPool,
         MeterRegistry meterRegistry
     ) {
-        return TestUtils.newCacheService(nodeEnvironment, settings, threadPool, meterRegistry);
+        return TestUtils.newCacheService(nodeEnvironment, settings, threadPool, meterRegistry, clusterService);
     }
 
     protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
@@ -636,12 +638,7 @@ public class FakeStatelessNode implements Closeable {
     protected ClusterService createClusterService() {
         // TODO: stateless enabled should be part of nodeSettings
         final Settings settings = Settings.builder().put(nodeSettings).put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
-        return ClusterServiceUtils.createClusterService(
-            threadPool,
-            DiscoveryNodeUtils.create("node", "node"),
-            settings,
-            new ClusterSettings(settings, BUILT_IN_CLUSTER_SETTINGS)
-        );
+        return ClusterServiceUtils.createClusterService(threadPool, DiscoveryNodeUtils.create("node", "node"), settings, clusterSettings);
     }
 
     protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {

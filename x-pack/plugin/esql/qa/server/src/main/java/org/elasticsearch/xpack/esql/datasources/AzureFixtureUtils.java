@@ -100,6 +100,7 @@ public final class AzureFixtureUtils {
         public DataSourcesAzureHttpFixture() {
             super(
                 AzureHttpFixture.Protocol.HTTP,
+                null,
                 ACCOUNT,
                 CONTAINER,
                 null,

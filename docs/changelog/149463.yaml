@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149463
+summary: "[ESQLDS] `NdJsonPageDecoder:` schema-aware fast-skip, improve string decoding"
+type: enhancement

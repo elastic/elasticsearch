@@ -94,7 +94,7 @@ public class ProjectMetadataTests extends ESTestCase {
      * feature flag (snapshot-on, release-off), so assertions must branch on the flag to pass in both states.
      */
     private static String collisionPreamble() {
-        return DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
             ? "index, alias, data stream, view, and dataset names need to be unique"
             : "index, alias, data stream, and view names need to be unique";
     }
@@ -2215,6 +2215,80 @@ public class ProjectMetadataTests extends ESTestCase {
                 .put("index_template_1", indexTemplate)
                 .build();
             assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB));
+        }
+    }
+
+    public void testRetrieveIndexModeFromTemplateColumnar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // columnar:
+        var columnarTemplate = new Template(Settings.builder().put("index.mode", "columnar").build(), new CompressedXContent("{}"), null);
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(columnarTemplate, null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            ProjectMetadata p = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put("component_template_1", componentTemplate)
+                .put("index_template_1", indexTemplate)
+                .build();
+            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.COLUMNAR));
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(columnarTemplate)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            ProjectMetadata p = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put("component_template_1", componentTemplate)
+                .put("index_template_1", indexTemplate)
+                .build();
+            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.COLUMNAR));
+        }
+    }
+
+    public void testRetrieveIndexModeFromTemplateColumnarLogsdb() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // logsdb_columnar:
+        var columnarLogsdbTemplate = new Template(
+            Settings.builder().put("index.mode", "logsdb_columnar").build(),
+            new CompressedXContent("{}"),
+            null
+        );
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(columnarLogsdbTemplate, null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            ProjectMetadata p = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put("component_template_1", componentTemplate)
+                .put("index_template_1", indexTemplate)
+                .build();
+            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB_COLUMNAR));
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(columnarLogsdbTemplate)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            ProjectMetadata p = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put("component_template_1", componentTemplate)
+                .put("index_template_1", indexTemplate)
+                .build();
+            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB_COLUMNAR));
         }
     }
 

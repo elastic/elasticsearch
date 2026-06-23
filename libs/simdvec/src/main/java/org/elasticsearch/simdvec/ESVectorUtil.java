@@ -14,13 +14,14 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.ByteOrder;
 import java.util.Objects;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -45,9 +46,10 @@ public class ESVectorUtil {
     }
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
+    private static final VectorScorerFactory SCORERS = ESVectorizationProvider.getInstance().getVectorScorerFactory();
 
     public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension, bulkSize);
+        return SCORERS.newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
     public static ES940OSQVectorsScorer getES940OSQVectorsScorer(
@@ -57,14 +59,13 @@ public class ESVectorUtil {
         int dimension,
         int dataLength,
         int bulkSize,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) throws IOException {
-        return ESVectorizationProvider.getInstance()
-            .newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+        return SCORERS.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
     }
 
     public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension, bulkSize);
+        return SCORERS.newES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
     public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(
@@ -72,7 +73,17 @@ public class ESVectorUtil {
         int dimension,
         int vectorLengthInBytes
     ) throws IOException {
-        return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+        return SCORERS.newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+    }
+
+    public static void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {
+        IMPL.bFloat16ToFloat(bfBytes, bfOffset, floats, floatOffset, floatCount, byteOrder);
+    }
+
+    public static void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder) {
+        assert floats.length - floatOffset >= floatCount;
+        assert (bfBytes.length - bfOffset) >= floatCount * Short.BYTES;
+        IMPL.floatToBFloat16(floats, floatOffset, bfBytes, bfOffset, floatCount, byteOrder);
     }
 
     public static float dotProduct(float[] a, float[] b) {
@@ -80,6 +91,54 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         return IMPL.dotProduct(a, b);
+    }
+
+    /**
+     * Dot product of the first {@code length} components of {@code a} and {@code b}.
+     */
+    public static float dotProduct(float[] a, float[] b, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(0, length, a.length);
+        return IMPL.dotProduct(a, b, 0, length);
+    }
+
+    /**
+     * Dot product over {@code [offset, offset + length)}.
+     */
+    public static float dotProduct(float[] a, float[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.dotProduct(a, b, offset, length);
+    }
+
+    /**
+     * L2-normalizes the prefix {@code v[0..length)} in place. Elements at indices {@code length} and
+     * beyond are left unchanged. A zero prefix is a no-op; unlike {@link VectorUtil#l2normalize(float[])},
+     * this method does not throw on a zero vector.
+     */
+    public static void l2Normalize(float[] v, int length) {
+        l2Normalize(v, 0, length);
+    }
+
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place. Elements outside the range are left
+     * unchanged. A zero range is a no-op.
+     */
+    public static void l2Normalize(float[] v, int offset, int length) {
+        if (length <= 0) {
+            return;
+        }
+        Objects.checkFromIndexSize(offset, length, v.length);
+        IMPL.l2Normalize(v, offset, length);
+    }
+
+    /** L2-normalizes all components of {@code v} in place. */
+    public static void l2Normalize(float[] v) {
+        l2Normalize(v, 0, v.length);
     }
 
     public static float squareDistance(float[] a, float[] b) {
@@ -109,6 +168,54 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         return IMPL.dotProduct(a, b);
+    }
+
+    /**
+     * Dot product of the first {@code length} components of {@code a} and {@code b}.
+     */
+    public static float dotProduct(byte[] a, byte[] b, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(0, length, a.length);
+        return IMPL.dotProduct(a, b, 0, length);
+    }
+
+    /**
+     * Dot product over {@code [offset, offset + length)}.
+     */
+    public static float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.dotProduct(a, b, offset, length);
+    }
+
+    /**
+     * L2-normalizes the prefix {@code v[0..length)} in place using signed byte values as real
+     * components. Elements at indices {@code length} and beyond are left unchanged. A zero prefix
+     * is a no-op.
+     */
+    public static void l2Normalize(byte[] v, int length) {
+        l2Normalize(v, 0, length);
+    }
+
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place using signed byte values as real
+     * components. Elements outside the range are left unchanged. A zero range is a no-op.
+     */
+    public static void l2Normalize(byte[] v, int offset, int length) {
+        if (length <= 0) {
+            return;
+        }
+        Objects.checkFromIndexSize(offset, length, v.length);
+        IMPL.l2Normalize(v, offset, length);
+    }
+
+    /** L2-normalizes all components of {@code v} in place. */
+    public static void l2Normalize(byte[] v) {
+        l2Normalize(v, 0, v.length);
     }
 
     /**
@@ -152,6 +259,86 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         return IMPL.squareDistance(a, b);
+    }
+
+    /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
+    public static float squareDistance(byte[] a, byte[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.squareDistance(a, b, offset, length);
+    }
+
+    /**
+     * Bulk computation of square distances from a byte query vector to four byte candidate vectors.
+     */
+    public static void squareDistanceBulk(byte[] q, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
+        }
+        IMPL.squareDistanceBulk(q, 0, v0, v1, v2, v3, distancesOffset, distances, q.length);
+    }
+
+    /**
+     * Bulk computation of square distances from a sub-range of a byte query vector to four byte candidate vectors.
+     */
+    public static void squareDistanceBulk(
+        byte[] q,
+        int qOffset,
+        int length,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        float[] distances
+    ) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        Objects.checkFromIndexSize(qOffset, length, q.length);
+        IMPL.squareDistanceBulk(q, qOffset, v0, v1, v2, v3, 0, distances, length);
+    }
+
+    /**
+     * Bulk computation of dot product from a byte query vector to four byte candidate vectors.
+     */
+    public static void dotProductBulk(byte[] q, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
+        }
+        IMPL.dotProductBulk(q, v0, v1, v2, v3, distancesOffset, distances);
+    }
+
+    /**
+     * Bulk computation of cosine similarity from a byte query vector to four byte candidate vectors.
+     */
+    public static void cosineBulk(byte[] q, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
+        }
+        IMPL.cosineBulk(q, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {
@@ -361,7 +548,44 @@ public class ESVectorUtil {
     }
 
     /**
-     * Calculates the difference between two vectors and stores the result in a third vector.
+     * Center the byte target vector against a byte centroid and calculate the optimized-scalar quantization statistics
+     * for euclidean similarity.
+     * @param target The byte vector being quantized
+     * @param centroid The byte centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 5
+     */
+    public static void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats) {
+        assert stats.length == 5;
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        IMPL.centerAndCalculateOSQStatsEuclidean(target, centroid, centered, stats);
+    }
+
+    /**
+     * Center the byte target vector against a byte centroid and calculate the optimized-scalar quantization statistics
+     * for dot-product similarity.
+     * @param target The byte vector being quantized
+     * @param centroid The byte centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 6
+     */
+    public static void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats) {
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        assert stats.length == 6;
+        IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
+    }
+
+    /** Calculates the difference between two vectors and stores the result in a third vector.
      * @param v1 the first vector
      * @param v2 the second vector
      * @param result the result vector, must be the same length as the input vectors
@@ -388,6 +612,27 @@ public class ESVectorUtil {
      * @return the soar distance
      */
     public static float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        if (v1.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + centroid.length);
+        }
+        if (originalResidual.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
+        }
+        return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
+    }
+
+    /**
+     * Compute the SOAR distance between a byte vector and a byte centroid.
+     * SOAR distance: {@code ||x-c||^2 + lambda * ((x-c1)^T (x-c))^2 / ||x-c1||^2}
+     *
+     * @param v1 the byte vector
+     * @param centroid the byte centroid
+     * @param originalResidual the precomputed residual (x - c1) as float
+     * @param soarLambda the SOAR lambda parameter
+     * @param rnorm the squared norm of the original residual
+     * @return the SOAR distance
+     */
+    public static float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
         if (v1.length != centroid.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + centroid.length);
         }
@@ -441,25 +686,43 @@ public class ESVectorUtil {
         int distancesOffset,
         float[] distances
     ) {
-        if (q.length != v0.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v0.length);
-        }
-        if (q.length != v1.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v1.length);
-        }
-        if (q.length != v2.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v2.length);
-        }
-        if (q.length != v3.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v3.length);
-        }
-        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
-            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
         }
         if (distances.length < 4) {
             throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
         }
-        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distancesOffset, distances);
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
+        }
+        IMPL.squareDistanceBulk(q, 0, v0, v1, v2, v3, distancesOffset, distances, q.length);
+    }
+
+    /**
+     * Bulk computation of square distances between a query vector and four vectors.Result is stored in the provided distances array.
+     *
+     * @param q the query vector
+     * @param v0 the first vector
+     * @param v1 the second vector
+     * @param v2 the third vector
+     * @param v3 the fourth vector
+     * @param distancesOffset offset to the location in the distances array where we want to store the 4 results,
+     *                        we require distancesOffset to be between 0 and distances.length - 4
+     * @param distances an array to store the computed square distances, must have length >= 4
+     *
+     * @throws IllegalArgumentException if the dimensions of the vectors do not match or if the distances array does not have length 4
+     */
+    public static void dotProductBulk(float[] q, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
+        }
+        IMPL.dotProductBulk(q, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     public static void squareDistanceBulk(
@@ -472,23 +735,14 @@ public class ESVectorUtil {
         float[] v3,
         float[] distances
     ) {
-        if (q.length != v0.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v0.length);
-        }
-        if (q.length != v1.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v1.length);
-        }
-        if (q.length != v2.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v2.length);
-        }
-        if (q.length != v3.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v3.length);
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
         }
         if (distances.length != 4) {
             throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
         }
         Objects.checkFromIndexSize(qOffset, length, q.length);
-        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, 0, distances);
+        IMPL.squareDistanceBulk(q, qOffset, v0, v1, v2, v3, 0, distances, length);
     }
 
     /**
@@ -536,6 +790,52 @@ public class ESVectorUtil {
     }
 
     /**
+     * Calculates SOAR distances between a byte query vector and 4 byte centroid vectors in bulk.
+     * SOAR distance: ||x-c||^2 + lambda * ((x-c)^T * originalResidual)^2 / rnorm
+     *
+     * @param v1 the query vector
+     * @param c0 centroid 0
+     * @param c1 centroid 1
+     * @param c2 centroid 2
+     * @param c3 centroid 3
+     * @param originalResidual the precomputed residual (x - globalCentroid) as float
+     * @param soarLambda the SOAR lambda parameter
+     * @param rnorm the squared norm of the original residual
+     * @param distances output array of length 4 for the computed distances
+     */
+    public static void soarDistanceBulk(
+        byte[] v1,
+        byte[] c0,
+        byte[] c1,
+        byte[] c2,
+        byte[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        if (v1.length != c0.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c0.length);
+        }
+        if (v1.length != c1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c1.length);
+        }
+        if (v1.length != c2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c2.length);
+        }
+        if (v1.length != c3.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c3.length);
+        }
+        if (v1.length != originalResidual.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + originalResidual.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        IMPL.soarDistanceBulk(v1, c0, c1, c2, c3, originalResidual, soarLambda, rnorm, distances);
+    }
+
+    /**
      * Packs the provided int array populated with "0" and "1" values into a byte array.
      *
      * @param vector the int array to pack, must contain only "0" and "1" values.
@@ -553,6 +853,13 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
         }
         IMPL.packDibit(vector, packed);
+    }
+
+    public static void packDibitQuad(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.packDibitQuad(vector, packed);
     }
 
     /**
@@ -641,6 +948,9 @@ public class ESVectorUtil {
      * @param dest the destination vector
      */
     public static void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
         IMPL.linearCombination(scaleOther, other, scaleDest, dest);
     }
 
@@ -652,7 +962,25 @@ public class ESVectorUtil {
      * @param dest the destination vector
      */
     public static void linearCombination(float scaleOther, float[] other, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
         IMPL.linearCombination(scaleOther, other, dest);
+    }
+
+    /**
+     * Computes dest[d] = scaleSrc * src[d] + scaleDest * dest[d], widening byte src to float.
+     *
+     * @param scaleOther a multiplicative factor for src
+     * @param other the byte source vector (widened to float for computation)
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination float vector (modified in place)
+     */
+    public static void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        IMPL.linearCombination(scaleOther, other, scaleDest, dest);
     }
 
     /**
@@ -693,5 +1021,17 @@ public class ESVectorUtil {
      */
     public static void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
         IMPL.pow2DiffAndScaleNQT(v1, v2, a, eps, result);
+    }
+
+    /**
+     * For every index {@code i} in {@code [0, values.length)}, sets bit {@code i} in
+     * {@code matches} ({@code matches[i>>>6]}, bit position {@code i & 0x3f}) when
+     * {@code values[i]} lies in {@code [lowerValue, upperValue]}.
+     *
+     * <p>Requires {@code values.length} to be a multiple of 8 (the maximum supported SIMD lane
+     * count, for AVX-512) and {@code matches.length == values.length / 64}.
+     */
+    public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
     }
 }

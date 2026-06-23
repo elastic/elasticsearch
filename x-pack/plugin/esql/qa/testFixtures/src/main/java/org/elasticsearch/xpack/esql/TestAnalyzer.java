@@ -15,17 +15,24 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DateEsField;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -33,8 +40,10 @@ import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -54,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_IP_LOCATION_RESOLUTION;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -75,6 +85,7 @@ public class TestAnalyzer {
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
+    private final Map<LinkedIndexPattern, IndexResolution> lenientResolution = new HashMap<>();
     private final EnrichResolution enrichResolution = new EnrichResolution();
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
@@ -129,6 +140,29 @@ public class TestAnalyzer {
     }
 
     /**
+     * Add a lenient (CPS shadow) resolution entry. The {@code ResolveViewShadow} analyzer rule
+     * looks up entries in {@link AnalyzerContext#linkedResolution()} by the shadow's full
+     * {@code IndexPattern} (view name + applicable exclusions), so the same view referenced
+     * with different exclusion lists can be wired to different results.
+     */
+    public TestAnalyzer addLenientResolution(LinkedIndexPattern indexPattern, IndexResolution resolution) {
+        this.lenientResolution.put(indexPattern, resolution);
+        return this;
+    }
+
+    /**
+     * Convenience overload of {@link #addLenientResolution(LinkedIndexPattern, IndexResolution)} for the
+     * common no-exclusion case: keys the entry by an {@link IndexPattern} built from
+     * {@code esIndex.name()} (which the test should match the local view name).
+     */
+    public TestAnalyzer addLenientResolution(EsIndex esIndex) {
+        return addLenientResolution(
+            new LinkedIndexPattern(LinkedIndexPattern.Kind.OPTIONAL, new IndexPattern(Source.EMPTY, esIndex.name())),
+            IndexResolution.valid(esIndex)
+        );
+    }
+
+    /**
      * Adds an index with empty resolution (used for pruned subqueries).
      */
     public TestAnalyzer addRemoteMissingIndex() {
@@ -154,8 +188,7 @@ public class TestAnalyzer {
             Map.of(),
             Map.of(noFieldsIndexName, IndexMode.STANDARD),
             Map.of("", List.of(noFieldsIndexName)),
-            Map.of("", List.of(noFieldsIndexName)),
-            Map.of()
+            Map.of("", List.of(noFieldsIndexName))
         );
         addIndex(noFieldsIndexName, IndexResolution.valid(noFieldsIndex));
         return this;
@@ -264,6 +297,48 @@ public class TestAnalyzer {
      */
     public TestAnalyzer addK8sDownsampled() {
         return addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
+     * Adds the otel-metrics index, built programmatically to mirror what IndexResolver produces for a real
+     * OTel TSDB index. In a real OTel index both the root-level alias (e.g. {@code cpu}) and the concrete
+     * passthrough field (e.g. {@code attributes.cpu}) have {@code isAlias=false}; the mapping here reflects
+     * that to keep tests consistent with production behaviour.
+     */
+    public TestAnalyzer addOtelMetrics() {
+        LinkedHashMap<String, EsField> attributesChildren = new LinkedHashMap<>();
+        attributesChildren.put("cpu", new KeywordEsField("cpu", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
+        attributesChildren.put(
+            "state",
+            new KeywordEsField("state", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION)
+        );
+
+        LinkedHashMap<String, EsField> resourceAttributesChildren = new LinkedHashMap<>();
+        resourceAttributesChildren.put(
+            "host.name",
+            new KeywordEsField("host.name", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION)
+        );
+
+        LinkedHashMap<String, EsField> metricsChildren = new LinkedHashMap<>();
+        metricsChildren.put(
+            "system.cpu.time",
+            new EsField("system.cpu.time", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+        );
+
+        LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
+        mapping.put("@timestamp", DateEsField.dateEsField("@timestamp", Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("attributes", new EsField("attributes", DataType.OBJECT, attributesChildren, false, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("cpu", new KeywordEsField("cpu", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
+        mapping.put("state", new KeywordEsField("state", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
+        mapping.put(
+            "resource.attributes",
+            new EsField("resource.attributes", DataType.OBJECT, resourceAttributesChildren, false, EsField.TimeSeriesFieldType.NONE)
+        );
+        mapping.put("host.name", new KeywordEsField("host.name", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
+        mapping.put("metrics", new EsField("metrics", DataType.OBJECT, metricsChildren, false, EsField.TimeSeriesFieldType.NONE));
+
+        EsIndex otelMetrics = new EsIndex("otel-metrics", mapping, Map.of("otel-metrics", IndexMode.TIME_SERIES), Map.of(), Map.of());
+        return addIndex(otelMetrics);
     }
 
     /**
@@ -377,7 +452,8 @@ public class TestAnalyzer {
     }
 
     /**
-     * Set external source resolution.
+     * Set external source resolution. Enriches the schema with {@code _file.*} metadata columns
+     * to mirror the production path in {@link ExternalSourceResolver}.
      */
     public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
         var metadata = new ExternalSourceMetadata() {
@@ -396,7 +472,8 @@ public class TestAnalyzer {
                 return "parquet";
             }
         };
-        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
+        var enriched = ExternalSourceResolver.enrichSchemaWithFileMetadataColumns(metadata);
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(enriched, fileSet, java.util.Map.of());
         return externalSourceResolution(new ExternalSourceResolution(Map.of(path, resolvedSource)));
     }
 
@@ -470,63 +547,95 @@ public class TestAnalyzer {
      * Build the analyzer, parse the query, and analyze it.
      */
     public LogicalPlan query(String query, QueryParams params) {
-        return buildAnalyzer().analyze(parseQuery(query, params));
+        return buildAnalyzer().analyze(resolveViewsAndInSubqueries(parseQuery(query, params)));
     }
 
     private LogicalPlan parseQuery(String query, QueryParams params) {
-        var parsed = EsqlTestUtils.TEST_PARSER.parseQuery(query, params);
+        return EsqlTestUtils.TEST_PARSER.parseQuery(query, params);
+    }
+
+    /**
+     * Resolves views and IN subquery expressions in a single traversal, mirroring the production pipeline driven by
+     * {@code ViewResolver#replaceViews} followed by {@code InSubqueryResolver#verify} in {@code EsqlSession#execute}.
+     * <p>
+     * After resolution, {@link InSubqueryResolver#verify} rejects any IN subquery that survived (e.g. one in an unsupported position
+     * such as EVAL or SORT).
+     */
+    public LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
         if (views.isEmpty()) {
-            return parsed;
+            // No views to expand, resolve and validate IN subqueries directly
+            return InSubqueryResolver.resolve(plan);
         }
-        return resolveViews(parsed);
+        LogicalPlan resolved = resolveViews(plan);
+        InSubqueryResolver.verify(resolved);
+        return resolved;
     }
 
     // This most primitive view resolution only works for the simple cases being tested
     private LogicalPlan resolveViews(LogicalPlan parsed) {
-        var viewDefinitions = resolveViews(views);
-        return parsed.transformDown(UnresolvedRelation.class, ur -> {
-            List<LogicalPlan> resolved = Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*")).map(indexPattern -> {
-                var view = viewDefinitions.get(indexPattern);
-                return view == null
-                    ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
-                    : new NamedSubquery(view.source(), view, indexPattern);
-            }).toList();
-            if (resolved.size() == 1) {
-                var subplan = resolved.get(0);
-                if (subplan instanceof NamedSubquery n) {
-                    return n.child();
-                }
-                return subplan;
+        return resolveViews(parsed, resolveViews(views));
+    }
+
+    /**
+     * Single traversal that interleaves view expansion and IN-subquery rewriting, mirroring {@code ViewResolver#replaceViews}.
+     */
+    private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions) {
+        return parsed.transformDown(p -> {
+            if (p instanceof Filter filter) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
+                // If an IN subquery was rewritten to a Semi/Anti/MarkJoin, recurse so views nested inside the now-exposed subquery
+                // plans (and any IN subqueries those views in turn contain) get resolved too.
+                return resolved == filter ? filter : resolveViews(resolved, viewDefinitions);
             }
-            List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
-            List<NamedSubquery> namedSubqueries = new ArrayList<>();
-            for (LogicalPlan l : resolved) {
-                if (l instanceof UnresolvedRelation u) {
-                    unresolvedRelations.add(u);
-                } else if (l instanceof NamedSubquery n) {
-                    namedSubqueries.add(n);
-                } else {
-                    throw new IllegalArgumentException("Only support UnresolvedRelation and NamedSubquery in Views Analyzer Tests");
-                }
+            if (p instanceof UnresolvedRelation ur) {
+                LogicalPlan resolved = resolveViewReference(ur, viewDefinitions);
+                // Recurse into the expanded view body so IN subqueries / nested views anywhere in it (including its root) are resolved.
+                return resolved.equals(ur) ? ur : resolveViews(resolved, viewDefinitions);
             }
-            LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
-            if (unresolvedRelations.size() == 1) {
-                subplans.put(null, unresolvedRelations.get(0));
-            } else if (unresolvedRelations.size() > 1) {
-                String indexPattern = unresolvedRelations.stream()
-                    .map(u -> u.indexPattern().indexPattern())
-                    .collect(Collectors.joining(","));
-                subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
-            }
-            for (NamedSubquery namedSubquery : namedSubqueries) {
-                subplans.put(namedSubquery.name(), namedSubquery.child());
-            }
-            if (subplans.size() == 1) {
-                return namedSubqueries.get(0).child();
-            } else {
-                return new ViewUnionAll(ur.source(), subplans, List.of());
-            }
+            return p;
         });
+    }
+
+    private LogicalPlan resolveViewReference(UnresolvedRelation ur, Map<String, LogicalPlan> viewDefinitions) {
+        List<LogicalPlan> resolved = Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*")).map(indexPattern -> {
+            var view = viewDefinitions.get(indexPattern);
+            return view == null
+                ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
+                : new NamedSubquery(view.source(), view, indexPattern);
+        }).toList();
+        if (resolved.size() == 1) {
+            var subplan = resolved.get(0);
+            if (subplan instanceof NamedSubquery n) {
+                return n.child();
+            }
+            return subplan;
+        }
+        List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
+        List<NamedSubquery> namedSubqueries = new ArrayList<>();
+        for (LogicalPlan l : resolved) {
+            if (l instanceof UnresolvedRelation u) {
+                unresolvedRelations.add(u);
+            } else if (l instanceof NamedSubquery n) {
+                namedSubqueries.add(n);
+            } else {
+                throw new IllegalArgumentException("Only support UnresolvedRelation and NamedSubquery in Views Analyzer Tests");
+            }
+        }
+        LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
+        if (unresolvedRelations.size() == 1) {
+            subplans.put(null, unresolvedRelations.get(0));
+        } else if (unresolvedRelations.size() > 1) {
+            String indexPattern = unresolvedRelations.stream().map(u -> u.indexPattern().indexPattern()).collect(Collectors.joining(","));
+            subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
+        }
+        for (NamedSubquery namedSubquery : namedSubqueries) {
+            subplans.put(namedSubquery.name(), namedSubquery.child());
+        }
+        if (subplans.size() == 1) {
+            return namedSubqueries.get(0).child();
+        } else {
+            return new ViewUnionAll(ur.source(), subplans, List.of());
+        }
     }
 
     private static UnresolvedRelation makeUnresolvedRelation(UnresolvedRelation plan, String indexPattern) {
@@ -571,7 +680,7 @@ public class TestAnalyzer {
     public LogicalPlan statement(String query) {
         var statement = TEST_PARSER.createStatement(query);
         unmappedResolution = statement.setting(QuerySettings.UNMAPPED_FIELDS);
-        var analyzed = buildAnalyzer().analyze(statement.plan());
+        var analyzed = buildAnalyzer().analyze(resolveViewsAndInSubqueries(statement.plan()));
         var failures = new Failures();
         PlanConsistencyChecker.checkPlan(analyzed, failures);
         if (failures.hasFailures()) {
@@ -764,15 +873,18 @@ public class TestAnalyzer {
         return new AnalyzerContext(
             configuration,
             functionRegistry,
+            PromqlFunctionRegistry.INSTANCE,
             null,
             indexResolutions,
             lookupResolution,
+            lenientResolution,
             enrichResolution,
             inferenceResolution.build(),
             externalSourceResolution,
             minimumTransportVersion.get(),
             unmappedResolution,
-            timestampBounds
+            timestampBounds,
+            TEST_IP_LOCATION_RESOLUTION
         );
     }
 
@@ -781,7 +893,7 @@ public class TestAnalyzer {
      */
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Map.of())
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of())
         );
     }
 

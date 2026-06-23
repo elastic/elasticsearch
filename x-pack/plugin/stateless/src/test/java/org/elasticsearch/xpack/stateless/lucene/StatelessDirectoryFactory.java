@@ -17,6 +17,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
@@ -46,6 +48,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
@@ -57,6 +60,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_MMAP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
+import static org.mockito.Mockito.mock;
 
 /**
  * Factory for creating a stateless directory for use by the KnnIndexTester
@@ -71,6 +75,22 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 public final class StatelessDirectoryFactory {
 
     private static final Logger logger = LogManager.getLogger(StatelessDirectoryFactory.class);
+
+    /**
+     * System property: fixed sleep (in milliseconds) injected into every
+     * {@code BlobContainer.readBlob(...)} call, modeling per-region first-byte
+     * latency to a remote object store. Defaults to 0 (no added latency).
+     */
+    public static final String FIRST_BYTE_LATENCY_MS_PROP = "es.stateless.bench.firstByteLatencyMs";
+
+    /**
+     * System property: explicit shared blob cache size in bytes. When unset,
+     * the factory auto-sizes the cache to fit every existing index file (no
+     * eviction). Setting this smaller than the working set forces a realistic
+     * miss/hit mix and exercises the latency injected via
+     * {@link #FIRST_BYTE_LATENCY_MS_PROP}.
+     */
+    public static final String CACHE_SIZE_BYTES_PROP = "es.stateless.bench.cacheSizeBytes";
 
     private StatelessDirectoryFactory() {}
 
@@ -92,7 +112,16 @@ public final class StatelessDirectoryFactory {
      * @return a read-write directory backed by the stateless blob cache
      */
     public static Directory create(Path indexPath, Path workPath) throws IOException {
-        return StatelessDirectory.create(indexPath, workPath);
+        return create(indexPath, workPath, Settings.EMPTY);
+    }
+
+    /**
+     * Same as {@link #create(Path, Path)} but lets the caller merge additional node
+     * settings (for example {@code node.roles}) on top of the defaults. Caller-provided
+     * keys overwrite the defaults set by this factory.
+     */
+    public static Directory create(Path indexPath, Path workPath, Settings extraNodeSettings) throws IOException {
+        return StatelessDirectory.create(indexPath, workPath, extraNodeSettings);
     }
 
     /**
@@ -105,14 +134,21 @@ public final class StatelessDirectoryFactory {
      */
     private static class StatelessDirectory extends FilterDirectory {
 
-        static StatelessDirectory create(Path dataPath, Path workPath) throws IOException {
-            var cacheSize = ByteSizeValue.ofBytes(computeRegionAlignedCacheSize(dataPath));
+        static StatelessDirectory create(Path dataPath, Path workPath, Settings extraNodeSettings) throws IOException {
+            long regionSize = SHARED_CACHE_REGION_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes();
+            Long cacheSizeOverride = Long.getLong(CACHE_SIZE_BYTES_PROP);
+            long cacheSizeBytes = cacheSizeOverride != null
+                ? ((cacheSizeOverride + regionSize - 1) / regionSize) * regionSize
+                : computeRegionAlignedCacheSize(dataPath);
+            var cacheSize = ByteSizeValue.ofBytes(cacheSizeBytes);
+            long firstByteLatencyMs = Long.getLong(FIRST_BYTE_LATENCY_MS_PROP, 0L);
             var nodeSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), workPath)
                 .putList(Environment.PATH_DATA_SETTING.getKey(), workPath.toString())
                 .put(SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                 .put(SHARED_CACHE_MMAP.getKey(), true)
                 .put("node.id.seed", 0L)
+                .put(extraNodeSettings)
                 .build();
             var nodeEnvironment = new NodeEnvironment(nodeSettings, new Environment(nodeSettings, null));
             var threadPool = new ThreadPool(
@@ -126,10 +162,11 @@ public final class StatelessDirectoryFactory {
                 nodeSettings,
                 threadPool,
                 new BlobCacheMetrics(MeterRegistry.NOOP),
+                mock(ClusterService.class),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
-            logInitialCacheStats(dataPath, nodeSettings, cacheSize, cacheService);
+            logInitialCacheStats(dataPath, nodeSettings, cacheSize, cacheService, cacheSizeOverride != null, firstByteLatencyMs);
             var fakeBlobStoreDirectory = new NIOFSDirectory(dataPath);
             var blobNameToFileName = new ConcurrentHashMap<String, String>();
 
@@ -147,11 +184,13 @@ public final class StatelessDirectoryFactory {
             var fakeBlobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, dataPath) {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                    simulateFirstByteLatency(firstByteLatencyMs);
                     return super.readBlob(purpose, resolveBlobName(blobName), position, length);
                 }
 
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+                    simulateFirstByteLatency(firstByteLatencyMs);
                     return super.readBlob(purpose, resolveBlobName(blobName));
                 }
 
@@ -316,7 +355,9 @@ public final class StatelessDirectoryFactory {
             Path dataPath,
             Settings nodeSettings,
             ByteSizeValue cacheSize,
-            StatelessSharedBlobCacheService cacheService
+            StatelessSharedBlobCacheService cacheService,
+            boolean cacheSizeOverridden,
+            long firstByteLatencyMs
         ) throws IOException {
             int regionSize = Math.toIntExact(SHARED_CACHE_REGION_SIZE_SETTING.get(nodeSettings).getBytes());
             int regionsAvailable = cacheService.getStats().numberOfRegions();
@@ -333,14 +374,28 @@ public final class StatelessDirectoryFactory {
             }
             int deficit = regionsNeeded - regionsAvailable;
             logger.info(
-                "Cache capacity: cacheSize={}, regionSize={}, regionsAvailable={}, regionsNeeded={}, deficit={}{}",
+                "Cache capacity: cacheSize={} ({}), regionSize={}, regionsAvailable={}, regionsNeeded={}, deficit={}{}",
                 cacheSize,
+                cacheSizeOverridden ? "user-overridden via " + CACHE_SIZE_BYTES_PROP : "auto-sized",
                 ByteSizeValue.ofBytes(regionSize),
                 regionsAvailable,
                 regionsNeeded,
                 deficit,
                 deficit > 0 ? " *** CACHE TOO SMALL - eviction will occur ***" : " (OK)"
             );
+            logger.info("Simulated blob-store first-byte latency: {} ms (set via {})", firstByteLatencyMs, FIRST_BYTE_LATENCY_MS_PROP);
+        }
+
+        private static void simulateFirstByteLatency(long latencyMs) throws IOException {
+            if (latencyMs <= 0) {
+                return;
+            }
+            try {
+                Thread.sleep(latencyMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new InterruptedIOException("interrupted while simulating blob-store latency");
+            }
         }
     }
 
@@ -363,5 +418,14 @@ public final class StatelessDirectoryFactory {
                 stats.readBytes()
             );
         }
+    }
+
+    /**
+     * Returns a snapshot of the underlying shared blob cache stats for a directory
+     * created by this factory, or {@code null} if the directory is not a StatelessDirectory.
+     * Intended for benchmark callers that want to compute deltas around a query.
+     */
+    public static SharedBlobCacheService.Stats statsFor(Directory dir) {
+        return dir instanceof StatelessDirectory sd ? sd.cacheService.getStats() : null;
     }
 }

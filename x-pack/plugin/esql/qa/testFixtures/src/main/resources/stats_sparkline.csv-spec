@@ -48,11 +48,11 @@ sparkline:long                         | gender:keyword
 sparklineWithInlineFilter
 required_capability: fn_sparkline
 FROM employees
-| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z") WHERE gender == "M"
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z") WHERE gender == "M"
 ;
 
 sparkline:long
-[0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0, 0]
+[0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0]
 ;
 
 sparklineInInlineStats
@@ -158,6 +158,67 @@ name_length:double                                                              
 [7.0, 7.25, 6.0, 7.333333333333333, 6.125, 7.0, 9.0, 4.5, 4.5, 7.0, 0.0, 0.0, 7.0, 0.0, 0.0]                                          | [0.347, 0.939, 0.708, 0.977, 0.684, 0.997, -0.811, 0.999, 0.786, 0.236, 0.0, 0.0, 0.983, 0.0, 0.0] | F
 [5.0, 6.285714285714286, 6.857142857142857, 5.666666666666667, 5.666666666666667, 5.857142857142857, 6.0, 6.75, 0.0, 6.5, 6.25, 7.0, 0.0, 0.0, 0.0] | [0.934, 0.806, 0.98, 0.186, 0.999, 0.945, 0.886, 0.973, 0.0, 0.995, 0.331, 0.998, 0.0, 0.0, 0.0] | M
 [9.0, 0.0, 7.0, 0.0, 9.0, 4.0, 0.0, 8.0, 9.0, 0.0, 8.0, 0.0, 0.0, 0.0, 7.0]                                                           | [-0.177, 0.0, 0.894, 0.0, 0.314, 0.969, 0.0, 0.733, 0.86, 0.0, 0.036, 0.0, 0.0, 0.0, 0.105] | null
+;
+
+// Make sure that the non-time series aggs don't choke on null.
+withCountDistinctNull
+required_capability: fn_sparkline_null_alongside
+
+FROM employees
+| EVAL y = null
+| STATS s = SPARKLINE(SUM(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+       cd = COUNT_DISTINCT(y)
+;
+
+s:long                                                           | cd:long
+[0, 92610, 0, 0, 44817, 0, 62405, 0, 49095, 103064, 218159, 0]  | 0
+;
+
+withCountDistinctNullFromRow
+required_capability: fn_sparkline_null_alongside
+
+ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
+| STATS s = SPARKLINE(COUNT(*), hire_date, 5, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"), cd = COUNT_DISTINCT(y)
+;
+
+s:long | cd:long
+1      | 0
+;
+
+withValuesNull
+required_capability: fn_sparkline_null_alongside
+
+ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
+| STATS s = SPARKLINE(COUNT(*), hire_date, 5, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        v = VALUES(y)
+;
+
+s:long | v:null
+1      | null
+;
+
+withSumNull
+required_capability: fn_sparkline_null_alongside
+
+ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
+| STATS s = SPARKLINE(COUNT(*), hire_date, 5, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+       sm = SUM(y)
+;
+
+s:long | sm:null
+1      | null
+;
+
+withTopNull
+required_capability: fn_sparkline_null_alongside
+
+ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
+| STATS s = SPARKLINE(COUNT(*), hire_date, 5, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        t = TOP(y, 3, "asc")
+;
+
+s:long | t:null
+1      | null
 ;
 
 sparklineComplexWithGroupingMapped-Ignore

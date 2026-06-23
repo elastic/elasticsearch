@@ -20,12 +20,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -35,11 +39,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 
 public class DLMFrozenTransitionServiceTests extends ESTestCase {
+
+    private static final int TEST_MAX_CONCURRENCY = 10;
+    // Mirrors the old "queue == concurrency" choice so the capacity test can saturate predictably.
+    private static final int TEST_MAX_QUEUE_SIZE = 10;
 
     /**
      * Minimal test double implementing {@link DLMFrozenTransitionRunnable} that blocks until released,
@@ -83,24 +92,33 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private ClusterService clusterService;
+    private DLMFrozenTransitionSettings transitionSettings;
+    private DLMFrozenTransitionExecutor transitionExecutor;
 
     @Before
     public void setupTest() {
         Set<org.elasticsearch.common.settings.Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingSet.add(DLMFrozenTransitionService.POLL_INTERVAL_SETTING);
-        settingSet.add(DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING);
-        settingSet.add(DLMFrozenTransitionService.MAX_QUEUE_SIZE);
-        threadPool = new TestThreadPool(getTestName());
-        // Set max_queue_size equal to max_concurrency so that capacity tests remain valid: once maxConcurrency * 2
-        // tasks have been submitted, hasCapacity() returns false.
-        int maxConcurrency = DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING.getDefault(Settings.EMPTY);
-        Settings settings = Settings.builder().put("dlm.frozen_transition.max_queue_size", maxConcurrency).build();
+        settingSet.add(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING);
+        threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                DLMFrozenTransitionPlugin.EXECUTOR_NAME,
+                TEST_MAX_CONCURRENCY,
+                TEST_MAX_QUEUE_SIZE,
+                "dlm.frozen.transition.thread_pool",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
         clusterService = createClusterService(
             threadPool,
             DiscoveryNodeUtils.create("node", "node"),
-            settings,
-            new ClusterSettings(settings, settingSet)
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, settingSet)
         );
+        transitionSettings = DLMFrozenTransitionSettings.create(clusterService);
+        transitionExecutor = newTransitionExecutor(clusterService, threadPool, transitionSettings);
     }
 
     @After
@@ -110,10 +128,26 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         super.tearDown();
     }
 
+    private static DLMFrozenTransitionExecutor newTransitionExecutor(
+        ClusterService cs,
+        ThreadPool pool,
+        DLMFrozenTransitionSettings settings
+    ) {
+        return new DLMFrozenTransitionExecutor(
+            cs,
+            TEST_MAX_CONCURRENCY + TEST_MAX_QUEUE_SIZE,
+            settings,
+            new DataStreamLifecycleErrorStore(System::currentTimeMillis),
+            pool.executor(DLMFrozenTransitionPlugin.EXECUTOR_NAME)
+        );
+    }
+
     private DLMFrozenTransitionService createService() {
         return new DLMFrozenTransitionService(
             clusterService,
-            (indexName, pid) -> new TestDLMFrozenTransitionRunnable(indexName, new CountDownLatch(0))
+            (indexName, pid) -> new TestDLMFrozenTransitionRunnable(indexName, new CountDownLatch(0)),
+            transitionExecutor,
+            transitionSettings
         );
     }
 
@@ -129,7 +163,6 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
             service.clusterChanged(event);
 
             assertFalse(service.isSchedulerThreadRunning());
-            assertFalse(service.isTransitionExecutorRunning());
         } finally {
             service.close();
         }
@@ -139,20 +172,19 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         var service = createService();
         try {
             assertFalse(service.isSchedulerThreadRunning());
-            assertFalse(service.isTransitionExecutorRunning());
 
             service.clusterChanged(createMasterEvent(true));
             assertTrue(service.isSchedulerThreadRunning());
-            assertTrue(service.isTransitionExecutorRunning());
+            assertTrue(service.getTransitionExecutor().isAccepting());
 
             service.clusterChanged(createMasterEvent(false));
             assertFalse(service.isSchedulerThreadRunning());
-            assertFalse(service.isTransitionExecutorRunning());
+            assertFalse(service.getTransitionExecutor().isAccepting());
 
-            // Becoming master again should re-create the pools
+            // Becoming master again should re-start the pools
             service.clusterChanged(createMasterEvent(true));
             assertTrue(service.isSchedulerThreadRunning());
-            assertTrue(service.isTransitionExecutorRunning());
+            assertTrue(service.getTransitionExecutor().isAccepting());
         } finally {
             service.close();
         }
@@ -162,12 +194,12 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         var service = createService();
         try {
             service.clusterChanged(createMasterEvent(true));
-            var transitionExecutor = service.getTransitionExecutor();
+            var transitionExecutorRef = service.getTransitionExecutor();
 
             // Repeated master events should not recreate the pools
             service.clusterChanged(createMasterEvent(true));
             assertTrue(service.isSchedulerThreadRunning());
-            assertSame(transitionExecutor, service.getTransitionExecutor());
+            assertSame(transitionExecutorRef, service.getTransitionExecutor());
         } finally {
             service.close();
         }
@@ -178,11 +210,9 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         try {
             service.clusterChanged(createMasterEvent(false));
             assertFalse(service.isSchedulerThreadRunning());
-            assertFalse(service.isTransitionExecutorRunning());
 
             service.clusterChanged(createMasterEvent(false));
             assertFalse(service.isSchedulerThreadRunning());
-            assertFalse(service.isTransitionExecutorRunning());
         } finally {
             service.close();
         }
@@ -192,28 +222,24 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         var service = createService();
         service.clusterChanged(createMasterEvent(true));
         assertTrue(service.isSchedulerThreadRunning());
-        assertTrue(service.isTransitionExecutorRunning());
+        assertTrue(service.getTransitionExecutor().isAccepting());
 
         service.close();
         assertTrue(service.isClosing());
         assertFalse(service.isSchedulerThreadRunning());
-        assertFalse(service.isTransitionExecutorRunning());
 
         // After close, becoming master should not start thread pools
         service.clusterChanged(createMasterEvent(true));
         assertFalse(service.isSchedulerThreadRunning());
-        assertFalse(service.isTransitionExecutorRunning());
     }
 
     public void testCloseWhenNeverMaster() throws Exception {
         var service = createService();
         assertFalse(service.isSchedulerThreadRunning());
-        assertFalse(service.isTransitionExecutorRunning());
 
         service.close();
         assertTrue(service.isClosing());
         assertFalse(service.isSchedulerThreadRunning());
-        assertFalse(service.isTransitionExecutorRunning());
     }
 
     public void testCheckForFrozenIndicesSubmitsOnlyMarkedIndices() throws Exception {
@@ -223,7 +249,7 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         var service = new DLMFrozenTransitionService(clusterService, (indexName, pid) -> {
             submittedIndices.add(indexName);
             return new TestDLMFrozenTransitionRunnable(indexName, blockUntil, tasksStarted);
-        });
+        }, transitionExecutor, transitionSettings);
         try {
             ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
 
@@ -262,7 +288,7 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
         var service = new DLMFrozenTransitionService(clusterService, (indexName, pid) -> {
             submittedIndices.add(indexName);
             return new TestDLMFrozenTransitionRunnable(indexName, blockUntil, taskStarted);
-        });
+        }, transitionExecutor, transitionSettings);
         try {
             IndexMetadata markedIndex = createMarkedIndex("frozen-ds");
             ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
@@ -285,10 +311,7 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
     }
 
     public void testCheckForFrozenIndicesReturnsEarlyWhenCapacityExhausted() throws Exception {
-        int maxConcurrency = DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING.get(clusterService.getSettings());
-        int maxQueue = DLMFrozenTransitionService.MAX_QUEUE_SIZE.get(clusterService.getSettings());
-
-        int maxJobs = maxConcurrency + maxQueue;
+        int maxJobs = TEST_MAX_CONCURRENCY + TEST_MAX_QUEUE_SIZE;
 
         CountDownLatch blockUntil = new CountDownLatch(1);
         CountDownLatch allSubmitted = new CountDownLatch(maxJobs);
@@ -297,7 +320,7 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
             submittedIndices.add(indexName);
             allSubmitted.countDown();
             return new TestDLMFrozenTransitionRunnable(indexName, blockUntil);
-        });
+        }, transitionExecutor, transitionSettings);
         try {
             // Start with exactly maxJobs marked indices so the initial poll fills capacity without rejection
             ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
@@ -340,17 +363,31 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
     public void testAlreadyQueuedIndexIsNotResubmitted() throws Exception {
         Set<org.elasticsearch.common.settings.Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         allSettings.add(DLMFrozenTransitionService.POLL_INTERVAL_SETTING);
-        allSettings.add(DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING);
-        allSettings.add(DLMFrozenTransitionService.MAX_QUEUE_SIZE);
-        Settings singleThreadSettings = Settings.builder()
-            .put("dlm.frozen_transition.max_concurrency", 1)
-            .put("dlm.frozen_transition.max_queue_size", 5)
-            .build();
+        allSettings.add(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING);
+        TestThreadPool localThreadPool = new TestThreadPool(
+            "test-dlm-frozen-transition-single-thread",
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                DLMFrozenTransitionPlugin.EXECUTOR_NAME,
+                1,
+                5,
+                "dlm.frozen.transition.thread_pool",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
         ClusterService localClusterService = createClusterService(
-            threadPool,
+            localThreadPool,
             DiscoveryNodeUtils.create("local-node", "local-node"),
-            singleThreadSettings,
-            new ClusterSettings(singleThreadSettings, allSettings)
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, allSettings)
+        );
+        DLMFrozenTransitionSettings localTransitionSettings = DLMFrozenTransitionSettings.create(localClusterService);
+        DLMFrozenTransitionExecutor localTransitionExecutor = new DLMFrozenTransitionExecutor(
+            localClusterService,
+            1 + 5,
+            localTransitionSettings,
+            new DataStreamLifecycleErrorStore(System::currentTimeMillis),
+            localThreadPool.executor(DLMFrozenTransitionPlugin.EXECUTOR_NAME)
         );
         try {
             CountDownLatch blockUntil = new CountDownLatch(1);
@@ -366,7 +403,7 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
             var service = new DLMFrozenTransitionService(localClusterService, (indexName, pid) -> {
                 submittedIndices.add(indexName);
                 return new TestDLMFrozenTransitionRunnable(indexName, blockUntil);
-            });
+            }, localTransitionExecutor, localTransitionSettings);
             try {
                 service.clusterChanged(createMasterEventFor(localClusterService, true));
 
@@ -390,6 +427,86 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
             }
         } finally {
             localClusterService.close();
+            ThreadPool.terminate(localThreadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * When {@link DLMFrozenTransitionSettings#TRANSITION_ENABLED_SETTING} is {@code false}, {@code checkForFrozenIndices} must return
+     * without submitting any work, even when marked indices are present in cluster state.
+     */
+    public void testDisabledSettingPreventsSubmission() throws Exception {
+        // Set up cluster state first so that the implicit applySettings({}) from setState does not
+        // reset the kill switch after we disable transitions.
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        addDataStream(projectBuilder, "frozen-ds", createMarkedIndex("frozen-ds"));
+        setProjectState(projectBuilder);
+
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING.getKey(), false).build());
+
+        List<String> submittedIndices = new CopyOnWriteArrayList<>();
+        var service = new DLMFrozenTransitionService(clusterService, (indexName, pid) -> {
+            submittedIndices.add(indexName);
+            return new TestDLMFrozenTransitionRunnable(indexName, new CountDownLatch(0));
+        }, transitionExecutor, transitionSettings);
+        try {
+            service.clusterChanged(createMasterEvent(true));
+            service.checkForFrozenIndices();
+
+            assertEquals("Kill switch must prevent all submissions", 0, submittedIndices.size());
+        } finally {
+            service.close();
+        }
+    }
+
+    /**
+     * When transitions are disabled at runtime, {@code checkForFrozenIndices} stops submitting new transitions, but a transition that
+     * is already executing must run to completion. Specifically, the kill switch must NOT route through
+     * {@link DLMFrozenTransitionExecutor#stop()} which would cancel in-flight tasks via
+     * {@link java.util.concurrent.Future#cancel(boolean)}.
+     */
+    public void testRuntimeDisableStopsNewSubmissionsButLetsInFlightComplete() throws Exception {
+        CountDownLatch blockUntil = new CountDownLatch(1);
+        CountDownLatch firstTaskStarted = new CountDownLatch(1);
+        List<String> submittedIndices = new CopyOnWriteArrayList<>();
+
+        var service = new DLMFrozenTransitionService(clusterService, (indexName, pid) -> {
+            submittedIndices.add(indexName);
+            return new TestDLMFrozenTransitionRunnable(indexName, blockUntil, firstTaskStarted);
+        }, transitionExecutor, transitionSettings);
+        try {
+            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+            addDataStream(projectBuilder, "frozen-ds-1", createMarkedIndex("frozen-ds-1"));
+            setProjectState(projectBuilder);
+
+            service.clusterChanged(createMasterEvent(true));
+            safeAwait(firstTaskStarted);
+            assertEquals(1, submittedIndices.size());
+
+            // Disable transitions. No setState calls follow, so the setting stays set.
+            clusterService.getClusterSettings()
+                .applySettings(Settings.builder().put(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING.getKey(), false).build());
+            assertFalse(transitionSettings.isTransitionEnabled());
+
+            // Release the in-flight task. Once it completes, frozen-ds-1 is removed from
+            // submittedTransitions and capacity is available — without the kill switch it would be
+            // re-submitted on the next poll since it is still marked for frozen in cluster state.
+            blockUntil.countDown();
+            String frozenDs1IndexName = DataStream.getDefaultBackingIndexName("frozen-ds-1", 1);
+            assertBusy(
+                () -> assertFalse(
+                    "In-flight transition must complete after kill switch is set",
+                    transitionExecutor.transitionSubmitted(frozenDs1IndexName)
+                )
+            );
+
+            // Kill switch is still on: a poll must not re-submit the now-eligible frozen-ds-1.
+            service.checkForFrozenIndices();
+            assertEquals("Kill switch must prevent new submissions", 1, submittedIndices.size());
+        } finally {
+            blockUntil.countDown();
+            service.close();
         }
     }
 

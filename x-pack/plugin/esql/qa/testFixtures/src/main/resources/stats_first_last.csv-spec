@@ -467,3 +467,243 @@ FROM voyager
 x01:datetime | x02:datetime | x03:integer | x04:integer | x05:boolean | x06:boolean | x07:long    | x08:long    | x09:keyword | x10:keyword
 null         | null         | [3, 4]      | [3, 4]      | false       | false       | 21190910703 | 21190910703 | yellow      | yellow
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on extended scalar types
+required_capability: first_agg_extended_types
+
+FROM all_types
+| STATS
+    first_v  = FIRST(version, long),
+    first_ul = FIRST(unsigned_long, long)
+;
+
+first_v:version | first_ul:unsigned_long
+1.0.0           | 100
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on spatial types
+required_capability: first_agg_extended_types
+
+FROM k8s
+| STATS
+    first_geo_pt   = FIRST(event_city, @timestamp),
+    first_cart_pt  = FIRST(event_location, @timestamp),
+    first_cart_shp = FIRST(event_shape, @timestamp)
+;
+
+first_geo_pt:geo_point | first_cart_pt:cartesian_point                      | first_cart_shp:cartesian_shape
+POINT(-4.0333 5.3167)  | POINT (8455502.60394535 3613330.7325705294)        | MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)), ((2 0, 3 0, 3 1, 2 1, 2 0)), ((2 2, 3 2, 3 3, 2 3, 2 2)), ((0 2, 1 2, 1 3, 0 3, 0 2)))
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on geo_shape type
+required_capability: first_agg_extended_types
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM airport_city_boundaries
+| WHERE abbrev == "PMI"
+| EVAL sort = 1::long
+| STATS first_shape = FIRST(city_boundary, sort)
+;
+
+first_shape:geo_shape
+POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39.6334))
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on spatial grid types
+required_capability: first_agg_extended_types
+required_capability: spatial_grid_types
+
+ROW rows = [
+  "1 | u3bu | 4/8/5 | 841f059ffffffff",
+  "3 | dr5r | 3/4/2 | 812bbffffffffff",
+  "2 | 9q8y | 2/2/1 | 81397ffffffffff"
+]
+| MV_EXPAND rows
+| DISSECT rows "%{n} | %{hash} | %{tile} | %{hex}"
+| EVAL sort = TO_LONG(n), gh = TO_GEOHASH(hash), gt = TO_GEOTILE(tile), ghex = TO_GEOHEX(hex)
+| STATS
+    first_gh   = FIRST(gh, sort),
+    first_gt   = FIRST(gt, sort),
+    first_ghex = FIRST(ghex, sort)
+;
+
+first_gh:geohash | first_gt:geotile | first_ghex:geohex
+u3bu             | 4/8/5            | 841f059ffffffff
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on dense_vector type
+required_capability: first_agg_extended_types_2
+
+FROM colors
+| WHERE id < 5
+| STATS first_rgb = FIRST(rgb_vector, id)
+;
+
+first_rgb:dense_vector
+[128.0, 0.0, 0.0]
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on exponential_histogram type (NULL sort)
+required_capability: first_agg_extended_types_2
+
+FROM exp_histo_sample
+| WHERE instance == "dummy-empty"
+| STATS first_hist = FIRST(responseTime, NULL)
+;
+
+first_hist:exponential_histogram
+"{""scale"":0}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on exponential_histogram type with grouping (NULL sort)
+required_capability: first_agg_extended_types_2
+
+FROM exp_histo_sample
+| WHERE instance IN ("dummy-empty", "dummy-zero_threshold_only")
+| STATS first_hist = FIRST(responseTime, NULL) BY instance
+| SORT instance
+;
+
+first_hist:exponential_histogram | instance:keyword
+"{""scale"":0}" | dummy-empty
+"{""scale"":0,""zero"":{""threshold"":2.0E-5}}" | dummy-zero_threshold_only
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type (NULL sort)
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS first_td = FIRST(responseTime, NULL)
+;
+
+first_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type with grouping (NULL sort)
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance IN ("hand-rolled", "hand-rolled-empty")
+| STATS first_td = FIRST(responseTime, NULL) BY instance
+| SORT instance
+;
+
+first_td:tdigest | instance:keyword
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | hand-rolled
+"{""centroids"":[], ""counts"":[]}" | hand-rolled-empty
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type sorted by timestamp
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS first_td = FIRST(responseTime, @timestamp)
+;
+
+first_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type with grouping sorted by timestamp
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance IN ("hand-rolled", "hand-rolled-empty")
+| STATS first_td = FIRST(responseTime, @timestamp) BY instance
+| SORT instance
+;
+
+first_td:tdigest                                                                                                     | instance:keyword
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | hand-rolled
+"{""centroids"":[], ""counts"":[]}"                                                                                  | hand-rolled-empty
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type with count (sorted by timestamp)
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "multi-row-td"
+| STATS first_td = FIRST(responseTime, @timestamp), n = COUNT(*)
+;
+
+first_td:tdigest                                                                                                     | n:long
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | 2
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type with grouping and count (sorted by timestamp)
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance IN ("hand-rolled", "multi-row-td")
+| STATS first_td = FIRST(responseTime, @timestamp), n = COUNT(*) BY instance
+| SORT instance
+;
+
+first_td:tdigest                                                                                                     | n:long | instance:keyword
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | 1      | hand-rolled
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | 2      | multi-row-td
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on flattened type
+required_capability: flattened_datatype
+required_capability: first_agg_extended_types_3
+
+FROM flattened_many
+| STATS first_flat = FIRST(flat_a, id)
+;
+
+first_flat:flattened
+"{""k"":""v1""}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on flattened type (NULL sort)
+required_capability: flattened_datatype
+required_capability: first_agg_extended_types_3
+
+FROM flattened_many
+| WHERE id == 1
+| STATS first_flat = FIRST(flat_a, NULL)
+;
+
+first_flat:flattened
+"{""k"":""v1""}"
+;

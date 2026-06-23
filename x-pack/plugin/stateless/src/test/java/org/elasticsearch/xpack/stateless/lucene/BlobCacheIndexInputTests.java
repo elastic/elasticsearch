@@ -29,6 +29,7 @@ import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -54,6 +55,8 @@ import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHand
 import org.elasticsearch.xpack.stateless.cache.reader.SwitchingCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -86,29 +89,30 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.intThat;
 import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeThreadPool() throws Exception {
         threadPool = getThreadPool("BlobCacheIndexInputTests");
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
     }
 
@@ -956,6 +960,10 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
     // Uses a small mmap-backed cache with only 3 regions (4-16 KB each); populating 4 additional
     // files forces eviction of file A's region, after which withByteBufferSlice must return false.
     public void testWithByteBufferSliceReturnsFalseAfterEviction() throws IOException {
+        // Decay runs in the background, so we want it to complete before populating the cache with the next file
+        // Calling withByteBufferSlice on A promotes it to a higher frequency, so if decay doesn't complete and decrease A's frequency
+        // before populating the other files, A will retain the highest frequency and avoid eviction
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 16)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 3);
         final var settings = Settings.builder()
@@ -964,7 +972,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             .build();
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, taskQueue.getThreadPool())
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final long primaryTerm = randomNonNegativeLong();
@@ -994,6 +1002,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
             // Populate cache with file A
             byte[] outputA = randomReadAndSlice(indexInputA, inputA.length);
+            taskQueue.runAllRunnableTasks();
             assertArrayEquals(inputA, outputA);
 
             // Verify buffer is available before eviction
@@ -1028,6 +1037,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                     0
                 );
                 byte[] evictOutput = randomReadAndSlice(evictIndexInput, evictInput.length);
+                taskQueue.runAllRunnableTasks();
                 assertArrayEquals(evictInput, evictOutput);
             }
 
@@ -1296,6 +1306,8 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
     // Uses a small mmap-backed cache with only 3 regions; populating additional files forces
     // eviction of file A's region.
     public void testWithByteBufferSlicesReturnsFalseAfterEviction() throws IOException {
+        // Decay runs in the background, so we want it to complete before populating the cache with the next file
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 16)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 3);
         final var settings = Settings.builder()
@@ -1304,7 +1316,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             .build();
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, taskQueue.getThreadPool())
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final long primaryTerm = randomNonNegativeLong();
@@ -1334,6 +1346,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
             // Populate cache with file A
             byte[] outputA = randomReadAndSlice(indexInputA, inputA.length);
+            taskQueue.runAllRunnableTasks();
             assertArrayEquals(inputA, outputA);
 
             // Verify bulk access is available before eviction
@@ -1372,6 +1385,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                     0
                 );
                 byte[] evictOutput = randomReadAndSlice(evictIndexInput, evictInput.length);
+                taskQueue.runAllRunnableTasks();
                 assertArrayEquals(evictInput, evictOutput);
             }
 
@@ -1395,6 +1409,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
         final long primaryTerm = randomNonNegativeLong();
         final long fileLength = randomLongBetween(200, 10_000);
+        when(cacheFile.getLength()).thenReturn(fileLength);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
@@ -1428,6 +1443,214 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         long slicePrefetchLength = randomLongBetween(1, sliceLength - slicePrefetchOffset);
         slice.prefetch(slicePrefetchOffset, slicePrefetchLength);
         verify(cacheFile).tryPrefetch(sliceOffset + slicePrefetchOffset, slicePrefetchLength);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testAsyncPrefetchOnCacheMiss() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
+        final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
+        final FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), randomNonNegativeLong(), "test-file");
+        when(cacheFile.getCacheKey()).thenReturn(cacheKey);
+        final long fileLength = randomLongBetween(200, 10_000);
+        when(cacheFile.getLength()).thenReturn(fileLength);
+
+        final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        when(cacheBlobReader.getRange(anyLong(), anyInt(), anyLong())).thenAnswer(
+            inv -> ByteRange.of(inv.getArgument(0), (long) inv.getArgument(0) + (int) inv.getArgument(1))
+        );
+
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        final CacheFileReader cacheFileReader = new CacheFileReader(
+            cacheFile,
+            cacheBlobReader,
+            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            metrics,
+            System::currentTimeMillis
+        );
+        final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+            "test-file",
+            randomIOContext(),
+            cacheFileReader,
+            null,
+            fileLength,
+            0
+        );
+
+        long offset = randomLongBetween(0, fileLength - 2);
+        long length = randomLongBetween(1, fileLength - offset);
+
+        indexInput.prefetch(offset, length);
+
+        final ByteRange expectedRange = ByteRange.of(offset, offset + length);
+        verify(cacheFile).populate(
+            eq(expectedRange),
+            eq(expectedRange),
+            any(SharedBlobCacheService.RangeAvailableHandler.class),
+            any(SequentialRangeMissingHandler.class),
+            anyString(),
+            any(ActionListener.class)
+        );
+
+        // No outcome metric is recorded yet because the listener has not been completed by the (mocked) populate call.
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testAsyncPrefetchSuccessIsRecorded() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
+        final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
+        final FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), randomNonNegativeLong(), "test-file");
+        when(cacheFile.getCacheKey()).thenReturn(cacheKey);
+        final long fileLength = randomLongBetween(200, 10_000);
+        when(cacheFile.getLength()).thenReturn(fileLength);
+
+        final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        when(cacheBlobReader.getRange(anyLong(), anyInt(), anyLong())).thenAnswer(
+            inv -> ByteRange.of(inv.getArgument(0), (long) inv.getArgument(0) + (int) inv.getArgument(1))
+        );
+        // Synchronously complete the listener with success.
+        doAnswer(invocation -> {
+            ActionListener<Integer> listener = invocation.getArgument(5);
+            listener.onResponse(0);
+            return 0L;
+        }).when(cacheFile).populate(any(), any(), any(), any(), anyString(), any(ActionListener.class));
+
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        final CacheFileReader cacheFileReader = new CacheFileReader(
+            cacheFile,
+            cacheBlobReader,
+            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            metrics,
+            System::currentTimeMillis
+        );
+        final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+            "test-file",
+            randomIOContext(),
+            cacheFileReader,
+            null,
+            fileLength,
+            0
+        );
+
+        long offset = randomLongBetween(0, fileLength - 2);
+        long length = randomLongBetween(1, fileLength - offset);
+
+        indexInput.prefetch(offset, length);
+
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 1);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testAsyncPrefetchFailureIsRecorded() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
+        final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
+        final FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), randomNonNegativeLong(), "test-file");
+        when(cacheFile.getCacheKey()).thenReturn(cacheKey);
+        final long fileLength = randomLongBetween(200, 10_000);
+        when(cacheFile.getLength()).thenReturn(fileLength);
+
+        final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        when(cacheBlobReader.getRange(anyLong(), anyInt(), anyLong())).thenAnswer(
+            inv -> ByteRange.of(inv.getArgument(0), (long) inv.getArgument(0) + (int) inv.getArgument(1))
+        );
+        // Synchronously fail the listener to exercise the Failed branch without a real thread pool.
+        doAnswer(invocation -> {
+            ActionListener<Integer> listener = invocation.getArgument(5);
+            listener.onFailure(new IOException("emulate issue while prefetching"));
+            return 0L;
+        }).when(cacheFile).populate(any(), any(), any(), any(), anyString(), any(ActionListener.class));
+
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        final CacheFileReader cacheFileReader = new CacheFileReader(
+            cacheFile,
+            cacheBlobReader,
+            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            metrics,
+            System::currentTimeMillis
+        );
+        final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+            "test-file",
+            randomIOContext(),
+            cacheFileReader,
+            null,
+            fileLength,
+            0
+        );
+
+        long offset = randomLongBetween(0, fileLength - 2);
+        long length = randomLongBetween(1, fileLength - offset);
+
+        indexInput.prefetch(offset, length);
+
+        // Only AsyncFailed is recorded when the async prefetch listener fails.
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 1);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testAsyncPrefetchNotCalledOnCacheHit() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
+        final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(true);
+
+        final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        final long fileLength = randomLongBetween(200, 10_000);
+        when(cacheFile.getLength()).thenReturn(fileLength);
+
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        final CacheFileReader cacheFileReader = new CacheFileReader(
+            cacheFile,
+            cacheBlobReader,
+            createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
+            metrics,
+            System::currentTimeMillis
+        );
+        final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+            "test-file",
+            randomIOContext(),
+            cacheFileReader,
+            null,
+            fileLength,
+            0
+        );
+
+        long offset = randomLongBetween(0, fileLength - 2);
+        long length = randomLongBetween(1, fileLength - offset);
+
+        indexInput.prefetch(offset, length);
+
+        // The fast-path cache hit must short-circuit: no slow-path interaction with the blob reader or the cache file.
+        verifyNoInteractions(cacheBlobReader);
+        verify(cacheFile, never()).populate(any(), any(), any(), any(), anyString(), any(ActionListener.class));
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 1);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+        assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+    }
+
+    private static void assertPrefetchMetric(RecordingMeterRegistry meterRegistry, BlobCacheMetrics.PrefetchResult result, long expected) {
+        long observed = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BlobCacheMetrics.BLOB_CACHE_PREFETCH_TOTAL)
+            .stream()
+            .filter(m -> result.name().equals(m.attributes().get(BlobCacheMetrics.PREFETCH_RESULT_ATTRIBUTE_KEY)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+        assertEquals("expected " + expected + " [" + result + "] prefetch measurement(s)", expected, observed);
     }
 
     private SparseFileTracker.Gap mockGap(long start, long end) {

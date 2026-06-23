@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -106,6 +107,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -212,12 +214,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        Loggers.setLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        Loggers.setLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings), true);
                     } else {
-                        Loggers.setLevel(LogManager.getRootLogger(), rootLevel);
+                        Loggers.setLevel(LogManager.getRootLogger(), rootLevel, true);
                     }
                 } else {
-                    Loggers.setLevel(LogManager.getLogger(component), value.get(key));
+                    Loggers.setLevel(LogManager.getLogger(component), value.get(key), true);
                 }
             }
         }
@@ -404,6 +406,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SniffConnectionStrategySettings.REMOTE_CONNECTIONS_PER_CLUSTER,
         SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
+        TransportGetAction.STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING,
         ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
         SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING,
         NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
@@ -572,11 +575,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED,
         SearchService.FETCH_PHASE_CHUNKED_ENABLED,
         SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS,
+        SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES,
         SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,
         ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING,
+        ThreadPool.WRITE_THREAD_POOL_UTILIZATION_EWMR_HALF_LIFE,
         FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
         Node.BREAKER_TYPE_KEY,
         OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
@@ -698,6 +703,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         QueryLogger.QUERY_LOGGER_LEVEL,
         QueryLogger.QUERY_LOGGER_INCLUDE_USER,
         QueryLogger.QUERY_LOGGER_LOG_SYSTEM,
-        SynonymsManagementAPIService.MAX_SYNONYM_RULES_SETTING
+        SynonymsManagementAPIService.MAX_SYNONYM_RULES_SETTING,
+        SystemIndices.NUMBER_OF_REPLICAS_SETTING,
+        SystemIndices.AUTO_EXPAND_REPLICAS_SETTING
     );
 }

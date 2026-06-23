@@ -1,6 +1,0 @@
-area: Infra/Scripting
-issues:
- - 137849
-pr: 143311
-summary: Painless hoist constant collection `.contains` calls
-type: enhancement

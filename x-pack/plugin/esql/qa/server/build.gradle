@@ -1,4 +1,9 @@
 apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
 
 versions << [
   'hadoop' : '3.4.3',
@@ -13,6 +18,8 @@ configurations {
   parquetFixtureGenerator
   // NdJsonFixtureGenerator: x-content JSON output + CSV parsing only (no Hadoop).
   ndjsonFixtureGenerator
+  // TsvFixtureGenerator: CSV → TSV for external-format QA (no Hadoop).
+  tsvFixtureGenerator
 }
 
 sourceSets {
@@ -24,6 +31,9 @@ sourceSets {
   }
   ndjsonFixtureGenerator {
     compileClasspath += configurations.ndjsonFixtureGenerator
+  }
+  tsvFixtureGenerator {
+    compileClasspath += configurations.tsvFixtureGenerator
   }
 }
 
@@ -63,6 +73,7 @@ dependencies {
   orcFixtureGenerator("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") { exclude group: 'org.slf4j', module: 'slf4j-api' }
   orcFixtureGenerator("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") { exclude group: 'org.slf4j', module: 'slf4j-api' }
   orcFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  orcFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
   orcFixtureGenerator project(':libs:core')
   orcFixtureGenerator project(xpackModule('esql-datasource-csv'))
 
@@ -76,9 +87,20 @@ dependencies {
   parquetFixtureGenerator("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") { exclude group: 'org.apache.logging.log4j' }
   parquetFixtureGenerator("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") { exclude group: 'org.apache.logging.log4j' }
   parquetFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  parquetFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
+  parquetFixtureGenerator "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  parquetFixtureGenerator "com.github.luben:zstd-jni:${versions.zstdJni}"
+  parquetFixtureGenerator "io.airlift:aircompressor:${versions.aircompressor}"
   parquetFixtureGenerator project(':libs:core')
   parquetFixtureGenerator project(xpackModule('esql-datasource-csv'))
 
   ndjsonFixtureGenerator project(':libs:x-content')
   ndjsonFixtureGenerator project(xpackModule('esql-datasource-csv'))
+  ndjsonFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  ndjsonFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
+
+  tsvFixtureGenerator project(':libs:core')
+  tsvFixtureGenerator project(xpackModule('esql-datasource-csv'))
+  tsvFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  tsvFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
 }

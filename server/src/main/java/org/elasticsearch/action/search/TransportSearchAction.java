@@ -75,6 +75,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
@@ -308,6 +310,42 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
+    static String validateAndResolveSearchSliceRouting(
+        SearchRequest searchRequest,
+        Map<Index, IndexMetadata> concreteLocalIndicesMetadata,
+        String[] requestedIndices,
+        boolean hasRemoteIndices
+    ) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return null;
+        }
+        final boolean fromSlice = searchRequest.isRoutingFromSlice();
+        final String requestedSlice = fromSlice ? searchRequest.searchSlice() : null;
+        final boolean anySliceEnabled = concreteLocalIndicesMetadata.values()
+            .stream()
+            .anyMatch(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()));
+        final String target = requestedIndices.length == 0
+            ? concreteLocalIndicesMetadata.keySet().stream().map(Index::getName).collect(Collectors.joining(","))
+            : Strings.arrayToCommaDelimitedString(requestedIndices);
+        if (searchRequest.pointInTimeBuilder() != null && anySliceEnabled) {
+            throw new IllegalArgumentException(
+                "[point in time] is not supported when [index.slice.enabled] is true for search request targeting [" + target + "]"
+            );
+        }
+        searchRequest.routing(
+            SliceIndexing.validateAndResolveSliceRoutingRequirement(
+                anySliceEnabled,
+                fromSlice,
+                searchRequest.routing(),
+                requestedSlice,
+                "search request",
+                target,
+                hasRemoteIndices
+            )
+        );
+        return requestedSlice;
+    }
+
     private Map<String, Float> resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState) {
         if (searchRequest.source() == null) {
             return Collections.emptyMap();
@@ -363,12 +401,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest(
-            (SearchTask) task,
-            searchRequest,
-            activityLogger.wrap(listener, new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest)),
-            AsyncSearchActionProvider::new,
-            true
+        SearchLogContextBuilder searchLogContextBuilder = new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest);
+        activityLogger.wrapAndRun(
+            listener,
+            searchLogContextBuilder,
+            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
         );
     }
 
@@ -638,6 +675,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         rewritten.indicesOptions(),
                         rewritten.preference(),
                         rewritten.routing(),
+                        rewritten.searchSlice(),
+                        rewritten.isRoutingFromSlice(),
                         rewritten.source() != null ? rewritten.source().query() : null,
                         Objects.requireNonNullElse(rewritten.allowPartialSearchResults(), searchService.defaultAllowPartialSearchResults()),
                         searchContext,
@@ -664,6 +703,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchShardsResponses.forEach(
                                 (clusterName, response) -> numSkippedShards.put(clusterName, response.getNumSkippedShards())
                             );
+                            // reconcileProjects may have excluded clusters that had no matching shards (empty groups).
+                            // Remove those clusters from numSkippedShards so that skippedByClusterAlias passed to
+                            // the search phase only covers clusters that are actually in participatingProjects.
+                            // Without this, CCSSingleCoordinatorSearchProgressListener.onListShards would encounter
+                            // cluster aliases absent from the Clusters map, causing a NullPointerException that
+                            // silently aborts the loop and leaves all clusters stuck in RUNNING state.
+                            numSkippedShards.keySet().retainAll(participatingProjects.getClusterAliases());
                             if (searchContext != null) {
                                 remoteAliasFilters = searchContext.aliasFilter();
                                 remoteShardIterators = getRemoteShardsIteratorFromPointInTime(
@@ -940,7 +986,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     logCCSError(failure, clusterAlias, shouldSkipOnFailure);
                     ccsClusterInfoUpdate(failure, clusters, clusterAlias, shouldSkipOnFailure);
                     if (shouldSkipOnFailure) {
-                        ActionListener.respondAndRelease(listener, SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
+                        ActionListener.respondAndRelease(
+                            listener,
+                            SearchResponse.emptyResponseBuilder().tookInMillis(timeProvider.buildTookInMillis()).clusters(clusters).build()
+                        );
                     } else {
                         listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
                     }
@@ -1361,6 +1410,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions originalIdxOpts,
         String preference,
         String routing,
+        String searchSlice,
+        boolean routingFromSlice,
         QueryBuilder query,
         boolean allowPartialResults,
         SearchContextId searchContext,
@@ -1453,6 +1504,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchShardsIdxOpts,
                         query,
                         routing,
+                        searchSlice,
+                        routingFromSlice,
                         preference,
                         allowPartialResults,
                         clusterAlias
@@ -1681,7 +1734,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     null,
                     searchShardsGroup.preFiltered(),
                     searchShardsGroup.skipped(),
-                    searchShardsGroup.reshardSplitShardCountSummary()
+                    searchShardsGroup.splitShardCountSummary()
                 );
                 remoteShardIterators.add(shardIterator);
             }
@@ -1805,6 +1858,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // No user preference defined in search request - apply cluster service default
             searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
         }
+        validateAndResolveSearchSliceRouting(
+            searchRequest,
+            resolvedIndices.getConcreteLocalIndicesMetadata(),
+            searchRequest.indices(),
+            remoteShardIterators.isEmpty() == false
+        );
 
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
@@ -2560,7 +2619,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shardId,
                 shardRouting.getShardRoutings(),
                 finalIndices,
-                shardRouting.reshardSplitShardCountSummary()
+                shardRouting.splitShardCountSummary()
             );
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here

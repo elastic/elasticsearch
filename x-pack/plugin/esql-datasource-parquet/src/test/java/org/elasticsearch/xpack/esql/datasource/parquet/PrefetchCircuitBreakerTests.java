@@ -27,6 +27,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -87,7 +89,9 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     public void testPrefetchWithTightBreakerLimit() throws Exception {
         MessageType wideSchema = buildWideSchema(10);
         byte[] parquetData = createMultiRowGroupFile(wideSchema, 5000, 50 * 1024);
-        var breaker = new TrackingBreaker("test", ByteSizeValue.ofMb(2));
+        // Add DEFAULT_WINDOW_SIZE so the window fits; the remaining ~2 MB budget is still tight
+        // enough that decode or prefetch allocations may trip the breaker.
+        var breaker = new TrackingBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 2 * 1024 * 1024));
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject storage = createAsyncStorageObject(parquetData);
@@ -146,9 +150,11 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         }
         assertTrue("Should have read rows", totalRows > 0);
         assertEquals("Breaker should return to zero", 0, breaker.getUsed());
+        // The window buffer (DEFAULT_WINDOW_SIZE) is now tracked by the circuit breaker, so the
+        // peak includes the window. Prefetch and decode allocations are still bounded by parquetData.length.
         assertTrue(
             "Peak prefetch breaker usage should be bounded (was " + breaker.peakUsed + " bytes)",
-            breaker.peakUsed.get() < parquetData.length
+            breaker.peakUsed.get() < parquetData.length + ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE
         );
     }
 
@@ -231,7 +237,13 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 executor.execute(() -> {
                     try {
                         int pos = (int) position;
@@ -239,7 +251,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                         ByteBuffer buffer = ByteBuffer.allocate(len);
                         buffer.put(data, pos, len);
                         buffer.flip();
-                        listener.onResponse(buffer);
+                        listener.onResponse(new DirectReadBuffer(buffer, () -> {}));
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -285,7 +297,13 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 executor.execute(() -> listener.onFailure(new IOException("Simulated async I/O failure")));
             }
         };

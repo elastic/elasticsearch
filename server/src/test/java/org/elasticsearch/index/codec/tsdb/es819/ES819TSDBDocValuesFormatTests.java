@@ -28,6 +28,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
@@ -497,6 +498,62 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
                     int result = containsIter.advance(expected);
                     assertEquals("advance(" + expected + ") should land on that doc", expected, result);
                 }
+            }
+        }
+    }
+
+    /**
+     * Lock the {@link TwoPhaseIterator}-backed shape of {@code tryContainsIterator} and
+     * {@code tryLengthIterator} so a future refactor that bakes the per-doc check into
+     * {@code advance(target)} (which over-scans past the caller's {@code max} when matches are
+     * sparse — breaking linear scaling under sub-segment slicing) fails this test instead of
+     * regressing silently.
+     */
+    public void testIteratorsExposeTwoPhase() throws Exception {
+        final String timestampField = TIMESTAMP_FIELD;
+        final String binaryField = "binary_field";
+        var dvFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean(),
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            randomBoolean(),
+            NUMERIC_LARGE_BLOCK_SHIFT,
+            randomBoolean()
+        );
+        var config = new IndexWriterConfig();
+        config.setIndexSort(new Sort(new SortedNumericSortField(timestampField, SortField.Type.LONG, true)));
+        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(TestUtil.alwaysDocValuesFormat(dvFormat));
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numDocs = 64 + random().nextInt(256);
+            long ts = BASE_TIMESTAMP;
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, ts++));
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomUnicodeOfCodepointLengthBetween(1, 64))));
+                iw.addDocument(d);
+            }
+            iw.commit();
+            iw.forceMerge(1);
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().getFirst().reader();
+                var dv = getTSDBBinaryValues(leaf, binaryField);
+                DocIdSetIterator contains = dv.tryContainsIterator(new BytesRef("anything"));
+                assertNotNull("optimized contains iterator should be available", contains);
+                assertNotNull(
+                    "tryContainsIterator must return a TwoPhaseIterator-backed DocIdSetIterator — "
+                        + "see the rationale on BlockLoader.OptionalColumnAtATimeReader#tryContainsIterator",
+                    TwoPhaseIterator.unwrap(contains)
+                );
+                DocIdSetIterator lengths = dv.tryLengthIterator(8);
+                assertNotNull("optimized length iterator should be available", lengths);
+                assertNotNull(
+                    "tryLengthIterator must return a TwoPhaseIterator-backed DocIdSetIterator — "
+                        + "see the rationale on BlockLoader.OptionalLengthReader#tryLengthIterator",
+                    TwoPhaseIterator.unwrap(lengths)
+                );
             }
         }
     }

@@ -1209,6 +1209,7 @@ public class Reindexer {
             String routingSpec = mainRequest.getDestination().routing();
             if (routingSpec == null) {
                 super.copyRouting(request, routing);
+                // Prevent saying "routing from slice" on empty routing on write, as this is invalid
                 request.setRoutingFromSlice(false);
                 return;
             }

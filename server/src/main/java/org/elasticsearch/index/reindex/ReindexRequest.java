@@ -159,35 +159,25 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
     private boolean routingIsValid() {
         final String routing = destination.routing();
         if (routing == null) {
+            assert destination.isRoutingFromSlice() == false : "routing is null but isRoutingFromSlice is true";
             return true;
         }
-        if (destination.isRoutingFromSlice()) {
-            assert SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
-            return isValidSliceRoutingCommand(routing);
-        }
-        if (routing.startsWith("=")) {
-            return true;
-        }
-        return switch (routing) {
-            case "keep", "discard" -> true;
-            default -> false;
-        };
-    }
-
-    private static boolean isValidSliceRoutingCommand(String routing) {
         if ("keep".equals(routing) || "discard".equals(routing)) {
             return true;
         }
         if (routing.startsWith("=") == false) {
             return false;
         }
-        final String sliceValue = routing.startsWith("=") ? routing.substring(1) : routing;
-        try {
-            SliceIndexing.validateUserSliceValue(sliceValue);
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
+        if (destination.isRoutingFromSlice()) {
+            assert SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
+            try {
+                SliceIndexing.validateUserSliceValue(routing.substring(1));
+                return true;
+            } catch (IllegalArgumentException e) {
+                return false;
+            }
         }
+        return true;
     }
 
     /**
@@ -443,7 +433,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         destParser.declareField((parser, request, clusterSupportsFeature) -> {
             final String slice = parser.text();
             if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false
-                || (clusterSupportsFeature != null && clusterSupportsFeature.test(IndexFeatures.SLICE_INDEXING) == false)) {
+                || clusterSupportsFeature.test(IndexFeatures.SLICE_INDEXING) == false) {
                 throw new IllegalArgumentException("request does not support [" + SliceIndexing.PARAM_NAME + "]");
             }
             if (request.routing() != null) {

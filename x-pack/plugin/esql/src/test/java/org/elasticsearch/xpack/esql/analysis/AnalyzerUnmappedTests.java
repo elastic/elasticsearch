@@ -1198,7 +1198,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertUnmappedLoadError(
             analyzer().addIndex("idx*", IndexResolution.valid(merged)),
             "FROM idx* | EVAL x = partial_long + 1, y = conflicted + 1",
-            allOf(containsString("Found 1 problem"), containsString("Cannot use field [conflicted]"))
+            allOf(
+                containsString("Found 1 problem"),
+                containsString("line 1:72: Cannot use field [conflicted] due to ambiguities being mapped as [2] incompatible types:")
+            )
         );
     }
 
@@ -1485,7 +1488,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             }
         });
 
-        String msg = Strings.format("Expected exactly one %s field [%s] of type [UnionTypeEsField]. Got %s.", name, type, fields.size());
+        String msg = String.format(
+            Locale.ROOT,
+            "Expected exactly one %s field [%s] of type [UnionTypeEsField]. Got %s.",
+            name,
+            type,
+            fields.size()
+        );
 
         assertThat(msg, fields, hasSize(1));
 
@@ -1589,11 +1598,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * Reproducer for #141927: with unmapped_fields=load, full-text search (MATCH, match operator, MATCH_PHRASE, etc.)
-     * must fail at analysis instead of returning empty results.
-     * <p>
-     * One assertion per forbidden full-text function so that re-enabling any of them (e.g. QSTR, MATCH_PHRASE)
-     * would cause this test to fail. When full-text function support grows, this test will need updates; see #144121.
+     * Under {@code unmapped_fields="load"}, single-field full-text functions are supported: the match operator, {@code MATCH},
+     * and {@code MATCH_PHRASE} resolve their field and preserve its mapped type ({@code TEXT} here). {@code QSTR} and {@code KQL}
+     * take a query string rather than a field, so they don't block loading unmapped fields referenced elsewhere in the query.
+     * See #141927 (these previously failed at analysis) and #144121 (tracking broader full-text support).
      */
     public void testUnmappedFieldsLoadWithSupportedSingleFieldFullTextFunctions() {
         var analyzer = test();
@@ -1635,17 +1643,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testUnmappedFieldsDefaultWithQueryStringFullTextFunctionsDoesNotLoadUnmappedFields() {
         var analyzer = test();
-        if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
-            analyzer.statementError(
-                "FROM test | WHERE qstr(\"first_name: foo\") | EVAL x = LENGTH(does_not_exist_field) | KEEP x",
-                containsString("Unknown column [does_not_exist_field]")
-            );
-        }
-        if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
-            analyzer.statementError(
-                "FROM test | WHERE kql(\"first_name: foo\") | EVAL x = LENGTH(does_not_exist_field) | KEEP x",
-                containsString("Unknown column [does_not_exist_field]")
-            );
+        for (var function : List.of(
+            Map.entry(EsqlCapabilities.Cap.QSTR_FUNCTION, "qstr(\"first_name: foo\")"),
+            Map.entry(EsqlCapabilities.Cap.KQL_FUNCTION, "kql(\"first_name: foo\")")
+        )) {
+            if (function.getKey().isEnabled()) {
+                analyzer.statementError(
+                    "FROM test | WHERE " + function.getValue() + " | EVAL x = LENGTH(does_not_exist_field) | KEEP x",
+                    containsString("Unknown column [does_not_exist_field]")
+                );
+            }
         }
     }
 

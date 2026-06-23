@@ -2647,7 +2647,6 @@ tx:long | cluster:keyword | time_bucket:datetime     | _index:keyword
 // network.eth0.tx is aggregate_metric_double in k8s-downsampled and unmapped in k8s_unmapped.
 // Under load mode, function application should keep mapped rows and nullify unmapped ones.
 typeConflictAggregateMetricDoubleUnmappedToGauge
-required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 required_capability: aggregate_metric_double_v0
 required_capability: to_gauge
@@ -2665,7 +2664,6 @@ rows:long | tx_count:long
 
 // Same setup as above; aggregate functions over this single-type PUNK should see nulls on unmapped rows.
 typeConflictAggregateMetricDoubleUnmappedStatsNoCast
-required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 required_capability: aggregate_metric_double_v0
 

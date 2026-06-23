@@ -3201,7 +3201,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         if (convertFactory == null) {
                             // Skip implicit casting: no such converter function exists
-                            return maybeFallbackToMappedType(fa, tcf, explicitlyCastedFieldNames);
+                            return explicitlyCastedFieldNames.contains(fa.name()) ? fa : fallbackToMappedType(fa, tcf);
                         }
                         ConvertFunction convert = convertFactory.apply(fa.source(), fa, context.configuration());
                         if (convert.supportedTypes().contains(KEYWORD) == false) {
@@ -3253,14 +3253,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
             return fieldNames;
         }
-
-        private static FieldAttribute maybeFallbackToMappedType(
-            FieldAttribute fieldAttribute,
-            TypeConflictedField tcf,
-            Set<String> explicitlyCastedFieldNames
-        ) {
-            return explicitlyCastedFieldNames.contains(fieldAttribute.name()) ? fieldAttribute : fallbackToMappedType(fieldAttribute, tcf);
-        }
     }
 
     private static void typeResolutions(
@@ -3276,6 +3268,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static FieldAttribute fallbackToMappedType(FieldAttribute fieldAttribute, TypeConflictedField tcf) {
+        if (tcf.types().size() != 1) {
+            throw new IllegalStateException("Expected exactly one mapped type for [" + tcf.getName() + "], got " + tcf.types());
+        }
         DataType type = tcf.types().iterator().next().widenSmallNumeric();
         return new FieldAttribute(
             fieldAttribute.source(),

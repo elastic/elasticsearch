@@ -547,17 +547,11 @@ public class Verifier {
         final String errorMessage = "RENAME of partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
 
         AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
-        Consumer<FieldAttribute> addFailureIfPunkRename = fa -> {
-            if (punks.contains(fa)) {
-                failures.add(fail(fa, errorMessage, fa.fieldName().string()));
-            }
-        };
-
         plan.forEachUp(p -> {
             if (p instanceof Project project) {
                 for (NamedExpression projection : project.projections()) {
-                    if (projection instanceof Alias alias && alias.child() instanceof FieldAttribute fa) {
-                        addFailureIfPunkRename.accept(fa);
+                    if (projection instanceof Alias alias && alias.child() instanceof FieldAttribute fa && punks.contains(fa)) {
+                        failures.add(fail(fa, errorMessage, fa.fieldName().string()));
                     }
                 }
             }

@@ -41,8 +41,10 @@ public final class CalibrationQueries {
         Preconditioner preconditioner,
         int dimWork
     ) {
-        this.baseFvv = Objects.requireNonNull(baseFvv);
-        this.queryOrdinals = Objects.requireNonNull(queryOrdinals);
+        assert baseFvv != null;
+        assert queryOrdinals != null;
+        this.baseFvv = baseFvv;
+        this.queryOrdinals = queryOrdinals;
         this.baseDim = baseDim;
         this.cosine = cosine;
         this.neyshabur = neyshabur;

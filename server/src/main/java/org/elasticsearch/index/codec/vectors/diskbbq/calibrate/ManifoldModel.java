@@ -139,7 +139,6 @@ public final class ManifoldModel {
         int k,
         int[] ranksForK
     ) throws IOException {
-        long startNanos = System.nanoTime();
         int nQueries = queries.size();
         int nDocsTotal = corpusOrdinals.length;
         int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);
@@ -194,10 +193,8 @@ public final class ManifoldModel {
         // fit regression model (log(alpha) and 1/d) and compute R²
         Regression.OLSResult res = Regression.fitOls(x, y);
         double r2 = Regression.rSquared(x, y, res); // coefficient of determination for the fitted model
-        double elapsed = (System.nanoTime() - startNanos) / 1_000_000_000.0;
         logger.debug(
-            "Estimated manifold parameters in [{}]s\ndist(k) = [{}] * (k/N)^[{}] (R² = [{}])",
-            String.format(Locale.ROOT, "%.4f", elapsed),
+            "Estimated manifold parameters: dist(k) = [{}] * (k/N)^[{}] (R² = [{}])",
             String.format(Locale.ROOT, "%.4f", Math.exp(res.beta0())),
             String.format(Locale.ROOT, "%.4f", res.beta1()),
             String.format(Locale.ROOT, "%.4f", r2)

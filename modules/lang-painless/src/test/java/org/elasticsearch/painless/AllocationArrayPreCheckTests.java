@@ -22,12 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * End-to-end tests for runtime-sized array allocation pre-checks: {@code new T[n]} and multi-dimensional
- * {@code new T[d0][d1]...}. The size is computed as {@code pad8(ARRAY_HEADER + fieldSize(innermostType) * totalElements)}
- * before the allocating instruction, so an oversized array trips the limit (an uncatchable {@link PainlessError},
- * surfaced as {@link ScriptException}) before the JVM attempts the allocation.
- */
+/** Tests for runtime-sized array allocation pre-checks ({@code new T[n]}, {@code new T[d0][d1]...}). */
 public class AllocationArrayPreCheckTests extends ESTestCase {
 
     private static final String LIMIT_KEY = "script.painless.max_allocation_bytes.context." + PainlessTestScript.CONTEXT.name + ".limit";
@@ -64,12 +59,12 @@ public class AllocationArrayPreCheckTests extends ESTestCase {
     }
 
     public void testOneDimVariableLengthCharged() {
-        // new long[n] with n=4 => pad8(16 + 8*4) = 48 bytes; the length is loaded from a local at runtime.
+        // new long[n] with n=4 => pad8(16 + 8*4) = 48 bytes.
         assertEquals(AllocSizes.arraySize(long.class, 4), allocatedBytes("int n = 4; long[] a = new long[n]; return \"x\";"));
     }
 
     public void testOneDimByteArray() {
-        // new byte[10] => pad8(16 + 1*10) = 32 bytes; exercises fieldSize returning 1 for byte.
+        // new byte[10] => pad8(16 + 1*10) = 32 bytes; fieldSize(byte) = 1.
         assertEquals(AllocSizes.arraySize(byte.class, 10), allocatedBytes("byte[] b = new byte[10]; return \"x\";"));
     }
 
@@ -98,7 +93,7 @@ public class AllocationArrayPreCheckTests extends ESTestCase {
     }
 
     public void testHighDimensionalArrayCharged() {
-        // 100-dim array: new int[2][1][1]...[1] — product = 2, verifies the dim-product loop handles many dims.
+        // 100-dim new int[2][1]...[1]: product = 2; verifies the multiply loop handles many dims without overflow.
         int dims = 100;
         StringBuilder type = new StringBuilder("int");
         for (int i = 0; i < dims; i++)

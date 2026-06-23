@@ -517,19 +517,12 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
     }
 
-    /**
-     * True when allocation tracking is active for the enclosing function, signalled by the {@code #allocLimit} marker
-     * (absent when tracking is off or no script pointer is reachable). Sites that build a runtime size must gate the extra
-     * work on this so the disabled path stays bit-identical to today.
-     */
+    /** True if the {@code #allocLimit} marker is present, meaning tracking is on and a script pointer is reachable. */
     private static boolean isAllocationTrackingActive(WriteScope writeScope) {
         return writeScope.getInternalVariable("allocLimit") != null;
     }
 
-    /**
-     * Pushes the script instance onto the stack as a {@code PainlessScript}: {@code this} for instance methods and
-     * instance-capturing lambdas, or the captured {@code #scriptThis} (narrowed to the interface) for static lambdas.
-     */
+    /** Pushes the script instance as {@code PainlessScript}: {@code this} for instance methods, {@code #scriptThis} for static lambdas. */
     private static void loadScriptPointer(WriteScope writeScope, MethodWriter methodWriter) {
         Variable thisVariable = writeScope.getInternalVariable("this");
 
@@ -1487,10 +1480,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 methodWriter.newArray(MethodWriter.getType(expressionType.getComponentType()));
             }
         } else {
-            // Tracking on: treat the array as flat — pad8(ARRAY_HEADER + fieldSize(innermostType) * d0 * d1 * ... * dN).
-            // For multi-dim this omits the overhead of the outer reference-array levels, which is small relative to any
-            // realistic limit. Evaluate all dims in source order and spill to locals (needed for reload before the
-            // allocation instruction), then compute the product and charge.
+            // Tracking on: charge pad8(ARRAY_HEADER + fieldSize(innermostType) * product(dims)). Spill dims to locals
+            // first so they can be reloaded for the allocation instruction after the check.
             int dimCount = irArgumentNodes.size();
             Class<?> innermostComponentType = expressionType;
             for (int k = 0; k < dimCount; ++k) {
@@ -1501,7 +1492,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 visit(irArgumentNodes.get(k), writeScope);
                 dimSlots[k] = writeScope.defineInternalVariable(int.class, "arrayDim" + k).getSlot();
             }
-            // Dims evaluated in order; stack is [d0, ..., dN-1] with dN-1 on top; spill in reverse.
+            // Stack after visits: [d0, ..., dN-1] with dN-1 on top; spill in reverse.
             for (int k = dimCount - 1; k >= 0; --k) {
                 methodWriter.visitVarInsn(Opcodes.ISTORE, dimSlots[k]);
             }

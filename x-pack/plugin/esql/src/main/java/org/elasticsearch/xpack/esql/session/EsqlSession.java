@@ -1280,7 +1280,15 @@ public class EsqlSession {
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
         boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD || parsed.anyMatch(p -> p instanceof Insist);
         boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
-        SchemaContext schemaCtx = new SchemaContext(executionInfo, configuration, preAnalysis, requestFilter, trackedUnmappedFieldIndices);
+        SchemaContext schemaCtx = new SchemaContext(
+            executionInfo,
+            configuration,
+            preAnalysis,
+            requestFilter,
+            trackedUnmappedFieldIndices,
+            result.fieldNames(),
+            result.minimumTransportVersion()
+        );
         SubscribableListener.<PreAnalysisResult>newForked(l -> schemaService.resolveMainIndices(schemaCtx, result, l)).andThenApply(r -> {
             if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
                 && executionInfo.isCrossClusterSearch()

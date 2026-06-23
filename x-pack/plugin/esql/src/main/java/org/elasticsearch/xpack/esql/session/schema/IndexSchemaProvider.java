@@ -12,7 +12,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
@@ -89,6 +91,32 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
     @Override
     public EnumSet<IndexAbstraction.Type> handles() {
         return EnumSet.of(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM);
+    }
+
+    @Override
+    public void resolveSchema(
+        SchemaContext ctx,
+        ProjectMetadata projectMetadata,
+        List<String> names,
+        ActionListener<List<ResolvedSchema>> listener
+    ) {
+        PreAnalyzer.PreAnalysis preAnalysis = ctx.preAnalysis();
+        var grouped = new GroupedActionListener<ResolvedSchema>(names.size(), listener.map(c -> c.stream().toList()));
+        for (String name : names) {
+            indexResolver.resolveMainIndicesVersioned(
+                name,
+                ctx.fieldNames(),
+                ctx.requestFilter(),
+                false,
+                ctx.minimumVersion(),
+                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                preAnalysis.useDenseVectorWhenNotSupported(),
+                preAnalysis.hasTimeSeriesAggregation(),
+                ctx.trackUnmappedFieldIndices(),
+                indicesExpressionGrouper,
+                grouped.map(versioned -> new ResolvedSchema.Index(name, versioned.inner()))
+            );
+        }
     }
 
     /**

@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.session.schema;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.session.Configuration;
+
+import java.util.Set;
 
 /**
  * Per-query state threaded into the schema providers so the index-resolution orchestration can be carried out
@@ -23,5 +26,7 @@ public record SchemaContext(
     Configuration configuration,
     PreAnalyzer.PreAnalysis preAnalysis,
     QueryBuilder requestFilter,
-    boolean trackUnmappedFieldIndices
+    boolean trackUnmappedFieldIndices,
+    Set<String> fieldNames,
+    TransportVersion minimumVersion
 ) {}

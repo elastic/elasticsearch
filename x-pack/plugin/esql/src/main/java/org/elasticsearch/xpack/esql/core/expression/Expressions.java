@@ -44,7 +44,10 @@ public final class Expressions {
      * <ul>
      *   <li>A {@link FieldAttribute} backed by a {@link TypeConflictedField} (ambiguous type across indices) is converted
      *   to an {@link UnsupportedAttribute} via {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a
-     *   clear user-facing error.</li>
+     *   clear user-facing error. The one exception is a potentially-unmapped field with a single mapped type (a
+     *   "two-legged PUNK", e.g. a TEXT field mapped in some indices and absent in others): that is not a genuine
+     *   conflict, so its single type is preserved on the {@link ReferenceAttribute}, mirroring
+     *   {@code Analyzer.UnionTypesCleanup}, so it surfaces unchanged through a Fork/UnionAll output.</li>
      *   <li>An {@link ExternalMetadataAttribute} is rebuilt as the same subtype with the preserved id. The
      *   "virtual column" identity must survive operators that re-class their output (e.g. {@code Fork.refreshedOutput})
      *   because downstream rules such as {@code Analyzer.planWithoutSyntheticAttributes} (which strips
@@ -70,7 +73,23 @@ public final class Expressions {
             Attribute existing = existingByName.get(exp.name());
             NameId id = existing != null ? existing.id() : new NameId();
             Attribute refAttr = switch (exp) {
-                case FieldAttribute fa when fa.field() instanceof TypeConflictedField -> fa.flagTypeConflicts();
+                case FieldAttribute fa when fa.field() instanceof TypeConflictedField tcf -> {
+                    // A potentially-unmapped field with a single mapped type (a "two-legged PUNK", e.g. a TEXT field that has no
+                    // auto-cast converter) is not a genuine type conflict: it loads from the indices where it is mapped and is null
+                    // where unmapped
+                    if (tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
+                        yield new ReferenceAttribute(
+                            fa.source(),
+                            null,
+                            fa.name(),
+                            tcf.types().iterator().next(),
+                            fa.nullable(),
+                            id,
+                            fa.synthetic()
+                        );
+                    }
+                    yield fa.flagTypeConflicts();
+                }
                 case ReferenceAttribute ra -> ra.withId(id);
                 case ExternalMetadataAttribute xa -> new ExternalMetadataAttribute(
                     xa.source(),

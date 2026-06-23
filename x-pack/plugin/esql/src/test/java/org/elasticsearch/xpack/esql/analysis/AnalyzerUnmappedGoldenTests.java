@@ -434,6 +434,20 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // gender is text in employees_gender_text and missing in employees_no_gender, so it is a single-type partially-unmapped field
+    // (a "two-legged PUNK"). Routing it through a FORK output must preserve its TEXT type rather than flagging it as a
+    // type conflict (UNSUPPORTED), since it loads from the indices where it is mapped and is null where.
+    public void testForkKeepsSingleTypePartiallyUnmappedTextField() throws Exception {
+        runTests("""
+            FROM employees_gender_text, employees_no_gender
+            | KEEP gender
+            | FORK (WHERE true)
+                   (WHERE true)
+            | KEEP _fork, gender
+            | SORT _fork
+            """);
+    }
+
     public void testForkWithEval() throws Exception {
         runTests("""
             FROM employees

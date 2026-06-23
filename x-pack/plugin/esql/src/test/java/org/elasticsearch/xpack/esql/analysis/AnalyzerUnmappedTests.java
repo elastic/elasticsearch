@@ -705,6 +705,35 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * A partially-unmapped field with a single mapped type that has no auto-cast converter (e.g. TEXT)
+     * must keep its mapped type when it flows through a FORK output, not be flagged as a type conflict (UNSUPPORTED).
+     */
+    public void testLoadModeForkKeepsSingleTypePartiallyUnmappedTextField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("test1", fieldResponseMap("message", "text")),
+                fieldCapabilitiesIndexResponse("test2", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("test1,test2", caps, true));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var forkPlan = ta.statement(
+            setUnmappedLoad(
+                "FROM test1, test2 | KEEP message"
+                    + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork"
+            )
+        );
+        var forkMsg = forkPlan.output().stream().filter(a -> a.name().equals("message")).findFirst().orElseThrow();
+        assertThat(forkMsg.dataType(), is(DataType.TEXT));
+    }
+
+    /**
      * There is no function that converts to AGGREGATE_METRIC_DOUBLE. The field is therefore not re-written as UnionTypeEsField,
      * and Verifier rejects the query.
      */

@@ -695,6 +695,3 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
   method: testFetchingMixedTextAndImageValues
   issue: https://github.com/elastic/elasticsearch/issues/151929
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:ip_location.*}
-  issue: https://github.com/elastic/elasticsearch/issues/151950

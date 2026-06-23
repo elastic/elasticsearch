@@ -844,10 +844,11 @@ public class SplitTargetService {
             }
         }
 
-        @Override public boolean shouldRetry(Exception e) {
+        @Override
+        public boolean shouldRetry(Exception e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
 
-             // retry if the source shard isn't ready yet
+            // retry if the source shard isn't ready yet
             return (cause instanceof IllegalIndexShardStateException
                 || cause instanceof IndexNotFoundException
                 || cause instanceof ShardNotFoundException);

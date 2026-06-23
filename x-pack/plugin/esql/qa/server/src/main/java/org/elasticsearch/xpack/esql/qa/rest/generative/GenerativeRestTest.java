@@ -142,6 +142,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // throwing IllegalArgumentException via PackedValuesBlockHash
         // see https://github.com/elastic/elasticsearch/issues/145694
         "Found a single entry with .* entries",
+        // text fields may become keyword fields as a result of certain operations, which can cause fork to
+        // generate conflicting data types
+        "conflicting data types in FORK branches: \\[TEXT\\] and \\[KEYWORD\\]",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,

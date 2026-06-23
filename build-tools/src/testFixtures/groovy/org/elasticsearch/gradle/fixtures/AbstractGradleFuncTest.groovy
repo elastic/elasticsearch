@@ -74,9 +74,18 @@ abstract class AbstractGradleFuncTest extends Specification {
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
 
         def nativeLibsProject = subProject(":libs:native:native-libraries")
+        // Stub mirrors the real producer: a dedicated `nativeLibs` consumable variant that
+        // carries the platform-native library directory. ElasticsearchJavaBasePlugin requests
+        // exactly this configuration via project(path:..., configuration: 'nativeLibs').
         nativeLibsProject << """
             plugins {
                 id 'base'
+            }
+            configurations {
+                nativeLibs {
+                    canBeConsumed = true
+                    canBeResolved = false
+                }
             }
         """
         def mutedTestsFile = testProjectDir.newFile("muted-tests.yml")

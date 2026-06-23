@@ -85,7 +85,7 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
 
     /**
      * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
-     * {@code model}, {@code region} or {@code provider) causes the strict parser to reject the request.
+     * {@code model}, {@code region} or {@code provider} causes the strict parser to reject the request.
      */
     private static class Update extends AmazonBedrockServiceSettings.CommonUpdate {
         private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);

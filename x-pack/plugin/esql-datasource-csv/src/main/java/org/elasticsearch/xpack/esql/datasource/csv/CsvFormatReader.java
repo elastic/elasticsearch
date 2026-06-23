@@ -15,6 +15,7 @@ import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
@@ -2310,10 +2311,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
             BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[columnCount];
             try {
                 for (int i = 0; i < columnCount; i++) {
+                    DataType type = projectedTypes[i];
+                    // KEYWORD/TEXT store the source string's UTF-8 bytes verbatim, so the exact byte size is
+                    // knowable up front and lets the BytesRef builder size its storage without regrowing. IP and
+                    // VERSION also map to BYTES_REF but store encoded/canonicalized bytes unrelated to the source
+                    // string length, so they are left unhinted.
+                    long byteHint = (type == DataType.KEYWORD || type == DataType.TEXT) ? utf8ByteHint(rows, projectedIdx[i]) : 0;
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
-                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
-                        rows.size()
+                        ElementType.fromJava(javaClassForDataType(type)),
+                        rows.size(),
+                        byteHint
                     );
                 }
                 int acceptedRows = 0;
@@ -2346,6 +2354,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
             } finally {
                 Releasables.closeExpectNoException(builders);
             }
+        }
+
+        /**
+         * Exact total UTF-8 byte size of the projected source field at {@code sourceIdx} across the batch,
+         * used to pre-size a KEYWORD/TEXT column's byte storage. Cells that later convert to SQL null are
+         * still counted, which only over-sizes the buffer (never a regrow) and keeps the common, null-free
+         * case exact.
+         */
+        private static long utf8ByteHint(List<String[]> rows, int sourceIdx) {
+            long bytes = 0;
+            for (String[] row : rows) {
+                if (sourceIdx < row.length && row[sourceIdx] != null) {
+                    String value = row[sourceIdx];
+                    bytes += UnicodeUtil.calcUTF16toUTF8Length(value, 0, value.length());
+                }
+            }
+            return bytes;
         }
 
         private boolean convertRowInPlace(String[] row) {

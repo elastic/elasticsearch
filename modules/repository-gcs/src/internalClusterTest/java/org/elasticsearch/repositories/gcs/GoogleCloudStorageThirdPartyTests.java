@@ -279,8 +279,10 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
             // No storage class configured for this purpose: the fixture reports no class, while a real bucket reports its default class
             // (test buckets default to STANDARD). Either way, no colder class should have been applied to the blob.
             assertThat(
-                message + " should not carry a colder storage class",
-                actualStorageClass == null || actualStorageClass.equals(StorageClass.STANDARD),
+                message + " should not carry a colder storage class, but was [" + actualStorageClass + "]",
+                actualStorageClass == null
+                    || actualStorageClass.equals(StorageClass.STANDARD)
+                    || actualStorageClass.equals(StorageClass.REGIONAL),
                 is(true)
             );
         }

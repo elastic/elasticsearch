@@ -330,6 +330,90 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
     }
 
     /**
+     * Verifies that when the same {@link SortedNumericDoubleValues} instance is passed to two
+     * consecutive collect calls — simulating a doc-ID buffer that fills up mid-leaf and flushes
+     * twice within the same bucket — the iterator is resumed from its current position rather
+     * than rewound.
+     * <p>
+     * With the DocIdSetIterator path the iterator advances forward-only; {@link
+     * NumericMetricFieldDownsampler#resetLeafIteratorStateIfNeeded} reads {@code docID()} to
+     * pick up from where the previous call left off. With the advanceExact path each doc is
+     * probed independently, so resume is implicit.
+     * <p>
+     * Both paths must produce the same final downsampled value.
+     */
+    public void testIteratorResumedAcrossConsecutiveBuffers() throws IOException {
+        var producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
+        // Docs 0–5 all carry the counter; they belong to a single bucket whose buffer fills after
+        // the first 3 docs, triggering two consecutive collect calls with the same doc-values instance.
+        var allDocsWithValues = IntArrayList.from(0, 1, 2, 3, 4, 5);
+        var counterValues = getIterator(allDocsWithValues, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0);
+
+        // First flush: docs 0–2 (most recent timestamps)
+        producer.collect(counterValues, LongArrayList.from(60, 50, 40), IntArrayList.from(0, 1, 2), Temporality.CUMULATIVE);
+        // Second flush: docs 3–5, same SortedNumericDoubleValues — iterator must resume, not restart
+        producer.collect(counterValues, LongArrayList.from(30, 20, 10), IntArrayList.from(3, 4, 5), Temporality.CUMULATIVE);
+
+        // Monotonically increasing counter (values 1→6 over ascending time), no resets.
+        // Oldest doc (doc 5, t=10, v=1.0) is the downsampled value for the bucket.
+        assertThat(producer.downsampledValue(), equalTo(1.0));
+        var resetDataPoints = new CounterResetDataPoints();
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+    }
+
+    /**
+     * Verifies that docs absent from the counter field are correctly skipped regardless of
+     * iteration strategy. For the DocIdSetIterator path the iterator jumps directly over missing
+     * docs; for the advanceExact path {@code advanceExact} returns false for them.
+     */
+    public void testIteratorSkipsMissingDocs() throws IOException {
+        var producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
+        // Counter is only present on docs 1 and 3; docs 0, 2, and 4 are absent.
+        var counterValues = getIterator(IntArrayList.from(1, 3), 4.0, 2.0);
+
+        producer.collect(counterValues, LongArrayList.from(50, 40, 30, 20, 10), IntArrayList.from(0, 1, 2, 3, 4), Temporality.CUMULATIVE);
+
+        // doc 1 (t=40, v=4.0) and doc 3 (t=20, v=2.0): counter grows 2→4, no reset.
+        // Oldest contributing doc (doc 3, v=2.0) is the downsampled value.
+        assertThat(producer.downsampledValue(), equalTo(2.0));
+        var resetDataPoints = new CounterResetDataPoints();
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+    }
+
+    /**
+     * Verifies that once the DocIdSetIterator is exhausted during a collect call (the counter
+     * field ends before the buffer does), a subsequent call with the same
+     * {@link SortedNumericDoubleValues} for higher doc IDs is a no-op: the exhaustion flag is
+     * preserved across calls and the downsampled value remains unchanged.
+     * <p>
+     * Skipped for the advanceExact path, which has no shared exhaustion state.
+     */
+    public void testExhaustedIteratorSkipsSubsequentCall() throws IOException {
+        assumeTrue("only relevant for the DocIdSetIterator path", docValuesType == DocValuesType.WITH_ITERATOR);
+
+        var producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
+        // Counter covers docs 0–2 only; doc 3 is absent.
+        var counterValues = getIterator(IntArrayList.from(0, 1, 2), 3.0, 2.0, 1.0);
+
+        // First call: buffer 0–3. Docs 0–2 are collected; advancing past doc 2 to reach doc 3
+        // exhausts the iterator (returns NO_MORE_DOCS).
+        producer.collect(counterValues, LongArrayList.from(40, 30, 20, 10), IntArrayList.from(0, 1, 2, 3), Temporality.CUMULATIVE);
+        assertThat(producer.downsampledValue(), equalTo(1.0));
+
+        // Second call: same SortedNumericDoubleValues, docs 4–5. The iterator is already
+        // exhausted so this call must return immediately without issuing any advance call
+        // or changing the downsampled value.
+        producer.collect(counterValues, LongArrayList.from(80, 70), IntArrayList.from(4, 5), Temporality.CUMULATIVE);
+
+        assertThat(producer.downsampledValue(), equalTo(1.0));
+        var resetDataPoints = new CounterResetDataPoints();
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+    }
+
+    /**
      * Delta temporality: values represent increments and are summed within a bucket.
      * No reset data points are produced regardless of value patterns.
      */

@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
@@ -73,10 +73,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private volatile Releasable lastAcquiredGenerationalFilesTermAndGen = null;
 
     /**
-     * Guards scheduling of the async regions eviction task. When {@code true}, a task is already queued or executing,
-     * so subsequent calls to {@link #maybeScheduleRegionsEviction()} are no-ops until the task resets it.
+     * Tracks the number of obsolete regions eviction requests that have not yet been processed
      */
-    private final AtomicBoolean regionsEvictionScheduled = new AtomicBoolean(false);
+    private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -207,7 +206,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 currentMetadata = Map.copyOf(updated);
 
                 if (filesRemoved && cacheService.isCacheBoostEnabled()) {
-                    maybeScheduleRegionsEviction();
+                    maybeScheduleObsoleteRegionsEviction();
                 }
             } finally {
                 assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
@@ -217,71 +216,83 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     /**
      * Schedules an async eviction of cache regions that are no longer referenced by the current metadata,
-     * unless one is already scheduled.
+     * unless one is already running. Concurrent calls while a task is executing are coalesced into a single follow-up.
      */
-    private void maybeScheduleRegionsEviction() {
-        if (regionsEvictionScheduled.compareAndSet(false, true)) {
-            cacheService.submitAsyncEviction(() -> {
-                regionsEvictionScheduled.set(false);
+    private void maybeScheduleObsoleteRegionsEviction() {
+        if (submittedObsoleteRegionsEvictionTasks.incrementAndGet() == 1) {
+            submitObsoleteRegionsEviction();
+        }
+    }
 
-                final Map<String, BlobFileRanges> metadata = currentMetadata;
+    private void submitObsoleteRegionsEviction() {
+        cacheService.submitAsyncEviction(() -> {
+            final long regionsEvictionTasks = submittedObsoleteRegionsEvictionTasks.get();
+            assert regionsEvictionTasks > 0 : regionsEvictionTasks;
 
-                final Map<String, BitSet> activeRegionsByBlob = new HashMap<>();
-                final Map<String, Integer> maxKnownRegionByBlob = new HashMap<>();
-                long maxBccGeneration = 0L;
+            final Map<String, BlobFileRanges> metadata = currentMetadata;
 
-                // TODO consider using a NavigableMap ordered by (BCC gen, offset) so we can skip ahead by region size
-                // instead of iterating over every small file within the same 16MiB region
-                for (var file : metadata.values()) {
-                    int startRegion = cacheService.getRegion(file.fileOffset());
-                    int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
-                    activeRegionsByBlob.computeIfAbsent(file.blobName(), k -> new BitSet()).set(startRegion, endRegion + 1);
-                    maxKnownRegionByBlob.merge(file.blobName(), endRegion, Math::max);
-                    maxBccGeneration = Math.max(maxBccGeneration, file.getBatchedCompoundCommitTermAndGeneration().generation());
+            final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
+            final Map<Long, Integer> maxKnownRegionByBccGen = new HashMap<>();
+            long maxBccGeneration = 0L;
+
+            // TODO consider using a NavigableMap ordered by (BCC gen, offset) so we can skip ahead by region size
+            // instead of iterating over every small file within the same 16MiB region
+            for (var file : metadata.values()) {
+                long bccGen = file.getBatchedCompoundCommitTermAndGeneration().generation();
+                int startRegion = cacheService.getRegion(file.fileOffset());
+                int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
+                activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet()).set(startRegion, endRegion + 1);
+                maxKnownRegionByBccGen.merge(bccGen, endRegion, Math::max);
+                maxBccGeneration = Math.max(maxBccGeneration, bccGen);
+            }
+
+            final long maxBccGen = maxBccGeneration;
+            cacheService.forceEvict(shardId, (key, region) -> {
+                final String blobName = key.fileName();
+                final long bccGeneration = StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
+
+                BitSet activeRegions = activeRegionsByBccGen.get(bccGeneration);
+                if (activeRegions != null && activeRegions.get(region)) {
+                    return false; // Region is active, keep it
                 }
 
-                final long maxBccGen = maxBccGeneration;
-                cacheService.forceEvict(shardId, (key, region) -> {
-                    final String blobName = key.fileName();
-
-                    BitSet activeRegions = activeRegionsByBlob.get(blobName);
-                    if (activeRegions != null && activeRegions.get(region)) {
-                        return false; // Region is active, keep it
-                    }
-
-                    long bccGeneration = StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
-                    if (bccGeneration < maxBccGen) {
+                if (bccGeneration < maxBccGen) {
+                    logger.debug(
+                        "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}] < max [{}]) for [{}]",
+                        shardId,
+                        region,
+                        blobName,
+                        bccGeneration,
+                        maxBccGen,
+                        shardId
+                    );
+                    return true; // BCC is older and region is not active, evict
+                }
+                if (bccGeneration == maxBccGen) {
+                    int maxKnownRegion = maxKnownRegionByBccGen.getOrDefault(bccGeneration, -1);
+                    if (region <= maxKnownRegion) {
                         logger.debug(
-                            "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}] < max [{}]) for [{}]",
+                            "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}], max known region [{}]) for [{}]",
                             shardId,
                             region,
                             blobName,
                             bccGeneration,
-                            maxBccGen,
+                            maxKnownRegion,
                             shardId
                         );
-                        return true; // BCC is older and region is not active, evict
-                    }
-                    if (bccGeneration == maxBccGen) {
-                        int maxKnownRegion = maxKnownRegionByBlob.getOrDefault(blobName, -1);
-                        if (region <= maxKnownRegion) {
-                            logger.debug(
-                                "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}], max known region [{}]) for [{}]",
-                                shardId,
-                                region,
-                                blobName,
-                                bccGeneration,
-                                maxKnownRegion,
-                                shardId
-                            );
-                            return true;
-                        }
-                        return false;
+                        return true;
                     }
                     return false;
-                });
+                }
+                return false;
             });
-        }
+
+            final long remainingTasks = submittedObsoleteRegionsEvictionTasks.addAndGet(-regionsEvictionTasks);
+            assert remainingTasks >= 0 : remainingTasks;
+            if (remainingTasks > 0) {
+                submitObsoleteRegionsEviction();
+            }
+        });
     }
 
     /**

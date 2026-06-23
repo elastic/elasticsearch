@@ -30,6 +30,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -51,6 +52,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -667,14 +669,16 @@ public class CsvTestsDataLoader {
         }
         if (loadedDatasets.isEmpty() == false) {
             forceMerge(client, loadedDatasets);
-            // languages_lookup (index.mode: lookup) takes the cluster's default replica count, so createIndex returns
-            // once the primary is active (wait_for_active_shards=1) while the replica may still be initializing. On a
-            // multi-node cluster a LOOKUP JOIN routed to a node whose replica copy is not yet active fails with
-            // NoShardAvailableActionException, so wait for green to make every copy active first. Skipped on single-node
-            // clusters, where the lone replica cannot be allocated and the index would never reach green.
-            if (clusterNodeCount(client) > 1) {
-                ensureGreen(client, loadedDatasets);
-            }
+            // ES|QL LOOKUP / FROM resolution (field-caps) routes only to searchable shard copies. In a stateless
+            // cluster index nodes hold the promotable primary (not searchable) while search nodes hold the unpromotable
+            // copy (searchable). The cluster can reach health green before any searchable copy is active
+            // (ServerlessFieldCapabilitiesIT.testFieldCapsAreExecutedOnSearchNodes), so waiting for green is not
+            // sufficient. Poll a _search probe (allow_partial_search_results=false) which returns HTTP 503 while a
+            // searchable copy is unavailable and HTTP 200 once all copies are active — the same liveness signal
+            // ES|QL field-caps relies on. This is topology-agnostic: on a single-node cluster the primary is
+            // searchable and the probe returns immediately.
+            String pattern = String.join(",", loadedDatasets);
+            awaitSearchable(client, new Request("GET", "/" + pattern + "/_search?size=0&allow_partial_search_results=false"));
         }
     }
 
@@ -779,11 +783,21 @@ public class CsvTestsDataLoader {
      * Creates only the listed inference endpoints (by id in {@link #INFERENCE_CONFIGS}), skipping any that already exist.
      */
     public static void createInferenceEndpoints(RestClient client, Collection<String> inferenceIds) throws IOException {
+        List<InferenceConfig> created = new ArrayList<>();
         for (String id : inferenceIds) {
             InferenceConfig config = INFERENCE_CONFIGS.get(id);
             if (config != null && hasInferenceEndpoint(client, config) == false) {
                 createInferenceEndpoint(client, config);
+                created.add(config);
             }
+        }
+        // ES|QL RERANK/COMPLETION resolution (GetInferenceModelAction) searches the .inference system index, which
+        // also routes only to searchable copies. A PUT /_inference returns once the document is indexed but before
+        // the .inference searchable copy is active, so resolution races with "all shards failed" → VerificationException
+        // (fail-fast, no retry). Poll GET /_inference/<type>/<id> — the same action ES|QL analysis issues — until the
+        // searchable copy is ready. Mirrors InferenceBaseRestTest.initInferenceIndices() assertBusy pattern.
+        for (InferenceConfig config : created) {
+            awaitSearchable(client, new Request("GET", "/_inference/" + config.type().name() + "/" + config.id()));
         }
     }
 
@@ -1246,18 +1260,36 @@ public class CsvTestsDataLoader {
         );
     }
 
-    private static int clusterNodeCount(RestClient client) throws IOException {
-        Map<String, Object> health = ESRestTestCase.entityAsMap(client.performRequest(new Request("GET", "/_cluster/health")));
-        return ((Number) health.get("number_of_nodes")).intValue();
-    }
-
-    private static void ensureGreen(RestClient client, Set<String> indices) throws IOException {
-        ESRestTestCase.ensureHealth(client, String.join(",", indices), request -> {
-            request.addParameter("wait_for_status", "green");
-            request.addParameter("wait_for_no_relocating_shards", "true");
-            request.addParameter("timeout", "60s");
-            request.addParameter("level", "shards");
-        });
+    /**
+     * Polls {@code probe} until it succeeds, retrying on HTTP 5xx responses that signal a transient shard-unavailability.
+     * <p>
+     * In a stateless cluster ES|QL resolution (field-caps for indices, GetInferenceModelAction for inference endpoints)
+     * routes only to searchable shard copies held by search nodes.  A just-created index or inference endpoint can be
+     * cluster-health green while no searchable copy is yet active — waiting for green alone is not sufficient.  This
+     * method polls the actual resolution operation (or an equivalent probe) until it succeeds, giving us topology-agnostic
+     * readiness that works on single-node, stateful multi-node, and stateless multi-node clusters.
+     * </p>
+     */
+    private static void awaitSearchable(RestClient client, Request probe) throws IOException {
+        try {
+            ESTestCase.assertBusy(() -> {
+                try {
+                    client.performRequest(probe);
+                } catch (ResponseException e) {
+                    int status = e.getResponse().getStatusLine().getStatusCode();
+                    if (status >= 500 && status <= 599) {
+                        // HTTP 5xx: transient shard unavailability (e.g. NoShardAvailableActionException → 503,
+                        // "all shards failed" → 500). Retry until the searchable copy is active.
+                        throw new AssertionError("not yet searchable (HTTP " + status + ")", e);
+                    }
+                    throw e;
+                }
+            }, 60, TimeUnit.SECONDS);
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException(e);
+        }
     }
 
     private static void forceMerge(RestClient client, Set<String> indices) throws IOException {

@@ -93,6 +93,14 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
         return EnumSet.of(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM);
     }
 
+    /**
+     * The unified-dispatch entry: resolve each index/alias/data-stream name to a {@link ResolvedSchema.Index}. This is
+     * the per-name field-caps fetch only — intentionally pre-orchestration. The cross-cluster setup the live query path
+     * needs ({@link org.elasticsearch.xpack.esql.session.EsqlCCSUtils#initCrossClusterState}, the CPS strict/lenient
+     * two-pass, linked-index handling, per-pattern {@link org.elasticsearch.xpack.esql.action.EsqlExecutionInfo}
+     * bookkeeping) lives in {@link #resolveMainIndices} and is not duplicated here, so this must not be wired as a
+     * drop-in replacement for the live path until that coordination is folded in or hoisted to the umbrella.
+     */
     @Override
     public void resolveSchema(
         SchemaContext ctx,

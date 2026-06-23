@@ -166,8 +166,6 @@ public class EsqlSession {
         );
     }
 
-    private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
-
     private final String sessionId;
     private final TransportVersion localClusterMinimumVersion;
     private final AnalyzerSettings analyzerSettings;
@@ -757,6 +755,9 @@ public class EsqlSession {
         if (captured == null || captured.isEmpty()) {
             return;
         }
+        // The schema seam (SchemaService) covers schema discovery, not the external-source cache lifecycle: reconciling
+        // captured stats back into the cache is post-execution coordination, so externalSourceResolver stays a direct
+        // collaborator here rather than routing through SchemaService.
         ExternalSourceCacheService cache = externalSourceResolver.cacheService();
         if (cache != null) {
             cache.reconcileSourceStatsFromContributions(captured);

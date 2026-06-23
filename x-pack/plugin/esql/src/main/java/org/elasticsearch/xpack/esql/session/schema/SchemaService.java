@@ -74,6 +74,17 @@ public final class SchemaService {
     }
 
     /**
+     * Test-only constructor: inject the dispatch providers directly so the routing and grouping logic can be exercised
+     * with lightweight fakes, without standing up every real resolver. The kind-specific accessors are unset.
+     */
+    SchemaService(List<AbstractionSchemaProvider> providers) {
+        this.indexProvider = null;
+        this.viewProvider = null;
+        this.datasetProvider = null;
+        this.providers = providers;
+    }
+
+    /**
      * The singular schema-resolution entry: resolve {@code names} of any index-abstraction kind. Each name is routed
      * to the provider that {@link AbstractionSchemaProvider#handles its kind} and resolved into a {@link ResolvedSchema};
      * the caller never branches on what kind a name is.
@@ -88,6 +99,9 @@ public final class SchemaService {
         Map<AbstractionSchemaProvider, List<String>> byProvider = new LinkedHashMap<>();
         for (String name : names) {
             IndexAbstraction abstraction = lookup.get(name);
+            // A name absent from the lookup is a not-yet-existing concrete index (e.g. a write-on-create target) or a
+            // remote-cluster pattern the local lookup can't see — route it to the index provider, whose resolution
+            // (and the security layer ahead of it) handles the missing/remote case, exactly as the legacy path did.
             IndexAbstraction.Type type = abstraction == null ? IndexAbstraction.Type.CONCRETE_INDEX : abstraction.getType();
             byProvider.computeIfAbsent(providerFor(type), p -> new ArrayList<>()).add(name);
         }
@@ -102,7 +116,8 @@ public final class SchemaService {
         byProvider.forEach((provider, providerNames) -> provider.resolveSchema(ctx, projectMetadata, providerNames, grouped));
     }
 
-    private AbstractionSchemaProvider providerFor(IndexAbstraction.Type type) {
+    // package-private for SchemaServiceTests
+    AbstractionSchemaProvider providerFor(IndexAbstraction.Type type) {
         for (AbstractionSchemaProvider provider : providers) {
             if (provider.handles().contains(type)) {
                 return provider;

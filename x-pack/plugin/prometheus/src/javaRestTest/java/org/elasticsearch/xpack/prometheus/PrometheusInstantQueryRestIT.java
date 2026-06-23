@@ -65,17 +65,18 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         ingestTestData("test_gauge_iq");
         createAlias("prometheus-metrics-alias", DEFAULT_DATA_STREAM);
 
+        // Index privileges are resolved against the alias in the request URL, not only the backing data stream.
         ResponseException e = expectThrows(ResponseException.class, () -> executeInstantQuery("prometheus-metrics-alias"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown index [prometheus-metrics-alias]"));
     }
 
-    public void testInstantQueryWithAliasScopedApiKey() throws Exception {
+    public void testInstantQueryWithAliasGrantedByApiKey() throws Exception {
         ingestTestData("test_gauge_iq");
         String alias = "prometheus-metrics-api-key-alias";
         createAlias(alias, DEFAULT_DATA_STREAM);
 
-        String aliasReadApiKey = createApiKey("prometheus-alias-read-key", alias, "read");
+        String aliasReadApiKey = createPrometheusReadApiKey("prometheus-alias-read-key", alias);
         ObjectPath responsePath = executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:05:00Z", alias, aliasReadApiKey);
         assertMetricResult(responsePath);
     }
@@ -175,10 +176,7 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
     private ObjectPath executeInstantQuery(String query, String time, String index, String apiKey) throws Exception {
         String path = index == null ? "/_prometheus/api/v1/query" : "/_prometheus/" + index + "/api/v1/query";
-        Request request = new Request("GET", path);
-        request.addParameter("query", query);
-        request.addParameter("time", time);
-        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKey).build());
+        Request request = prometheusGetRequest(path, apiKey, new BasicNameValuePair("query", query), new BasicNameValuePair("time", time));
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

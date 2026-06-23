@@ -243,10 +243,10 @@ public class PrometheusMetadataRestIT extends AbstractPrometheusRestIT {
     }
 
     public void testMetricsExplorerDiscoveryWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
-        writeMetric("explorer_prometheus_metric", Map.of("job", "prometheus"));
-        writeGenericMetricsDataStream();
+        writeMetric(MIXED_METRICS_PROMETHEUS_METRIC, Map.of("job", "prometheus"));
+        writeNonPrometheusMetricsDataStream();
 
-        String apiKey = createApiKey("prometheus-read-view-index-metadata-key", "metrics-*", "read", "view_index_metadata");
+        String apiKey = createPrometheusReadApiKey("prometheus-read-view-index-metadata-key", "metrics-*");
 
         ObjectPath defaultScope = ObjectPath.createFromResponse(
             client().performRequest(metadataRequest("/_prometheus/api/v1/metadata", apiKey))
@@ -257,18 +257,15 @@ public class PrometheusMetadataRestIT extends AbstractPrometheusRestIT {
 
         assertThat(defaultScope.evaluate("status"), equalTo("success"));
         assertThat(prometheusScope.evaluate("status"), equalTo("success"));
-        assertThat(defaultScope.evaluate("data.explorer_prometheus_metric"), notNullValue());
-        assertThat(prometheusScope.evaluate("data.explorer_prometheus_metric"), notNullValue());
+        assertThat(defaultScope.evaluate("data." + MIXED_METRICS_PROMETHEUS_METRIC), notNullValue());
+        assertThat(prometheusScope.evaluate("data." + MIXED_METRICS_PROMETHEUS_METRIC), notNullValue());
     }
 
     private Request metadataRequest() {
-        Request request = metadataRequest("/_prometheus/api/v1/metadata", readApiKey);
-        return request;
+        return metadataRequest("/_prometheus/api/v1/metadata", readApiKey);
     }
 
     private Request metadataRequest(String path, String apiKey) {
-        Request request = new Request("GET", path);
-        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKey).build());
-        return request;
+        return prometheusGetRequest(path, apiKey);
     }
 }

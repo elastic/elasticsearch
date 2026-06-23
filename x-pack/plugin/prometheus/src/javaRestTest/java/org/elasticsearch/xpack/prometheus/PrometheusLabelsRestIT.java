@@ -113,10 +113,10 @@ public class PrometheusLabelsRestIT extends AbstractPrometheusRestIT {
     }
 
     public void testLabelsWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
-        writeMetric("explorer_prometheus_metric", Map.of("job", "prometheus"));
-        writeGenericMetricsDataStream();
+        writeMetric(MIXED_METRICS_PROMETHEUS_METRIC, Map.of("job", "prometheus"));
+        writeNonPrometheusMetricsDataStream();
 
-        String apiKey = createApiKey("prometheus-read-view-index-metadata-key", "metrics-*", "read", "view_index_metadata");
+        String apiKey = createPrometheusReadApiKey("prometheus-read-view-index-metadata-key", "metrics-*");
 
         List<String> defaultScopeLabels = queryLabelsData("/_prometheus/api/v1/labels", apiKey);
         List<String> prometheusScopeLabels = queryLabelsData("/_prometheus/metrics-*.prometheus-*/api/v1/labels", apiKey);
@@ -148,8 +148,7 @@ public class PrometheusLabelsRestIT extends AbstractPrometheusRestIT {
 
     @SuppressWarnings("unchecked")
     private List<String> queryLabelsData(String path, String apiKey) throws Exception {
-        Request request = new Request("GET", path);
-        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKey).build());
+        Request request = prometheusGetRequest(path, apiKey);
         Map<String, Object> body = entityAsMap(client().performRequest(request));
         return (List<String>) body.get("data");
     }

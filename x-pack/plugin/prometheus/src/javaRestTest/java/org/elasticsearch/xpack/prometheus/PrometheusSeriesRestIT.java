@@ -121,24 +121,24 @@ public class PrometheusSeriesRestIT extends AbstractPrometheusRestIT {
     }
 
     public void testSeriesWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
-        writeMetric("explorer_prometheus_metric", Map.of("job", "prometheus"));
-        writeGenericMetricsDataStream();
+        writeMetric(MIXED_METRICS_PROMETHEUS_METRIC, Map.of("job", "prometheus"));
+        writeNonPrometheusMetricsDataStream();
 
-        String apiKey = createApiKey("prometheus-read-view-index-metadata-key", "metrics-*", "read", "view_index_metadata");
+        String apiKey = createPrometheusReadApiKey("prometheus-read-view-index-metadata-key", "metrics-*");
 
         List<Map<String, Object>> defaultScopeData = seriesData(
-            client().performRequest(seriesRequest("/_prometheus/api/v1/series", apiKey, "explorer_prometheus_metric"))
+            client().performRequest(seriesRequest("/_prometheus/api/v1/series", apiKey, MIXED_METRICS_PROMETHEUS_METRIC))
         );
         List<Map<String, Object>> prometheusScopeData = seriesData(
             client().performRequest(
-                seriesRequest("/_prometheus/metrics-*.prometheus-*/api/v1/series", apiKey, "explorer_prometheus_metric")
+                seriesRequest("/_prometheus/metrics-*.prometheus-*/api/v1/series", apiKey, MIXED_METRICS_PROMETHEUS_METRIC)
             )
         );
 
         assertThat(defaultScopeData, hasSize(1));
-        assertThat(defaultScopeData.getFirst().get("__name__"), equalTo("explorer_prometheus_metric"));
+        assertThat(defaultScopeData.getFirst().get("__name__"), equalTo(MIXED_METRICS_PROMETHEUS_METRIC));
         assertThat(prometheusScopeData, hasSize(1));
-        assertThat(prometheusScopeData.getFirst().get("__name__"), equalTo("explorer_prometheus_metric"));
+        assertThat(prometheusScopeData.getFirst().get("__name__"), equalTo(MIXED_METRICS_PROMETHEUS_METRIC));
     }
 
     // Helpers
@@ -152,11 +152,8 @@ public class PrometheusSeriesRestIT extends AbstractPrometheusRestIT {
         return prometheusReadRequest(path, new BasicNameValuePair("match[]", matcher));
     }
 
-    private static Request seriesRequest(String path, String apiKey, String matcher) {
-        Request request = new Request("GET", path);
-        request.addParameter("match[]", matcher);
-        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKey).build());
-        return request;
+    private Request seriesRequest(String path, String apiKey, String matcher) {
+        return prometheusGetRequest(path, apiKey, new BasicNameValuePair("match[]", matcher));
     }
 
     private Response querySeries(String matcher) throws Exception {

@@ -164,10 +164,10 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
     }
 
     public void testNameLabelValuesWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
-        writeMetric("explorer_prometheus_metric", Map.of("job", "prometheus"));
-        writeGenericMetricsDataStream();
+        writeMetric(MIXED_METRICS_PROMETHEUS_METRIC, Map.of("job", "prometheus"));
+        writeNonPrometheusMetricsDataStream();
 
-        String apiKey = createApiKey("prometheus-read-view-index-metadata-key", "metrics-*", "read", "view_index_metadata");
+        String apiKey = createPrometheusReadApiKey("prometheus-read-view-index-metadata-key", "metrics-*");
 
         List<String> defaultScopeValues = labelValuesData(
             client().performRequest(labelValuesRequest("/_prometheus/api/v1/label/__name__/values", apiKey))
@@ -176,8 +176,8 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
             client().performRequest(labelValuesRequest("/_prometheus/metrics-*.prometheus-*/api/v1/label/__name__/values", apiKey))
         );
 
-        assertThat(defaultScopeValues, hasItem("explorer_prometheus_metric"));
-        assertThat(prometheusScopeValues, hasItem("explorer_prometheus_metric"));
+        assertThat(defaultScopeValues, hasItem(MIXED_METRICS_PROMETHEUS_METRIC));
+        assertThat(prometheusScopeValues, hasItem(MIXED_METRICS_PROMETHEUS_METRIC));
     }
 
     public void testUnmappedLabelOnSpecificPrometheusDataStreamReturnsEmptyNotError() throws Exception {
@@ -214,10 +214,8 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
         return request;
     }
 
-    private static Request labelValuesRequest(String path, String apiKey) {
-        Request request = new Request("GET", path);
-        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKey).build());
-        return request;
+    private Request labelValuesRequest(String path, String apiKey) {
+        return prometheusGetRequest(path, apiKey);
     }
 
     @SuppressWarnings("unchecked")

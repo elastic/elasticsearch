@@ -227,6 +227,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             }
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 
+            DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
             List<ScoreDoc> results = new ArrayList<>(10);
             int[] ringDocIDs = new int[PREFETCH_BUFFER_SIZE];
             int[] ringDocBases = new int[PREFETCH_BUFFER_SIZE];
@@ -267,7 +268,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     }
 
                     if (ringCount == PREFETCH_BUFFER_SIZE) {
-                        int scored = scoreEntries(ringDocIDs, ringDocBases, ringScorers, ringHead, ringCount, results);
+                        int scored = scoreEntries(ringDocIDs, ringDocBases, ringScorers, ringHead, ringCount, buffer, results);
                         assert scored > 0;
                         ringHead = (ringHead + scored) % PREFETCH_BUFFER_SIZE;
                         ringCount -= scored;
@@ -282,7 +283,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             }
 
             while (ringCount > 0) {
-                int scored = scoreEntries(ringDocIDs, ringDocBases, ringScorers, ringHead, ringCount, results);
+                int scored = scoreEntries(ringDocIDs, ringDocBases, ringScorers, ringHead, ringCount, buffer, results);
                 assert scored > 0;
                 ringHead = (ringHead + scored) % PREFETCH_BUFFER_SIZE;
                 ringCount -= scored;
@@ -301,6 +302,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             VectorScorer[] ringScorers,
             int ringHead,
             int ringCount,
+            DocAndFloatFeatureBuffer buffer,
             List<ScoreDoc> results
         ) throws IOException {
             int docBase = ringDocBases[ringHead];
@@ -346,7 +348,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
             scorer.iterator().advance(ringDocIds[ringHead]);
 
-            DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
             scorer.bulk(iterator).nextDocsAndScores(DocIdSetIterator.NO_MORE_DOCS, null, buffer);
             assert buffer.size == count;
 

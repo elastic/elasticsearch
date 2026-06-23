@@ -89,8 +89,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
     static final String EXPORTER_OPERATION_DURATION_INSTRUMENT = "otel.sdk.exporter.operation.duration";
 
-    // Sparse buckets aligned with the 7.5s alert threshold and 10s send timeout.
-    static final List<Double> DURATION_HISTOGRAM_BUCKETS = List.of(0.1, 1.0, 5.0, 7.5, 10.0);
+    // Buckets covering sub-second response and linear 2s steps up to the 10s send timeout.
+    static final List<Double> DURATION_HISTOGRAM_BUCKETS = List.of(0.1, 0.5, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0);
 
     private SdkMeterProvider buildSystemMeterProvider(Supplier<MeterProvider> meterProviderSupplier) {
         var exporter = wrapWithBuffering(createOTLPExporter(meterProviderSupplier), diskBufferPath, meterProviderSupplier);

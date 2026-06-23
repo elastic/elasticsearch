@@ -663,11 +663,14 @@ public class CsvTestsDataLoader {
         }
         if (loadedDatasets.isEmpty() == false) {
             forceMerge(client, loadedDatasets);
-            // Lookup-mode indices use auto_expand_replicas: 0-all, so createIndex returns once the primary is
-            // active while replicas may still be initializing. On a multi-node cluster a LOOKUP JOIN routed to a
-            // node whose replica is not yet active fails with NoShardAvailableActionException. Wait for green so
-            // every copy is active before tests query these indices.
-            ensureGreen(client, loadedDatasets);
+            // languages_lookup (index.mode: lookup) takes the cluster's default replica count, so createIndex returns
+            // once the primary is active (wait_for_active_shards=1) while the replica may still be initializing. On a
+            // multi-node cluster a LOOKUP JOIN routed to a node whose replica copy is not yet active fails with
+            // NoShardAvailableActionException, so wait for green to make every copy active first. Skipped on single-node
+            // clusters, where the lone replica cannot be allocated and the index would never reach green.
+            if (clusterNodeCount(client) > 1) {
+                ensureGreen(client, loadedDatasets);
+            }
         }
     }
 
@@ -1237,6 +1240,11 @@ public class CsvTestsDataLoader {
                 builder.substring(0, 100)
             )
         );
+    }
+
+    private static int clusterNodeCount(RestClient client) throws IOException {
+        Map<String, Object> health = ESRestTestCase.entityAsMap(client.performRequest(new Request("GET", "/_cluster/health")));
+        return ((Number) health.get("number_of_nodes")).intValue();
     }
 
     private static void ensureGreen(RestClient client, Set<String> indices) throws IOException {

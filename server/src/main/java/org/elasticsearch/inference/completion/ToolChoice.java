@@ -143,6 +143,7 @@ public sealed interface ToolChoice extends Accountable, NamedWriteable, ToXConte
             return builder.field(TOOL_CHOICE_FIELD, value);
         }
 
+        // TODO: add unit tests for ramBytesUsed()
         @Override
         public long ramBytesUsed() {
             var valueRamBytesUsed = RamUsageEstimator.sizeOf(value);

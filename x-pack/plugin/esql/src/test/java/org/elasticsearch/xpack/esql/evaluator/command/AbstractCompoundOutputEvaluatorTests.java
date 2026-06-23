@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.evaluator.command;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
@@ -108,7 +110,7 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
             public String collectorSimpleName() {
                 return AbstractCompoundOutputEvaluatorTests.this.collectorSimpleName();
             }
-        }));
+        }, CompoundOutputEvaluator.MultiValueStrategy.REJECT));
     }
 
     @Override
@@ -159,6 +161,10 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
                         actualColumns.get(colIdx).add(null);
                     } else if (type == Integer.class) {
                         actualColumns.get(colIdx).add(((IntBlock) block).getInt(rowIdx));
+                    } else if (type == Long.class) {
+                        actualColumns.get(colIdx).add(((LongBlock) block).getLong(rowIdx));
+                    } else if (type == Boolean.class) {
+                        actualColumns.get(colIdx).add(((BooleanBlock) block).getBoolean(rowIdx));
                     } else {
                         actualColumns.get(colIdx).add(((BytesRefBlock) block).getBytesRef(rowIdx, scratch).utf8ToString());
                     }
@@ -198,7 +204,12 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
             normalized.add(item instanceof Object[] o ? o : new Object[] { item });
         }
         CompoundOutputEvaluator.OutputFieldsCollector outputFieldsCollector = createOutputFieldsCollector(requestedFields);
-        CompoundOutputEvaluator evaluator = new CompoundOutputEvaluator(DataType.TEXT, warnings, outputFieldsCollector);
+        CompoundOutputEvaluator evaluator = new CompoundOutputEvaluator(
+            DataType.TEXT,
+            CompoundOutputEvaluator.MultiValueStrategy.REJECT,
+            warnings,
+            outputFieldsCollector
+        );
         Block.Builder[] targetBlocks = new Block.Builder[requestedFields.size()];
         try (BytesRefBlock.Builder inputBuilder = blockFactory.newBytesRefBlockBuilder(inputList.size())) {
             inputBuilder.beginPositionEntry();
@@ -213,8 +224,14 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
                     if (type == Integer.class) {
                         // noinspection resource - closed in the finally block
                         targetBlocks[i] = blockFactory.newIntBlockBuilder(1);
+                    } else if (type == Long.class) {
+                        // noinspection resource - closed in the finally block
+                        targetBlocks[i] = blockFactory.newLongBlockBuilder(1);
+                    } else if (type == Boolean.class) {
+                        // noinspection resource - closed in the finally block
+                        targetBlocks[i] = blockFactory.newBooleanBlockBuilder(1);
                     } else {
-                        // either String or unknown fields
+                        // String, Object (geo_point as BytesRef), or unknown fields
                         // noinspection resource - closed in the finally block
                         targetBlocks[i] = blockFactory.newBytesRefBlockBuilder(1);
                     }
@@ -256,6 +273,18 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
                                 case Integer v -> {
                                     IntBlock fieldBlock = (IntBlock) builtBlock;
                                     assertThat(fieldBlock.getInt(valueIndex), is(v));
+                                }
+                                case Long l -> {
+                                    LongBlock fieldBlock = (LongBlock) builtBlock;
+                                    assertThat(fieldBlock.getLong(valueIndex), is(l));
+                                }
+                                case Boolean b -> {
+                                    BooleanBlock fieldBlock = (BooleanBlock) builtBlock;
+                                    assertThat(fieldBlock.getBoolean(valueIndex), is(b));
+                                }
+                                case BytesRef br -> {
+                                    BytesRefBlock fieldBlock = (BytesRefBlock) builtBlock;
+                                    assertThat(fieldBlock.getBytesRef(valueIndex, new BytesRef()), is(br));
                                 }
                                 default -> throw new IllegalArgumentException("Unsupported expected output type: " + value.getClass());
                             }

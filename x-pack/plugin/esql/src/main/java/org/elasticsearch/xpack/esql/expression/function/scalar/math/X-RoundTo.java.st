@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 // begin generated imports
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Arrays;
 // end generated imports
@@ -23,8 +25,11 @@ import java.util.Arrays;
  * This class is generated. Edit {@code X-RoundTo.java.st} instead.
  */
 class RoundTo$Type$ {
-    static final RoundTo.Build BUILD = (source, field, points) -> {
-        $type$[] f = points.stream().mapTo$Type$(p -> p.$type$Value()).toArray();
+    interface Build {
+        ExpressionEvaluator.Factory build(Source source, ExpressionEvaluator.Factory field, $type$[] points);
+    }
+
+    static final Build BUILD = (source, field, f) -> {
         return switch (f.length) {
             // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
             case 1 -> new RoundTo$Type$1Evaluator.Factory(source, field, f[0]);

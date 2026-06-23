@@ -577,6 +577,7 @@ tasks.named('yamlRestTest') {
       'inference/130_semantic_field_query/*',
       'inference/140_semantic_field_query_vector_builder/*',
       'inference/150_semantic_field_inference/*',
+      'inference/160_semantic_field_highlighter/*'
     ]
     systemProperty 'tests.rest.blacklist', semanticFieldTests.join(',')
   }

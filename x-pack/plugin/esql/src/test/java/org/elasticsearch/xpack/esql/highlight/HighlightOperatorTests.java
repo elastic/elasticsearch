@@ -29,6 +29,7 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -48,12 +49,12 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return factory(query("fox"), formatter("<em>", "</em>", new DefaultEncoder()), 5, 0, 0);
+        return factory("fox", 5, 0, 0);
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("HighlightOperator[query=content:fox, fields=1, number_of_fragments=5, fragment_size=0, no_match_size=0]");
+        return equalTo("HighlightOperator[query=fox, fields=1, number_of_fragments=5, fragment_size=0, no_match_size=0]");
     }
 
     @Override
@@ -273,22 +274,16 @@ public class HighlightOperatorTests extends OperatorTestCase {
         return new CustomPassageFormatter(preTag, postTag, encoder, 5);
     }
 
-    private static HighlightOperator.Factory factory(
-        Query query,
-        PassageFormatter formatter,
-        int fragments,
-        int fragmentSize,
-        int noMatchSize
-    ) {
-        return new HighlightOperator.Factory(
-            query,
-            new StandardAnalyzer(),
-            formatter,
+    private static HighlightOperator.Factory factory(String queryText, int fragments, int fragmentSize, int noMatchSize) {
+        HighlightOptions options = new HighlightOptions(
+            HighlightOptions.DEFAULT_PRE_TAG,
+            HighlightOptions.DEFAULT_POST_TAG,
+            HighlightOptions.DEFAULT_ENCODER,
             fragments,
             fragmentSize,
-            noMatchSize,
-            List.of(dc -> identityEvaluator())
+            noMatchSize
         );
+        return new HighlightOperator.Factory(queryText, options, List.of(dc -> identityEvaluator()));
     }
 
     // Returns the input block unchanged, so the operator highlights channel 0 directly.

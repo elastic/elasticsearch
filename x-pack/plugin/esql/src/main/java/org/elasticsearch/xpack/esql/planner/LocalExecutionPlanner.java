@@ -7,17 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.highlight.DefaultEncoder;
-import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
-import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -102,7 +92,6 @@ import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
@@ -1188,19 +1177,8 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
         }
         String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
-        // TODO: resolve a named analyzer from context.analysisRegistry() when the "analyzer" option is supported.
-        Analyzer analyzer = new StandardAnalyzer();
-        // TODO: support more query shapes here (phrase, fuzzy, wildcard, QSTR, KQL, MATCH, MATCH_PHRASE) instead of
-        // treating the query text as a bag of words.
-        Query query = new QueryBuilder(analyzer).createBooleanQuery(HighlightOperator.CONTENT_FIELD, queryText, BooleanClause.Occur.SHOULD);
-        if (query == null) {
-            query = new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
-        }
-
         // TODO: honour boundary_scanner*, order, max_analyzed_offset, and phrase_limit once HighlightOptions exposes them.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
-        Encoder encoder = HighlightOptions.HTML_ENCODER.equals(options.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
-        PassageFormatter formatter = new CustomPassageFormatter(options.preTag(), options.postTag(), encoder, options.numberOfFragments());
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()
@@ -1213,18 +1191,7 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(highlight.generatedFields());
 
-        return source.with(
-            new HighlightOperator.Factory(
-                query,
-                analyzer,
-                formatter,
-                options.numberOfFragments(),
-                options.fragmentSize(),
-                options.noMatchSize(),
-                fieldEvaluators
-            ),
-            layoutBuilder.build()
-        );
+        return source.with(new HighlightOperator.Factory(queryText, options, fieldEvaluators), layoutBuilder.build());
     }
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {

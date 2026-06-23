@@ -8,15 +8,22 @@
 package org.elasticsearch.xpack.esql.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.highlight.DefaultEncoder;
+import org.apache.lucene.search.highlight.Encoder;
+import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -29,10 +36,12 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
+import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -64,29 +73,38 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      */
     public static final String CONTENT_FIELD = "content";
 
-    public record Factory(
-        Query query,
-        Analyzer analyzer,
-        PassageFormatter formatter,
-        int numberOfFragments,
-        int fragmentSize,
-        int noMatchSize,
-        List<ExpressionEvaluator.Factory> fieldEvaluatorFactories
-    ) implements OperatorFactory {
+    public record Factory(String queryText, HighlightOptions options, List<ExpressionEvaluator.Factory> fieldEvaluatorFactories)
+        implements
+            OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
             ExpressionEvaluator[] fieldEvaluators = fieldEvaluatorFactories.stream()
                 .map(factory -> factory.get(driverContext))
                 .toArray(ExpressionEvaluator[]::new);
+            // TODO: resolve a named analyzer from the AnalysisRegistry once the "analyzer" option is supported.
+            Analyzer analyzer = new StandardAnalyzer();
+            // TODO: support more query shapes here (phrase, fuzzy, wildcard, QSTR, KQL, MATCH, MATCH_PHRASE) instead of
+            // treating the query text as a bag of words.
+            Query query = new QueryBuilder(analyzer).createBooleanQuery(CONTENT_FIELD, queryText, BooleanClause.Occur.SHOULD);
+            if (query == null) {
+                query = new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
+            }
+            Encoder encoder = HighlightOptions.HTML_ENCODER.equals(options.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
+            PassageFormatter formatter = new CustomPassageFormatter(
+                options.preTag(),
+                options.postTag(),
+                encoder,
+                options.numberOfFragments()
+            );
             return new HighlightOperator(
                 driverContext.blockFactory(),
                 query,
                 analyzer,
                 formatter,
-                numberOfFragments,
-                fragmentSize,
-                noMatchSize,
+                options.numberOfFragments(),
+                options.fragmentSize(),
+                options.noMatchSize(),
                 fieldEvaluators
             );
         }
@@ -94,15 +112,15 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         @Override
         public String describe() {
             return "HighlightOperator[query="
-                + query
+                + queryText
                 + ", fields="
                 + fieldEvaluatorFactories.size()
                 + ", number_of_fragments="
-                + numberOfFragments
+                + options.numberOfFragments()
                 + ", fragment_size="
-                + fragmentSize
+                + options.fragmentSize()
                 + ", no_match_size="
-                + noMatchSize
+                + options.noMatchSize()
                 + "]";
         }
     }

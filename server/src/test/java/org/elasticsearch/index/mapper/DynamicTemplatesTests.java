@@ -2244,7 +2244,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         Mapper oneXyz = update.getRoot().getMapper("one_xyz");
         assertThat(oneXyz, instanceOf(KeywordFieldMapper.class));
         assertFalse(((KeywordFieldMapper) oneXyz).multiFields().iterator().hasNext());
-        assertTrue(((KeywordFieldMapper) oneXyz).fieldType().usesBinaryDocValues());
+        assertFalse(((KeywordFieldMapper) oneXyz).fieldType().usesBinaryDocValues());
     }
 
     public void testMatchAndUnmatchWithArrayOfFieldNamesWithMatchMappingType() throws IOException {

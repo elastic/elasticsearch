@@ -716,3 +716,6 @@ tests:
 - class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
   method: testKnnRetriever
   issue: https://github.com/elastic/elasticsearch/issues/152099
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
+  method: testEvaluate {TestCase=geo_shape and geo_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152108

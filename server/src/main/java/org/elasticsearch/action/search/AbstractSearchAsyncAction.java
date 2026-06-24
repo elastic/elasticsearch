@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -77,8 +76,6 @@ import static org.elasticsearch.core.Strings.format;
  * distributed frequencies
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
-    public static final String RESPONSE_HEADER_SEARCH_METRICS = "X-Elasticsearch-Search-Metrics";
-
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
 
     private final Logger logger;
@@ -539,10 +536,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * place metrics are accumulated on the coordinating node.
      */
     void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
-        if (metrics.isEmpty()) {
-            return;
-        }
-        mergedDirectoryMetrics.accumulateAndGet(metrics, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming));
+        DirectoryMetrics.accumulate(mergedDirectoryMetrics, metrics);
     }
 
     // package private for testing
@@ -608,7 +602,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
             : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
-        return new SearchResponse(
+        SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             scrollId,
             getNumShards(),
@@ -621,6 +615,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             request.source(),
             request.indices()
         );
+        DirectoryMetrics directoryMetrics = mergedDirectoryMetrics.get();
+        searchResponse.setDirectoryMetrics(directoryMetrics);
+        recordStoreMetrics(directoryMetrics);
+        return searchResponse;
     }
 
     /**
@@ -630,10 +628,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * @param queryResults           the results of the query phase
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
-        DirectoryMetrics directoryMetrics = mergedDirectoryMetrics.get();
-        createResponseHeaderFromDirectoryMetrics(threadContext, directoryMetrics);
-        recordStoreMetrics(directoryMetrics);
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
@@ -655,15 +649,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
             ActionListener.respondAndRelease(listener, searchResponse);
-        }
-    }
-
-    public static void createResponseHeaderFromDirectoryMetrics(ThreadContext threadContext, DirectoryMetrics directoryMetrics) {
-        if (directoryMetrics.isEmpty() == false) {
-            for (Map.Entry<String, String> entry : directoryMetrics.entries().entrySet()) {
-                String value = entry.getKey() + "=" + entry.getValue();
-                threadContext.addResponseHeader(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS, value);
-            }
         }
     }
 

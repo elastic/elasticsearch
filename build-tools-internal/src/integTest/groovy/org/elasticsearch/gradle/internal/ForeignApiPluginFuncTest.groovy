@@ -13,7 +13,6 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 
-import static org.junit.Assume.assumeTrue
 
 class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
@@ -176,7 +175,7 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
             // Drive the plugin into JDK 22+ mode without needing the daemon itself to be JDK 22+.
             buildFile << """
                 def bp = project.getExtensions().getByType(org.elasticsearch.gradle.internal.info.BuildParameterExtension)
-                bp.setMinimumRuntimeVersion(JavaVersion.current())
+                bp.setMinimumRuntimeVersion(JavaVersion.toVersion("25"))
             """.stripIndent()
         }
         buildFile << """
@@ -208,13 +207,6 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     }
 
     def "forbiddenApisMain rejects direct use of JDK 22+ foreign API methods"() {
-        // MemorySegment.getString(long) does not exist in JDK 21 — it was introduced in JDK 22
-        // as the renamed form of getUtf8String. There is no toolchain trick that makes a
-        // genuinely absent method appear at Java source-compile time, so this test requires the
-        // test-runner JDK to be 22+ (which also sets the inner GradleTestKit daemon version).
-        assumeTrue("Requires JDK 22+ to compile MemorySegment.getString(long)",
-            Runtime.version().feature() >= 22)
-
         given:
         setupForbiddenApiBuild(false)
         file("src/main/java/org/acme/BadForeignUser.java") << """

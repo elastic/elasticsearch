@@ -141,7 +141,7 @@ public class ApproximationVerifier {
         new AbstractMap.SimpleImmutableEntry<>(UnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new AbstractMap.SimpleImmutableEntry<>(UserAgent.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         // A View is a transparent boundary that InlineView folds into its body before physical planning, so it does
-        // not constrain approximation — classified like the UnionAll/ViewUnionAll wrapper it succeeds.
+        // not constrain approximation — classified like the UnionAll wrapper it folds into.
         new AbstractMap.SimpleImmutableEntry<>(View.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
     );
 

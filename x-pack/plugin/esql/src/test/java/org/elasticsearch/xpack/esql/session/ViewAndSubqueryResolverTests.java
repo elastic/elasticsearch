@@ -321,7 +321,8 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(semiJoin.left(), "employees");
 
         Keep keep = as(semiJoin.right(), Keep.class);
-        // User-written FROM subqueries produce a plain UnionAll of Subquery branches, not a view-produced ViewUnionAll.
+        // User-written FROM subqueries produce a UnionAll of Subquery branches; the Subquery boundary above each branch
+        // is what distinguishes user-written nesting from the view-folding nesting FlattenUnionAll lifts.
         UnionAll union = as(keep.child(), UnionAll.class);
         assertEquals(UnionAll.class, union.getClass());
         assertEquals(2, union.children().size());

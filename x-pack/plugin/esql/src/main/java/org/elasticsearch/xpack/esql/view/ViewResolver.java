@@ -149,7 +149,8 @@ public class ViewResolver {
 
     /**
      * Entry point for view + IN subquery resolution; see the {@link ViewResolver} class documentation for the traversal model and the
-     * node types it intercepts. Produces a {@link ViewResolutionResult} containing the rewritten (uncompacted) plan, the map of
+     * node types it intercepts. Produces a {@link ViewResolutionResult} containing the rewritten plan (each {@code FROM <view>}
+     * wrapped in a first-class {@code View} node, folded later by {@code InlineView}), the map of
      * resolved view names to their queries, and — via {@link ViewResolutionResult#hasInSubquery()} — whether any IN subquery was
      * rewritten during resolution.
      *
@@ -174,13 +175,12 @@ public class ViewResolver {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
             return;
         }
-        // Note: this returns the uncompacted nested plan. Compaction (UnionAll/ViewUnionAll
-        // rewriting, sibling UnresolvedRelation merging, NamedSubquery unwrapping) now lives in
-        // {@link org.elasticsearch.xpack.esql.view.ViewCompaction} and is applied by EsqlSession
-        // between view resolution and pre-analysis, so PreAnalyzer extracts the same index
-        // patterns that the analyzer's ResolveTable will later look up. Keeping the resolver's
-        // output uncompacted is the foundation for the CPS lenient-field-caps work in
-        // esql-planning #543, #472.
+        // Note: this returns the nested plan with each FROM <view> reference wrapped in a first-class
+        // View node (whose body is the resolved view query). The View boundary is later folded into its
+        // body by the InlineView optimizer rule, and nested UnionAlls produced by that folding are lifted
+        // by FlattenUnionAll, so the post-optimization plan carries a single flat UnionAll. Keeping the
+        // resolver's output as un-inlined View nodes (rather than substituting the body in place here) is
+        // the foundation for the CPS lenient-field-caps work in esql-planning #543, #472.
         replaceViews(
             plan,
             projectRouting,

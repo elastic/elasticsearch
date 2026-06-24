@@ -17,9 +17,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Unit coverage for the {@link InlineView} fold in isolation (the rule is not yet wired into {@code LogicalPlanOptimizer}).
- * Pins the two invariants the parity wiring will rely on: a {@code View} folds to exactly its body, and a plan with no
- * {@code View} is returned untouched.
+ * Unit coverage for the {@link InlineView} fold in isolation (its end-to-end wiring in {@code LogicalPlanOptimizer} is
+ * exercised elsewhere). Pins the two invariants the parity wiring relies on: a {@code View} folds to exactly its body,
+ * and a plan with no {@code View} is returned untouched.
  */
 public class InlineViewTests extends ESTestCase {
 

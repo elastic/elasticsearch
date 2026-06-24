@@ -7,12 +7,16 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 /**
  * First-class representation of a {@code FROM <view>} reference in the logical plan — the boundary today's
@@ -34,7 +38,7 @@ import java.util.Objects;
  * {@link #writeTo} throws and the node is not registered in {@code PlanWritables}. Wire-serialization (with a
  * {@code TransportVersion} gate), the contract/rights-mode fields, and the remote handle land in later phases.
  */
-public class View extends UnaryPlan {
+public class View extends UnaryPlan implements PostOptimizationPlanVerificationAware {
 
     private final String name;
 
@@ -86,6 +90,24 @@ public class View extends UnaryPlan {
         // Route the view name through the mapper so anonymization can mask it — a view name can be
         // as sensitive as an index name. A raw append here would leak it into the plan string.
         sb.append(nodeName()).append('[').append(mapper.index(name)).append(']');
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        return View::checkViewFolded;
+    }
+
+    /**
+     * A {@code View} is transient: {@code InlineView} must fold every one into its body during logical optimization,
+     * so none may survive into physical mapping. The only other backstop is {@link #writeTo} throwing, which fires far
+     * later (at serialization) and with a less actionable message. Fail loud here, mirroring
+     * {@code UnionAll#checkNestedUnionAlls}, if a {@code View} reaches post-optimization verification — that means
+     * {@code InlineView} was not wired or did not fire, which is a planner bug, not a user error.
+     */
+    private static void checkViewFolded(LogicalPlan plan, Failures failures) {
+        if (plan instanceof View view) {
+            failures.add(Failure.fail(view, "View [{}] was not folded by InlineView before physical mapping", view.viewName()));
+        }
     }
 
     @Override

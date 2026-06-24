@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.esql.plan.logical.View;
  * Spark Catalyst's {@code EliminateView} analog, named for what it does; unlike Spark's it is meant to become
  * conditional (a remote / materialized / opaque view keeps its boundary and is lowered by the {@code Mapper} instead).
  * <p>
- * Placed before the pushdown rules so they see through an inlined view. Not yet registered in
- * {@code LogicalPlanOptimizer}: it is wired once resolution starts producing {@link View} nodes (then it runs by
- * default, preserving today's behaviour).
+ * Registered first in the operator-optimization batch of {@code LogicalPlanOptimizer}, before the pushdown rules so they
+ * see through an inlined view, and before {@code FlattenUnionAll} which lifts the nested {@code UnionAll}s that folding a
+ * multi-source view produces.
  */
 public final class InlineView extends OptimizerRules.OptimizerRule<View> {
 

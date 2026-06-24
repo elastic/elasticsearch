@@ -183,7 +183,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      * Limit[1000[INTEGER],false,false]
      * \_OrderBy[[Order[emp_no{r}#632,ASC,LAST], Order[language_code{r}#642,ASC,LAST]]]
      *   \_Filter[emp_no{r}#632 > 10000[INTEGER]]
-     *     \_ViewUnionAll[[null, view]]
+     *     \_UnionAll[[...output attributes...]]
      *       |_Project[[_meta_field{f}#611, emp_no{f}#605, first_name{f}#606, gender{f}#607, hire_date{f}#612, job{f}#613, job.raw{f}#614,
      *                  languages{f}#608, last_name{f}#609, long_noidx{f}#615, salary{f}#610, language_code{r}#618, language_name{r}#619]]
      *       | \_Eval[[null[INTEGER] AS language_code#618, null[KEYWORD] AS language_name#619]]
@@ -474,7 +474,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *     \_Aggregate[[emp_no{r}#1210, language_code{r}#1220],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#1127,
      *                  emp_no{r}#1210, language_code{r}#1220]]
      *       \_Filter[emp_no{r}#1210 > 10000[INTEGER]]
-     *         \_ViewUnionAll[[null, view1, view2, view3]]
+     *         \_UnionAll[[...output attributes...]]
      *           |_Project[[_meta_field{f}#1152, emp_no{f}#1146, first_name{f}#1147, gender{f}#1148, hire_date{f}#1153, job{f}#1154,
      *                      job.raw{f}#1155, languages{f}#1149, last_name{f}#1150, long_noidx{f}#1156, salary{f}#1151,
      *                      language_code{r}#1176, languageName{r}#1177, max(@timestamp){r}#1178, language_name{r}#1179]]

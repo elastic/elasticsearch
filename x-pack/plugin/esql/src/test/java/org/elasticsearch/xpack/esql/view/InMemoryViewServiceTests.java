@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -1064,15 +1065,21 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertNotNull("dashboard should resolve without circular reference errors", result);
 
         // The wildcard svc-auth-* inside error_view's subquery matches the view svc-auth-failures,
-        // creating a nested ViewUnionAll inside the pipeline chain. This produces a "nested subqueries"
+        // creating a nested UnionAll inside the pipeline chain. This produces a "nested subqueries"
         // error — which is the correct behavior (not a false circular reference).
+        //
+        // Note: this runs the verifier on the raw resolver output, which still carries un-inlined View
+        // wrappers (InlineView folds them only during logical optimization). The verifier therefore also
+        // flags those Views ("not folded by InlineView") — expected on a pre-optimization plan — so we
+        // assert the nested-subquery failure is present among the failures rather than the sole failure.
         Failures failures = new Failures();
         Failures depFailures = new Failures();
         LogicalVerifier.INSTANCE.checkPlanConsistency(result, failures, depFailures);
         assertTrue("Expected nested subquery failure", failures.hasFailures());
-        for (Failure failure : failures.failures()) {
-            assertThat(failure.failMessage(), containsString("Nested subqueries are not supported"));
-        }
+        assertThat(
+            failures.failures().stream().map(Failure::failMessage).toList(),
+            hasItem(containsString("Nested subqueries are not supported"))
+        );
     }
 
     /**
@@ -1713,7 +1720,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                         );
                     } else if (branching > Fork.MAX_BRANCHES) {
                         // Branch-count enforcement now lives in Fork's post-analysis verification rather than
-                        // its constructor, so view resolution succeeds with a wide ViewUnionAll and the failure
+                        // its constructor, so view resolution succeeds with a wide UnionAll and the failure
                         // surfaces only when the verifier walks the plan.
                         LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
                         Failures forkFailures = new Failures();
@@ -1886,8 +1893,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     // CPS linked-relation contract tests.
     //
     // Under CPS the resolver emits, alongside each resolved view, a "linked" UnresolvedRelation — an
-    // ordinary lenient remote-index lookup flagged with a LinkedIndexPattern (the successor to the old
-    // ViewShadowRelation). These tests assert the per-view linked pattern the resolver attaches,
+    // ordinary lenient remote-index lookup flagged with a LinkedIndexPattern. These tests assert the
+    // per-view linked pattern the resolver attaches,
     // including position-aware exclusion propagation, which the CPS lenient field-caps work relies on.
     // -------------------------------------------------------------------------------------------
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
@@ -21,6 +22,8 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
+import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -172,8 +175,18 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private long rowPositionEncodingHighBits = -1L;
     private final CompressionCodecFactory codecFactory;
     private int rowBudget;
-    /** Async prefetches allowed ahead of the consumed row group (1-3 based on projected column size). */
-    private final int prefetchDepth;
+    /**
+     * Async prefetches allowed ahead of the consumed row group. Initialized from
+     * {@link #computePrefetchDepth} based on projected column size (1-3), then adapted
+     * at runtime: grows by {@link #PREFETCH_DEPTH_GROWTH} on stall detection (the
+     * prefetch future was not ready when consumed), shrinks by 1 after
+     * {@link #SHRINK_AFTER_NO_STALLS} consecutive no-stall row groups. Growth is
+     * suppressed when the circuit breaker exceeds {@link #BREAKER_GROWTH_THRESHOLD}
+     * utilization. Bounded by [{@link #prefetchDepthFloor}, {@link #MAX_PREFETCH_DEPTH}].
+     */
+    private int prefetchDepth;
+    private final int prefetchDepthFloor;
+    private int consecutiveNoStalls;
     private final ArrayDeque<PendingPrefetch> pendingPrefetches = new ArrayDeque<>();
     /**
      * Allocator-backed memory holding the chunks currently in use by {@link #rowGroup}. Released
@@ -361,7 +374,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             projectionOnlyColumnPaths,
             fileLocation
         );
-        this.prefetchDepth = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
+        this.prefetchDepthFloor = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
+        this.prefetchDepth = this.prefetchDepthFloor;
 
         reader.setRequestedSchema(projectedSchema);
 
@@ -468,6 +482,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (statistics.hasNonNullValue() == false) {
             return dynamicThreshold.dominatesNulls(statistics.getNumNulls());
         }
+        if (dynamicThreshold.elementType() == ElementType.BYTES_REF) {
+            BytesRef min = bytesRefFromStats(statistics.genericGetMin());
+            BytesRef max = bytesRefFromStats(statistics.genericGetMax());
+            return min != null && max != null && dynamicThreshold.dominates(min, max, statistics.getNumNulls());
+        }
         Long rawMin = rawValueFromStats(statistics.genericGetMin());
         Long rawMax = rawValueFromStats(statistics.genericGetMax());
         return rawMin != null && rawMax != null && dynamicThreshold.dominates(rawMin, rawMax, statistics.getNumNulls());
@@ -475,6 +494,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private RowRanges thresholdRowRanges(int rowGroupOrdinal, BlockMetaData block) {
         if (dynamicThreshold == null || sortColumnPath == null || sortColumnPrimitiveType == null) {
+            return null;
+        }
+        // BYTES_REF thresholding is intentionally row-group level only for now: the page-index path
+        // below interprets bounds as fixed-width numerics, which does not apply to variable-length
+        // string min/max. String TopN therefore prunes at row-group granularity while numeric TopN
+        // also prunes at page granularity. Page-level string pruning (decoding ColumnIndex string
+        // bounds) is a possible follow-up, not an oversight.
+        if (dynamicThreshold.elementType() == ElementType.BYTES_REF) {
             return null;
         }
         ColumnIndex columnIndex = preloadedMetadata.getColumnIndex(rowGroupOrdinal, sortColumnPath);
@@ -520,6 +547,29 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (column.getPath().toDotString().equals(sortColumnPath)) {
                 return column;
             }
+        }
+        return null;
+    }
+
+    /**
+     * Extract a column's raw string statistic ({@code min}/{@code max}) as a {@link BytesRef} for
+     * {@code BYTES_REF} thresholding. The column must be physically {@code BINARY} <em>and</em> carry
+     * a {@link LogicalTypeAnnotation.StringLogicalTypeAnnotation}, which is the only annotation that
+     * guarantees the column's statistics use the unsigned UTF-8 byte order of {@link BytesRef#compareTo}
+     * and the encoded TopN bound. This mirrors the ORC reader's {@code isStringFamily} gate.
+     * <p>
+     * Restricting to that annotation is deliberately conservative. A {@code DECIMAL}-as-binary column
+     * (which a UNION_BY_NAME shape can route here when the logical column is a string) computes its
+     * min/max with a <em>numeric</em> comparator, so reusing those bounds against a string bound would
+     * be incorrect; other unannotated {@code BINARY} columns (raw bytes, JSON/BSON) are byte-comparable
+     * in principle but are skipped here for safety and ORC parity rather than pruned. All such columns
+     * return {@code null} so the row group is never skipped.
+     */
+    private BytesRef bytesRefFromStats(Object value) {
+        if (value instanceof Binary binary
+            && sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY
+            && sortColumnPrimitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.StringLogicalTypeAnnotation) {
+            return new BytesRef(binary.getBytes());
         }
         return null;
     }
@@ -582,7 +632,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private static final long DEEPER_PREFETCH_BYTES = 32_000_000L;
     private static final long SHALLOW_PREFETCH_BYTES = 8_000_000L;
+    private static final int MAX_PREFETCH_DEPTH = 8;
+    private static final int PREFETCH_DEPTH_GROWTH = 2;
+    private static final int SHRINK_AFTER_NO_STALLS = 3;
+    private static final double BREAKER_GROWTH_THRESHOLD = 0.75;
 
+    /**
+     * Computes the initial (floor) prefetch depth from the projected byte footprint of the
+     * first row group. This value serves as the floor for the adaptive depth — the runtime
+     * stall detector may increase depth up to {@link #MAX_PREFETCH_DEPTH} but never below
+     * this byte-based result.
+     */
     private static int computePrefetchDepth(List<BlockMetaData> rowGroups, Set<String> projectedColumnPaths) {
         if (rowGroups.isEmpty()) {
             return 1;
@@ -1526,7 +1586,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
         PendingPrefetch head = pendingPrefetches.pollFirst();
         try {
+            boolean wasReady = head.future().isDone();
             ColumnChunkPrefetcher.PrefetchedChunks result = head.future().join();
+            adaptPrefetchDepth(wasReady);
             NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> data = result != null ? result.chunks() : null;
             if (data != null && data.isEmpty() == false) {
                 logger.trace("Took [{}] prefetched column chunks for row group [{}] in [{}]", data.size(), expectedOrdinal, fileLocation);
@@ -1547,8 +1609,47 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 fileLocation,
                 e.getMessage()
             );
+            consecutiveNoStalls = 0;
+            prefetchDepth = Math.max(prefetchDepthFloor, prefetchDepth - 1);
             return null;
         }
+    }
+
+    /**
+     * Adjusts {@link #prefetchDepth} based on whether the consumed prefetch future was already
+     * complete. A stall ({@code wasReady == false}) means the consumer outpaced the producer —
+     * grow depth by {@link #PREFETCH_DEPTH_GROWTH} unless the circuit breaker is under pressure.
+     * Sustained no-stalls mean the queue is deep enough — shrink by 1 after
+     * {@link #SHRINK_AFTER_NO_STALLS} consecutive hits.
+     */
+    // Package-private for testing
+    void adaptPrefetchDepth(boolean wasReady) {
+        if (wasReady) {
+            if (++consecutiveNoStalls >= SHRINK_AFTER_NO_STALLS) {
+                prefetchDepth = Math.max(prefetchDepthFloor, prefetchDepth - 1);
+                consecutiveNoStalls = 0;
+            }
+        } else {
+            if (breakerPressure() < BREAKER_GROWTH_THRESHOLD) {
+                prefetchDepth = Math.min(prefetchDepth + PREFETCH_DEPTH_GROWTH, MAX_PREFETCH_DEPTH);
+            }
+            consecutiveNoStalls = 0;
+        }
+    }
+
+    /**
+     * Returns the node-level circuit breaker utilization (0.0–1.0). Intentionally node-level:
+     * a lightweight query should still back off when the node is under global memory pressure,
+     * since deeper prefetch would compete with other concurrent queries for the same heap.
+     */
+    private double breakerPressure() {
+        long limit = breaker.getLimit();
+        return limit <= 0 ? 0.0 : (double) breaker.getUsed() / limit;
+    }
+
+    // Visible for testing
+    int prefetchDepth() {
+        return prefetchDepth;
     }
 
     /**

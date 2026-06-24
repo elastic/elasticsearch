@@ -13,10 +13,14 @@ import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,6 +32,8 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
@@ -39,18 +45,48 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache_boost_preference.enabled",
         false,
+        // Boost preference relies on timestamp ranges in {@link BlobFileRanges} which are only built up when use of replicated content is
+        // enabled.
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                final boolean replicatedContentEnabled = (boolean) settings.get(
+                    SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                );
+                if (value && replicatedContentEnabled == false) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "Setting [%s] cannot be [true] unless setting [%s] is also [true]",
+                            STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(),
+                            SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return Iterators.single(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
+            }
+        },
         Setting.Property.NodeScope
     );
 
     /**
      * Selects the eviction policy used by the shared blob cache when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is enabled.
      * When cache boost preference is disabled, {@link StatelessCacheEvictionPolicyType#ALWAYS} is used regardless of this setting.
+     * Defaults to {@link StatelessCacheEvictionPolicyType#PINNED_WINDOW} on search nodes and
+     * {@link StatelessCacheEvictionPolicyType#ALWAYS} on all other nodes.
      */
     public static final Setting<StatelessCacheEvictionPolicyType> STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING = Setting
         .enumSetting(
             StatelessCacheEvictionPolicyType.class,
+            settings -> StatelessCacheEvictionPolicyType.resolveEvictionPolicyFromSettings(settings).name(),
             "stateless.cache_boost_preference.eviction_policy",
-            StatelessCacheEvictionPolicyType.INDEX_AGE,
+            s -> {},
             Setting.Property.NodeScope
         );
 
@@ -60,6 +96,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
+    private final boolean hasSearchRole;
+    private final boolean cacheBoostPreferenceEnabled;
 
     // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
@@ -70,9 +108,18 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         ClusterService clusterService,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, createEvictionPolicy(settings, clusterService));
+        super(
+            environment,
+            settings,
+            threadPool,
+            IO_EXECUTOR,
+            blobCacheMetrics,
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
+        );
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
+        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+        this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     // for tests
@@ -85,21 +132,32 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         LongSupplier relativeTimeInNanosSupplier,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(
+        this(
             environment,
             settings,
             threadPool,
-            IO_EXECUTOR,
             blobCacheMetrics,
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService),
             relativeTimeInNanosSupplier,
-            createEvictionPolicy(settings, clusterService)
+            metricsHolder
         );
-        this.shardReadThreadPoolExecutor = IO_EXECUTOR;
-        this.metricsHolder = metricsHolder;
     }
 
-    static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {
-        return StatelessCacheEvictionPolicyType.fromSettings(settings).create(clusterService);
+    // for tests
+    protected StatelessSharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        BlobCacheMetrics blobCacheMetrics,
+        EvictionPolicy<FileCacheKey> evictionPolicy,
+        LongSupplier relativeTimeInNanosSupplier,
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
+    ) {
+        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
+        this.shardReadThreadPoolExecutor = IO_EXECUTOR;
+        this.metricsHolder = metricsHolder;
+        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+        this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     /**
@@ -179,6 +237,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         );
     }
 
+    public boolean hasSearchRole() {
+        return hasSearchRole;
+    }
+
     public void assertInvariants() {
         assert getRangeSize() >= getRegionSize() : getRangeSize() + " < " + getRegionSize();
     }
@@ -214,5 +276,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder() {
         return metricsHolder;
+    }
+
+    public boolean isCacheBoostPreferenceEnabled() {
+        return cacheBoostPreferenceEnabled;
     }
 }

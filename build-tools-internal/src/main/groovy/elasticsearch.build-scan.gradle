@@ -11,6 +11,8 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 
+import org.gradle.api.logging.Logging
+
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
@@ -20,6 +22,11 @@ import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
 // Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
 def taskNames = gradle.startParameter.taskNames.join(' ')
+// The buildFinished/buildScanPublished callbacks below run at execution time. Referencing the
+// script's `logger` or `projectDir` from those closures captures Gradle script objects, which is
+// unsupported with the configuration cache. Resolve them early into local variables instead.
+def buildScanProjectDir = projectDir
+def buildScanLogger = Logging.getLogger('elasticsearch.build-scan')
 
 develocity {
 
@@ -145,7 +152,7 @@ develocity {
         // Check whether the GradleRunner detected GCP preemption by reading
         // the marker file it writes before cancelling the build.
         if (watchingForPreemption) {
-          def preemptionMarker = new File(projectDir, 'build/.preemption-marker.json')
+          def preemptionMarker = new File(buildScanProjectDir, 'build/.preemption-marker.json')
           def preemptionTime = null
           if (preemptionMarker.exists()) {
             try {
@@ -156,7 +163,7 @@ develocity {
                 preemptionTime = timeMatcher.group(1)
               }
             } catch (Exception e) {
-              logger.warn("Could not read preemption marker file", e)
+              buildScanLogger.warn("Could not read preemption marker file", e)
             }
           }
 
@@ -167,7 +174,7 @@ develocity {
             }
             // Check task-status.json for failures that occurred before preemption
             try {
-              def taskStatusFile = new File(projectDir, 'build/task-status.json')
+              def taskStatusFile = new File(buildScanProjectDir, 'build/task-status.json')
               if (taskStatusFile.exists()) {
                 def statusText = taskStatusFile.text
                 if (statusText.contains('"outcome" : "FAILED"') || statusText.contains('"result" : "FAILURE"')) {
@@ -176,7 +183,7 @@ develocity {
                 }
               }
             } catch (Exception e) {
-              logger.warn("Could not check for pre-preemption failures", e)
+              buildScanLogger.warn("Could not check for pre-preemption failures", e)
             }
           }
         }
@@ -201,10 +208,10 @@ develocity {
         buildScanPublished { scan ->
           // Write build scan ID to a file for the GradleRunner to pick up
           try {
-            def scanIdFile = new File(projectDir, 'build/.buildscan-id')
+            def scanIdFile = new File(buildScanProjectDir, 'build/.buildscan-id')
             scanIdFile.text = scan.buildScanId
           } catch (Exception e) {
-            logger.warn("Could not write build scan ID file", e)
+            buildScanLogger.warn("Could not write build scan ID file", e)
           }
 
           if (onCI) {

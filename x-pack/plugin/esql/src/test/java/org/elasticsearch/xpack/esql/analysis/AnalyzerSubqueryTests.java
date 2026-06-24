@@ -8,9 +8,14 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -25,6 +30,12 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
@@ -38,6 +49,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -53,11 +65,14 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -85,6 +100,10 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     @Before
     public void requireSubqueryInFromCommand() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    }
+
+    private static void requireExternalDatasetSupport() {
+        assumeTrue("Requires external dataset in FROM command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
     }
 
     /*
@@ -1570,6 +1589,138 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals(UNSUPPORTED, ua.dataType());
         assertThat(ua.originalTypes(), is(List.of(INTEGER.esType(), LONG.esType())));
         assertEquals("emp_no", ua.name());
+    }
+
+    // mixed data types across subquery branches sourced from external datasets --
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[!salary]]
+     *   \_UnionAll[[emp_no{r}#10, name{r}#11, !salary]]
+     *     |_Project[[emp_no{r}#3, name{r}#4, salary{r}#13]]
+     *     | \_Eval[[null[KEYWORD] AS salary#13]]
+     *     |   \_Subquery[]
+     *     |     \_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#3, name{r}#4, salary{r}#5]
+     *     \_Project[[emp_no{r}#6, name{r}#7, salary{r}#14]]
+     *       \_Eval[[null[KEYWORD] AS salary#14]]
+     *         \_Subquery[]
+     *           \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#6, name{r}#7, salary{r}#8]
+     */
+    public void testUnionAllWithConflictingTypesFromExternalDatasetSubqueries() {
+        requireExternalDatasetSupport();
+        LogicalPlan plan = analyzeExternalDatasetSubquery("""
+            FROM (FROM salaries_int), (FROM salaries_long)
+            | KEEP salary
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        assertThat(project.projections(), hasSize(1));
+        UnsupportedAttribute ua = as(project.projections().getFirst(), UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        assertThat(ua.originalTypes(), is(List.of(INTEGER.esType(), LONG.esType())));
+        assertEquals("salary", ua.name());
+
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+        // both branches are genuinely external dataset relations
+        List<ExternalRelation> externalRelations = new ArrayList<>();
+        unionAll.forEachDown(ExternalRelation.class, externalRelations::add);
+        assertThat(externalRelations, hasSize(2));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[emp_no{r}#9, name{r}#10, !salary]]
+     *   |_Project[[emp_no{r}#2, name{r}#3, salary{r}#12]]
+     *   | \_Eval[[null[KEYWORD] AS salary#12]]
+     *   |   \_Subquery[]
+     *   |     \_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#2, name{r}#3, salary{r}#4]
+     *   \_Project[[emp_no{r}#5, name{r}#6, salary{r}#13]]
+     *     \_Eval[[null[KEYWORD] AS salary#13]]
+     *       \_Subquery[]
+     *         \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#5, name{r}#6, salary{r}#7]
+     */
+    public void testUnionAllWithConflictingTypesFromExternalDatasetSubqueriesWithoutUsage() {
+        requireExternalDatasetSupport();
+        LogicalPlan plan = analyzeExternalDatasetSubquery("""
+            FROM (FROM salaries_int), (FROM salaries_long)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Attribute salary = unionAll.output().stream().filter(a -> "salary".equals(a.name())).findFirst().orElseThrow();
+        UnsupportedAttribute ua = as(salary, UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        assertThat(ua.originalTypes(), is(List.of(INTEGER.esType(), LONG.esType())));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[salary{r}#15]]
+     *   \_UnionAll[[emp_no{r}#13, name{r}#14, salary{r}#15]]
+     *     |_Project[[emp_no{r}#6, name{r}#7, salary{r}#4]]
+     *     | \_Subquery[]
+     *     |   \_Eval[[TOLONG(salary{r}#8) AS salary#4]]
+     *     |     \_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#6, name{r}#7, salary{r}#8]
+     *     \_Project[[emp_no{r}#9, name{r}#10, salary{r}#11]]
+     *       \_Subquery[]
+     *         \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#9, name{r}#10, salary{r}#11]
+     */
+    public void testExternalDatasetSubqueryConflictResolvedByCastInSubqueries() {
+        requireExternalDatasetSupport();
+        LogicalPlan plan = analyzeExternalDatasetSubquery("""
+            FROM (FROM salaries_int | EVAL salary = salary::long), (FROM salaries_long)
+            | KEEP salary
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        assertThat(project.projections(), hasSize(1));
+        NamedExpression salary = project.projections().getFirst();
+        assertEquals("salary", salary.name());
+        assertEquals(LONG, salary.dataType());
+        assertFalse("salary should be resolved, not a type conflict", salary instanceof UnsupportedAttribute);
+
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+    }
+
+    /*
+     * Project[[salary{r}#4]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Project[[salary{r}#4, $$salary$converted_to$long{r$}#18]]
+     *     \_Eval[[$$salary$converted_to$long{r$}#18 AS salary#4]]
+     *       \_UnionAll[[emp_no{r}#13, name{r}#14, !salary, $$salary$converted_to$long{r$}#18]]
+     *         |_Project[[emp_no{r}#6, name{r}#7, salary{r}#19, $$salary$converted_to$long{r$}#16]]
+     *         | \_Eval[[null[KEYWORD] AS salary#19]]
+     *         |   \_Eval[[TOLONG(salary{r}#8) AS $$salary$converted_to$long#16]]
+     *         |     \_Subquery[]
+     *         |       \_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#6, name{r}#7, salary{r}#8]
+     *         \_Project[[emp_no{r}#9, name{r}#10, salary{r}#20, $$salary$converted_to$long{r$}#17]]
+     *           \_Eval[[null[KEYWORD] AS salary#20]]
+     *             \_Eval[[TOLONG(salary{r}#11) AS $$salary$converted_to$long#17]]
+     *               \_Subquery[]
+     *                 \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#9, name{r}#10, salary{r}#11]
+     */
+    public void testExternalDatasetSubqueryConflictResolvedByCastInMainQuery() {
+        requireExternalDatasetSupport();
+        LogicalPlan plan = analyzeExternalDatasetSubquery("""
+            FROM (FROM salaries_int), (FROM salaries_long)
+            | EVAL salary = salary::long
+            | KEEP salary
+            """);
+
+        Attribute salary = plan.output().stream().filter(a -> "salary".equals(a.name())).findFirst().orElseThrow();
+        assertEquals(LONG, salary.dataType());
+        assertFalse("salary should be resolved via the pushed-down cast", salary instanceof UnsupportedAttribute);
+
+        List<UnionAll> unionAlls = new ArrayList<>();
+        plan.forEachDown(UnionAll.class, unionAlls::add);
+        assertThat(unionAlls, hasSize(1));
+        assertEquals(2, unionAlls.getFirst().children().size());
     }
 
     /*
@@ -4769,6 +4920,63 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
+     * Limit[..]
+     * \_UnionAll[[name{r}#..]]
+     *   |_Project[..]                                                         (regular index branch)
+     *   | \_..
+     *   |   \_EsRelation[sample_data][..]                                      IndexMode.STANDARD
+     *   |_Project[..]                                                         (TS k8s rate branch)
+     *   | \_..(lowered time-series aggregation: PACKDIMENSION/UNPACKDIMENSION around a TimeSeriesAggregate)..
+     *   |   \_EsRelation[k8s][TIME_SERIES][..]                                 rate keeps it TIME_SERIES
+     *   \_Project[..]                                                         (external dataset branch)
+     *     \_Subquery[]
+     *       \_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][..]
+     */
+    public void testSubqueryUnionOfIndexTimeSeriesRateAndExternalDataset() {
+        assumeTrue("Requires TS source inside a FROM subquery", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        requireExternalDatasetSupport();
+        LogicalPlan plan = analyzeExternalDatasetSubquery("""
+            FROM (FROM sample_data | EVAL name = message | KEEP name),
+                 (TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster | EVAL name = cluster | KEEP name),
+                 (FROM salaries_int | KEEP name)
+            """);
+
+        as(plan, Limit.class);
+
+        List<UnionAll> unionAlls = new ArrayList<>();
+        plan.forEachDown(UnionAll.class, unionAlls::add);
+        assertThat(unionAlls, hasSize(1));
+        UnionAll unionAll = unionAlls.getFirst();
+        assertEquals(3, unionAll.children().size());
+        assertThat(unionAll.output(), hasSize(1));
+        assertEquals("name", unionAll.output().getFirst().name());
+        assertEquals(KEYWORD, unionAll.output().getFirst().dataType());
+
+        // Branch 0: regular index, read as a standard EsRelation.
+        List<EsRelation> indexRelations = new ArrayList<>();
+        unionAll.children().get(0).forEachDown(EsRelation.class, indexRelations::add);
+        assertThat(indexRelations, hasSize(1));
+        assertEquals("sample_data", indexRelations.getFirst().indexPattern());
+        assertEquals(IndexMode.STANDARD, indexRelations.getFirst().indexMode());
+
+        // Branch 1: TS k8s with a rate aggregation; the rate keeps the k8s source relation in IndexMode.TIME_SERIES.
+        List<TimeSeriesAggregate> tsAggregates = new ArrayList<>();
+        unionAll.children().get(1).forEachDown(TimeSeriesAggregate.class, tsAggregates::add);
+        assertThat(tsAggregates, hasSize(1));
+        List<EsRelation> tsRelations = new ArrayList<>();
+        unionAll.children().get(1).forEachDown(EsRelation.class, tsRelations::add);
+        assertThat(tsRelations, hasSize(1));
+        assertEquals("k8s", tsRelations.getFirst().indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelations.getFirst().indexMode());
+
+        // Branch 2: external (blob-backed) dataset, read as an ExternalRelation.
+        List<ExternalRelation> externalRelations = new ArrayList<>();
+        unionAll.children().get(2).forEachDown(ExternalRelation.class, externalRelations::add);
+        assertThat(externalRelations, hasSize(1));
+        assertEquals(SALARIES_INT_RESOURCE, externalRelations.getFirst().sourcePath());
+    }
+
+    /*
      * Limit[1000[INTEGER],false,false]
      * \_Project[[x{r}#6]]
      *   \_Project[[emp_no{r}#35 AS x#6]]
@@ -5804,6 +6012,72 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             Literal literal = as(row.fields().get(i).child(), Literal.class);
             assertEquals(rowFieldValues.get(i), literal.value());
         }
+    }
+
+    private static final String SALARIES_INT_RESOURCE = "s3://bucket/salaries_int.parquet";
+    private static final String SALARIES_LONG_RESOURCE = "s3://bucket/salaries_long.parquet";
+
+    /**
+     * Analyzes a subquery query that may mix source kinds, registering everything the subquery analyzer tests need:
+     * the {@code sample_data} regular index, the {@code k8s} time-series index, and two external datasets
+     * ({@code salaries_int}/{@code salaries_long}) that share {@code emp_no}/{@code name} but type {@code salary}
+     * differently ({@code integer} vs {@code long}). Indices and datasets that a given query does not reference are
+     * simply left unused. Mirrors the production pipeline: {@link DatasetRewriter} turns each {@code FROM <dataset>}
+     * into the {@code UnresolvedExternalRelation} the {@code EXTERNAL} command produces, which the analyzer resolves
+     * against the configured external source schemas — so a dataset branch is backed by an {@link ExternalRelation},
+     * exactly like a real dataset subquery. The plan is analyzed (not optimized) to match the neighbouring tests.
+     *
+     * <p>Callers that exercise a {@code TS} source inside a subquery must additionally guard on
+     * {@link EsqlCapabilities.Cap#SUBQUERY_WITH_TS}.
+     */
+    private static LogicalPlan analyzeExternalDatasetSubquery(String query) {
+        DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
+        Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());
+        Dataset longDataset = new Dataset("salaries_long", new DataSourceReference("external_ds"), SALARIES_LONG_RESOURCE, null, Map.of());
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("external_ds", dataSource)))
+            .datasets(Map.of("salaries_int", intDataset, "salaries_long", longDataset))
+            .build();
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+            TEST_PARSER.parseQuery(query),
+            projectMetadata,
+            TestIndexNameExpressionResolver.newInstance()
+        );
+        ExternalSourceResolution resolution = new ExternalSourceResolution(
+            Map.of(
+                SALARIES_INT_RESOURCE,
+                externalSource(SALARIES_INT_RESOURCE, INTEGER),
+                SALARIES_LONG_RESOURCE,
+                externalSource(SALARIES_LONG_RESOURCE, LONG)
+            )
+        );
+        return analyzer().addSampleData().addK8s().externalSourceResolution(resolution).buildAnalyzer().analyze(rewritten);
+    }
+
+    /** A resolved external source named {@code emp_no}/{@code name}/{@code salary} with the given salary type. */
+    private static ExternalSourceResolution.ResolvedSource externalSource(String path, DataType salaryType) {
+        List<Attribute> schema = List.of(
+            referenceAttribute("emp_no", INTEGER),
+            referenceAttribute("name", KEYWORD),
+            referenceAttribute("salary", salaryType)
+        );
+        ExternalSourceMetadata metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return path;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+        return new ExternalSourceResolution.ResolvedSource(metadata, FileList.UNRESOLVED, Map.of());
     }
 
     private static TestAnalyzer basic() {

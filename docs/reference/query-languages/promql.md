@@ -30,6 +30,6 @@ When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} q
 ## In this section
 
 * [HTTP API](promql/promql-http-api.md): Prometheus-compatible `/_prometheus/` endpoints for queries and discovery.
-* [Functions](promql/functions.md): PromQL function reference grouped by category, with {{es}}-specific differences from Prometheus.
+* [Functions](promql/functions.md): PromQL function reference organized by category, including {{es}}-specific differences from Prometheus.
 * [Limitations](promql/promql-limitations.md): How behavior differs from Prometheus, including unsupported PromQL constructs, HTTP behavior, instant-query nuances, staleness semantics, exemplars, and related topics.
 

@@ -983,12 +983,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     // used by tests
-    public Map<Integer, Integer> countCachedRegionsByFreq(Predicate<KeyType> predicate) {
+    Map<Integer, Integer> countCachedRegionsByFreq(Predicate<KeyType> predicate) {
         return countCachedRegionsByFreq(predicate, false);
     }
 
     // used by tests
-    public Map<Integer, Integer> countCachedRegionsByFreq(Predicate<KeyType> predicate, boolean includeEvicted) {
+    Map<Integer, Integer> countCachedRegionsByFreq(Predicate<KeyType> predicate, boolean includeEvicted) {
         if (cache instanceof LFUCache lfuCache) {
             return lfuCache.countCachedRegionsByFreq(predicate, includeEvicted);
         }

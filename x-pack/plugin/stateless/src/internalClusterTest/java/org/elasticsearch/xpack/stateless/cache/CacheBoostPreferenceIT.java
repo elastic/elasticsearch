@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -107,7 +108,7 @@ public class CacheBoostPreferenceIT extends AbstractStatelessPluginIntegTestCase
         assertBusy(() -> {
             long regionCount = cacheService.countCachedRegions(shardPredicate(shardId));
             assertThat(regionCount, greaterThan(0L));
-            int maxFreq = cacheService.countCachedRegionsByFreq(shardPredicate(shardId))
+            int maxFreq = SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, shardPredicate(shardId))
                 .keySet()
                 .stream()
                 .max(Integer::compareTo)
@@ -120,7 +121,10 @@ public class CacheBoostPreferenceIT extends AbstractStatelessPluginIntegTestCase
         assertBusy(() -> {
             long regionCount = cacheService.countCachedRegions(shardPredicate(shardId));
             assertThat(regionCount, greaterThan(0L));
-            assertThat(cacheService.countCachedRegionsByFreq(shardPredicate(shardId)), equalTo(Map.of(0, (int) regionCount)));
+            assertThat(
+                SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, shardPredicate(shardId)),
+                equalTo(Map.of(0, (int) regionCount))
+            );
         });
     }
 

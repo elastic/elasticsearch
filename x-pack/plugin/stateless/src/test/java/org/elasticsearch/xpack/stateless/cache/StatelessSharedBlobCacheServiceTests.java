@@ -72,7 +72,10 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             final var cacheKey = new FileCacheKey(shardId, 1L, "file");
             SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, cacheKey, cacheRegionSizeInBytes(250), 0);
             SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, cacheKey, cacheRegionSizeInBytes(250), 1);
-            assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shardId)), equalTo(Map.of(1, 2)));
+            assertThat(
+                SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, key -> key.shardId().equals(shardId)),
+                equalTo(Map.of(1, 2))
+            );
 
             ClusterServiceUtils.setState(
                 clusterService,
@@ -85,9 +88,15 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
             taskQueue.runAllRunnableTasks();
 
             if (expectReset) {
-                assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shardId)), equalTo(Map.of(0, 2)));
+                assertThat(
+                    SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, key -> key.shardId().equals(shardId)),
+                    equalTo(Map.of(0, 2))
+                );
             } else {
-                assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shardId)), equalTo(Map.of(1, 2)));
+                assertThat(
+                    SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, key -> key.shardId().equals(shardId)),
+                    equalTo(Map.of(1, 2))
+                );
             }
         }
     }

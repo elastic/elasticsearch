@@ -1547,19 +1547,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveFillNull(FillNull fillNull, List<Attribute> childrenOutput) {
-            if (fillNull.targetFields().isEmpty()) {
-                return fillNull;
-            }
-            List<Attribute> resolved = new ArrayList<>(fillNull.targetFields().size());
-            for (Attribute attr : fillNull.targetFields()) {
-                if (attr instanceof UnresolvedAttribute ua) {
-                    Attribute resolvedAttr = maybeResolveAttribute(ua, childrenOutput);
-                    resolved.add(resolvedAttr);
-                } else {
-                    resolved.add(attr);
+            FillNull result = fillNull;
+            if (fillNull.targetFields().isEmpty() == false) {
+                List<Attribute> resolved = new ArrayList<>(fillNull.targetFields().size());
+                for (Attribute attr : fillNull.targetFields()) {
+                    if (attr instanceof UnresolvedAttribute ua) {
+                        resolved.add(maybeResolveAttribute(ua, childrenOutput));
+                    } else {
+                        resolved.add(attr);
+                    }
                 }
+                result = fillNull.withTargetFields(resolved);
             }
-            return fillNull.withTargetFields(resolved);
+            // Materialize the fill aliases (col = COALESCE(col, default)) as proper NodeInfo state, exactly once,
+            // as soon as the inputs are resolved. This runs in the same post-order ResolveRefs pass that builds the
+            // command's output, so downstream consumers in this pass (resolveKeep, resolveFork, ...) see the filled
+            // schema, and later attribute rewrites (ResolveUnionTypes, UnionTypesCleanup) transform the Coalesce
+            // attributes through the standard tree-transform machinery.
+            if (result.fields() == null && result.inputsResolved()) {
+                result = result.materialize(childrenOutput);
+            }
+            return result;
         }
 
         private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, AnalyzerContext context) {

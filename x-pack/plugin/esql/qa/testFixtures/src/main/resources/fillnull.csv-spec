@@ -686,3 +686,69 @@ c:long | unmapped_message:keyword
 1       | Disconnected from 10.1.0.3
 3       | Disconnection error
 ;
+
+fillNullThenRenameFilledField
+required_capability: fillnull
+
+// EVAL a = a::keyword shadows a, moving it after b, so the column order here is [b, a] -> [b, c].
+ROW a = null, b = 1
+| EVAL a = a::keyword
+| FILLNULL WITH "x" a
+| RENAME a AS c
+;
+
+b:integer | c:keyword
+1          | x
+;
+
+fillNullAllFieldsThenDropFilledField
+required_capability: fillnull
+
+// EVAL shadows a and b, moving them after c, so the column order is [c, a, b]; DROP b leaves [c, a].
+ROW a = null, b = null, c = 3
+| EVAL a = a::keyword, b = b::keyword
+| FILLNULL WITH "x"
+| DROP b
+;
+
+c:integer | a:keyword
+3          | x
+;
+
+fillNullFilledFieldInScalarFunction
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL WITH "hello" a
+| EVAL n = LENGTH(a)
+;
+
+a:keyword | n:integer
+hello      | 5
+;
+
+fillNullChainedOnSameFieldSecondIsNoOp
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL WITH "first" a
+| FILLNULL WITH "second" a
+;
+
+a:keyword
+first
+;
+
+fillNullAllFieldsMixedTypeDefaults
+required_capability: fillnull
+
+ROW i = null, l = null, d = null, k = null, b = null
+| EVAL i = i::integer, l = l::long, d = d::double, k = k::keyword, b = b::boolean
+| FILLNULL
+;
+
+i:integer | l:long | d:double | k:keyword | b:boolean
+0          | 0      | 0.0      |           | false
+;

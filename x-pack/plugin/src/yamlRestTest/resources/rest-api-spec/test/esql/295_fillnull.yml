@@ -54,6 +54,24 @@ setup:
                 type: integer
               message:
                 type: keyword
+  #
+  # A third index with client_ip = keyword. It participates in the union with events_ip (ip) so the field
+  # stays union-typed, but one of its documents leaves client_ip unset so that, after `::keyword`, that row
+  # is genuinely null and FILLNULL has something to fill.
+  #
+  - do:
+      indices.create:
+        index: events_extra_keyword
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              event_id:
+                type: integer
+              message:
+                type: keyword
+              client_ip:
+                type: keyword
   - do:
       bulk:
         refresh: true
@@ -62,6 +80,10 @@ setup:
           - '{"event_id": 1, "message": "ok", "client_ip": "10.0.0.1"}'
           - '{"index": {"_index": "events_keyword"}}'
           - '{"event_id": 2, "message": "ok", "client_ip": "10.0.0.2"}'
+          - '{"index": {"_index": "events_extra_keyword"}}'
+          - '{"event_id": 3, "message": "ok", "client_ip": "10.0.0.3"}'
+          - '{"index": {"_index": "events_extra_keyword"}}'
+          - '{"event_id": 4, "message": "no ip"}'
           - '{"index": {"_index": "events_partial"}}'
           - '{"event_id": 10, "message": "first", "extra_tag": "alpha"}'
           - '{"index": {"_index": "events_partial"}}'
@@ -79,23 +101,6 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Cannot use field [client_ip]' }
-
----
-'fillnull on a union typed field cast to keyword is allowed':
-  # Casting the conflicting client_ip to keyword resolves the union type before FILLNULL, so targeting
-  # the cast column is allowed: it is a reference attribute produced by EVAL and filled via Coalesce.
-  # Both rows have a value, so FILLNULL is a no-op on the data; it must preserve type and content.
-  - do:
-      esql.query:
-        body:
-          query: 'FROM events_ip,events_keyword | EVAL client_ip = client_ip::keyword | FILLNULL WITH "missing" client_ip | KEEP event_id, client_ip | SORT event_id | LIMIT 100'
-  - match: { columns.0.name: event_id }
-  - match: { columns.0.type: integer }
-  - match: { columns.1.name: client_ip }
-  - match: { columns.1.type: keyword }
-  - length: { values: 2 }
-  - match: { values.0: [ 1, "10.0.0.1" ] }
-  - match: { values.1: [ 2, "10.0.0.2" ] }
 
 ---
 'fillnull on a non-union aliased field after cross-index query':
@@ -216,3 +221,25 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [ 10, 'first', null ] }
   - match: { values.1: [ 11, 'second', null ] }
+
+---
+'fillnull on a union typed field cast to keyword is allowed':
+  # Regression for the surrogate's union-type handling: client_ip is union-typed (ip vs keyword) across the
+  # indices, but casting it with `::keyword` resolves the conflict before FILLNULL sees it. FILLNULL then
+  # rewrites the (now keyword) reference attribute. The fill aliases live in NodeInfo, so ResolveUnionTypes /
+  # UnionTypesCleanup rewrite the attributes inside the COALESCE consistently; previously this threw an
+  # "optimized incorrectly ... missing references" error because the aliases were cached outside the plan tree.
+  # event_id 4 has no client_ip, so after the cast it is null and is actually filled with "missing".
+  - do:
+      esql.query:
+        body:
+          query: 'FROM events_ip,events_keyword,events_extra_keyword | EVAL client_ip = client_ip::keyword | FILLNULL WITH "missing" client_ip | KEEP event_id, client_ip | SORT event_id | LIMIT 100'
+  - match: { columns.0.name: event_id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: client_ip }
+  - match: { columns.1.type: keyword }
+  - length: { values: 4 }
+  - match: { values.0: [ 1, '10.0.0.1' ] }
+  - match: { values.1: [ 2, '10.0.0.2' ] }
+  - match: { values.2: [ 3, '10.0.0.3' ] }
+  - match: { values.3: [ 4, 'missing' ] }

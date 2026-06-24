@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -24,8 +25,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -41,19 +44,41 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * <p>
  * A filled column becomes a reference attribute (as with {@code EVAL col = COALESCE(col, ...)}),
  * so full-text functions and Lucene filter pushdown no longer treat it as an indexed field.
+ * <p>
+ * The fill aliases are modeled exactly like {@link Eval#fields()}: they are materialized once
+ * during analysis (see {@code Analyzer.ResolveRefs#resolveFillNull}) and stored as proper
+ * {@link NodeInfo} state. This keeps {@link #output()} a pure schema derivation and lets the
+ * standard analyzer transforms (e.g. {@code ResolveUnionTypes}, {@code UnionTypesCleanup}) rewrite
+ * the attributes inside the {@link Coalesce} expressions, which is what a hand-rolled lazy cache
+ * could not do.
  */
 public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
 
     private final @Nullable Expression fillValue;
     private final List<Attribute> targetFields;
+    /**
+     * The {@code col = COALESCE(col, default)} aliases produced by this command, or {@code null} until
+     * they are materialized during analysis. Empty means there is nothing to fill (the command is a no-op).
+     */
+    private final @Nullable List<Alias> fields;
 
-    private List<Alias> lazyAliases;
     private List<Attribute> lazyOutput;
 
     public FillNull(Source source, LogicalPlan child, @Nullable Expression fillValue, List<Attribute> targetFields) {
+        this(source, child, fillValue, targetFields, null);
+    }
+
+    public FillNull(
+        Source source,
+        LogicalPlan child,
+        @Nullable Expression fillValue,
+        List<Attribute> targetFields,
+        @Nullable List<Alias> fields
+    ) {
         super(source, child);
         this.fillValue = fillValue;
         this.targetFields = targetFields;
+        this.fields = fields;
     }
 
     @Nullable
@@ -65,19 +90,45 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         return targetFields;
     }
 
+    @Nullable
+    public List<Alias> fields() {
+        return fields;
+    }
+
     @Override
     public List<Attribute> output() {
-        if (expressionsResolved() == false) {
+        if (fields == null) {
+            // Not yet materialized (only happens transiently during analysis): the schema is unchanged.
             return child().output();
         }
         if (lazyOutput == null) {
-            computeSurrogateInfo();
+            // Replace each filled column with its alias attribute in place, preserving the original column order.
+            // (mergeOutputAttributes would move shadowed columns to the end, which FILLNULL must not do.)
+            Map<String, Attribute> filled = new HashMap<>(fields.size());
+            for (Alias field : fields) {
+                filled.put(field.name(), field.toAttribute());
+            }
+            List<Attribute> childOutput = child().output();
+            List<Attribute> output = new ArrayList<>(childOutput.size());
+            for (Attribute attr : childOutput) {
+                Attribute replacement = filled.get(attr.name());
+                output.add(replacement != null ? replacement : attr);
+            }
+            lazyOutput = output;
         }
         return lazyOutput;
     }
 
     @Override
-    public boolean expressionsResolved() {
+    protected AttributeSet computeReferences() {
+        return fields == null ? AttributeSet.EMPTY : Eval.computeReferences(fields);
+    }
+
+    /**
+     * Whether the command inputs (the fill value and target fields) are resolved. Distinct from
+     * {@link #expressionsResolved()}, which additionally requires the fill aliases to be materialized.
+     */
+    public boolean inputsResolved() {
         if (fillValue != null && fillValue.resolved() == false) {
             return false;
         }
@@ -90,33 +141,50 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
     }
 
     @Override
+    public boolean expressionsResolved() {
+        // Keep the node "unresolved" until the fill aliases are materialized, so that ResolveRefs (which skips
+        // already-resolved nodes) is guaranteed to run resolveFillNull and build them - including for the
+        // all-fields form `... | FILLNULL`, which has no unresolved target attributes to begin with.
+        return inputsResolved() && fields != null;
+    }
+
+    @Override
     public FillNull replaceChild(LogicalPlan newChild) {
-        FillNull copy = new FillNull(source(), newChild, fillValue, targetFields);
-        // Once this FillNull's output() has been observed (e.g. by Analyzer.resolveFork or any plan rewrite that
-        // builds a Project on top of it), the assigned alias NameIds are baked into upstream plan nodes.
-        // Recomputing them after a child substitution would allocate fresh NameIds and break those upstream
-        // references. Propagate the cached surrogate state when the new child preserves the same output identity
-        // (which is the contract of surrogate substitution and most child rewrites).
-        if (lazyAliases != null && lazyOutput != null && child().outputSet().equals(newChild.outputSet())) {
-            copy.lazyAliases = lazyAliases;
-            copy.lazyOutput = lazyOutput;
-        }
-        return copy;
+        return new FillNull(source(), newChild, fillValue, targetFields, fields);
     }
 
     public FillNull withTargetFields(List<Attribute> newTargetFields) {
-        return new FillNull(source(), child(), fillValue, newTargetFields);
+        return new FillNull(source(), child(), fillValue, newTargetFields, fields);
+    }
+
+    /**
+     * Builds the fill aliases against the given (resolved) child output and returns a copy carrying them.
+     * Invoked once during analysis. The aliases reference the same child attributes that {@link #output()}
+     * and {@link #surrogate()} build on, so later attribute rewrites stay consistent.
+     */
+    public FillNull materialize(List<Attribute> childOutput) {
+        List<Attribute> fieldsToFill = targetFields.isEmpty() ? childOutput : targetFields;
+        Set<String> fillNames = new HashSet<>(fieldsToFill.size());
+        for (Attribute a : fieldsToFill) {
+            fillNames.add(a.name());
+        }
+
+        List<Alias> built = new ArrayList<>(fieldsToFill.size());
+        for (Attribute field : childOutput) {
+            if (fillNames.contains(field.name())) {
+                Expression defaultValue = resolveDefaultValue(field.dataType());
+                if (defaultValue != null) {
+                    Coalesce coalesce = new Coalesce(field.source(), field, List.of(defaultValue));
+                    built.add(new Alias(field.source(), field.name(), coalesce));
+                }
+            }
+        }
+        return new FillNull(source(), child(), fillValue, targetFields, built);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(
-            this,
-            (source, child, fillValue, targetFields) -> new FillNull(source, child, fillValue, targetFields),
-            child(),
-            fillValue,
-            targetFields
-        );
+        return NodeInfo.create(this, FillNull::new, child(), fillValue, targetFields, fields);
     }
 
     @Override
@@ -131,7 +199,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fillValue, targetFields);
+        return Objects.hash(super.hashCode(), fillValue, targetFields, fields);
     }
 
     @Override
@@ -143,7 +211,10 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             return false;
         }
         FillNull other = (FillNull) obj;
-        return super.equals(obj) && Objects.equals(fillValue, other.fillValue) && Objects.equals(targetFields, other.targetFields);
+        return super.equals(obj)
+            && Objects.equals(fillValue, other.fillValue)
+            && Objects.equals(targetFields, other.targetFields)
+            && Objects.equals(fields, other.fields);
     }
 
     @Override
@@ -173,42 +244,12 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     @Override
     public LogicalPlan surrogate() {
-        computeSurrogateInfo();
-        if (lazyAliases.isEmpty()) {
+        if (fields == null || fields.isEmpty()) {
+            // Nothing to fill (no fillable columns, or fields not materialized): drop the command.
             return child();
         }
-        Eval eval = new Eval(source(), child(), lazyAliases);
-        return new Project(source(), eval, lazyOutput);
-    }
-
-    private void computeSurrogateInfo() {
-        if (lazyAliases != null) {
-            return;
-        }
-        List<Attribute> fieldsToFill = targetFields.isEmpty() ? child().output() : targetFields;
-        Set<String> fillNames = new HashSet<>(fieldsToFill.size());
-        for (Attribute a : fieldsToFill) {
-            fillNames.add(a.name());
-        }
-
-        lazyAliases = new ArrayList<>(fieldsToFill.size());
-        List<Attribute> output = new ArrayList<>(child().output().size());
-
-        for (Attribute field : child().output()) {
-            if (fillNames.contains(field.name())) {
-                Expression defaultValue = resolveDefaultValue(field.dataType());
-                if (defaultValue != null) {
-                    Coalesce coalesce = new Coalesce(field.source(), field, List.of(defaultValue));
-                    Alias alias = new Alias(field.source(), field.name(), coalesce);
-                    lazyAliases.add(alias);
-                    output.add(alias.toAttribute());
-                    continue;
-                }
-            }
-            output.add(field);
-        }
-
-        lazyOutput = output;
+        Eval eval = new Eval(source(), child(), fields);
+        return new Project(source(), eval, output());
     }
 
     @Nullable
@@ -234,12 +275,14 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             if (fillType == type) {
                 return fillValue;
             }
-            // Coalesce requires all branches to share an exact dataType. When the user-supplied
-            // fill value is type-compatible with the target column but not exactly the same type
-            // (e.g. INTEGER fill into a LONG column), convert the literal value once at plan time.
+            // The fill value is type-compatible with the column but not the same type
+            // (e.g. INTEGER fill into a LONG column), so convert the literal once at plan time.
+            // Coalesce compares branch types via noText() and string literals are always KEYWORD,
+            // so a TEXT column takes a KEYWORD literal (matching defaultForType).
             if (DataType.areCompatible(fillType, type) && fillValue instanceof Literal lit) {
-                Object converted = DataTypeConverter.convert(lit.value(), type);
-                return new Literal(lit.source(), converted, type);
+                DataType literalType = type.noText();
+                Object converted = DataTypeConverter.convert(lit.value(), literalType);
+                return new Literal(lit.source(), converted, literalType);
             }
             return null;
         }

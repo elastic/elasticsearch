@@ -10156,16 +10156,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * Regression test for chained FILLNULL inside a FORK branch. The bug:
+     * Regression test for chained FILLNULL inside a FORK branch. Historically this threw "missing references"
+     * because FILLNULL built its fill aliases lazily and cached them outside NodeInfo, so a child rewrite
+     * (replaceChild during SubstituteSurrogatePlans) could recompute alias NameIds afresh while the analyzer
+     * had already wired the FORK branch's per-branch Project to the original NameIds.
      *
-     * SubstituteSurrogatePlans walks UP. When it processes the inner FILLNULL, the outer FILLNULL's child
-     * changes (replaceChild). The outer FILLNULL's surrogate cache was implicitly reset, so its surrogate
-     * recomputed alias NameIds afresh - but the analyzer had already wired the FORK branch's per-branch
-     * Project to the original NameIds. The PlanConsistencyChecker then flagged "missing references"
-     * because the upstream Project pointed to ids that no longer existed in the rewritten subtree.
-     *
-     * Fix: FillNull.replaceChild propagates the cached surrogate state when the new child preserves the
-     * same output identity, so substitution does not invalidate previously committed NameIds.
+     * Fix: FILLNULL now models its fill aliases as proper NodeInfo state (materialized once during analysis,
+     * like Eval.fields), so replaceChild simply re-parents them and NameIds stay stable across substitution.
      */
     public void testFillNullChainedWithFork() {
         assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
@@ -10187,8 +10184,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /*
      * Plain chained FILLNULL without FORK - the surrogate skill's mandatory chained-instance regression.
      * Substitution rewrites the inner FILLNULL first, then replaceChild re-parents the outer one onto the
-     * substituted subtree. The cached surrogate NameIds must survive so plan() (which invokes the
-     * PostOptimizationPhasePlanVerifier) does not flag missing references.
+     * substituted subtree. The materialized fill aliases (NodeInfo state) must survive so plan() (which invokes
+     * the PostOptimizationPhasePlanVerifier) does not flag missing references.
      */
     public void testFillNullChained() {
         assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());

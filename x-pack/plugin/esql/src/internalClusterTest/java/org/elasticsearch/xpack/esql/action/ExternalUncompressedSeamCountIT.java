@@ -120,7 +120,11 @@ public class ExternalUncompressedSeamCountIT extends AbstractEsqlIntegTestCase {
         for (int f = 0; f < 3; f++) {
             total += writeVarWidthCsv(dir.resolve("part-" + f + ".csv"), total, 3_500_000, true);
         }
-        assertExactCount(globUri(dir, "*.csv"), "\"header_row\":false,\"error_mode\":\"null_field\",\"target_split_size\":\"256mb\"", total);
+        assertExactCount(
+            globUri(dir, "*.csv"),
+            "\"header_row\":false,\"error_mode\":\"null_field\",\"target_split_size\":\"256mb\"",
+            total
+        );
     }
 
     private void assertExactCount(String globUri, String withOptions, long total) throws Exception {

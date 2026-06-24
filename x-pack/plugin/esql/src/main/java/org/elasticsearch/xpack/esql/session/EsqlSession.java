@@ -72,7 +72,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
@@ -184,6 +184,7 @@ public class EsqlSession {
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
+    private final DatasetResolver datasetResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
     private final EsqlParser parser;
@@ -249,6 +250,7 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
+        DatasetResolver datasetResolver,
         ExternalSourceResolver externalSourceResolver,
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
@@ -269,6 +271,7 @@ public class EsqlSession {
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
+        this.datasetResolver = datasetResolver;
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
@@ -1208,13 +1211,25 @@ public class EsqlSession {
 
         TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
         datasetResolutionProfile.start();
-        // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
-        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
-        // expansion (wildcards, exclusions, date math, etc.) flows through the same
-        // IndexNameExpressionResolver path indices use. The rewriter bails internally when there are
-        // no datasets registered (the feature flag gates the CRUD layer that puts datasets there).
-        parsed = DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
-        datasetResolutionProfile.stop();
+        // Rewrite FROM <dataset> targets into UnresolvedExternalRelation so analysis treats them like the inline
+        // EXTERNAL command. The resolver first read-authorizes the names through the security filter — they are
+        // stripped from the plan here and would otherwise never reach authorization. Completes synchronously when
+        // no FROM pattern can match a registered dataset.
+        datasetResolver.replaceDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
+            datasetResolutionProfile.stop();
+            analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+        }));
+    }
+
+    private void analyzedPlanAfterDatasetResolution(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
+    ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);

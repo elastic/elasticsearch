@@ -196,10 +196,26 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
 
     public void testCounterTemporality() throws Exception {
         long now = Clock.getDefault().now();
+        long interval = TimeUnit.SECONDS.toNanos(10);
+        // Export 3 data points at different timestamps for each counter.
+        // Cumulative: 10, 30, 60 (monotonically increasing running total)
+        // Delta: 10, 20, 30 (per-interval increments)
         export(
             List.of(
-                createCounter(TEST_RESOURCE, Attributes.empty(), "cumulative_counter", 42, "By", now, CUMULATIVE, MONOTONIC),
-                createCounter(TEST_RESOURCE, Attributes.empty(), "delta_counter", 42, "By", now, DELTA, MONOTONIC)
+                createCounter(TEST_RESOURCE, Attributes.empty(), "cumulative_counter", 10, "By", now - 2 * interval, CUMULATIVE, MONOTONIC),
+                createCounter(TEST_RESOURCE, Attributes.empty(), "delta_counter", 10, "By", now - 2 * interval, DELTA, MONOTONIC)
+            )
+        );
+        export(
+            List.of(
+                createCounter(TEST_RESOURCE, Attributes.empty(), "cumulative_counter", 30, "By", now - interval, CUMULATIVE, MONOTONIC),
+                createCounter(TEST_RESOURCE, Attributes.empty(), "delta_counter", 20, "By", now - interval, DELTA, MONOTONIC)
+            )
+        );
+        export(
+            List.of(
+                createCounter(TEST_RESOURCE, Attributes.empty(), "cumulative_counter", 160, "By", now, CUMULATIVE, MONOTONIC),
+                createCounter(TEST_RESOURCE, Attributes.empty(), "delta_counter", 30, "By", now, DELTA, MONOTONIC)
             )
         );
 
@@ -209,19 +225,35 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(evaluate(metrics, "delta_counter.type"), equalTo("long"));
         assertThat(evaluate(metrics, "delta_counter.time_series_metric"), equalTo("counter"));
 
-        Request esqlRequest = new Request("POST", "/_query");
-        esqlRequest.setJsonEntity("""
+        // Verify temporality is stored as a TSID dimension
+        Request tsInfoRequest = new Request("POST", "/_query");
+        tsInfoRequest.setJsonEntity("""
             {
                 "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name | LIMIT 100"
             }
             """);
-        ObjectPath esqlResponse = ObjectPath.createFromResponse(client().performRequest(esqlRequest));
-        List<List<Object>> values = esqlResponse.evaluate("values");
-        assertThat(values.size(), equalTo(2));
-        assertThat((String) values.get(0).get(0), equalTo("metrics.cumulative_counter"));
-        assertThat((String) values.get(0).get(1), containsString("\"temporality\":\"cumulative\""));
-        assertThat((String) values.get(1).get(0), equalTo("metrics.delta_counter"));
-        assertThat((String) values.get(1).get(1), containsString("\"temporality\":\"delta\""));
+        ObjectPath tsInfoResponse = ObjectPath.createFromResponse(client().performRequest(tsInfoRequest));
+        List<List<Object>> tsInfoValues = tsInfoResponse.evaluate("values");
+        assertThat(tsInfoValues.size(), equalTo(2));
+        assertThat((String) tsInfoValues.get(0).get(0), equalTo("metrics.cumulative_counter"));
+        assertThat((String) tsInfoValues.get(0).get(1), containsString("\"temporality\":\"cumulative\""));
+        assertThat((String) tsInfoValues.get(1).get(0), equalTo("metrics.delta_counter"));
+        assertThat((String) tsInfoValues.get(1).get(1), containsString("\"temporality\":\"delta\""));
+
+        // Verify that the index.time_series.temporality_field setting is actually set up correctly
+        // by running a temporality dependent ES|QL query
+        Request increaseRequest = new Request("POST", "/_query");
+        increaseRequest.setJsonEntity("""
+            {
+                "query": "TS metrics-generic.otel-default \
+                    | STATS cumulative = SUM(increase(metrics.cumulative_counter)), delta = SUM(increase(metrics.delta_counter))"
+            }
+            """);
+        ObjectPath increaseResponse = ObjectPath.createFromResponse(client().performRequest(increaseRequest));
+        List<List<Object>> increaseValues = increaseResponse.evaluate("values");
+        assertThat(increaseValues.size(), equalTo(1));
+        assertThat(((Number) increaseValues.get(0).get(0)).longValue(), equalTo(150L));
+        assertThat(((Number) increaseValues.get(0).get(1)).longValue(), equalTo(50L));
     }
 
     public void testCounterMonotonicity() throws Exception {

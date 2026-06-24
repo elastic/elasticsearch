@@ -290,10 +290,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
      */
     public void asyncResetAccessCounts(ShardId shardId, Predicate<ShardId> shouldReset) {
         submitAsyncEviction(() -> {
-            if (shouldReset.test(shardId) == false) {
-                return;
+            if (shouldReset.test(shardId)) {
+                resetAccessCounts(shardId);
             }
-            resetAccessCounts(shardId);
         });
     }
 }

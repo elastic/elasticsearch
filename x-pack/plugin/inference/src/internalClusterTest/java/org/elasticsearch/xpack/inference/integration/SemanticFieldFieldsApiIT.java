@@ -85,7 +85,6 @@ public class SemanticFieldFieldsApiIT extends ESIntegTestCase {
 
     @After
     public void cleanUp() {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         IntegrationTestUtils.deleteIndex(client(), indexName);
         IntegrationTestUtils.deleteInferenceEndpoint(client(), TaskType.EMBEDDING, INFERENCE_ID);
     }

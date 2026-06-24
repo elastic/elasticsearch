@@ -309,6 +309,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS,
 
         /**
+         * Fix for a {@code ClassCastException} when an explicitly cast or implicitly widened partially unmapped small numeric field.
+         * See https://github.com/elastic/elasticsearch/issues/151525.
+         */
+        OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_SMALL_NUMERIC,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -2383,6 +2389,12 @@ public class EsqlCapabilities {
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION,
 
         /**
+         * Fix stale row-stride reader state when a conditional block loader uses column-at-a-time loading after row-stride loading
+         * across segments.
+         */
+        FIX_VALUES_READER_STALE_ROW_STRIDE_READER,
+
+        /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction} with null value with an
          * {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.
@@ -2612,6 +2624,14 @@ public class EsqlCapabilities {
          * this capability rather than on {@link #EXTERNAL_COMMAND}.
          */
         EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Standard ES metadata columns ({@code _id}, {@code _index}, {@code _version}, {@code _source}, ...)
+         * accepted in the {@code METADATA} clause of external-dataset {@code FROM}. Pre-feature
+         * coordinators reject the names with {@code Unknown column}; tests exercising these columns
+         * gate on this capability.
+         */
+        EXTERNAL_SOURCE_STANDARD_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
@@ -3044,6 +3064,11 @@ public class EsqlCapabilities {
         FIX_REORDER_LIMIT_PROJECT_AND_ORDER_BY_PRESERVES_REFS,
 
         /**
+         * Supports the {@code IP_LOCATION} command.
+         */
+        IP_LOCATION_COMMAND,
+
+        /**
          * Support query approximation with FORK and subqueries.
          */
         APPROXIMATION_FORK(Build.current().isSnapshot()),
@@ -3058,6 +3083,18 @@ public class EsqlCapabilities {
          * Support FIRST and EARLIEST aggregation on the remaining types: dense_vector, exponential_histogram, tdigest.
          */
         FIRST_AGG_EXTENDED_TYPES_2,
+
+        /**
+         * Support FIRST and EARLIEST aggregation on the flattened data type.
+         */
+        FIRST_AGG_EXTENDED_TYPES_3,
+
+        /**
+         * FUSE uses FIRST(col, NULL) instead of VALUES for passthrough columns,
+         * enabling dense_vector, exponential_histogram, and tdigest fields to
+         * flow through FORK + FUSE hybrid-search pipelines.
+         */
+        FUSE_PASSTHROUGH_WITH_FIRST,
 
         /**
          * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
@@ -3136,6 +3173,11 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MV_FUNCTIONS,
 
         /**
+         * Support for PromQL {@code histogram_count()}, {@code histogram_sum()} and {@code histogram_avg()} on native histograms.
+         */
+        PROMQL_HISTOGRAM_SUM_COUNT_AVG,
+
+        /**
          * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
          * throws "not implemented yet". Snapshot-only.
          */
@@ -3156,6 +3198,14 @@ public class EsqlCapabilities {
          * child output.
          */
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
+
+        /**
+         * Fix for PromQL {@code without} and ES|QL {@code TS_WITHOUT}: passthrough alias names (e.g. OTel
+         * {@code cpu} for the concrete dimension {@code attributes.cpu}) are now correctly resolved in the
+         * {@code _timeseries} block loader so excluded labels are actually removed from the series key.
+         * https://github.com/elastic/elasticsearch/issues/151540
+         */
+        FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

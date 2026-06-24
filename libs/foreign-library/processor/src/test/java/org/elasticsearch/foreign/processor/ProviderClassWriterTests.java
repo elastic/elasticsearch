@@ -47,7 +47,7 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
 
         // libraryClass() must return the interface Class object
         java.lang.reflect.Method libraryClassMethod = providerClass.getMethod("libraryClass");
-        Object providerInstance = providerClass.getDeclaredConstructor().newInstance();
+        Object providerInstance = providerClass.getConstructor().newInstance();
         Class<?> returned = (Class<?>) libraryClassMethod.invoke(providerInstance);
         assertEquals("libraryClass() must return the annotated interface", "test.MyLib", returned.getName());
     }

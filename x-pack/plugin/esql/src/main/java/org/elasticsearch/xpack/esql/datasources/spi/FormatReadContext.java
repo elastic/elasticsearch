@@ -43,12 +43,23 @@ import java.util.List;
  *                         {@link FormatReader#withSchema}, which carries the projection. Empty
  *                         list and {@code null} both mean "no schema"; the compact constructor
  *                         collapses empty to {@code null} so readers do one check.
+ * @param splitStartByte   file-global byte offset at which this split begins (i.e. {@code FileSplit.offset()}).
+ *                         Text readers add the bytes they consume to this anchor to emit a file-global,
+ *                         split-invariant start byte per record for the {@code _rowPosition} channel
+ *                         (the substrate of {@code _file.record_ref} / {@code _id}). {@code 0} for the
+ *                         whole-file (non-split) case and for columnar formats, which derive a file-global
+ *                         row index from their own footer/stripe metadata rather than from a byte anchor.
+ *                         <p>Note: this denotes the same file-global base offset that {@code statsBaseOffset}
+ *                         carries for the canonical-stripe overlay. They are threaded separately today but
+ *                         are one quantity — a candidate for unification (see the external-source caching
+ *                         architecture notes).
  * @param maxRecordBytes   maximum bytes a single text record may occupy while split/trim code
  *                         scans for a record boundary.
  * @param statsBaseOffset  the byte offset (file / decompressed-stream coordinate) of this read's first
  *                         byte, used by the reader to address records to canonical stripes
  *                         ({@code ordinal = floor((statsBaseOffset + recordOffsetInRead) / statsStripeSize)}).
- *                         Ignored when {@code statsStripeSize <= 0}.
+ *                         Ignored when {@code statsStripeSize <= 0}. Denotes the same quantity as
+ *                         {@code splitStartByte} (see its note).
  * @param statsStripeSize  canonical-stripe grid in bytes for per-stripe stats attribution, or
  *                         {@code <= 0} to disable stripe addressing (the reader then emits no
  *                         stripe-addressed contributions and the warm short-circuit safe-misses). A
@@ -69,6 +80,7 @@ public record FormatReadContext(
     boolean lastSplit,
     boolean recordAligned,
     @Nullable List<Attribute> readSchema,
+    long splitStartByte,
     int maxRecordBytes,
     long statsBaseOffset,
     long statsStripeSize,
@@ -113,6 +125,7 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
+            splitStartByte,
             maxRecordBytes,
             statsBaseOffset,
             statsStripeSize,
@@ -131,6 +144,7 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
+            splitStartByte,
             maxRecordBytes,
             baseOffset,
             stripeSize,
@@ -151,6 +165,7 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
+            splitStartByte,
             maxRecordBytes,
             statsBaseOffset,
             statsStripeSize,
@@ -171,6 +186,7 @@ public record FormatReadContext(
             last,
             recordAligned,
             readSchema,
+            splitStartByte,
             maxRecordBytes,
             statsBaseOffset,
             statsStripeSize,
@@ -195,6 +211,7 @@ public record FormatReadContext(
         private boolean recordAligned = false;
         @Nullable
         private List<Attribute> readSchema = null;
+        private long splitStartByte = 0L;
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private long statsBaseOffset = 0L;
         private long statsStripeSize = -1L;
@@ -247,6 +264,12 @@ public record FormatReadContext(
             return this;
         }
 
+        /** See {@link FormatReadContext#splitStartByte()}; the file-global byte offset of this split's start. */
+        public Builder splitStartByte(long splitStartByte) {
+            this.splitStartByte = splitStartByte;
+            return this;
+        }
+
         public Builder maxRecordBytes(int maxRecordBytes) {
             this.maxRecordBytes = maxRecordBytes;
             return this;
@@ -279,6 +302,7 @@ public record FormatReadContext(
                 lastSplit,
                 recordAligned,
                 readSchema,
+                splitStartByte,
                 maxRecordBytes,
                 statsBaseOffset,
                 statsStripeSize,

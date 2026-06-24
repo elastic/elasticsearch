@@ -109,6 +109,7 @@ public final class StreamingParallelParsingCoordinator {
             executor,
             errorPolicy,
             null,
+            0L,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             null,
             -1L
@@ -116,6 +117,16 @@ public final class StreamingParallelParsingCoordinator {
     }
 
     /**
+     * Variant that propagates the planner-resolved {@code readSchema}. Mirrors the same parameter on
+     * {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread it so multi-file
+     * globs over gzip/zstd/bz2 inputs honor the planner's typing instead of re-inferring per file.
+     * Pass {@code null} when no read schema is bound.
+     *
+     * @param baseFileOffset file-global byte offset added to each chunk's decompressed start byte before it
+     *                       is handed to the reader as {@link FormatReadContext#splitStartByte()}. Stream-only
+     *                       compressed inputs are not macro-split, so this is {@code 0}; the decompressed
+     *                       cumulative offset is the logical file-global offset on its own.
+     * <p>
      * Full-control overload that takes both the {@code max_record_size} grow-loop bound and an
      * explicit consumer-owned {@code captureSink} for per-chunk source-stats contributions. Each
      * chunk is parsed on a worker thread; this coordinator binds {@code captureSink} on that worker
@@ -136,6 +147,7 @@ public final class StreamingParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy,
         @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
         int maxRecordBytes,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize
@@ -156,6 +168,7 @@ public final class StreamingParallelParsingCoordinator {
                 .batchSize(batchSize)
                 .errorPolicy(effectivePolicy)
                 .readSchema(readSchema)
+                .splitStartByte(baseFileOffset)
                 .maxRecordBytes(maxRecordBytes)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
@@ -171,6 +184,7 @@ public final class StreamingParallelParsingCoordinator {
             executor,
             effectivePolicy,
             readSchema,
+            baseFileOffset,
             maxRecordBytes,
             captureSink,
             statsStripeSize
@@ -198,6 +212,8 @@ public final class StreamingParallelParsingCoordinator {
         /** See {@link FormatReadContext#readSchema()}. {@code null} = per-file inference. */
         @Nullable
         private final List<Attribute> readSchema;
+        /** Added to each chunk's decompressed start byte; see {@link #parallelRead}'s {@code baseFileOffset}. */
+        private final long baseFileOffset;
         /**
          * Consumer-owned per-file stats sink. Captured at construction so each chunk's parser worker
          * can bind it around {@code reader.read(...).close()} — see {@link ExternalStatsCapture} for
@@ -281,6 +297,7 @@ public final class StreamingParallelParsingCoordinator {
             Executor executor,
             ErrorPolicy errorPolicy,
             @Nullable List<Attribute> readSchema,
+            long baseFileOffset,
             int maxRecordBytes,
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             long statsStripeSize
@@ -291,6 +308,7 @@ public final class StreamingParallelParsingCoordinator {
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
             this.readSchema = readSchema;
+            this.baseFileOffset = baseFileOffset;
             this.maxRecordBytes = maxRecordBytes;
             this.captureSink = captureSink;
             this.statsStripeSize = statsStripeSize;
@@ -608,6 +626,7 @@ public final class StreamingParallelParsingCoordinator {
                     .lastSplit(true)
                     .recordAligned(true)
                     .readSchema(readSchema)
+                    .splitStartByte(baseFileOffset + chunk.coverageStart())
                     .maxRecordBytes(maxRecordBytes)
                     .stats(chunk.coverageStart(), statsStripeSize, chunk.last())
                     .build();

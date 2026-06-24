@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -34,6 +37,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,8 +45,11 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end integration for {@code FROM <dataset>}: creates a data source and a dataset via the
@@ -126,10 +133,31 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
      * Names every {@code testXxx} body PUTs. New tests must register their dataset name here so the
      * SUITE-scoped cluster doesn't carry state across methods.
      */
-    private static final Set<String> CREATED_DATASETS = Set.of("employees", "employees_alt", "logs_dataset");
+    private static final Set<String> CREATED_DATASETS = Set.of(
+        "employees",
+        "employees_alt",
+        "logs_dataset",
+        "events_hive",
+        "employees_external"
+    );
+
+    /**
+     * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
+     * cluster requires explicit teardown so views don't leak across methods.
+     */
+    private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view");
 
     @After
     public void cleanupRegistry() throws Exception {
+        for (String view : CREATED_VIEWS) {
+            try {
+                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted by the test itself
+            } catch (Exception e) {
+                logger.warn("view cleanup [{}] failed", view, e);
+            }
+        }
         for (String ds : CREATED_DATASETS) {
             try {
                 client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).get(30, java.util.concurrent.TimeUnit.SECONDS);
@@ -172,6 +200,65 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
             assertThat(rows.get(2).get(0), equalTo(3));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testViewOverExternalDatasetIsQueryable() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+        // The view body targets the dataset. View resolution runs before the dataset rewrite, so it inlines the body
+        // while it is still a plain index-shaped relation; the rewriter then turns the inlined leaf into an external
+        // relation over the CSV fixture. This is the end-to-end realisation of a view "containing" an external source.
+        // There is no index named "employees_external", so the query can only succeed via the external dataset pipeline —
+        // if the inlined leaf were treated as an index it would fail with "unknown index" (see testFromUnknownName...).
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("employees_view", "FROM employees_external")));
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_view | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));
+            assertThat(columns.get(1).name(), equalTo("first_name"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(2).get(0), equalTo(3));
+            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testViewOverExternalDatasetWithTransformInBody() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+        // A non-trivial view body (a WHERE on top of the dataset) proves the external leaf resolves and executes when
+        // it is nested below other commands inside a resolved view, not just as a bare top-level relation.
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                putViewRequest("employees_filtered_view", "FROM employees_external | WHERE emp_no > 1")
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_filtered_view | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(1).get(0), equalTo(3));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
         }
     }
 
@@ -371,10 +458,10 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testFromDatasetWithMetadataFieldsRejected() throws Exception {
-        // Phase 1 rejects METADATA fields on datasets at the rewriter rather than silently dropping.
-        // _index synthesis on datasets is tracked separately; _id / _source / _score have no agreed
-        // semantics yet on external sources.
+    public void testFromDatasetIndexMetadataReturnsDatasetName() throws Exception {
+        // Standard metadata fields are accepted on datasets. For the FROM <dataset> path, _index
+        // resolves to the user-facing dataset name (not the underlying resource path) for every
+        // row, matching the "_index is the dataset name" contract.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -383,12 +470,144 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM employees METADATA _index | KEEP _index | LIMIT 1"), TIMEOUT)
+        // METADATA surfaces _index with no KEEP; it resolves to the dataset name.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must surface without KEEP; got " + names, names, hasItem("_index"));
+            int idx = names.indexOf("_index");
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat(row.get(idx).toString(), equalTo("employees"));
+            }
+        }
+    }
+
+    public void testHivePartitionClaimingReservedNameIsRenamedAndSpecWins() throws Exception {
+        // Standard metadata names are dedicated: a Hive layout claiming /_index=.../ cannot
+        // redefine METADATA _index. End-to-end pin for the rename: _index carries the dataset
+        // name for every row, while the layout's value stays queryable under _partition._index.
+        Path root = createTempDir();
+        Path alpha = Files.createDirectories(root.resolve("_index=alpha"));
+        Files.writeString(alpha.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
+        Path beta = Files.createDirectories(root.resolve("_index=beta"));
+        Files.writeString(beta.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("events_hive", "local_ds", root.toUri() + "**/*.csv", Map.of("format", "csv"))
+            )
         );
-        assertCauseMessageContains(ex, "METADATA fields are not supported on datasets");
-        assertCauseMessageContains(ex, "employees");
+
+        // No KEEP: METADATA _index surfaces _index on its own, and the renamed partition column
+        // _partition._index surfaces as an ordinary data column. Both are found by name, not position.
+        try (var response = run(syncEsqlQueryRequest("FROM events_hive METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must surface without KEEP, got " + names, names, hasItem("_index"));
+            assertThat("renamed partition column must stay queryable, got " + names, names, hasItem("_partition._index"));
+            int indexIdx = names.indexOf("_index");
+            int partitionIdx = names.indexOf("_partition._index");
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            String[] expectedPartition = { "alpha", "alpha", "beta" };
+            for (int i = 0; i < rows.size(); i++) {
+                assertThat("spec-defined _index must carry the dataset name", rows.get(i).get(indexIdx).toString(), equalTo("events_hive"));
+                assertThat(
+                    "layout value stays queryable under the rename",
+                    rows.get(i).get(partitionIdx).toString(),
+                    equalTo(expectedPartition[i])
+                );
+            }
+        }
+    }
+
+    public void testFromDatasetIdMetadataIsOpaqueAndRecordRefCarriesByteOffset() throws Exception {
+        // End-to-end proof of the _id composition path on a non-Parquet format (CSV). The CSV reader
+        // emits each record's file-global byte offset on the _rowPosition channel (splitStartByte +
+        // bytes consumed up to the record's first character), matching NDJSON's shape so the value
+        // is identical regardless of split layout. The raw token stays observable through
+        // _file.record_ref; _id itself is the opaque (location, mtime, token) hash via
+        // ExternalRowIdentity — fixed 32-char base64url, no path leak. The fixture writes
+        // "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n3,Carol\n", so the three sorted rows
+        // sit at byte offsets 34, 42, 48 (header 34 bytes; "1,Alice\n" 8 bytes; "2,Bob\n" 6 bytes).
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        // No KEEP: METADATA _id, _file.record_ref surfaces both on their own; columns found by name.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id, _file.record_ref | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_id must surface without KEEP, got " + names, names, hasItem("_id"));
+            assertThat("_file.record_ref must surface without KEEP, got " + names, names, hasItem("_file.record_ref"));
+            int idIdx = names.indexOf("_id");
+            int refIdx = names.indexOf("_file.record_ref");
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+
+            long[] expectedOffsets = { 34, 42, 48 };
+            Set<String> distinctIds = new HashSet<>();
+            for (int i = 0; i < rows.size(); i++) {
+                String id = rows.get(i).get(idIdx).toString();
+                assertTrue("rendered _id [" + id + "] must be fixed-length base64url", id.matches("[A-Za-z0-9_-]{32}"));
+                assertThat("storage location must not leak into _id [" + id + "]", id, not(containsString("employees")));
+                distinctIds.add(id);
+                assertThat(
+                    "file-global byte offset for row " + i,
+                    ((Number) rows.get(i).get(refIdx)).longValue(),
+                    equalTo(expectedOffsets[i])
+                );
+            }
+            assertThat("all _id values are distinct", distinctIds, hasSize(3));
+        }
+    }
+
+    public void testFromDatasetStandardMetadataNeverFails() throws Exception {
+        // Standing contract: every standard metadata name is accepted, returning a value or SQL NULL,
+        // but never an error. _index carries the dataset name; _version carries the file mtime; the
+        // rest (no relevance scoring, no per-row _ignored, etc.) come back as NULL columns. None may
+        // be dropped and none may crash the query.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        // _tier (DataTierFieldMapper.NAME) is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP;
+        // omit it so the query is valid in non-snapshot builds. _score, _tsid, _size, _ignored,
+        // _index_mode have no value on external rows and must render as NULL columns rather than
+        // being dropped or erroring.
+        String query = "FROM employees METADATA _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+            + "| SORT emp_no "
+            + "| KEEP emp_no, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+            + "| LIMIT 10";
+
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, equalTo(List.of("emp_no", "_index", "_version", "_ignored", "_index_mode", "_tsid", "_size", "_score")));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat("_index is the dataset name", row.get(1).toString(), equalTo("employees"));
+                // _ignored, _index_mode, _tsid, _size, _score have no external value: NULL.
+                assertThat("_ignored is null on external rows", row.get(3), org.hamcrest.Matchers.nullValue());
+                assertThat("_index_mode is null on external rows", row.get(4), org.hamcrest.Matchers.nullValue());
+                assertThat("_tsid is null on external rows", row.get(5), org.hamcrest.Matchers.nullValue());
+                assertThat("_size is null on external rows", row.get(6), org.hamcrest.Matchers.nullValue());
+                assertThat("_score is null on external rows", row.get(7), org.hamcrest.Matchers.nullValue());
+            }
+        }
     }
 
     public void testWildcardSpanningIndexAndDatasetRejected() throws Exception {
@@ -486,5 +705,13 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
         return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
+    }
+
+    private static PutViewAction.Request putViewRequest(String name, String query) {
+        return new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query));
+    }
+
+    private static DeleteViewAction.Request deleteViewRequest(String name) {
+        return new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
     }
 }

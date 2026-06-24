@@ -141,6 +141,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         Function<List<Attribute>, String> fingerprinter,
         boolean chunkMode,
         NdJsonReaderCounters counters,
+        long splitStartByte,
         int maxRecordBytes,
         long statsBaseOffset,
         long statsStripeSize,
@@ -161,13 +162,20 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.statsFileFinal = statsFileFinal;
         InputStream inputStream = object.newStream();
         NdJsonRecordSplitter recordSplitter = new NdJsonRecordSplitter(maxRecordBytes);
-        if (skipFirstLine) {
-            skipToNextLine(inputStream, recordSplitter);
-        }
+        // File-global byte offset of the first byte the decoder will read. When this split starts
+        // mid-record (skipFirstLine), the leading partial record is dropped here, so the first full
+        // record begins splitStartByte + (skipped bytes) — folding the skip in keeps the emitted
+        // _rowPosition / _file.record_ref file-global-correct and split-invariant.
+        long skipped = skipFirstLine ? Math.max(0L, skipToNextLine(inputStream, recordSplitter)) : 0L;
+        long recordOffsetBase = splitStartByte + skipped;
         if (trimLastPartialLine) {
             inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter);
         }
         this.rowLimit = rowLimit;
+        // byte[] path keeps record offsets exact across parse-error recovery (streaming resets the
+        // parser baseline on recovery). Capped at BYTE_ARRAY_FAST_PATH_MAX_SIZE for whole-file
+        // reads of huge unsplit NDJSON; above the cap, fall back to streaming and accept a
+        // possible offset shift on lenient-mode recovery rather than risk unbounded allocation.
         if (canUseByteArrayFastPath(object)) {
             // Strict policy: wrap with the byte-cap stream so an oversized line trips during the single
             // readAllBytes() pull — no second walk over the buffer like the previous enforceMaxRecordBytes
@@ -219,6 +227,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 counters
             );
         }
+        // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
+        this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
         if (this.statsStripeSize > 0) {
             // Tell the decoder to cap each page at the record where the byte offset crosses a stripe
             // line, so a page never straddles a stripe and the iterator can fold it wholly into one
@@ -579,15 +589,16 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      * uniformly; in practice the codec's finish-current-line always ends on {@code '\n'}, so
      * only the LF branch fires, but routing through one implementation removes the coupling.
      */
-    static void skipToNextLine(InputStream stream) throws IOException {
-        skipToNextLine(stream, new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES));
+    static long skipToNextLine(InputStream stream) throws IOException {
+        return skipToNextLine(stream, new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES));
     }
 
-    static void skipToNextLine(InputStream stream, NdJsonRecordSplitter recordSplitter) throws IOException {
+    static long skipToNextLine(InputStream stream, NdJsonRecordSplitter recordSplitter) throws IOException {
         NdJsonRecordSplitter.LineScan scan = recordSplitter.scanForTerminator(stream);
         if (scan.consumed() == RecordSplitter.RECORD_TOO_LARGE) {
             throw recordSplitter.recordTooLargeException();
         }
+        return scan.consumed();
     }
 
     /**

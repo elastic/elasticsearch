@@ -105,7 +105,7 @@ public final class ParallelParsingCoordinator {
         int parallelism,
         Executor executor
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true, null);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true, null, 0L);
     }
 
     /**
@@ -122,7 +122,7 @@ public final class ParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false, true, null);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false, true, null, 0L);
     }
 
     /**
@@ -154,7 +154,8 @@ public final class ParallelParsingCoordinator {
             errorPolicy,
             splitStartsAtRecordBoundary,
             true,
-            null
+            null,
+            0L
         );
     }
 
@@ -187,7 +188,8 @@ public final class ParallelParsingCoordinator {
             errorPolicy,
             splitStartsAtRecordBoundary,
             splitIncludesFileLeader,
-            null
+            null,
+            0L
         );
     }
 
@@ -198,7 +200,11 @@ public final class ParallelParsingCoordinator {
      * on the calling thread). Callers that resolve the {@code max_concurrent_open_segments} pragma
      * or care about cross-thread stats capture use the 12-arg overload.
      *
-     * @param readSchema planner-bound read schema, or {@code null} for per-file inference
+     * @param readSchema     planner-bound read schema, or {@code null} for per-file inference
+     * @param baseFileOffset file-global byte offset of {@code storageObject}'s first byte (i.e. the macro
+     *                       split's {@code FileSplit.offset()}). {@code 0} for whole-file reads. Added to each
+     *                       segment's split-relative offset so readers emit file-global, split-invariant
+     *                       record positions on the {@code _rowPosition} channel.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -210,7 +216,8 @@ public final class ParallelParsingCoordinator {
         ErrorPolicy errorPolicy,
         boolean splitStartsAtRecordBoundary,
         boolean splitIncludesFileLeader,
-        List<Attribute> readSchema
+        List<Attribute> readSchema,
+        long baseFileOffset
     ) throws IOException {
         return parallelRead(
             reader,
@@ -223,8 +230,11 @@ public final class ParallelParsingCoordinator {
             splitStartsAtRecordBoundary,
             splitIncludesFileLeader,
             readSchema,
+            baseFileOffset,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
-            null
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            -1L
         );
     }
 
@@ -304,6 +314,7 @@ public final class ParallelParsingCoordinator {
             splitStartsAtRecordBoundary,
             splitIncludesFileLeader,
             readSchema,
+            0L,
             maxConcurrentOpenSegments,
             captureSink,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
@@ -312,8 +323,9 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters and
-     * the canonical-stripe grid for per-stripe stats attribution ({@code <= 0} disables; pure overlay).
+     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters,
+     * the file-global byte base offset, and the canonical-stripe grid for per-stripe stats attribution
+     * ({@code <= 0} disables; pure overlay).
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -326,6 +338,7 @@ public final class ParallelParsingCoordinator {
         boolean splitStartsAtRecordBoundary,
         boolean splitIncludesFileLeader,
         List<Attribute> readSchema,
+        long baseFileOffset,
         int maxConcurrentOpenSegments,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         int maxRecordBytes,
@@ -355,6 +368,7 @@ public final class ParallelParsingCoordinator {
             .firstSplit(splitIncludesFileLeader)
             .recordAligned(splitStartsAtRecordBoundary)
             .readSchema(readSchema)
+            .splitStartByte(baseFileOffset)
             .maxRecordBytes(maxRecordBytes)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
@@ -379,6 +393,7 @@ public final class ParallelParsingCoordinator {
             effectivePolicy,
             splitIncludesFileLeader,
             readSchema,
+            baseFileOffset,
             captureSink,
             maxRecordBytes,
             statsStripeSize
@@ -499,6 +514,7 @@ public final class ParallelParsingCoordinator {
         private final boolean splitIncludesFileLeader;
         @Nullable
         private final List<Attribute> readSchema;
+        private final long baseFileOffset;
         /**
          * Consumer-owned per-file stats sink. Captured at construction so each segment worker can
          * bind it around {@code reader.read(...).close()} — the text-format readers' close hooks
@@ -545,6 +561,7 @@ public final class ParallelParsingCoordinator {
             ErrorPolicy errorPolicy,
             boolean splitIncludesFileLeader,
             List<Attribute> readSchema,
+            long baseFileOffset,
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             int maxRecordBytes,
             long statsStripeSize
@@ -556,6 +573,7 @@ public final class ParallelParsingCoordinator {
             this.errorPolicy = errorPolicy;
             this.splitIncludesFileLeader = splitIncludesFileLeader;
             this.readSchema = readSchema;
+            this.baseFileOffset = baseFileOffset;
             this.captureSink = captureSink;
             this.maxRecordBytes = maxRecordBytes;
             this.statsStripeSize = statsStripeSize;
@@ -674,6 +692,7 @@ public final class ParallelParsingCoordinator {
                 .lastSplit(lastSplit)
                 .recordAligned(true)
                 .readSchema(readSchema)
+                .splitStartByte(baseFileOffset + offset)
                 .maxRecordBytes(maxRecordBytes)
                 .stats(baseOffset, statsStripeSize, statsFileFinal)
                 .build();

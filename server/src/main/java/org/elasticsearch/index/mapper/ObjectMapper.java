@@ -15,7 +15,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -36,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -132,11 +132,11 @@ public class ObjectMapper extends Mapper {
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
         /**
-         * Accumulates per-prefix {@code dynamic} values captured during auto-flattening in strict columnar mode.
+         * Accumulates per-prefix settings captured during auto-flattening in strict columnar mode.
          * Populated by {@link #flattenBuildersIfNeeded} when {@link MapperBuilderContext#isStrictColumnar()} is true.
          * Read by {@link RootObjectMapper.Builder#build} to persist the entries so they survive round-trips.
          */
-        protected final Map<String, Dynamic> dynamicByPrefix = new HashMap<>();
+        protected final Map<String, PrefixProperties> prefixProperties = new HashMap<>();
 
         public Builder(String name) {
             this(name, Defaults.SUBOBJECTS);
@@ -357,7 +357,7 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
                 if (subobjects.value() == Subobjects.DISABLED && builder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.dynamicByPrefix);
+                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.prefixProperties);
                 } else {
                     Mapper.Builder existing = map.get(builder.leafName());
                     if (existing != null) {
@@ -374,28 +374,40 @@ public class ObjectMapper extends Mapper {
          * with dotted paths reflecting the hierarchy. Works entirely at the builder level,
          * avoiding the need to build an intermediate ObjectMapper.
          *
-         * @param parentContext    the builder context of the parent object (used for full-path error messages)
-         * @param result           the map to collect flattened field builders into
-         * @param path             tracks the relative path for field renaming
-         * @param dynamicCollector accumulates per-prefix {@code dynamic} values in strict columnar mode;
-         *                         must be the root builder's {@code dynamicByPrefix} map so all entries
-         *                         from the full nested hierarchy land in one place
+         * @param parentContext the builder context of the parent object (used for full-path error messages)
+         * @param result        the map to collect flattened field builders into
+         * @param path          tracks the relative path for field renaming
+         * @param collector     accumulates per-prefix settings in strict columnar mode;
+         *                      must be the root builder's {@code prefixProperties} map so all entries
+         *                      from the full nested hierarchy land in one place
          */
         private void asFlattenedFieldBuilders(
             MapperBuilderContext parentContext,
             Map<String, Mapper.Builder> result,
             ContentPath path,
-            Map<String, Dynamic> dynamicCollector
+            Map<String, PrefixProperties> collector
         ) {
             String fullName = parentContext.buildFullName(path.pathAsText(leafName()));
             ensureBuilderFlattenable(parentContext, fullName);
-            if (parentContext.isStrictColumnar() && dynamic != null) {
-                dynamicCollector.put(fullName, dynamic);
+            if (parentContext.isStrictColumnar()) {
+                if (dynamic != null) {
+                    collector.merge(fullName, new PrefixProperties(dynamic, null, null), PrefixProperties::merge);
+                }
+                if (this instanceof PassThroughObjectMapper.Builder ptBuilder) {
+                    collector.merge(fullName, new PrefixProperties(null, ptBuilder.priority, null), PrefixProperties::merge);
+                }
+                if (enabled.value() == false) {
+                    // Capture the disabled prefix and skip all children — the entire subtree is
+                    // treated as disabled at both mapping time (no leaf mappers created) and index
+                    // time (resolveDynamic returns Dynamic.FALSE for any field under this prefix).
+                    collector.merge(fullName, new PrefixProperties(null, null, Boolean.FALSE), PrefixProperties::merge);
+                    return;
+                }
             }
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
                 if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, dynamicCollector);
+                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, collector);
                 } else if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
                     fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
                     result.put(fieldMapperBuilder.leafName(), fieldMapperBuilder);
@@ -406,7 +418,7 @@ public class ObjectMapper extends Mapper {
 
         private void ensureBuilderFlattenable(MapperBuilderContext context, String fullName) {
             // In strict columnar mode, objects with a different dynamic than the parent are allowed;
-            // their declared dynamic is captured in dynamicByPrefix for index-time resolution.
+            // their declared dynamic is captured in prefixProperties for index-time resolution.
             if (dynamic != null && context.getDynamic() != dynamic && context.isStrictColumnar() == false) {
                 throwAutoFlatteningException(
                     fullName,
@@ -423,8 +435,13 @@ public class ObjectMapper extends Mapper {
                     "the value of [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + "] is [ " + sourceKeepMode.get() + " ]"
                 );
             }
-            if (enabled.value() == false) {
-                throwAutoFlatteningException(fullName, "the value of [enabled] is [false]");
+            // In strict columnar mode, enabled:false objects are allowed; the prefix is captured in
+            // enabledByPrefix and the subtree is dropped at index time (same as dynamic:false).
+            if (enabled.value() == false && context.isStrictColumnar() == false) {
+                throwAutoFlatteningException(
+                    fullName,
+                    "the value of [enabled] is [false]; no fields with the prefix [" + fullName + "] are allowed"
+                );
             }
             if (subobjects.explicit() && subobjects.value() == Subobjects.ENABLED) {
                 throwAutoFlatteningException(fullName, "the value of [subobjects] is [true]");
@@ -742,7 +759,9 @@ public class ObjectMapper extends Mapper {
     protected final Dynamic dynamic;
 
     protected final Map<String, Mapper> mappers;
-    private final String[] sortedFieldNames;
+    // Pre-computed set of all dot-path prefixes of mapped field names, used by hasMappedFieldsWithPrefix.
+    // Only populated when subobjects is DISABLED, since that is the only call site.
+    private final Set<String> mappedPrefixes;
 
     ObjectMapper(
         String name,
@@ -763,12 +782,22 @@ public class ObjectMapper extends Mapper {
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = Map.of();
-            this.sortedFieldNames = Strings.EMPTY_ARRAY;
+            this.mappedPrefixes = Set.of();
         } else {
             this.mappers = Map.copyOf(mappers);
-            String[] names = mappers.keySet().toArray(String[]::new);
-            Arrays.sort(names);
-            sortedFieldNames = names;
+            if (subobjects.value() == Subobjects.DISABLED) {
+                Set<String> prefixes = new HashSet<>();
+                for (String fieldName : mappers.keySet()) {
+                    int dot = fieldName.indexOf('.');
+                    while (dot >= 0) {
+                        prefixes.add(fieldName.substring(0, dot));
+                        dot = fieldName.indexOf('.', dot + 1);
+                    }
+                }
+                this.mappedPrefixes = prefixes.isEmpty() ? Set.of() : Set.copyOf(prefixes);
+            } else {
+                this.mappedPrefixes = Set.of();
+            }
         }
         assert subobjects.value() != Subobjects.DISABLED || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
             : "When subobjects is false, mappers must not contain an ObjectMapper";
@@ -825,13 +854,8 @@ public class ObjectMapper extends Mapper {
      * Used to detect intermediate object segments when {@code subobjects} is disabled.
      */
     public boolean hasMappedFieldsWithPrefix(String prefix) {
-        String searchKey = prefix + ".";
-        int idx = Arrays.binarySearch(sortedFieldNames, searchKey);
-        if (idx >= 0) {
-            return true;
-        }
-        int insertionPoint = ~idx;
-        return insertionPoint < sortedFieldNames.length && sortedFieldNames[insertionPoint].startsWith(searchKey);
+        assert prefix.endsWith(".") == false : "prefix must not end with a dot";
+        return mappedPrefixes.contains(prefix);
     }
 
     @Override

@@ -12,6 +12,7 @@ package org.elasticsearch.aggregations.bucket.adjacency;
 import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,9 +34,8 @@ public class InternalAdjacencyMatrixTests extends AggregationMultiBucketAggregat
         return 10;
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeKeys() {
         keys = new ArrayList<>();
         // InternalAdjacencyMatrix represents the upper triangular matrix:
         // 2 filters (matrix of 2x2) generates 3 buckets

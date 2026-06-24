@@ -97,7 +97,9 @@ public class LongIntBucketedSort implements Releasable {
     public void collect(long value, int extraValue, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex), extraValue, extraValues.get(rootIndex))) {
+            long rootValue = values.get(rootIndex);
+            int rootExtra = extraValues.get(rootIndex);
+            if (betterThan(value, rootValue, extraValue, rootExtra)) {
                 values.set(rootIndex, value);
                 extraValues.set(rootIndex, extraValue);
                 downHeap(rootIndex, 0, bucketSize);
@@ -160,7 +162,9 @@ public class LongIntBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(other.values.get(i), other.extraValues.get(i), groupId);
+            long otherValue = other.values.get(i);
+            int otherExtra = other.extraValues.get(i);
+            collect(otherValue, otherExtra, groupId);
         }
     }
 
@@ -296,7 +300,9 @@ public class LongIntBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.LONG_PAGE_SIZE, Long.BYTES);
+        int pageSize = PageCacheRecycler.LONG_PAGE_SIZE;
+        int bytesPerElement = Long.BYTES;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, pageSize, bytesPerElement);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -383,21 +389,25 @@ public class LongIntBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex), extraValues.get(worstIndex), extraValues.get(leftIndex))) {
+                long worstValue = values.get(worstIndex);
+                long leftValue = values.get(leftIndex);
+                int worstExtra = extraValues.get(worstIndex);
+                int leftExtra = extraValues.get(leftIndex);
+                if (betterThan(worstValue, leftValue, worstExtra, leftExtra)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize
-                    && betterThan(
-                        values.get(worstIndex),
-                        values.get(rightIndex),
-                        extraValues.get(worstIndex),
-                        extraValues.get(rightIndex)
-                    )) {
-                    worst = rightChild;
-                    worstIndex = rightIndex;
+                if (rightChild < heapSize) {
+                    worstValue = values.get(worstIndex);
+                    long rightValue = values.get(rightIndex);
+                    worstExtra = extraValues.get(worstIndex);
+                    int rightExtra = extraValues.get(rightIndex);
+                    if (betterThan(worstValue, rightValue, worstExtra, rightExtra)) {
+                        worst = rightChild;
+                        worstIndex = rightIndex;
+                    }
                 }
             }
             if (worst == parent) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.telemetry;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -17,10 +18,12 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -49,9 +52,11 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -76,7 +81,16 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestTelemetryPlugin.class);
+        return List.of(TestTelemetryPlugin.class, ThrowingQueryBuilderPlugin.class);
+    }
+
+    public static class ThrowingQueryBuilderPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<SearchPlugin.QuerySpec<?>> getQueries() {
+            return List.of(new SearchPlugin.QuerySpec<>(ThrowingQueryBuilder.NAME, ThrowingQueryBuilder::new, p -> {
+                throw new IllegalStateException("XContent parsing not supported in test");
+            }));
+        }
     }
 
     @Override
@@ -574,6 +588,126 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         } finally {
             updateClusterSettings(Settings.builder().putNull(SearchService.FETCH_PHASE_CHUNKED_ENABLED.getKey()));
         }
+    }
+
+    /**
+     * Verifies that in the DFS phase, when all remote shards fail, request bytes are recorded
+     * (serialisation of the {@code DfsSearchRequest} happens before the error) but result bytes
+     * are not. The DFS phase sends one transport request per shard; a failed shard's error
+     * response goes through {@code handleException()}, bypassing {@code handler.read()}, so no
+     * result bytes are counted.
+     */
+    public void testDfsPhaseRemoteShardErrorRecordsRequestBytesOnly() {
+        final String localIndex = "local-shards-error-test";
+        prepareCreate(localIndex).setSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.require._name", coordinatorNode)
+                .build()
+        ).get();
+        ensureGreen(localIndex);
+        prepareIndex(localIndex).setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        try {
+            ThrowingQueryBuilder failingQuery = new ThrowingQueryBuilder(
+                randomLong(),
+                new RuntimeException("intentional remote shard failure"),
+                INDEX_NAME
+            );
+
+            SearchResponse response = client(coordinatorNode).prepareSearch(INDEX_NAME, localIndex)
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(failingQuery)
+                .setAllowPartialSearchResults(true)
+                .get();
+            try {
+                assertThat(response.getFailedShards(), equalTo(2));
+            } finally {
+                response.decRef();
+            }
+
+            TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+
+            // DfsSearchRequests were serialised before the shards returned errors.
+            List<Measurement> dfsRequestBytes = plugin.getLongHistogramMeasurement(DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
+            assertThat(dfsRequestBytes, hasSize(1));
+            assertThat(dfsRequestBytes.get(0).getLong(), greaterThan(0L));
+
+            // Error responses bypass handler.read() so no result bytes are recorded.
+            List<Measurement> dfsResultBytes = plugin.getLongHistogramMeasurement(DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+            assertThat(dfsResultBytes, empty());
+        } finally {
+            indicesAdmin().prepareDelete(localIndex).get();
+        }
+    }
+
+    /**
+     * Verifies that in the batched QUERY_THEN_FETCH path, when all remote shards fail, BOTH
+     * request bytes and result bytes are recorded. In the batched path the coordinator sends a
+     * single {@code NodeQueryRequest} to the data node and receives a {@code NodeQueryResponse}
+     * that carries per-shard exceptions as payload rather than as a transport-level error. The
+     * coordinator always deserialises the full response via {@code handler.read()}, so result
+     * bytes are non-zero even though every shard in the batch failed.
+     */
+    public void testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes() {
+        final String localIndex = "local-shards-error-test";
+        prepareCreate(localIndex).setSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.require._name", coordinatorNode)
+                .build()
+        ).get();
+        ensureGreen(localIndex);
+        prepareIndex(localIndex).setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        try {
+            ThrowingQueryBuilder failingQuery = new ThrowingQueryBuilder(
+                randomLong(),
+                new RuntimeException("intentional remote shard failure"),
+                INDEX_NAME
+            );
+
+            SearchResponse response = client(coordinatorNode).prepareSearch(INDEX_NAME, localIndex)
+                .setQuery(failingQuery)
+                .setAllowPartialSearchResults(true)
+                .get();
+            try {
+                assertThat(response.getFailedShards(), equalTo(2));
+            } finally {
+                response.decRef();
+            }
+
+            TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+
+            // NodeQueryRequest was serialised before the shards returned errors.
+            List<Measurement> queryRequestBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
+            assertThat(queryRequestBytes, hasSize(1));
+            assertThat(queryRequestBytes.get(0).getLong(), greaterThan(0L));
+
+            // NodeQueryResponse is always deserialised via handler.read() — per-shard exceptions
+            // are payload, not transport-level errors — so result bytes are non-zero even though
+            // every shard in the batch failed.
+            List<Measurement> queryResultBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+            assertThat(queryResultBytes, hasSize(1));
+            assertThat(queryResultBytes.get(0).getLong(), greaterThan(0L));
+        } finally {
+            indicesAdmin().prepareDelete(localIndex).get();
+        }
+    }
+
+    /**
+     * Verifies that when every shard fails, neither request bytes nor result bytes are recorded.
+     */
+    public void testAllShardsFailedRecordsNoBytes() {
+        ThrowingQueryBuilder failingQuery = new ThrowingQueryBuilder(randomLong(), new RuntimeException("intentional failure"), INDEX_NAME);
+
+        expectThrows(Exception.class, () -> client(coordinatorNode).prepareSearch(INDEX_NAME).setQuery(failingQuery).get());
+
+        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+        assertThat(plugin.getLongHistogramMeasurement(QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME), empty());
+        assertThat(plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME), empty());
     }
 
     /**

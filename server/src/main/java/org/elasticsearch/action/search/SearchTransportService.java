@@ -923,6 +923,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         LongConsumer requestBytesConsumer
     ) {
+        logger.warn("------- node: " + connection.getNode() + " - local: " + connection.getNode().equals(transportService.getLocalNode()));
         if (connection.getNode().equals(transportService.getLocalNode())) {
             // skip counting bytes written for local connections
             return request;

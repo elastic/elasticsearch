@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ConcurrencyLimiterTests extends ESTestCase {
@@ -23,6 +26,50 @@ public class ConcurrencyLimiterTests extends ESTestCase {
         assertEquals(4, limiter.availablePermits());
         limiter.release();
         assertEquals(5, limiter.availablePermits());
+    }
+
+    public void testWideFanOutAllCompletesWhenDemandExceedsPermits() throws Exception {
+        // Core #896 regression: a fan-out wider than the permit pool must all COMPLETE (queue and wait), never
+        // be dropped or failed. Each acquirer holds exactly one permit and releases before the next is served, so
+        // blocking is deadlock-free even when demand (32) far exceeds supply (4). This is the property that lets
+        // the old fail-on-timeout go away.
+        int permits = 4;
+        int waiters = 32;
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(permits);
+        AtomicInteger completed = new AtomicInteger(0);
+        AtomicInteger peakInFlight = new AtomicInteger(0);
+        AtomicInteger inFlight = new AtomicInteger(0);
+        CountDownLatch done = new CountDownLatch(waiters);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < waiters; i++) {
+            Thread t = new Thread(() -> {
+                try {
+                    limiter.acquire();
+                    try {
+                        int now = inFlight.incrementAndGet();
+                        peakInFlight.accumulateAndGet(now, Math::max);
+                        Thread.sleep(2); // hold the permit briefly so contention is real
+                        completed.incrementAndGet();
+                    } finally {
+                        inFlight.decrementAndGet();
+                        limiter.release();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    done.countDown();
+                }
+            });
+            threads.add(t);
+            t.start();
+        }
+        assertTrue("all waiters must finish (none dropped or failed)", done.await(30, TimeUnit.SECONDS));
+        for (Thread t : threads) {
+            t.join(5000);
+        }
+        assertEquals("every waiter must have completed its work", waiters, completed.get());
+        assertTrue("the guardrail must cap concurrency at its permit count", peakInFlight.get() <= permits);
+        assertEquals("all permits released at the end", permits, limiter.availablePermits());
     }
 
     public void testBlocksWhenExhausted() throws Exception {

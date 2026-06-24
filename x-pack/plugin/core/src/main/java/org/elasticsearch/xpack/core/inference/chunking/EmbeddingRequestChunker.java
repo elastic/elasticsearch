@@ -54,18 +54,21 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Request.class);
 
         public InferenceString chunkText() {
-            // Chunk contains whole input string
-            if (chunk.start() == 0 && chunk.end() == input.value().length()) {
+            if (chunkContainsWholeInput()) {
                 return input;
             } else {
                 return new InferenceString(input.dataType(), input.dataFormat(), input.value().substring(chunk.start(), chunk.end()));
             }
         }
 
+        private boolean chunkContainsWholeInput() {
+            return chunk.start() == 0 && chunk.end() == input.value().length();
+        }
+
+        // TODO: add unit tests for ramBytesUsed()
         @Override
         public long ramBytesUsed() {
-            // Chunk contains whole input string, where we do not allocate a new {@link InferenceString}
-            if (chunk.start() == 0 && chunk.end() == input.value().length()) {
+            if (chunkContainsWholeInput()) {
                 return SHALLOW_SIZE;
             }
 
@@ -77,7 +80,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
                 - RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
 
             int chunkChars = chunk.end() - chunk.start();
-            return originalInputDataRamBytesUsed * chunkChars / originalInputLength;
+            return originalInputDataRamBytesUsed * (chunkChars / originalInputLength);
         }
     }
 
@@ -89,6 +92,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             return () -> requests.stream().map(request -> new InferenceStringGroup(request.chunkText())).collect(Collectors.toList());
         }
 
+        // TODO: add unit tests for ramBytesUsed()
         @Override
         public long ramBytesUsed() {
             var requestsRamBytesUsed = requests().stream().mapToLong(Request::ramBytesUsed).sum();

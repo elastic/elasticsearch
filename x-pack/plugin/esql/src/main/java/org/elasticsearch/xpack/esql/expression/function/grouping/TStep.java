@@ -131,6 +131,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             name = "from",
             type = { "date", "date_nanos", "keyword" },
             description = "Start of the time range that anchors the step grid. Required together with `to`.",
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true
         ) @Nullable Expression from,
         @Param(

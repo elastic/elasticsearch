@@ -146,6 +146,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "from",
             type = { "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the "
                 + "query filter {applies_to}`stack: ga 9.4`."

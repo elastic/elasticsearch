@@ -115,9 +115,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FormatReader formatReader;
     private final StoragePath path;
     private final List<Attribute> attributes;
-    // Data-attribute view of {@link #attributes} (metadata attributes stripped). Built once at
-    // construction; used to shape pages handed to SchemaAdaptingIterator and to scope filter
-    // adaptation in mapFilters.
+    // Data-attribute view of {@link #attributes} (virtual columns and Hive-style partition columns
+    // stripped). Built once at construction; used to shape pages handed to SchemaAdaptingIterator
+    // and to scope filter adaptation in mapFilters. Partition columns are excluded so this width
+    // matches the file-backed ColumnMapping even when a partition key shadows a same-named physical
+    // column (see ExternalSchema#dataAttributesOf(List, Set)).
     private final ExternalSchema queryDataSchema;
     /**
      * {@link #attributes} minus the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN}, used when
@@ -311,7 +313,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.formatReader = formatReader;
         this.path = path;
         this.attributes = attributes;
-        this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes);
         this.readerResolvedAttributes = stripRowPosition(attributes);
         this.executor = executor;
         this.batchSize = batchSize;
@@ -360,6 +361,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             this.partitionColumnNames = Collections.unmodifiableSet(union);
         }
+        // Resolve queryDataSchema AFTER the effective partitionColumnNames (including any standard
+        // metadata / _id / _source names unioned above) is final: the data-only schema must exclude
+        // partition and virtual/metadata columns so its width matches the file-backed ColumnMapping
+        // (a partition key may shadow a same-named physical column). See
+        // ExternalSchema#dataAttributesOf(List, Set).
+        this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes, this.partitionColumnNames);
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.datasetName = datasetName;
         this.lastModifiedMillis = lastModifiedMillis;

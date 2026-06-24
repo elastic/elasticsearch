@@ -551,7 +551,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
     public void testHasShardOnNodeReturnsFalseForUnknownNode() {
         final ShardId shardId = new ShardId("test", UUIDs.randomBase64UUID(), 0);
         final IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(indexSettings(IndexVersion.current(), Settings.EMPTY))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -566,7 +566,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         final ShardId localShard = new ShardId("local", UUIDs.randomBase64UUID(), 0);
         final ShardId remoteShard = new ShardId("remote", UUIDs.randomBase64UUID(), 0);
         final IndexMetadata localIndex = IndexMetadata.builder("local")
-            .settings(indexSettings(IndexVersion.current(), Settings.EMPTY))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -606,7 +606,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
     private void assertHasShardOnNodeForRoutingState(ShardRoutingState routingState, boolean expected) {
         final ShardId shardId = new ShardId("test", UUIDs.randomBase64UUID(), 0);
         final IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(indexSettings(IndexVersion.current(), Settings.EMPTY))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

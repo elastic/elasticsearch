@@ -31,7 +31,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -264,13 +263,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 ? format.filterPushdownSupport()
                 : null;
 
+            // No per-query concurrency wrap here. Storage already carries the node-level guardrail and reactive
+            // retry/backoff from the registry (see StorageProviderRegistry#wrapProvider). The old per-query budget
+            // self-throttled a single query against its own shrunk share and failed it on a 60s timeout; removed in
+            // favor of a blocking guardrail + reactive backoff. See elastic/esql-planning#896.
             Closeable onClose = null;
-            ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
-            if (allocator != null) {
-                QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
-                storage = budgeted;
-                onClose = budgeted;
-            }
 
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
             // Deferred extraction fires when both signals are present: the reader is

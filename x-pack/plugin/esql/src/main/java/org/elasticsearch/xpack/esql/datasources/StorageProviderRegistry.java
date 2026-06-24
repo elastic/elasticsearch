@@ -60,7 +60,6 @@ public class StorageProviderRegistry implements Closeable {
     private final List<StorageProvider> createdProviders = new ArrayList<>();
 
     private final Map<String, ConcurrencyLimiter> limiters = new ConcurrentHashMap<>();
-    private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
     private final Map<String, AdaptiveBackoff> backoffs = new ConcurrentHashMap<>();
 
     // Cache for providers created with a non-empty per-query configuration map.
@@ -247,21 +246,6 @@ public class StorageProviderRegistry implements Closeable {
         RetryPolicy retryPolicy = buildRetryPolicy(backoff);
         StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
         return new RetryableStorageProvider(limited, retryPolicy, retryScheduler);
-    }
-
-    /**
-     * Returns a per-query concurrency budget allocator for the given scheme, or {@code null}
-     * if per-query budgeting is not applicable (file scheme or concurrency limiting disabled).
-     */
-    public ConcurrencyBudgetAllocator allocatorForScheme(String scheme) {
-        if ("file".equals(scheme)) {
-            return null;
-        }
-        int permits = maxConcurrentRequests;
-        if (permits <= 0) {
-            return null;
-        }
-        return allocators.computeIfAbsent(scheme, k -> new ConcurrencyBudgetAllocator(permits));
     }
 
     private ConcurrencyLimiter limiterForScheme(String scheme) {

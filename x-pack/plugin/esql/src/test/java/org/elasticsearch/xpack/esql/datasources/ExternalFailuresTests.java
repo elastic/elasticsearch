@@ -55,17 +55,16 @@ public class ExternalFailuresTests extends ESTestCase {
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(cancelled)));
     }
 
-    public void testBudgetRejectionIsBackpressureNotServerError() {
-        // QueryBudgetedStorageObject rethrows an exhausted-budget acquire as EsRejectedExecutionException. That is
-        // load-shed backpressure (429), not a broken invariant in our reading code (500): classify must return it
-        // unchanged so its self-carried 429 survives, rather than wrapping it as an ExternalServerException.
-        var rejected = new EsRejectedExecutionException(
-            "Failed to acquire query concurrency budget permit: Timed out after [60000]ms (max permits [50])"
-        );
+    public void testRejectedExecutionIsBackpressureNotServerError() {
+        // A saturated thread pool or the storage concurrency guardrail can reject work as an
+        // EsRejectedExecutionException. That is load-shed backpressure (429), not a broken invariant in our
+        // reading code (500): classify must return it unchanged so its self-carried 429 survives, rather than
+        // wrapping it as an ExternalServerException.
+        var rejected = new EsRejectedExecutionException("rejected execution while reading external source");
         RuntimeException classified = ExternalFailures.classify(rejected);
         assertSame(rejected, classified);
         assertEquals(
-            "permit exhaustion must surface as 429 backpressure, not 500",
+            "permit/queue exhaustion must surface as 429 backpressure, not 500",
             RestStatus.TOO_MANY_REQUESTS,
             ExceptionsHelper.status(classified)
         );

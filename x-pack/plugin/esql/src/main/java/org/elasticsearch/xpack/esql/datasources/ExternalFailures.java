@@ -40,8 +40,8 @@ import java.util.Set;
  *     this covers the {@link ExternalException} family (400/500/503) raised at the reader/storage
  *     boundary, as well as {@code CircuitBreakingException} (429) and {@code TaskCancelledException}
  *     (400).</li>
- *     <li>An {@link EsRejectedExecutionException} is the per-query concurrency budget shedding load when its
- *     permit pool is exhausted — backpressure, not a server fault. It already maps to 429
+ *     <li>An {@link EsRejectedExecutionException} is load-shed backpressure — a saturated thread pool or the
+ *     storage concurrency guardrail rejecting work — not a server fault. It already maps to 429
  *     (TOO_MANY_REQUESTS) via {@code ExceptionsHelper.status}, so it is returned unchanged rather than
  *     mistaken for a broken invariant and reported as 500.</li>
  *     <li>An {@link IllegalArgumentException} already maps to 400; it is returned as-is.</li>
@@ -90,10 +90,9 @@ public final class ExternalFailures {
             return ese;
         }
         if (t instanceof EsRejectedExecutionException rejected) {
-            // The per-query concurrency budget rejects a read when its permit pool is exhausted under load
-            // (QueryBudgetedStorageObject rethrows the budget timeout as this type). That is backpressure, not a
-            // server fault: the type already maps to 429 (TOO_MANY_REQUESTS) via ExceptionsHelper.status, so it is
-            // returned unchanged rather than falling through to the 500 ExternalServerException below.
+            // Load-shed backpressure: a saturated thread pool or the storage concurrency guardrail rejecting work,
+            // not a server fault. The type already maps to 429 (TOO_MANY_REQUESTS) via ExceptionsHelper.status, so
+            // it is returned unchanged rather than falling through to the 500 ExternalServerException below.
             return rejected;
         }
         if (t instanceof IllegalArgumentException iae) {

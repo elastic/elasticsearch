@@ -106,6 +106,8 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETT
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_ON_DISK_COUNT_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_ON_DISK_SIZE_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
@@ -1333,8 +1335,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             if (randomBoolean() || i == numberCommits - 1) {
                 final VirtualBatchedCompoundCommit virtualBcc = statelessCommitService.getCurrentVirtualBcc(shardId);
                 final long minAge = threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis();
+                metricsPlugin.collect();
+                assertThat(getLastLongGaugeValue(BCC_ON_DISK_COUNT_METRIC, metricsPlugin), greaterThanOrEqualTo(1L));
+                assertThat(
+                    getLastLongGaugeValue(BCC_ON_DISK_SIZE_METRIC, metricsPlugin),
+                    greaterThanOrEqualTo(virtualBcc.getTotalSizeInBytes())
+                );
                 // Trigger upload
                 flush(indexName);
+                metricsPlugin.collect();
+                assertThat(getLastLongGaugeValue(BCC_ON_DISK_COUNT_METRIC, metricsPlugin), equalTo(0L));
+                assertThat(getLastLongGaugeValue(BCC_ON_DISK_SIZE_METRIC, metricsPlugin), equalTo(0L));
 
                 final List<Measurement> sizeMeasurements = metricsPlugin.getLongHistogramMeasurement(BCC_TOTAL_SIZE_HISTOGRAM_METRIC);
                 assertThat(sizeMeasurements, hasSize(1));

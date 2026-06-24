@@ -1102,8 +1102,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             if (directory instanceof IndexDirectory indexDir) {
                 return indexDir.openInputPreferLocal(filename, context);
             }
-            var ctx = context == IOContext.READONCE ? IOContext.DEFAULT : context;
-            return directory.openInput(filename, ctx);
+            return directory.openInput(filename, context);
         }
 
         @Override

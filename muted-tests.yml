@@ -725,3 +725,6 @@ tests:
 - class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
   method: testKnnSearchRescore
   issue: https://github.com/elastic/elasticsearch/issues/152094
+- class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
+  method: testGenerateDefinitions
+  issue: https://github.com/elastic/elasticsearch/issues/152095

@@ -33,6 +33,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.LongSwissHash;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -170,6 +171,39 @@ public class BlockHashTests extends BlockHashTestCase {
             }
             assertKeys(ordsAndKeys.keys(), 2L, 1L, 4L, 3L);
         }, blockFactory.newLongArrayVector(values, values.length).asBlock());
+    }
+
+    /**
+     * Builds a {@link LongBlockHash} big enough to form a big core, then replays the keys across
+     * several pages so the batched prefetch path ({@code addWithPrefetch}) is exercised and asserted
+     * to produce the same ords as the scalar path. {@code shouldPrefetch} is checked once per page,
+     * so a single page never reaches the prefetch path: it needs the table primed by an earlier page.
+     */
+    public void testLongHashHighCardinalityPrefetch() {
+        assumeFalse("the packed hash has no long prefetch path", forcePackedHash);
+        LongSwissHash.PREFETCH_THRESHOLD = between(1, 1024);
+        int distinct = between(2_000, 8_000); // exceeds the small-core capacity so a big core (and the prefetch path) forms
+        int pages = between(3, 6);
+        try (BlockHash hash = new LongBlockHash(0, blockFactory)) {
+            for (int page = 0; page < pages; page++) {
+                long[] values = new long[distinct];
+                for (int i = 0; i < distinct; i++) {
+                    values[i] = i;
+                }
+                try (LongBlock block = blockFactory.newLongArrayVector(values, distinct).asBlock()) {
+                    // value i is first seen at position i on page 0, so it always resolves to ord i + 1
+                    hash(true, hash, ordsAndKeys -> {
+                        IntBlock ords = ordsAndKeys.ords();
+                        for (int p = 0; p < distinct; p++) {
+                            assertThat(ords.getInt(p), equalTo(p + 1));
+                        }
+                    }, block);
+                }
+            }
+            try (IntVector nonEmpty = hash.nonEmpty()) {
+                assertThat(nonEmpty.getPositionCount(), equalTo(distinct));
+            }
+        }
     }
 
     public void testLongHashWithNulls() {

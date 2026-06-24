@@ -105,7 +105,12 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio);
 
     protected TestIvfQueryConfigResolver testResolver() {
-        return new TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f);
+        return new TestIvfQueryConfigResolver(
+            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+            false,
+            1.0f
+        );
     }
 
     AbstractIVFKnnVectorQuery getStableKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {

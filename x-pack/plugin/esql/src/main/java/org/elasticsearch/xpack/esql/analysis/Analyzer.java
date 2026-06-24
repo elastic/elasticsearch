@@ -1701,12 +1701,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     keep.source(),
                     keep.child(),
                     inputAttributes -> keepResolver(keep.projections(), inputAttributes),
-                    patternForKeep(keep.projections())
+                    patternForKeep(keep.projections(), keep.child().output())
                 );
         }
 
-        /** Computes the {@link UnmappedFieldsPattern} for a KEEP command from its projection list. */
-        static UnmappedFieldsPattern patternForKeep(List<? extends NamedExpression> projections) {
+        /**
+         * Computes the {@link UnmappedFieldsPattern} for a KEEP command from its projection list.
+         *
+         * <p>Wildcard projections ({@code *} or {@code foo*}) are added to includes directly.
+         * Explicit named projections are classified by checking {@code childOutput}:
+         * <ul>
+         *   <li>If the name is <em>not</em> in {@code childOutput}, the field is absent from the
+         *       mapped schema and will be demand-loaded from {@code _source} — it is added to
+         *       includes so that it can be filtered by the block loader (and then excluded via
+         *       {@code withAdditionalExcludes} because it appears in {@code esr.output()} after
+         *       demand loading).</li>
+         *   <li>If the name <em>is</em> in {@code childOutput}, the field is a regular mapped
+         *       column. It never appears in {@code _unmapped_fields} and must not restrict the
+         *       include set — it is silently skipped.</li>
+         * </ul>
+         * When the resulting include list is empty (e.g. {@code KEEP @timestamp, dim, val} on a
+         * fully-mapped index), it defaults to {@code ["*"]} so all unmapped source fields pass
+         * through.
+         */
+        static UnmappedFieldsPattern patternForKeep(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
+            Set<String> childOutputNames = new HashSet<>(projections.size());
+            for (Attribute attr : childOutput) {
+                childOutputNames.add(attr.name());
+            }
             List<String> includes = new ArrayList<>();
             for (NamedExpression proj : projections) {
                 if (proj instanceof UnresolvedStar) {
@@ -1717,9 +1739,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // _unmapped_fields in KEEP means "retain all surviving unmapped source fields";
                     // translate to "*" so the block loader includes any field not otherwise excluded.
                     includes.add("*");
-                } else {
+                } else if (childOutputNames.contains(proj.name()) == false) {
+                    // Named field absent from the child's mapped output: it will be demand-loaded
+                    // from _source as an unmapped field, so restrict includes to this name.
                     includes.add(proj.name());
                 }
+                // else: mapped field already in child output; it is never in _unmapped_fields,
+                // so it need not (and must not) constrain the include set.
+            }
+            if (includes.isEmpty()) {
+                // All projections were mapped fields — no include restriction needed.
+                includes.add("*");
             }
             return new UnmappedFieldsPattern(includes, List.of());
         }

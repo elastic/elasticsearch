@@ -454,10 +454,10 @@ TS ts_window_partial_mapping
 ;
 
 @timestamp:datetime      | dim:keyword | val:long | _unmapped_fields:keyword
-2024-01-01T00:00:00.000Z | a           | 1        | {"extra_label":"label_a"}
-2024-01-01T00:00:00.000Z | b           | 10       | {"extra_label":"label_b"}
-2024-01-01T00:01:00.000Z | a           | 2        | {"extra_label":"label_a"}
-2024-01-01T00:01:00.000Z | b           | 20       | {"extra_label":"label_b"}
+2024-01-01T00:00:00.000Z | a           | 1        | "{""extra_label"":""label_a""}"
+2024-01-01T00:00:00.000Z | b           | 10       | "{""extra_label"":""label_b""}"
+2024-01-01T00:01:00.000Z | a           | 2        | "{""extra_label"":""label_a""}"
+2024-01-01T00:01:00.000Z | b           | 20       | "{""extra_label"":""label_b""}"
 ;
 
 ############################

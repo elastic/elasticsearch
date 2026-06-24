@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -245,7 +246,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContext = wrapWithUnmappedFieldContext(shardContext, kf);
         }
         if (attr instanceof UnmappedFieldsAttribute ufa) {
-            return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern()));
+            // Collect all mapped field names from the shard's live mapping so that fields
+            // absent from the field-caps response (e.g. counter metrics in TS queries due to
+            // the +dimension filter) are never surfaced in _unmapped_fields.
+            List<String> mappedFieldNames = new ArrayList<>();
+            for (Mapper mapper : shardContext.mappingLookup().fieldMappers()) {
+                mappedFieldNames.add(mapper.fullPath());
+            }
+            return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern(), mappedFieldNames));
         }
 
         // Apply any block loader function if present

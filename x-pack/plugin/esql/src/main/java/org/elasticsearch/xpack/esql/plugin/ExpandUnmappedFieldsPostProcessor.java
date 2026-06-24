@@ -128,6 +128,10 @@ class ExpandUnmappedFieldsPostProcessor {
             }
 
             newPages.add(new Page(allBlocks));
+            // Release the original page now that all its blocks have been transferred
+            // (incRef'd) or superseded. This releases the _unmapped_fields block from
+            // the circuit breaker; the surviving blocks were protected by incRef above.
+            page.releaseBlocks();
         }
 
         return new Result(

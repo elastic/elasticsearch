@@ -184,6 +184,8 @@ public interface ESVectorUtilSupport {
 
     void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest);
 
+    void linearCombination(float scaleOther, byte[] other, float[] dest);
+
     float logSumExpNQT(float[] vector);
 
     float logSumExpNQTDiff(float[] v1, float[] v2, float eps);

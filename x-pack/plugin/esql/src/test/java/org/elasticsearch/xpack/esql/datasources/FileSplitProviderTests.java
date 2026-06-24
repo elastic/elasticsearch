@@ -32,10 +32,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -641,6 +643,7 @@ public class FileSplitProviderTests extends ESTestCase {
         String globPattern
     ) throws IOException {
         SegmentableFormatReader mockReader = mock(SegmentableFormatReader.class);
+        when(mockReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         when(mockReader.minimumSegmentSize()).thenReturn(1024L);
         RecordSplitter mockSplitter = mock(RecordSplitter.class);
         when(mockReader.recordSplitter(anyInt())).thenReturn(mockSplitter);
@@ -1131,6 +1134,11 @@ public class FileSplitProviderTests extends ESTestCase {
             }
 
             @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
             public void close() {}
         };
 
@@ -1207,6 +1215,11 @@ public class FileSplitProviderTests extends ESTestCase {
             @Override
             public List<String> fileExtensions() {
                 return List.of(".parquet", ".parq");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
             }
 
             @Override

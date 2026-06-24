@@ -98,7 +98,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final Parameter<Boolean> indexed;
         private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
+            m -> toType(m).docValuesParameters(),
+            false
         );
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 

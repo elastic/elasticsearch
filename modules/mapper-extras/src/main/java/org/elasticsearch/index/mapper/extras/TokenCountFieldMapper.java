@@ -55,7 +55,8 @@ public class TokenCountFieldMapper extends FieldMapper {
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
         private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
+            m -> toType(m).docValuesParameters(),
+            false
         );
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 

@@ -193,7 +193,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 boolean enabled = defaultDocValues.enabled()
                     && multiFieldsBuilder.hasColumnarModeCompatibleKeywordDelegate(indexMode) == false;
                 return new FieldMapper.DocValuesParameter.Values(enabled, defaultDocValues.cardinality(), defaultDocValues.multiValue());
-            }, defaultDocValuesParameters(indexMode), m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters);
+            }, defaultDocValuesParameters(indexMode), m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters, indexMode.isStrictColumnar());
         }
 
         public Builder(String name, MappingParserContext context) {

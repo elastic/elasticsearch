@@ -1552,14 +1552,14 @@ public abstract class FieldMapper extends Mapper {
 
         public final Optional<Parameter<Values.Cardinality>> cardinalityParameter;
         public final Parameter<Boolean> multiValueParameter;
-        private final boolean isStrictColumnar;
+        private final boolean supportsMultiValue;
 
         /**
          * Factory for field types that do not expose a user-configurable {@code cardinality} sub-parameter (numerics, dates, booleans, IP,
          * etc.).
          */
-        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer, boolean isStrictColumnar) {
-            return new DocValuesParameter(defaultValue, initializer, false, isStrictColumnar);
+        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsMultiValue) {
+            return new DocValuesParameter(defaultValue, initializer, false, supportsMultiValue);
         }
 
         /**
@@ -1568,9 +1568,9 @@ public abstract class FieldMapper extends Mapper {
         public static DocValuesParameter ofWithCardinality(
             Values defaultValue,
             Function<FieldMapper, Values> initializer,
-            boolean isStrictColumnar
+            boolean supportsMultiValue
         ) {
-            return new DocValuesParameter(defaultValue, initializer, true, isStrictColumnar);
+            return new DocValuesParameter(defaultValue, initializer, true, supportsMultiValue);
         }
 
         /**
@@ -1582,18 +1582,18 @@ public abstract class FieldMapper extends Mapper {
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
             Function<FieldMapper, Values> initializer,
-            boolean isStrictColumnar
+            boolean supportsMultiValue
         ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, true, isStrictColumnar);
+            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, true, supportsMultiValue);
         }
 
         private DocValuesParameter(
             Values defaultValue,
             Function<FieldMapper, Values> initializer,
             boolean supportsCardinality,
-            boolean isStrictColumnar
+            boolean supportsMultiValue
         ) {
-            this(() -> defaultValue, defaultValue, initializer, supportsCardinality, isStrictColumnar);
+            this(() -> defaultValue, defaultValue, initializer, supportsCardinality, supportsMultiValue);
         }
 
         private DocValuesParameter(
@@ -1601,10 +1601,10 @@ public abstract class FieldMapper extends Mapper {
             Values subParameterDefaults,
             Function<FieldMapper, Values> initializer,
             boolean supportsCardinality,
-            boolean isStrictColumnar
+            boolean supportsMultiValue
         ) {
             super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
-            this.isStrictColumnar = isStrictColumnar;
+            this.supportsMultiValue = supportsMultiValue;
 
             if (supportsCardinality) {
                 cardinalityParameter = Optional.of(
@@ -1649,7 +1649,7 @@ public abstract class FieldMapper extends Mapper {
             if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
                 cardinalityParameter.ifPresent(p -> p.parse(field, context, valueMap.get(p.name)));
                 if (valueMap.containsKey(multiValueParameter.name)) {
-                    if (context.getIndexSettings().getMode().isStrictColumnar() == false) {
+                    if (supportsMultiValue == false) {
                         throw new MapperParsingException(
                             "field ["
                                 + field
@@ -1707,7 +1707,7 @@ public abstract class FieldMapper extends Mapper {
                                 }
                             }
                         });
-                        if (isStrictColumnar && (includeDefaults || multiValueConfigured)) {
+                        if (supportsMultiValue && (includeDefaults || multiValueConfigured)) {
                             builder.field(multiValueParameter.name, value.multiValue);
                         }
                         builder.endObject();

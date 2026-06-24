@@ -306,7 +306,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             this.indexSortConfig = indexSortConfig;
             this.docValuesPameters = DocValuesParameter.ofWithCardinality(
                 defaultDocValuesParameters(indexMode),
-                m -> toType(m).docValuesParams()
+                m -> toType(m).docValuesParams(),
+                indexMode.isStrictColumnar()
             );
         }
 

@@ -6156,7 +6156,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("external_ds", dataSource)))
             .datasets(Map.of("salaries_int", intDataset, "salaries_long", longDataset))
             .build();
-        LogicalPlan rewritten = DatasetRewriter.rewrite(
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
             TestIndexNameExpressionResolver.newInstance()

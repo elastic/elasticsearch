@@ -17,10 +17,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -78,6 +81,34 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec narrowed = (ExternalSourceExec) rewrittenTopN.child();
         List<String> narrowedNames = narrowed.output().stream().map(Attribute::name).toList();
         assertEquals(List.of("id", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
+
+        // The paired-exec flag — not _rowPosition presence — is the operator factory's signal to
+        // enable deferred extraction. InjectRowPositionForExternalId produces the same projection
+        // shape with no extract operator downstream, where deferred mode would create a
+        // SourceExtractors registry nothing ever closes.
+        assertTrue("narrowed source must carry the deferred-extraction flag", narrowed.deferredExtraction());
+    }
+
+    /**
+     * A source whose projection contains {@code _rowPosition} but that was never paired with an
+     * {@code ExternalFieldExtractExec} (the InjectRowPositionForExternalId shape — plain
+     * {@code METADATA _id}, no TopN) must NOT carry the deferred-extraction flag: with no extract
+     * operator downstream, deferred mode would leak the SourceExtractors registry, its
+     * ColumnExtractors, and the factory's onClose budget.
+     */
+    public void testRowPositionInProjectionAloneDoesNotFlagDeferredExtraction() {
+        List<Attribute> schema = sixColumnSchema();
+        ExternalSourceExec source = parquetSource(schema, null);
+        List<Attribute> extended = new ArrayList<>(source.output());
+        extended.add(SyntheticColumns.newRowPositionMetadataAttribute(Source.EMPTY));
+
+        ExternalSourceExec withRowPosition = source.withAttributes(extended);
+
+        assertTrue(withRowPosition.output().stream().anyMatch(a -> a.name().equals(ColumnExtractor.ROW_POSITION_COLUMN)));
+        assertFalse(
+            "_rowPosition in the projection without a paired extract exec must not flag deferred extraction",
+            withRowPosition.deferredExtraction()
+        );
     }
 
     public void testNoOpWhenNoTopN() {
@@ -323,6 +354,11 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
      *  remaining {@link NoConfigFormatReader} methods stay unimplemented to make accidental use
      *  during a rule pass loud. */
     private static class StubReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             throw new UnsupportedOperationException();

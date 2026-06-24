@@ -56,7 +56,6 @@ public class ForeignApiPlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
 
         BuildParameterExtension buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
-
         int minRuntime = Integer.parseInt(buildParams.getMinimumRuntimeVersion().getMajorVersion());
 
         TaskProvider<ExtractForeignApiTask> extractTask = project.getTasks()

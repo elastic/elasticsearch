@@ -488,9 +488,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotDisabled
   issue: https://github.com/elastic/elasticsearch/issues/150884
-- class: org.elasticsearch.xpack.stateless.StatelessMergeIT
-  method: testOnlyForceMergesAreAllowedDuringRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/150925
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testInferenceFailure
   issue: https://github.com/elastic/elasticsearch/issues/150976

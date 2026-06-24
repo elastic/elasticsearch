@@ -63,14 +63,14 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
         }
 
         if (indexMode.isStrictColumnar()) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, true);
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, true, true);
         }
 
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
     }
 
     public static final class CollationFieldType extends StringFieldType {

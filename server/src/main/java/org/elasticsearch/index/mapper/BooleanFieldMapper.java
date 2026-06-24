@@ -82,7 +82,9 @@ public class BooleanFieldMapper extends FieldMapper {
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         boolean multiValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
             || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
+        boolean nullability = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
+            || FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability);
     }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
@@ -596,6 +598,11 @@ public class BooleanFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected boolean isNullable() {
+        return docValuesParameters.nullability();
     }
 
     @Override

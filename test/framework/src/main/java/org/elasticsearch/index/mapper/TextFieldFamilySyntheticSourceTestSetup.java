@@ -72,11 +72,13 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             case 0 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                randomBoolean(),
                 randomBoolean()
             );
             case 1 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                randomBoolean(),
                 randomBoolean()
             );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
@@ -137,6 +139,17 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 return docValues.multiValue() == false;
             }
             return keywordMultiFieldSyntheticSourceSupport.enforcesSingleValue();
+        }
+
+        @Override
+        public boolean enforcesNonNullValue() {
+            if (store) {
+                return false;
+            }
+            if (docValues.enabled()) {
+                return docValues.nullability() == false;
+            }
+            return keywordMultiFieldSyntheticSourceSupport.enforcesNonNullValue();
         }
 
         @Override
@@ -204,6 +217,9 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                     b.field("cardinality", docValues.cardinality().toString());
                     if (docValues.multiValue() == false) {
                         b.field("multi_value", false);
+                    }
+                    if (docValues.nullability() == false) {
+                        b.field("nullability", false);
                     }
                     b.endObject();
                 }

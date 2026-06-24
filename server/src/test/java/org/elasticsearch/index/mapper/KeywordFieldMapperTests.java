@@ -1020,7 +1020,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true))
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true, true))
         );
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
     }
@@ -1033,7 +1033,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true))
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true))
         );
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
     }
@@ -1081,6 +1081,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsMultiValueParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsNullabilityParameter() {
         return true;
     }
 
@@ -1327,6 +1332,79 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage(),
             containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // nullability=false enforcement: keyword-specific scenarios
+    // -----------------------------------------------------------------------
+
+    public void testNullabilityFalseRejectsSingleNull() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
+        );
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
+    }
+
+    public void testNullabilityFalseRejectsNullInArray() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
+        );
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.startArray("field").nullValue().endArray()))
+        );
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
+    }
+
+    /**
+     * A null element alongside a real value is accepted: the non-null value is indexed, satisfying the non-null constraint.
+     */
+    public void testNullabilityFalseAcceptsNullThenValue() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
+        );
+        // must not throw
+        mapper.parse(source(b -> b.startArray("field").nullValue().value(randomAlphanumericOfLength(5)).endArray()));
+    }
+
+    /**
+     * Mirror of {@link #testNullabilityFalseAcceptsNullThenValue}: a real value followed by null is also accepted.
+     */
+    public void testNullabilityFalseAcceptsValueThenNull() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
+        );
+        // must not throw
+        mapper.parse(source(b -> b.startArray("field").value(randomAlphanumericOfLength(5)).nullValue().endArray()));
+    }
+
+    /**
+     * A field completely absent from the document is rejected: there is no indexed data so the non-null constraint cannot be satisfied.
+     */
+    public void testNullabilityFalseRejectsMissingField() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
+        );
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
+    }
+
+    /**
+     * With default {@code nullability=true}, a single null is accepted normally.
+     */
+    public void testNullabilityTrueAcceptsNull() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", true).endObject())
+        );
+        // must not throw
+        mapper.parse(source(b -> b.nullField("field")));
     }
 
     /**

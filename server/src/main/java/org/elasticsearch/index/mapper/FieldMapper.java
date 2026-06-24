@@ -95,6 +95,19 @@ public abstract class FieldMapper extends Mapper {
         Property.ServerlessPublic
     );
 
+    /**
+     * Index-level default for the {@code doc_values.nullability} field mapping parameter. When {@code false}, all fields in the index
+     * default to requiring non-null values (rejecting documents that don't supply a value), unless a field explicitly sets its own
+     * {@code doc_values.nullability}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled.
+     */
+    public static final Setting<Boolean> DOC_VALUES_NULLABILITY_SETTING = Setting.boolSetting(
+        "index.mapping.doc_values.nullabilty",
+        true,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
@@ -226,6 +239,9 @@ public abstract class FieldMapper extends Mapper {
             if (isSingleValueEnforced()) {
                 context.enforceSingleValue(fullPath());
             }
+            if (isNullable() == false && context.parser().currentToken().isValue()) {
+                context.encounterRequiredField(fullPath());
+            }
 
             parseCreateField(context);
         } catch (Exception e) {
@@ -302,6 +318,14 @@ public abstract class FieldMapper extends Mapper {
      */
     protected boolean isSingleValueEnforced() {
         return false;
+    }
+
+    /**
+     * Whether this mapper allows null values (i.e. {@code nullability=true}). When {@code false}, a null/missing value for the
+     * document throws. Override on mappers that expose the {@code nullability} doc values mapping parameter.
+     */
+    protected boolean isNullable() {
+        return true;
     }
 
     /**
@@ -1536,7 +1560,7 @@ public abstract class FieldMapper extends Mapper {
     public static final class DocValuesParameter extends Parameter<DocValuesParameter.Values> {
         public static final String PARAMETER_NAME = "doc_values";
 
-        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue) {
+        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean nullability) {
             public enum Cardinality {
                 LOW,
                 HIGH;
@@ -1547,11 +1571,12 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            public static Values DISABLED = new Values(false, Cardinality.LOW, true);
+            public static Values DISABLED = new Values(false, Cardinality.LOW, true, true);
         }
 
         public final Optional<Parameter<Values.Cardinality>> cardinalityParameter;
         public final Parameter<Boolean> multiValueParameter;
+        public final Parameter<Boolean> nullabilityParameter;
 
         /**
          * Factory for field types that do not expose a user-configurable {@code cardinality} sub-parameter (numerics, dates, booleans, IP,
@@ -1613,6 +1638,13 @@ public abstract class FieldMapper extends Mapper {
                 m -> initializer.apply(m).multiValue,
                 subParameterDefaults.multiValue
             );
+
+            nullabilityParameter = Parameter.boolParam(
+                "nullability",
+                false,
+                m -> initializer.apply(m).nullability,
+                subParameterDefaults.nullability
+            );
         }
 
         /**
@@ -1626,10 +1658,12 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "cardinality": "high" }} - doc_values enabled with HIGH cardinality</li>
          *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default)</li>
          *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
+         *   <li>{@code "doc_values": { "nullability": true }} - allow null value for field in document (default)</li>
+         *   <li>{@code "doc_values": { "nullability": false }} - reject any document that has null/missing value for the field</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * additional cardinality and multi_value settings.
+         * additional cardinality, multi_value, and nullability settings.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
@@ -1638,17 +1672,23 @@ public abstract class FieldMapper extends Mapper {
                 if (valueMap.containsKey(multiValueParameter.name)) {
                     multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
                 }
+                if (valueMap.containsKey(nullabilityParameter.name)) {
+                    nullabilityParameter.parse(field, context, valueMap.get(nullabilityParameter.name));
+                }
 
                 setValue(
                     new Values(
                         true,
                         cardinalityParameter.map(Parameter::getValue).orElse(getDefaultValue().cardinality()),
-                        multiValueParameter.getValue()
+                        multiValueParameter.getValue(),
+                        nullabilityParameter.getValue()
                     )
                 );
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
-                    setValue(new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue()));
+                    setValue(
+                        new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue(), getDefaultValue().nullability())
+                    );
                 } else {
                     setValue(Values.DISABLED);
                 }
@@ -1660,6 +1700,7 @@ public abstract class FieldMapper extends Mapper {
             super.setValue(value);
             cardinalityParameter.ifPresent(p -> p.setValue(value.cardinality));
             multiValueParameter.setValue(value.multiValue);
+            nullabilityParameter.setValue(value.nullability);
         }
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
@@ -1672,7 +1713,11 @@ public abstract class FieldMapper extends Mapper {
                 } else {
                     boolean cardinalityConfigured = cardinalityParameter.map(Parameter::isConfigured).orElse(false);
                     boolean multiValueConfigured = multiValueParameter.isConfigured();
-                    if (includeDefaults == false && cardinalityConfigured == false && multiValueConfigured == false) {
+                    boolean nullabilityConfigured = nullabilityParameter.isConfigured();
+                    if (includeDefaults == false
+                        && cardinalityConfigured == false
+                        && multiValueConfigured == false
+                        && nullabilityConfigured == false) {
                         // no sub-parameters were explicitly set; use the boolean shorthand to match the original source
                         builder.field(name, true);
                     } else {
@@ -1688,6 +1733,9 @@ public abstract class FieldMapper extends Mapper {
                         });
                         if (includeDefaults || multiValueConfigured) {
                             builder.field(multiValueParameter.name, value.multiValue);
+                        }
+                        if (includeDefaults || nullabilityConfigured) {
+                            builder.field(nullabilityParameter.name, value.nullability);
                         }
                         builder.endObject();
                     }
@@ -2078,7 +2126,8 @@ public abstract class FieldMapper extends Mapper {
                 new DocValuesParameter.Values(
                     currentValues.enabled(),
                     DocValuesParameter.Values.Cardinality.LOW,
-                    currentValues.multiValue()
+                    currentValues.multiValue(),
+                    currentValues.nullability()
                 )
             );
         }

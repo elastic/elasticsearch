@@ -172,6 +172,7 @@ public final class DocumentParser {
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
+            context.enforceRequiredFields();
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }

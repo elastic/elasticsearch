@@ -65,6 +65,7 @@ public final class MappingLookup {
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
     private final Map<String, NamedAnalyzer> indexAnalyzers;
     private final List<FieldMapper> indexTimeScriptMappers;
+    private final Set<String> requiredFields;
     private final Mapping mapping;
     private final int totalFieldsCount;
     private final IndexMode indexMode;
@@ -191,6 +192,7 @@ public final class MappingLookup {
         final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
         final Set<FieldMapper> dimensionMappers = new LinkedHashSet<>();
         final Set<FieldMapper> metricMappers = new LinkedHashSet<>();
+        final Set<String> requiredMappers = new HashSet<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.fullPath())) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
@@ -208,6 +210,9 @@ public final class MappingLookup {
             }
             if (fieldType.getMetricType() != null) {
                 metricMappers.add(mapper);
+            }
+            if (mapper.isNullable() == false) {
+                requiredMappers.add(mapper.fullPath());
             }
         }
 
@@ -258,6 +263,7 @@ public final class MappingLookup {
         this.runtimeFieldMappersCount = runtimeFields.size();
         this.indexAnalyzers = Map.copyOf(indexAnalyzers);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
+        this.requiredFields = Set.copyOf(requiredMappers);
         this.indexMode = indexMode;
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
@@ -323,6 +329,10 @@ public final class MappingLookup {
 
     List<FieldMapper> indexTimeScriptMappers() {
         return indexTimeScriptMappers;
+    }
+
+    Set<String> requiredFields() {
+        return requiredFields;
     }
 
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {

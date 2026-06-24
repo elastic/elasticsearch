@@ -208,6 +208,7 @@ public abstract class DocumentParserContext {
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final Set<String> singleValuedFields;
+    private final Set<String> requiredFields;
     private Scope currentScope;
 
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
@@ -264,7 +265,8 @@ public abstract class DocumentParserContext {
         DynamicMapperSize dynamicMapperSize,
         ObjectArrayElementCounter objectArrayElementCounter,
         boolean recordedSource,
-        Set<String> singleValuedFields
+        Set<String> singleValuedFields,
+        Set<String> requiredFields
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -272,6 +274,7 @@ public abstract class DocumentParserContext {
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
         this.singleValuedFields = singleValuedFields;
+        this.requiredFields = requiredFields;
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -317,7 +320,8 @@ public abstract class DocumentParserContext {
             in.dynamicMappersSize,
             in.objectArrayElementCounter,
             in.recordedSource,
-            in.singleValuedFields
+            in.singleValuedFields,
+            in.requiredFields
         );
     }
 
@@ -351,7 +355,8 @@ public abstract class DocumentParserContext {
             new DynamicMapperSize(),
             new ObjectArrayElementCounter(),
             false,
-            new HashSet<>()
+            new HashSet<>(),
+            new HashSet<>(mappingLookup.requiredFields())
         );
     }
 
@@ -404,6 +409,18 @@ public abstract class DocumentParserContext {
         if (singleValuedFields.add(fieldName) == false) {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
+            );
+        }
+    }
+
+    public final void encounterRequiredField(String fieldName) {
+        requiredFields.remove(fieldName);
+    }
+
+    public final void enforceRequiredFields() {
+        if (requiredFields.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "Field(s) [" + String.join(",", requiredFields) + "] are configured with [nullability=false] but were null"
             );
         }
     }

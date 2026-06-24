@@ -133,6 +133,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // mode.
             indexMode.isStrictColumnar(),
             FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+            true,
             true
         );
     }
@@ -192,7 +193,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 // copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating the column.
                 boolean enabled = defaultDocValues.enabled()
                     && multiFieldsBuilder.hasColumnarModeCompatibleKeywordDelegate(indexMode) == false;
-                return new FieldMapper.DocValuesParameter.Values(enabled, defaultDocValues.cardinality(), defaultDocValues.multiValue());
+                return new FieldMapper.DocValuesParameter.Values(
+                    enabled,
+                    defaultDocValues.cardinality(),
+                    defaultDocValues.multiValue(),
+                    defaultDocValues.nullability()
+                );
             }, defaultDocValuesParameters(indexMode), m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters);
         }
 
@@ -400,7 +406,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 true,
                 false,
                 false,
-                new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true),
+                new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true),
                 false
             );
         }
@@ -1184,6 +1190,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected boolean isNullable() {
+        return docValuesParameters.nullability();
     }
 
     @Override

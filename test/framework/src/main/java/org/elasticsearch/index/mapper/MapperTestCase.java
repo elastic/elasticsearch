@@ -1366,6 +1366,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         /**
+         * @return true when the field enforces non-null semantics (ie. {@code doc_values.nullability: false}). In such cases, a doc with
+         * a null value for the field is rejected at parse time and {@link #example} must never produce null inputs.
+         */
+        default boolean enforcesNonNullValue() {
+            return false;
+        }
+
+        /**
          * Examples that should work when source is generated from doc values.
          */
         SyntheticSourceExample example(int maxValues) throws IOException;
@@ -1558,7 +1566,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 )
             ) {
                 for (int i = 0; i < count; i++) {
-                    if (rarely() && supportsEmptyInputArray()) {
+                    if (rarely() && supportsEmptyInputArray() && support.enforcesNonNullValue() == false) {
                         expected[i] = support.preservesExactSource() ? "{\"field\":[]}" : "{}";
                         iw.addDocument(mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc());
                         continue;
@@ -1631,6 +1639,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
+        assumeFalse("Field enforces non-null values; empty array is rejected", support.enforcesNonNullValue());
         SyntheticSourceExample syntheticSourceExample = support.example(5);
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
@@ -1663,7 +1672,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private void assertNoDocValueLoader(CheckedConsumer<XContentBuilder, IOException> doc) throws IOException {
         boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
+        SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
+        assumeFalse("Field enforces non-null values; missing/empty field is rejected", support.enforcesNonNullValue());
+        SyntheticSourceExample syntheticSourceExample = support.example(5);
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
@@ -2207,6 +2218,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
+     * Whether this mapper exposes the {@code doc_values.nullability} sub-parameter. Override and return {@code true} for mappers that
+     * participate in non-null enforcement.
+     */
+    protected boolean supportsNullabilityParameter() {
+        return false;
+    }
+
+    /**
      * The Lucene {@link DocValuesType} produced for a field mapped with {@code multi_value=false}. Override when
      * {@link #supportsMultiValueParameter()} returns {@code true}.
      * <p>
@@ -2311,6 +2330,39 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(mvFalseBlock[1], nullValue());          // sparse / unset middle document
             assertNotNull(mvFalseBlock[2]);
         }
+    }
+
+    public void testNullabilityFalseAcceptsValue() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("nullability", false).endObject();
+        }));
+        // must not throw
+        mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+    }
+
+    public void testNullabilityFalseRejectsNull() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("nullability", false).endObject();
+        }));
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
+    }
+
+    public void testNullabilityFalseRejectsMissingField() throws Exception {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("nullability", false).endObject();
+        }));
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
     }
 
     /**

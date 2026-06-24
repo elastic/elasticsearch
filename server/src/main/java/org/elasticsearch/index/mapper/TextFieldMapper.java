@@ -267,9 +267,11 @@ public final class TextFieldMapper extends FieldMapper {
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         boolean multiValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
             || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        boolean nullability = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
+            || FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
         // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.
         boolean enabled = indexSettings.getMode().isStrictColumnar();
-        return new DocValuesParameter.Values(enabled, DocValuesParameter.Values.Cardinality.HIGH, multiValue);
+        return new DocValuesParameter.Values(enabled, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability);
     }
 
     public static class Builder extends TextFamilyBuilder {
@@ -332,7 +334,12 @@ public final class TextFieldMapper extends FieldMapper {
                 // identical copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating.
                 boolean enabled = defaultDocValues.enabled()
                     && multiFieldsBuilder.hasColumnarModeCompatibleKeywordDelegate(indexSettings.getMode()) == false;
-                return new DocValuesParameter.Values(enabled, defaultDocValues.cardinality(), defaultDocValues.multiValue());
+                return new DocValuesParameter.Values(
+                    enabled,
+                    defaultDocValues.cardinality(),
+                    defaultDocValues.multiValue(),
+                    defaultDocValues.nullability()
+                );
             }, defaultDocValuesParameters(indexSettings), m -> ((TextFieldMapper) m).docValuesParameters);
             this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
             this.analyzers = new TextParams.Analyzers(
@@ -1871,6 +1878,11 @@ public final class TextFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected boolean isNullable() {
+        return docValuesParameters.nullability();
     }
 
     @Override

@@ -49,7 +49,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             if (allowIgnoredSource && ESTestCase.randomBoolean()) {
                 return FieldMapper.DocValuesParameter.Values.DISABLED;
             } else {
-                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
+                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true, true);
             }
         }
 
@@ -57,11 +57,13 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             case 0 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                ESTestCase.randomBoolean(),
                 ESTestCase.randomBoolean()
             );
             case 1 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                ESTestCase.randomBoolean(),
                 ESTestCase.randomBoolean()
             );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
@@ -77,6 +79,11 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     @Override
     public boolean enforcesSingleValue() {
         return docValues.multiValue() == false;
+    }
+
+    @Override
+    public boolean enforcesNonNullValue() {
+        return docValues.nullability() == false;
     }
 
     @Override
@@ -143,7 +150,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     private Tuple<String, String> generateValue() {
-        if (nullValue != null && ESTestCase.randomBoolean()) {
+        if (nullValue != null && enforcesNonNullValue() == false && ESTestCase.randomBoolean()) {
             return Tuple.tuple(null, nullValue);
         }
         int length = 5;
@@ -176,6 +183,9 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
                 b.field("cardinality", docValues.cardinality().toString());
                 if (docValues.multiValue() == false) {
                     b.field("multi_value", false);
+                }
+                if (docValues.nullability() == false) {
+                    b.field("nullability", false);
                 }
                 b.endObject();
             }

@@ -370,6 +370,13 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     }
 
     @Override
+    protected long maxVectorsToVisit(NextFieldEntry entry, float visitRatio, int numVectors) {
+        return switch (entry.centroidIndexFormat()) {
+            case FLAT -> super.maxVectorsToVisit(entry, visitRatio, numVectors);
+        };
+    }
+
+    @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
         FloatVectorValues values,

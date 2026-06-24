@@ -25,35 +25,42 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.datasources.DatasetResolutionService;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Resolves and authorizes {@code FROM <dataset>} targets. Mirror of {@link EsqlResolveViewAction}: the
- * {@code indices:data/read/...} action name plus an {@link IndicesRequest.Replaceable} request carrying
- * {@code resolveDatasets(true)} index options makes the security action filter authorize the dataset names
- * for {@code read} and replace the request's expressions with the authorized set — so the dataset name is
- * read-checked the same way an index pattern is, with no bespoke authorization predicate.
+ * Read-authorization gate for {@code FROM <dataset>}: narrows the dataset names a query would read to the subset
+ * the caller may read. Mirrors {@link EsqlResolveViewAction} — the {@link Request} is an
+ * {@link IndicesRequest.Replaceable} with {@code resolveDatasets(true)}, so the security filter drops unauthorized
+ * names (hiding their existence) and the DLS/FLS interceptor rejects restricted datasets. Read access is governed by
+ * the index {@code read} privilege on the dataset name, exactly as for indices and views; the parent datasource's
+ * credentials are an admin concern settled when the dataset is created (PUT), not re-checked per query.
+ *
+ * <p>The request carries one relation's <em>raw</em> FROM patterns (split on comma, not pre-expanded). Wildcard
+ * expansion against the authorized abstractions happens in the authorization engine (the security filter replaces
+ * {@link Request#indices()} in flight with the authorized concrete names) rather than client-side. The original raw
+ * patterns are preserved separately ({@link Request#rawPatterns()}) so the action body can still classify whether the
+ * relation also targets non-dataset abstractions — see {@link #localClusterStateOperation}.
  */
 public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataAction<
     EsqlResolveDatasetAction.Request,
     EsqlResolveDatasetAction.Response> {
-    public static final String NAME = "indices:data/read/esql/resolve_datasets";
+    public static final String NAME = EsqlDatasetActionNames.ESQL_RESOLVE_DATASET_ACTION_NAME;
     public static final ActionType<EsqlResolveDatasetAction.Response> TYPE = new ActionType<>(NAME);
 
-    private final DatasetResolutionService datasetResolutionService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public EsqlResolveDatasetAction(
@@ -63,9 +70,8 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         ClusterService clusterService,
         ProjectResolver projectResolver
     ) {
-        // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(NAME, actionFilters, transportService.getTaskManager(), clusterService, EsExecutors.DIRECT_EXECUTOR_SERVICE, projectResolver);
-        this.datasetResolutionService = new DatasetResolutionService(indexNameExpressionResolver);
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -75,44 +81,42 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
 
     @Override
     protected void localClusterStateOperation(Task task, Request request, ProjectState project, ActionListener<Response> listener) {
-        var result = datasetResolutionService.resolveDatasets(
-            project,
+        // Two-part engine-side resolution (see DatasetRewriter#resolve):
+        // (a) the authorized concrete dataset names — from request.indices(), which on a security-enabled cluster the
+        // filter has already narrowed (lenient options, so an unauthorized concrete name is dropped here, not 403'd);
+        // without security this is the sole resolution.
+        // (b) whether the relation ALSO targets non-dataset abstractions, plus the explicitly-named-but-unauthorized
+        // datasets — resolved from the ORIGINAL raw patterns under an open predicate. The mixed-FROM rejection and the
+        // Unknown-index (400) for an explicit unauthorized dataset are surfaced downstream by DatasetRewriter#rewriteOne.
+        DatasetResolution resolution = DatasetRewriter.resolve(
             request.indices(),
-            request.indicesOptions(),
-            request.getResolvedIndexExpressions()
+            request.rawPatterns(),
+            project.metadata(),
+            indexNameExpressionResolver
         );
-        listener.onResponse(new Response(result.datasetNames(), result.resolvedIndexExpressions()));
+        listener.onResponse(
+            new Response(resolution.authorizedDatasets(), resolution.hasNonDatasetTargets(), resolution.explicitUnauthorized())
+        );
     }
 
+    /**
+     * Unlike the view sibling, deliberately carries no remote/CPS plumbing ({@code allowsRemoteIndices},
+     * project routing): datasets are local-only and remote-prefixed relations never reach this action.
+     */
     public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
-        private static final IndicesOptions DATASET_INDICES_OPTIONS = IndicesOptions.builder()
-            .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(true))
-            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).build())
-            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-            .build();
-
-        private static final IndicesOptions CPS_DATASET_INDICES_OPTIONS = IndicesOptions.builder(DATASET_INDICES_OPTIONS)
-            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-            .build();
-
-        private final IndicesOptions indicesOptions;
-        private String[] indices = new String[0];
-        @Nullable
-        private String projectRouting;
-        @Nullable
-        private TargetProjects resolvedTargetProjects;
+        private String[] indices;
+        // The ORIGINAL raw FROM patterns for this relation, kept separate from the Replaceable indices: the security
+        // filter narrows indices() in flight to the authorized concrete names, but the action body still needs the
+        // un-narrowed patterns to classify whether the relation also targets non-dataset abstractions.
+        private final String[] rawPatterns;
         private ResolvedIndexExpressions resolvedIndexExpressions;
 
-        public Request(TimeValue masterTimeout, boolean cpsEnabled) {
+        /** @param rawPatterns one relation's raw FROM patterns (split on comma, not pre-expanded) */
+        public Request(TimeValue masterTimeout, String[] rawPatterns) {
             super(masterTimeout);
-            this.indicesOptions = cpsEnabled ? CPS_DATASET_INDICES_OPTIONS : DATASET_INDICES_OPTIONS;
-        }
-
-        @Override
-        public IndicesRequest indices(String... indices) {
-            this.indices = indices;
-            return this;
+            this.indices = rawPatterns;
+            this.rawPatterns = rawPatterns;
         }
 
         @Override
@@ -125,48 +129,20 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             return indices;
         }
 
+        /** The original raw FROM patterns, unaffected by the security filter's in-flight narrowing of {@link #indices()}. */
+        public String[] rawPatterns() {
+            return rawPatterns;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            this.indices = indices;
+            return this;
+        }
+
         @Override
         public IndicesOptions indicesOptions() {
-            return indicesOptions;
-        }
-
-        @Override
-        public boolean allowsCrossProject() {
-            return true;
-        }
-
-        @Override
-        public boolean allowsRemoteIndices() {
-            return true;
-        }
-
-        public void setProjectRouting(@Nullable String projectRouting) {
-            this.projectRouting = projectRouting;
-        }
-
-        @Override
-        public String getProjectRouting() {
-            return projectRouting;
-        }
-
-        @Override
-        public void setResolvedTargetProjects(TargetProjects resolvedTargetProjects) {
-            this.resolvedTargetProjects = resolvedTargetProjects;
-        }
-
-        @Override
-        public TargetProjects getResolvedTargetProjects() {
-            return resolvedTargetProjects;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public String toString() {
-            return "EsqlResolveDatasetAction.Request={indices:" + Arrays.toString(indices) + "}";
+            return DatasetRewriter.RESOLVER_OPTIONS;
         }
 
         @Override
@@ -176,30 +152,52 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
 
         @Override
         public ResolvedIndexExpressions getResolvedIndexExpressions() {
-            return this.resolvedIndexExpressions;
+            return resolvedIndexExpressions;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        @Override
+        public String toString() {
+            return "EsqlResolveDatasetAction.Request{indices:" + Arrays.toString(indices) + "}";
         }
     }
 
     public static class Response extends ActionResponse {
-        private final List<String> datasetNames;
-        private final ResolvedIndexExpressions resolvedIndexExpressions;
+        private final Set<String> datasets;
+        private final boolean hasNonDatasetTargets;
+        private final Set<String> explicitUnauthorized;
 
-        public Response(List<String> datasetNames, ResolvedIndexExpressions resolvedIndexExpressions) {
-            this.datasetNames = datasetNames;
-            this.resolvedIndexExpressions = resolvedIndexExpressions;
+        public Response(Set<String> datasets, boolean hasNonDatasetTargets, Set<String> explicitUnauthorized) {
+            this.datasets = datasets;
+            this.hasNonDatasetTargets = hasNonDatasetTargets;
+            this.explicitUnauthorized = explicitUnauthorized;
+        }
+
+        /** Dataset names the caller is authorized to read, post pattern expansion. */
+        public Set<String> datasets() {
+            return datasets;
+        }
+
+        /**
+         * {@code true} when the relation's raw patterns also resolve to at least one non-dataset abstraction (index,
+         * alias, data stream). Drives the mixed-FROM rejection in {@link DatasetRewriter}.
+         */
+        public boolean hasNonDatasetTargets() {
+            return hasNonDatasetTargets;
+        }
+
+        /** Explicitly-named datasets absent from the authorized set — surfaced as {@code Unknown index} by the rewrite. */
+        public Set<String> explicitUnauthorized() {
+            return explicitUnauthorized;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             TransportAction.localOnly();
-        }
-
-        public List<String> datasetNames() {
-            return datasetNames;
-        }
-
-        public ResolvedIndexExpressions getResolvedIndexExpressions() {
-            return resolvedIndexExpressions;
         }
     }
 }

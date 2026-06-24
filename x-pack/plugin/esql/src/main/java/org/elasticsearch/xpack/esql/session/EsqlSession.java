@@ -276,7 +276,6 @@ public class EsqlSession {
             indexResolver,
             viewResolver,
             externalSourceResolver,
-            services.indexNameExpressionResolver(),
             this.remoteClusterService,
             this.crossProjectModeDecider,
             indicesExpressionGrouper,
@@ -1206,16 +1205,10 @@ public class EsqlSession {
         // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Only datasets the caller can
         // read are rewritten (the resolve is a security-filtered action); the rest of analysis runs in the callback once
         // it completes. The resolve bails synchronously when no FROM pattern could match a registered dataset.
-        schemaService.resolveDatasets(
-            parsed,
-            projectMetadata,
-            configuration.projectRouting(),
-            crossProjectModeDecider.crossProjectEnabled(),
-            logicalPlanListener.delegateFailureAndWrap((l, rewrittenPlan) -> {
-                datasetResolutionProfile.stop();
-                analyzeRewrittenPlan(rewrittenPlan, unmappedResolution, configuration, executionInfo, requestFilter, l);
-            })
-        );
+        schemaService.resolveDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((l, rewrittenPlan) -> {
+            datasetResolutionProfile.stop();
+            analyzeRewrittenPlan(rewrittenPlan, unmappedResolution, configuration, executionInfo, requestFilter, l);
+        }));
     }
 
     private void analyzeRewrittenPlan(

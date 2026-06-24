@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -51,7 +50,6 @@ public final class SchemaService {
         IndexResolver indexResolver,
         ViewResolver viewResolver,
         ExternalSourceResolver externalSourceResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         RemoteClusterService remoteClusterService,
         CrossProjectModeDecider crossProjectModeDecider,
         IndicesExpressionGrouper indicesExpressionGrouper,
@@ -69,7 +67,7 @@ public final class SchemaService {
             verifier
         );
         this.viewProvider = new ViewSchemaProvider(viewResolver);
-        this.datasetProvider = new DatasetSchemaProvider(externalSourceResolver, indexNameExpressionResolver, client, executor);
+        this.datasetProvider = new DatasetSchemaProvider(externalSourceResolver, client, executor, crossProjectModeDecider);
         this.providers = List.of(indexProvider, viewProvider, datasetProvider);
     }
 
@@ -140,14 +138,8 @@ public final class SchemaService {
      * Authorize and rewrite {@code FROM <dataset>} targets into external relations so analysis treats them like the
      * inline {@code EXTERNAL} command. Only datasets the caller can {@code read} are rewritten.
      */
-    public void resolveDatasets(
-        LogicalPlan parsed,
-        ProjectMetadata projectMetadata,
-        String projectRouting,
-        boolean cpsEnabled,
-        ActionListener<LogicalPlan> listener
-    ) {
-        datasetProvider.resolveDatasets(parsed, projectMetadata, projectRouting, cpsEnabled, listener);
+    public void resolveDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
+        datasetProvider.resolveDatasets(parsed, projectMetadata, listener);
     }
 
     /** Resolve the schema of external sources (Iceberg tables / Parquet files) referenced by the query. */

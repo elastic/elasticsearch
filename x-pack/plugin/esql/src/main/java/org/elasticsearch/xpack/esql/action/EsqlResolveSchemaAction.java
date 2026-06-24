@@ -33,7 +33,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.datasources.DatasetResolutionService;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.session.schema.ResolvedSchema;
 
@@ -57,7 +56,7 @@ public class EsqlResolveSchemaAction extends TransportLocalProjectMetadataAction
     public static final String NAME = "indices:data/read/esql/resolve_schema";
     public static final ActionType<EsqlResolveSchemaAction.Response> TYPE = new ActionType<>(NAME);
 
-    private final DatasetResolutionService datasetResolutionService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public EsqlResolveSchemaAction(
@@ -69,7 +68,7 @@ public class EsqlResolveSchemaAction extends TransportLocalProjectMetadataAction
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(NAME, actionFilters, transportService.getTaskManager(), clusterService, EsExecutors.DIRECT_EXECUTOR_SERVICE, projectResolver);
-        this.datasetResolutionService = new DatasetResolutionService(indexNameExpressionResolver);
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -79,14 +78,16 @@ public class EsqlResolveSchemaAction extends TransportLocalProjectMetadataAction
 
     @Override
     protected void localClusterStateOperation(Task task, Request request, ProjectState project, ActionListener<Response> listener) {
-        var datasets = datasetResolutionService.resolveDatasets(
-            project,
+        // request.indices() is the security-narrowed authorized set on a secured cluster (== the raw indices without
+        // security). The authorized dataset names among them carry each one's external-source config back as a schema.
+        DatasetRewriter.DatasetResolution resolution = DatasetRewriter.resolve(
             request.indices(),
-            request.indicesOptions(),
-            request.getResolvedIndexExpressions()
+            request.indices(),
+            project.metadata(),
+            indexNameExpressionResolver
         );
-        List<ResolvedSchema> schemas = new ArrayList<>(datasets.datasetNames().size());
-        for (String name : datasets.datasetNames()) {
+        List<ResolvedSchema> schemas = new ArrayList<>(resolution.authorizedDatasets().size());
+        for (String name : resolution.authorizedDatasets()) {
             schemas.add(new ResolvedSchema.Dataset(name, DatasetRewriter.datasetConfig(project.metadata(), name)));
         }
         listener.onResponse(new Response(schemas));

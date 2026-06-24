@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.esql.session.schema;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -29,35 +29,29 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
-
-import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 /**
  * Schema for datasets and external sources. A {@code FROM <dataset>} target is authorized for {@code read} and then
  * rewritten into an external relation; its schema is read from the source metadata by {@link ExternalSourceResolver}.
  * Authorization goes through {@link EsqlResolveDatasetAction} — a security-filtered {@code indices:data/read/...} action
  * that authorizes the dataset names exactly as an index read is authorized — so only datasets the caller can read are
- * rewritten. The two steps run at different points in the pipeline, so the provider keeps them as separate entry points.
+ * rewritten. The per-relation dispatch and rewrite are owned by {@link DatasetResolver}; the schema-by-name path and
+ * the external-source resolve are kept as separate entry points because they run at different points in the pipeline.
  */
 final class DatasetSchemaProvider implements AbstractionSchemaProvider {
 
     private final ExternalSourceResolver externalSourceResolver;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final Client client;
-    private final Executor executor;
+    private final DatasetResolver datasetResolver;
 
     DatasetSchemaProvider(
         ExternalSourceResolver externalSourceResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
-        Executor executor
+        Executor executor,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         this.externalSourceResolver = externalSourceResolver;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.client = client;
-        this.executor = executor;
+        this.datasetResolver = new DatasetResolver(client, executor, crossProjectModeDecider);
     }
 
     @Override
@@ -81,28 +75,14 @@ final class DatasetSchemaProvider implements AbstractionSchemaProvider {
 
     /**
      * Authorize the dataset names referenced by {@code parsed} for {@code read}, then rewrite the authorized ones into
-     * external relations. When no FROM pattern could match a registered dataset, the plan is returned unchanged with no
-     * authorization round-trip. A dataset the caller cannot read makes the resolve action fail (403), which propagates.
+     * external relations. Delegates to {@link DatasetResolver}, which dispatches one {@link EsqlResolveDatasetAction}
+     * per FROM relation (the per-relation round-trip that makes exclusion semantics correct), then runs the synchronous
+     * rewrite. When no FROM pattern could match a registered dataset, the plan is returned unchanged with no round-trip.
+     * An explicitly-named dataset the caller cannot read surfaces as {@code Unknown index} (400), the same error a
+     * missing index gives — existence-hiding, not a 403.
      */
-    void resolveDatasets(
-        LogicalPlan parsed,
-        ProjectMetadata projectMetadata,
-        String projectRouting,
-        boolean cpsEnabled,
-        ActionListener<LogicalPlan> listener
-    ) {
-        Set<String> candidatePatterns = DatasetRewriter.datasetCandidatePatterns(parsed, projectMetadata);
-        if (candidatePatterns.isEmpty()) {
-            listener.onResponse(parsed);
-            return;
-        }
-        var request = new EsqlResolveDatasetAction.Request(REST_MASTER_TIMEOUT_DEFAULT, cpsEnabled);
-        request.indices(candidatePatterns.toArray(String[]::new));
-        request.setProjectRouting(projectRouting);
-        client.execute(EsqlResolveDatasetAction.TYPE, request, new ThreadedActionListener<>(executor, listener.map(response -> {
-            Set<String> authorized = Set.copyOf(response.datasetNames());
-            return DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver, authorized);
-        })));
+    void resolveDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
+        datasetResolver.replaceDatasets(parsed, projectMetadata, listener);
     }
 
     /**

@@ -2055,7 +2055,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
      *
      * <p>{@code FROM <dataset>} routes the dataset name through the security-filtered {@code resolve_datasets}
      * action before rewriting it into an external relation, so the name is read-authorized exactly as an index
-     * pattern is. A principal without {@code read} on the dataset is forbidden, never reaching the external read.
+     * pattern is. A principal without {@code read} on an explicitly-named dataset gets the same {@code Unknown index}
+     * (400) a missing index gives — existence-hiding, not a 403, so an unauthorized dataset is indistinguishable from
+     * a nonexistent name.
      */
     public void testFromDatasetEnforcesReadAuthorization() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
@@ -2078,16 +2080,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertOK(client().performRequest(putDataset));
 
             // user5 can run ES|QL (read on `index`) but has NO privilege on `security_it_ds_*`.
-            // Secure behavior: FROM <dataset> must be denied at authorization time, before any external read.
+            // Secure behavior: an explicitly-named dataset the caller can't read is existence-hidden — it surfaces as
+            // the same Unknown index (400) a missing index gives, before any external read, with no 403 existence oracle.
             ResponseException ex = expectThrows(
                 ResponseException.class,
                 () -> runESQLCommand("user5", "FROM " + dataset + " | STATS COUNT(*)")
             );
             assertThat(
-                "FROM <dataset> must be authorization-denied for a principal without dataset read privilege",
+                "FROM <dataset> must existence-hide an unreadable dataset as Unknown index (400)",
                 ex.getResponse().getStatusLine().getStatusCode(),
-                equalTo(HttpStatus.SC_FORBIDDEN)
+                equalTo(HttpStatus.SC_BAD_REQUEST)
             );
+            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("Unknown index [" + dataset + "]"));
         } finally {
             Request delDataset = new Request("DELETE", "/_query/dataset/" + dataset);
             setUser(delDataset, "test-admin");

@@ -35,20 +35,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
 
-    public void testResetAccessCountsSkippedWhenCacheBoostPreferenceDisabled() throws IOException {
-        runResetAccessCountsTest(false, false, false);
-    }
-
     public void testResetAccessCountsSkippedWhenShardLocallyAllocatedAtTaskExecution() throws IOException {
-        runResetAccessCountsTest(true, false, true);
+        runResetAccessCountsTest(true, false);
     }
 
     public void testResetAccessCountsWhenShardNotLocallyAllocatedAtTaskExecution() throws IOException {
-        runResetAccessCountsTest(false, true, true);
+        runResetAccessCountsTest(false, true);
     }
 
-    private void runResetAccessCountsTest(boolean locallyAllocatedAtExecution, boolean expectReset, boolean cacheBoostEnabled)
-        throws IOException {
+    private void runResetAccessCountsTest(boolean locallyAllocatedAtExecution, boolean expectReset) throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(
@@ -60,7 +55,6 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                 ByteSizeValue.ofBytes(cacheRegionSizeInBytes(100)).getStringRep()
             )
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), cacheBoostEnabled)
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
@@ -87,9 +81,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                     : clusterStateWithoutShardOnLocalNode(shardId, index)
             );
 
-            if (cacheBoostEnabled) {
-                cacheService.asyncResetAccessCounts(shardId, id -> locallyAllocatedAtExecution == false);
-            }
+            cacheService.asyncResetAccessCounts(shardId, id -> locallyAllocatedAtExecution == false);
             taskQueue.runAllRunnableTasks();
 
             if (expectReset) {

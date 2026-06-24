@@ -1849,6 +1849,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     ) {
         NoConfigFormatReader formatReader = new NoConfigFormatReader() {
             @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
             public SourceMetadata metadata(StorageObject object) {
                 readCounter.incrementAndGet();
                 String path = object.path().toString();
@@ -1932,6 +1937,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String failOnPathSuffix
     ) {
         NoConfigFormatReader formatReader = new NoConfigFormatReader() {
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
             @Override
             public SourceMetadata metadata(StorageObject object) {
                 readCounter.incrementAndGet();

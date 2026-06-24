@@ -59,7 +59,11 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sum.class).unary(Sum::new).name("sum");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeries(Sum::new)
+        .acrossSeries(
+            (source, field) -> field.resolved() && field.dataType().isHistogram()
+                ? new HistogramMerge(source, field)
+                : new Sum(source, field)
+        )
         .description("Calculates the sum of the values across the input vector.")
         .example("sum(http_requests_total)")
         .name("sum");

@@ -1249,6 +1249,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 EXPONENTIAL_HISTOGRAM, TDIGEST -> false;
             // EnrichResultBuilderForLongRange was added with tech preview; old nodes throw on execution.
             case DATE_RANGE -> DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false);
+            // EnrichResultBuilderForFloat was added to 9.x (PR #139774); DENSE_VECTOR maps to ElementType.FLOAT
+            // which old 8.x nodes can't handle. Use the production version check (ESQL_DENSE_VECTOR_CREATED_VERSION
+            // = 9183000) which correctly excludes 8.x nodes (max transport version 8841090).
+            case DENSE_VECTOR -> DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false);
             default -> true;
         };
     }

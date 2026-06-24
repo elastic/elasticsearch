@@ -719,3 +719,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testOutageBuffersToDiskAndDrainsOnRecovery
   issue: https://github.com/elastic/elasticsearch/issues/152087
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  method: testKnnQueryRescore
+  issue: https://github.com/elastic/elasticsearch/issues/152093

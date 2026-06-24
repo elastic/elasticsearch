@@ -65,14 +65,11 @@ public class BufferingMetricExporterTests extends ESTestCase {
 
     private void build(Settings overrides) {
         Settings merged = Settings.builder()
-            .put("telemetry.otel.metrics.disk_buffer_size", "10mb")
-            .put("telemetry.otel.metrics.buffer_ttl", "5m")
-            // Short rotation/read times so the suite runs in seconds rather than minutes.
-            .put("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
-            .put("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
+            .put("telemetry.metrics.buffer.disk_size", "10mb")
+            .put("telemetry.metrics.buffer.ttl", "5m")
             .put(overrides)
             .build();
-        exporter = new BufferingMetricExporter(delegate, merged, bufferDir, () -> meterProvider);
+        exporter = new BufferingMetricExporter(delegate, merged, bufferDir, () -> meterProvider, 100, 200);
     }
 
     private CompletableResultCode exportAndWait(String name) {
@@ -96,7 +93,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
     }
 
     public void testDiskCapRotatesOldestToMakeRoom() throws Exception {
-        build(Settings.builder().put("telemetry.otel.metrics.disk_buffer_size", "1kb").build());
+        build(Settings.builder().put("telemetry.metrics.buffer.disk_size", "1kb").build());
 
         delegate.setShouldFail(true);
         assertTrue(exportAndWait("first").isSuccess());
@@ -107,7 +104,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
 
     public void testTtlExpiredFilesAreNotReplayed() throws Exception {
         // TTL must be greater than the test-injected minFileAgeForRead (200ms)
-        build(Settings.builder().put("telemetry.otel.metrics.buffer_ttl", "300ms").build());
+        build(Settings.builder().put("telemetry.metrics.buffer.ttl", "300ms").build());
 
         delegate.setShouldFail(true);
         exportAndWait("expires");

@@ -122,6 +122,15 @@ public class FileSplitProvider implements SplitProvider {
      * so single-threaded fallback paths do not skip or trim aligned ranges.
      */
     static final String RECORD_ALIGNED_MACRO_SPLIT_KEY = "_record_aligned_macro_split";
+    /**
+     * Marks splits whose {@code offset()} is a COMPRESSED byte position (bzip2 block-aligned /
+     * zstd-indexed frame groups). Text readers anchor {@code _rowPosition} as
+     * {@code splitStartByte + decompressed-bytes-consumed}; a compressed anchor plus a
+     * decompressed delta is a value on no axis — not split-invariant and collision-prone across
+     * splits — so the dispatcher must not compose {@code _id} from these splits (it null-splices
+     * the {@code _rowPosition} slot instead).
+     */
+    static final String COMPRESSED_OFFSET_SPLIT_KEY = "_compressed_offset_split";
 
     /** Maximum parallel per-file I/O tasks during split discovery (Parquet footer reads, etc.). */
     static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
@@ -532,6 +541,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
 
                 Map<String, Object> splitConfig = new HashMap<>(config);
+                splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
                 if (m == 0) {
                     splitConfig.put(FIRST_SPLIT_KEY, "true");
                 }
@@ -795,6 +805,7 @@ public class FileSplitProvider implements SplitProvider {
                 if (accumulated >= DEFAULT_MACRO_SPLIT_TARGET || isLast) {
                     long groupEnd = frame.compressedOffset() + frame.compressedSize();
                     Map<String, Object> splitConfig = new HashMap<>(config);
+                    splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
                     if (splitCount == 0) {
                         splitConfig.put(FIRST_SPLIT_KEY, "true");
                     }

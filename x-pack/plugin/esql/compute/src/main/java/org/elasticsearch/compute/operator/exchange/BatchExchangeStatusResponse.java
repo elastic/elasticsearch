@@ -27,7 +27,7 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
     private final long bytesRead;
 
     /**
-     * Create a success response carrying the total directory bytes read on the server.
+     * Create a success response.
      */
     public BatchExchangeStatusResponse(long bytesRead) {
         this.failure = null;

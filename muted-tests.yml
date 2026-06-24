@@ -254,6 +254,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionValidationFuncTest
   method: unreferable definitions can have primary ids that are patches
   issue: https://github.com/elastic/elasticsearch/issues/152051
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testAverageWriteLoadMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/152064
 
 # Examples:
 #

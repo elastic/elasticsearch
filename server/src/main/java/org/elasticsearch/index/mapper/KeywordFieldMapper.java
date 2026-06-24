@@ -293,7 +293,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.script.precludesParameters(nullValue);
 
-            this.docValuesParameters = DocValuesParameter.ofWithCardinality(
+            this.docValuesParameters = DocValuesParameter.of(
                 defaultDocValuesParameters(indexSettings),
                 m -> toType(m).docValuesParameters()
             );

@@ -15,11 +15,13 @@ import org.gradle.api.Named;
  * This class models the different Docker base images that are used to build Docker distributions of Elasticsearch.
  */
 public enum DockerBase implements Named {
+    DEFAULT("ubuntu:24.04", "", "apt-get", "dockerfiles/default/Dockerfile"),
+
     // "latest" here is intentional, since the image name specifies "9"
-    DEFAULT("redhat/ubi9-minimal:latest", "", "microdnf", "dockerfiles/default/Dockerfile"),
+    UBI("redhat/ubi8-minimal:latest", "-ubi8", "microdnf", "Dockerfile"),
 
     // The Iron Bank base image is UBI (albeit hardened), but we are required to parameterize the Docker build
-    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "dockerfiles/ironbank/Dockerfile"),
+    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "Dockerfile"),
 
     // Chainguard based wolfi image with latest jdk
     WOLFI(

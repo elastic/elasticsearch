@@ -37,9 +37,11 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         };
 
         // read from doc_values
+        // In strict columnar modes, doc_values:false is silently flipped to true by the mapper.
+        boolean effectiveDocValues = hasDocValues(fieldMapping, true) || params.indexMode().isStrictColumnar();
         boolean preferToLoadFromDocValues = params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES;
         boolean noPreference = params.preference() == MappedFieldType.FieldExtractPreference.NONE;
-        if (hasDocValues(fieldMapping, true)) {
+        if (effectiveDocValues) {
             if (preferToLoadFromDocValues) {
                 return longValues(values, nullValue, testContext.isMultifield());
             } else if (noPreference && (params.syntheticSource() || params.isColumnarStored())) {
@@ -69,7 +71,7 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         }
 
         // synthetic source and doc_values are present
-        if (hasDocValues(fieldMapping, true)) {
+        if (effectiveDocValues) {
             return bytesRefWkbValues(values, nullValue, false);
         }
 

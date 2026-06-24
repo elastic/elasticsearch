@@ -46,7 +46,9 @@ public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
             default -> throw new IllegalStateException("Unexpected null_value format");
         };
 
-        if (params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES && hasDocValues(fieldMapping, true)) {
+        // In strict columnar modes, doc_values:false is silently flipped to true by the mapper.
+        boolean hasDocValues = hasDocValues(fieldMapping, true) || params.indexMode().isStrictColumnar();
+        if (params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES && hasDocValues) {
             if (value instanceof List<?> == false) {
                 return encode(convert(value, nullValue));
             }

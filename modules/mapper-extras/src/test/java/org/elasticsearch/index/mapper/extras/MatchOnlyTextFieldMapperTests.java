@@ -827,8 +827,9 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertDocValuesDedup(b -> b.field("null_value", "NULL"), true);
         // ignore_above on the keyword delegate omits long values, so the keyword copy is incomplete and the field keeps its own.
         assertDocValuesDedup(b -> b.field("ignore_above", 10), true);
-        // A keyword delegate with doc values disabled is not a copy at all, so the field keeps its own doc values.
-        assertDocValuesDedup(b -> b.field("doc_values", false), true);
+        // In strict columnar mode, doc_values:false on the keyword delegate is silently flipped to true, so the
+        // keyword copy is complete and the field deduplicates against it (no own doc values needed).
+        assertDocValuesDedup(b -> b.field("doc_values", false), false);
     }
 
     private void assertDocValuesDedup(CheckedConsumer<XContentBuilder, IOException> keywordConfig, boolean expectsOwnDocValues)

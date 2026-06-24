@@ -49,7 +49,8 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove))
             .filter(Objects::nonNull);
 
-        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        // In strict columnar modes, doc_values:false is silently flipped to true by the mapper.
+        boolean hasDocValues = hasDocValues(fieldMapping, true) || params.indexMode().isStrictColumnar();
         boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
             || params.syntheticSource();

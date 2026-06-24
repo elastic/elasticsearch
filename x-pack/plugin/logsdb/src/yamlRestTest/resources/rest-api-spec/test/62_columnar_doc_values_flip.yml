@@ -1,0 +1,131 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.ignores_doc_values_false" ]
+      reason: "Strict columnar modes must silently ignore doc_values:false and keep doc values enabled"
+
+---
+"logsdb_columnar mode silently ignores doc_values:false for keyword field":
+  - do:
+      indices.create:
+        index: test-lc-dv-kwd
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              field:
+                type: keyword
+                doc_values: false
+
+  - do:
+      indices.get_field_mapping:
+        index: test-lc-dv-kwd
+        fields: field
+        include_defaults: true
+  # doc_values must be enabled despite the explicit doc_values:false
+  - is_true: test-lc-dv-kwd.mappings.field.mapping.field.doc_values
+
+  - do:
+      index:
+        index: test-lc-dv-kwd
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2023-01-01T00:00:00.000Z"
+          field: "hello"
+  - do:
+      get:
+        index: test-lc-dv-kwd
+        id: "1"
+  - match: { _source.field: "hello" }
+
+---
+"logsdb_columnar mode silently ignores doc_values:false for long field":
+  - do:
+      indices.create:
+        index: test-lc-dv-long
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              field:
+                type: long
+                doc_values: false
+
+  - do:
+      indices.get_field_mapping:
+        index: test-lc-dv-long
+        fields: field
+        include_defaults: true
+  - is_true: test-lc-dv-long.mappings.field.mapping.field.doc_values
+
+  - do:
+      index:
+        index: test-lc-dv-long
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2023-01-01T00:00:00.000Z"
+          field: 42
+  - do:
+      get:
+        index: test-lc-dv-long
+        id: "1"
+  - match: { _source.field: 42 }
+
+---
+"logsdb_columnar mode silently ignores doc_values:false for ip field":
+  - do:
+      indices.create:
+        index: test-lc-dv-ip
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              field:
+                type: ip
+                doc_values: false
+
+  - do:
+      indices.get_field_mapping:
+        index: test-lc-dv-ip
+        fields: field
+        include_defaults: true
+  - is_true: test-lc-dv-ip.mappings.field.mapping.field.doc_values
+
+  - do:
+      index:
+        index: test-lc-dv-ip
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2023-01-01T00:00:00.000Z"
+          field: "::1"
+  - do:
+      get:
+        index: test-lc-dv-ip
+        id: "1"
+  - match: { _source.field: "::1" }

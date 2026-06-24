@@ -38,7 +38,8 @@ public class IpFieldBlockLoaderTests extends BlockLoaderTestCase {
             return convert(s, nullValue);
         }
 
-        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        // In strict columnar modes, doc_values:false is silently flipped to true by the mapper.
+        boolean hasDocValues = hasDocValues(fieldMapping, true) || params.indexMode().isStrictColumnar();
         boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
             || params.syntheticSource()

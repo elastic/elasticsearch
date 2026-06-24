@@ -37,7 +37,8 @@ public class DateFieldBlockLoaderTests extends BlockLoaderTestCase {
             return convert(value, nullValue, format);
         }
 
-        if (hasDocValues(fieldMapping, false)) {
+        // In strict columnar modes, doc_values:false is silently flipped to true by the mapper.
+        if (hasDocValues(fieldMapping, false) || params.indexMode().isStrictColumnar()) {
             var stream = ((List<Object>) value).stream().map(v -> convert(v, nullValue, format)).filter(Objects::nonNull);
             // Columnar index modes preserve arrival order via offsets
             boolean preserveOrder = params.indexMode().isColumnar();

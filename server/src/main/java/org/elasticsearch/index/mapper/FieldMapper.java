@@ -1476,7 +1476,11 @@ public abstract class FieldMapper extends Mapper {
         }
 
         public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
-            return Parameter.boolParam("doc_values", false, initializer, defaultValue);
+            return new Parameter<>("doc_values", false, defaultValue ? () -> true : () -> false, (n, c, o) -> {
+                boolean docValues = XContentMapValues.nodeBooleanValue(o);
+                // Columnar index modes require doc values; silently ignore doc_values:false.
+                return docValues == false && c.getIndexSettings().getMode().isStrictColumnar() ? true : docValues;
+            }, initializer, XContentBuilder::field, Objects::toString);
         }
 
         public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
@@ -1597,16 +1601,30 @@ public abstract class FieldMapper extends Mapper {
          * <ul>
          *   <li>{@code "doc_values": false} - doc_values disabled</li>
          *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
+         *   <li>{@code "doc_values": { "enabled": false }} - doc_values disabled (map form)</li>
          *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default)</li>
          *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
          * </ul>
          * <p>
-         * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * the multi_value setting. Cardinality is decided internally and is not user-configurable.
+         * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled unless {@code enabled: false} is
+         * explicitly set. The map format allows specifying the multi_value setting. Cardinality is decided internally and is not
+         * user-configurable. In strict columnar index modes, {@code doc_values: false} and {@code doc_values: {enabled: false}} are
+         * silently ignored and doc values remain enabled.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
             if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+                Object enabledValue = valueMap.get("enabled");
+                boolean enabled = enabledValue == null || XContentMapValues.nodeBooleanValue(enabledValue, "enabled");
+                if (enabled == false) {
+                    if (context.getIndexSettings().getMode().isStrictColumnar()) {
+                        // Columnar index modes require doc values; silently ignore doc_values:{enabled:false}.
+                        setValue(getDefaultValue());
+                    } else {
+                        setValue(Values.DISABLED);
+                    }
+                    return;
+                }
                 if (valueMap.containsKey(multiValueParameter.name)) {
                     multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
                 }
@@ -1615,6 +1633,9 @@ public abstract class FieldMapper extends Mapper {
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
                     setValue(new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue()));
+                } else if (context.getIndexSettings().getMode().isStrictColumnar()) {
+                    // Columnar index modes require doc values; silently ignore doc_values:false.
+                    setValue(getDefaultValue());
                 } else {
                     setValue(Values.DISABLED);
                 }

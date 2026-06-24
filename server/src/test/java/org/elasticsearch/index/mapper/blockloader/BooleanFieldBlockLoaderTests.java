@@ -36,7 +36,8 @@ public class BooleanFieldBlockLoaderTests extends BlockLoaderTestCase {
             return convert(value, nullValue);
         }
 
-        if (hasDocValues(fieldMapping, false)) {
+        // In strict columnar modes, doc_values:false is silently flipped to true by the mapper.
+        if (hasDocValues(fieldMapping, false) || params.indexMode().isStrictColumnar()) {
             var stream = ((List<Object>) value).stream().map(v -> convert(v, nullValue)).filter(Objects::nonNull);
             // Columnar index modes preserve arrival order via offsets
             boolean preserveOrder = params.indexMode().isColumnar();

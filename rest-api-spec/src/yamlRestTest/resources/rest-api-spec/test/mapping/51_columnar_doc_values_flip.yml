@@ -1,0 +1,195 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.ignores_doc_values_false" ]
+      reason: "Strict columnar modes must silently ignore doc_values:false and keep doc values enabled"
+
+---
+"columnar mode silently ignores doc_values:false for keyword field":
+  - do:
+      indices.create:
+        index: test-columnar-dv-kwd
+        body:
+          settings:
+            index:
+              mode: columnar
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              field:
+                type: keyword
+                doc_values: false
+
+  - do:
+      indices.get_field_mapping:
+        index: test-columnar-dv-kwd
+        fields: field
+        include_defaults: true
+  # doc_values must be enabled despite the explicit doc_values:false
+  - is_true: test-columnar-dv-kwd.mappings.field.mapping.field.doc_values
+
+  - do:
+      index:
+        index: test-columnar-dv-kwd
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2023-01-01T00:00:00.000Z"
+          field: "hello"
+  - do:
+      get:
+        index: test-columnar-dv-kwd
+        id: "1"
+  - match: { _source.field: "hello" }
+
+---
+"logsdb_columnar mode silently ignores doc_values:false for keyword field":
+  - do:
+      indices.create:
+        index: test-logsdb-columnar-dv-kwd
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              field:
+                type: keyword
+                doc_values: false
+
+  - do:
+      indices.get_field_mapping:
+        index: test-logsdb-columnar-dv-kwd
+        fields: field
+        include_defaults: true
+  - is_true: test-logsdb-columnar-dv-kwd.mappings.field.mapping.field.doc_values
+
+  - do:
+      index:
+        index: test-logsdb-columnar-dv-kwd
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2023-01-01T00:00:00.000Z"
+          field: "hello"
+  - do:
+      get:
+        index: test-logsdb-columnar-dv-kwd
+        id: "1"
+  - match: { _source.field: "hello" }
+
+---
+"columnar mode silently ignores doc_values:false for numeric field":
+  - do:
+      indices.create:
+        index: test-columnar-dv-num
+        body:
+          settings:
+            index:
+              mode: columnar
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              field:
+                type: long
+                doc_values: false
+
+  - do:
+      indices.get_field_mapping:
+        index: test-columnar-dv-num
+        fields: field
+        include_defaults: true
+  - is_true: test-columnar-dv-num.mappings.field.mapping.field.doc_values
+
+  - do:
+      index:
+        index: test-columnar-dv-num
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2023-01-01T00:00:00.000Z"
+          field: 42
+  - do:
+      get:
+        index: test-columnar-dv-num
+        id: "1"
+  - match: { _source.field: 42 }
+
+---
+"columnar mode silently ignores doc_values:false for ip field":
+  - do:
+      indices.create:
+        index: test-columnar-dv-ip
+        body:
+          settings:
+            index:
+              mode: columnar
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              field:
+                type: ip
+                doc_values: false
+
+  - do:
+      indices.get_field_mapping:
+        index: test-columnar-dv-ip
+        fields: field
+        include_defaults: true
+  - is_true: test-columnar-dv-ip.mappings.field.mapping.field.doc_values
+
+  - do:
+      index:
+        index: test-columnar-dv-ip
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2023-01-01T00:00:00.000Z"
+          field: "::1"
+  - do:
+      get:
+        index: test-columnar-dv-ip
+        id: "1"
+  - match: { _source.field: "::1" }
+
+---
+"standard mode still respects doc_values:false":
+  - do:
+      indices.create:
+        index: test-standard-dv-false
+        body:
+          settings:
+            index:
+              mode: standard
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              field:
+                type: long
+                doc_values: false
+
+  - do:
+      indices.get_field_mapping:
+        index: test-standard-dv-false
+        fields: field
+        include_defaults: true
+  - is_false: test-standard-dv-false.mappings.field.mapping.field.doc_values

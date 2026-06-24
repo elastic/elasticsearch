@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
  *   <li>{@code store} – not allowed in columnar mode</li>
  *   <li>{@code synthetic_source_keep} – not allowed in columnar mode</li>
  *   <li>{@code subobjects} – not allowed in columnar mode</li>
+ *   <li>{@code copy_to} – not allowed in strict columnar index modes</li>
  *   <li>{@code dynamic: runtime} – not supported in strict columnar mode</li>
  *   <li>{@code dynamic: false} – logsdb stores ignored field values in {@code _ignored_source}
  *       (they appear in the reconstructed source), but logsdb_columnar drops them entirely
@@ -59,16 +60,16 @@ import java.util.stream.Collectors;
  *       {@code TextFieldMapper.defaultDocValuesParameters()} returns {@code enabled=true} when
  *       {@code isStrictColumnar()}, making text fields aggregatable on the contender but not on
  *       the baseline. Normalised to {@code doc_values:true} on both sides (the columnar default).</li>
- *   <li>{@code match_only_text} – always normalised to {@code doc_values:false, index:true} on
- *       both sides. In logsdb_columnar, {@code doc_values:true} (the strict-columnar default) plus
- *       {@code multiValue=true} causes {@code usesBinaryDocValues()} to return {@code true}, which
- *       makes {@code SourceConfirmedTextQuery}'s position-confirming phase read from binary doc
- *       values in {@code ArrayOrderInlineNull} format. The existing reader
- *       ({@code binaryDocValuesFieldFetcher}) expects {@code SeparateCount} format and crashes with
- *       an invalid-vInt. Setting {@code doc_values:false} disables the binary doc-values path
- *       entirely; with {@code index:true} queries route through the inverted index and
- *       {@code SourceConfirmedTextQuery} reads from stored fields. Both sides are equally
- *       non-aggregatable, which is consistent.</li>
+ *   <li>{@code match_only_text} – excluded from the static mapping on both sides (similar to
+ *       {@code geo_shape}/{@code shape}). In logsdb_columnar, {@code match_only_text} defaults to
+ *       {@code doc_values:true} (strict-columnar default), and any explicit {@code doc_values:false}
+ *       is silently flipped back to enabled by the columnar doc-values flip. With doc values enabled
+ *       and {@code multiValue=true}, {@code usesBinaryDocValues()} returns {@code true}, causing a
+ *       crash in {@code SourceConfirmedTextQuery}'s position-confirming path (binary doc values are
+ *       written in {@code ArrayOrderInlineNull} format but the reader expects {@code SeparateCount}).
+ *       Excluding the type from both sides avoids both the crash and the field-caps
+ *       aggregatability divergence. Values for excluded fields are dynamically mapped as
+ *       {@code keyword} on both sides via the {@code strings_as_keyword} template.</li>
  *   <li>{@code keyword} and {@code ip} fields – always normalised to
  *       {@code doc_values:{cardinality:low}} and {@code index:true} on both sides (even when
  *       {@code doc_values:false} was set). Two problems arise otherwise: (a) {@code doc_values:true}
@@ -129,7 +130,7 @@ import java.util.stream.Collectors;
  */
 public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallengeRestIT {
 
-    private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects");
+    private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects", "copy_to");
     private static final Set<String> SHAPE_TYPES = Set.of("geo_shape", "shape");
 
     private Set<String> shapeFieldPaths;
@@ -270,25 +271,29 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
                 continue;
             }
             if (value instanceof Map<?, ?> nested) {
-                result.put(key, strip((Map<String, Object>) nested));
+                var stripped = strip((Map<String, Object>) nested);
+                if (stripped != null) {
+                    result.put(key, stripped);
+                }
+                // null means "exclude this field/parameter" — skip
             } else {
                 result.put(key, value);
             }
         }
         // Type-specific post-loop normalizations
         var fieldType = result.get("type");
+        // match_only_text: excluded from the static mapping entirely (return null so the caller skips
+        // this field). In logsdb_columnar, the strict-columnar doc_values flip re-enables doc values
+        // even when doc_values:false is set, so the doc_values:false suppression no longer works.
+        // With doc values enabled and multiValue=true, usesBinaryDocValues()=true causes a server crash
+        // in SourceConfirmedTextQuery. Values for these fields are dynamically mapped as keyword on
+        // both sides via the strings_as_keyword template.
+        if ("match_only_text".equals(fieldType)) {
+            return null;
+        }
         // text: TextFieldMapper.defaultDocValuesParameters() returns enabled=true when
         // isStrictColumnar(), so text fields are aggregatable=true by default on the contender but
         // aggregatable=false on the logsdb baseline. Inject doc_values:true on both sides.
-        //
-        // match_only_text: always force doc_values:false + index:true on both sides. In
-        // logsdb_columnar, doc_values:true (strict-columnar default) plus multiValue=true causes
-        // usesBinaryDocValues() to return true. SourceConfirmedTextQuery's position-confirming
-        // phase then reads from binary doc values in ArrayOrderInlineNull format, but
-        // binaryDocValuesFieldFetcher expects SeparateCount format → Invalid vInt server crash.
-        // Setting doc_values:false forces usesBinaryDocValues() to false; SourceConfirmedTextQuery
-        // falls back to stored fields. index:true ensures both sides remain searchable via the
-        // inverted index (logsdb_columnar sets index_disabled_by_default=true).
         //
         // keyword / ip: always force doc_values:{cardinality:low} + index:true on both sides (even
         // overriding doc_values:false). In logsdb_columnar, doc_values:true (boolean) uses HIGH
@@ -313,11 +318,6 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
         if ("text".equals(fieldType)) {
             if (result.containsKey("doc_values") == false) {
                 result.put("doc_values", true);
-            }
-        } else if ("match_only_text".equals(fieldType)) {
-            result.put("doc_values", false);
-            if (result.containsKey("index") == false) {
-                result.put("index", true);
             }
         } else if ("keyword".equals(fieldType) || "ip".equals(fieldType)) {
             result.put("doc_values", Map.of("cardinality", "low"));

@@ -95,9 +95,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public static final int MAX_SHINGLE_SIZE = 3;
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.getIndexSettings().isIndexDisabledByDefault())
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        if (c.getIndexSettings().getMode().isStrictColumnar()) {
+            throw new MapperParsingException("Field type [" + CONTENT_TYPE + "] is not supported in strict columnar index modes");
+        }
+        return new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.getIndexSettings().isIndexDisabledByDefault());
+    });
 
     private static Builder builder(FieldMapper in) {
         return ((SearchAsYouTypeFieldMapper) in).builder;

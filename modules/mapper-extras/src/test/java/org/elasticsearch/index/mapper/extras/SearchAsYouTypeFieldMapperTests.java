@@ -33,6 +33,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -886,6 +888,17 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    public void testNotCompatibleWithColumnarModes() {
+        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // search_as_you_type is incompatible with strict columnar index modes; creating a mapping must throw.
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type")), mode)
+            );
+        }
     }
 
 }

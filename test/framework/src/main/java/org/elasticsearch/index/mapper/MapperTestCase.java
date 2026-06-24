@@ -81,6 +81,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -571,6 +572,34 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         for (var field : fields) {
             assertThat(field.fieldType().indexOptions(), equalTo(defaultDisabledIndexOption()));
+        }
+    }
+
+    /**
+     * Verifies that {@code doc_values:false} is silently ignored in strict columnar index modes
+     * ({@code columnar} and {@code logsdb_columnar}). Field types that are incompatible with columnar
+     * modes altogether (e.g. {@code search_as_you_type}) will throw a {@link MapperParsingException}
+     * during mapper creation; this test skips those automatically.
+     */
+    public void testColumnarDocValuesFalseIsIgnored() throws IOException {
+        assumeTrue("columnar modes not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        assumeTrue("mapper must support the 'doc_values' parameter", checker.checkedParameters.contains("doc_values"));
+
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper;
+            try {
+                mapper = createDocumentMapper(fieldMapping(b -> {
+                    minimalMapping(b);
+                    b.field("doc_values", false);
+                }), mode);
+            } catch (MapperParsingException e) {
+                throw new AssumptionViolatedException("field type incompatible with " + mode + " mode: " + e.getMessage(), e);
+            }
+            FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+            assertTrue("doc_values:false must be silently ignored in " + mode + " mode", fieldMapper.fieldType().hasDocValues());
         }
     }
 

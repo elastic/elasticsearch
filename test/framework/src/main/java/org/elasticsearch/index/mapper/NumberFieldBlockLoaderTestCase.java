@@ -29,7 +29,8 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = fieldMapping.get("null_value") != null ? convert((Number) fieldMapping.get("null_value"), fieldMapping) : null;
 
-        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        // In strict columnar modes, doc_values:false is silently flipped to true by the mapper.
+        boolean hasDocValues = hasDocValues(fieldMapping, true) || params.indexMode().isStrictColumnar();
         boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
             || params.syntheticSource()

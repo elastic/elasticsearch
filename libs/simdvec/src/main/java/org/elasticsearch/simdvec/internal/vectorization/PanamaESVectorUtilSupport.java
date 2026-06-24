@@ -882,8 +882,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     private static float ipFloatByteImpl(float[] q, byte[] d) {
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
         int i = 0;
-
-        for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= q.length; i += FLOAT_SPECIES.length()) {
+        int limit = q.length - BYTES_FOR_4BYTE_SPECIES.length();
+        for (; i <= limit; i += FLOAT_SPECIES.length()) {
             FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, q, i);
             ByteVector bv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, d, i);
             acc = qv.fma(bv.castShape(FLOAT_SPECIES, 0), acc);
@@ -1080,7 +1080,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector minVec = FloatVector.broadcast(FLOAT_SPECIES, Float.MAX_VALUE);
             FloatVector maxVec = FloatVector.broadcast(FLOAT_SPECIES, -Float.MAX_VALUE);
             int count = 0;
-            for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= vector.length; i += FLOAT_SPECIES.length()) {
+            int limit = vector.length - BYTES_FOR_4BYTE_SPECIES.length();
+            for (; i <= limit; i += FLOAT_SPECIES.length()) {
                 ByteVector bv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, vector, i);
                 ByteVector bc = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, centroid, i);
                 ++count;
@@ -1170,7 +1171,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector maxVec = FloatVector.broadcast(FLOAT_SPECIES, -Float.MAX_VALUE);
             FloatVector centroidDotVec = FloatVector.zero(FLOAT_SPECIES);
             int count = 0;
-            for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= vector.length; i += FLOAT_SPECIES.length()) {
+            int limit = vector.length - BYTES_FOR_4BYTE_SPECIES.length();
+            for (; i <= limit; i += FLOAT_SPECIES.length()) {
                 ByteVector bv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, vector, i);
                 ByteVector bc = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, centroid, i);
                 ++count;
@@ -1404,7 +1406,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         IntVector sqAcc = IntVector.zero(INTEGER_SPECIES);
         FloatVector projAcc = FloatVector.zero(FLOAT_SPECIES);
         int i = 0;
-        for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= v1.length; i += INTEGER_SPECIES.length()) {
+        int limit = v1.length - BYTES_FOR_4BYTE_SPECIES.length();
+        for (; i <= limit; i += INTEGER_SPECIES.length()) {
             ByteVector qv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, v1, i);
             ByteVector cv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, centroid, i);
             Vector<Integer> diff = qv.castShape(INTEGER_SPECIES, 0).sub(cv.castShape(INTEGER_SPECIES, 0));
@@ -2162,7 +2165,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector projAcc2 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector projAcc3 = FloatVector.zero(FLOAT_SPECIES);
 
-            for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= v1.length; i += FLOAT_SPECIES.length()) {
+            int limit = v1.length - BYTES_FOR_4BYTE_SPECIES.length();
+            for (; i <= limit; i += FLOAT_SPECIES.length()) {
                 ByteVector qv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, v1, i);
                 ByteVector bv0 = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, c0, i);
                 ByteVector bv1 = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, c1, i);
@@ -2545,7 +2549,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
         final FloatVector scaleDestVec = FloatVector.broadcast(FLOAT_SPECIES, scaleDest);
         int i = 0;
-        for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= other.length; i += FLOAT_SPECIES.length()) {
+        int limit = other.length - BYTES_FOR_4BYTE_SPECIES.length();
+        for (; i <= limit; i += FLOAT_SPECIES.length()) {
             ByteVector bv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, other, i);
             FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
             FloatVector otherVec = (FloatVector) bv.castShape(FLOAT_SPECIES, 0);
@@ -2563,19 +2568,14 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         assert other.length == dest.length;
 
         final FloatVector scaleOtherVec = FloatVector.broadcast(FLOAT_SPECIES, scaleOther);
-        final int byteLen = BYTE_SPECIES.length();
-        final int floatLen = FLOAT_SPECIES.length();
-        final int vectorEnd = BYTE_SPECIES.loopBound(other.length);
         int i = 0;
-        for (; i < vectorEnd; i += byteLen) {
-            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES, other, i);
-            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
-                int offset = i + part * floatLen;
-                FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, offset);
-                FloatVector otherVec = (FloatVector) bv.castShape(FLOAT_SPECIES, part);
-                destVec = fma(otherVec, scaleOtherVec, destVec);
-                destVec.intoArray(dest, offset);
-            }
+        int limit = other.length - BYTES_FOR_4BYTE_SPECIES.length();
+        for (; i <= limit; i += FLOAT_SPECIES.length()) {
+            ByteVector bv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, other, i);
+            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
+            FloatVector otherVec = (FloatVector) bv.castShape(FLOAT_SPECIES, 0);
+            destVec = fma(otherVec, scaleOtherVec, destVec);
+            destVec.intoArray(dest, i);
         }
         // tail
         for (; i < dest.length; i++) {

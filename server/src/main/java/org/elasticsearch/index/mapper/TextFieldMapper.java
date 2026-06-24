@@ -1635,7 +1635,8 @@ public final class TextFieldMapper extends FieldMapper {
                     name(),
                     CoreValuesSourceType.KEYWORD,
                     TextDocValuesField::new,
-                    indexCreatedVersion
+                    indexCreatedVersion,
+                    useArrayOrderBinaryDocValues
                 );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(

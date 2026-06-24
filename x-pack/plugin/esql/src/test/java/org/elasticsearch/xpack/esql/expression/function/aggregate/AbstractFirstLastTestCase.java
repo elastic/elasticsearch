@@ -53,21 +53,16 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,
             DataType.CARTESIAN_POINT,
-            DataType.CARTESIAN_SHAPE
+            DataType.CARTESIAN_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX
         );
         searchFieldTypes.addAll(extraBoth);
         taggedTypes.addAll(extraBoth);
 
         if (isFirst) {
-            List<DataType> extra = List.of(
-                DataType.DENSE_VECTOR,
-                DataType.EXPONENTIAL_HISTOGRAM,
-                DataType.GEOHASH,
-                DataType.GEOTILE,
-                DataType.GEOHEX,
-                DataType.UNSIGNED_LONG,
-                DataType.TDIGEST
-            );
+            List<DataType> extra = List.of(DataType.DENSE_VECTOR, DataType.EXPONENTIAL_HISTOGRAM, DataType.UNSIGNED_LONG, DataType.TDIGEST);
             searchFieldTypes.addAll(extra);
             taggedTypes.addAll(extra);
             searchFieldTypes.add(DataType.FLATTENED);

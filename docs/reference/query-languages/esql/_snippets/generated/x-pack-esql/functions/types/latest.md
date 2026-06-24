@@ -12,6 +12,9 @@
 | double | double |
 | geo_point {applies_to}`stack: ga 9.5.0` | geo_point |
 | geo_shape {applies_to}`stack: ga 9.5.0` | geo_shape |
+| geohash {applies_to}`stack: ga 9.5.0` | geohash |
+| geohex {applies_to}`stack: ga 9.5.0` | geohex |
+| geotile {applies_to}`stack: ga 9.5.0` | geotile |
 | integer | integer |
 | ip | ip |
 | keyword | keyword |

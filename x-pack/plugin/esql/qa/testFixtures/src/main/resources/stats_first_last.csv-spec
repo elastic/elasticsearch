@@ -753,3 +753,25 @@ FROM airport_city_boundaries
 last_shape:geo_shape
 POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39.6334))
 ;
+
+Test last aggregation on spatial grid types
+required_capability: last_agg_extended_types
+required_capability: spatial_grid_types
+
+ROW rows = [
+"1 | u3bu | 4/8/5 | 841f059ffffffff",
+"3 | dr5r | 3/4/2 | 812bbffffffffff",
+"2 | 9q8y | 2/2/1 | 81397ffffffffff"
+] 
+| MV_EXPAND rows
+| DISSECT rows "%{n} | %{hash} | %{tile} | %{hex}"
+| EVAL sort = TO_LONG(n), gh = TO_GEOHASH(hash), gt = TO_GEOTILE(tile), ghex = TO_GEOHEX(hex)
+| STATS
+  last_gh   = LAST(gh, sort),
+  last_gt   = LAST(gt, sort),
+  last_ghex = LAST(ghex, sort)
+;   
+
+last_gh:geohash | last_gt:geotile | last_ghex:geohex
+dr5r            | 3/4/2           | 812bbffffffffff
+;

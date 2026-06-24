@@ -488,3 +488,26 @@ ROW rows = [
 last_shape:geo_shape
 POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))
 ;
+
+Test latest aggregation on spatial grid types
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+required_capability: spatial_grid_types
+
+ROW rows = [
+"2025-01-01T00:00:01.000Z | u3bu | 4/8/5 | 841f059ffffffff",
+"2025-01-01T00:00:03.000Z | dr5r | 3/4/2 | 812bbffffffffff",
+"2025-01-01T00:00:02.000Z | 9q8y | 2/2/1 | 81397ffffffffff"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{@timestamp} | %{hash} | %{tile} | %{hex}"""
+| EVAL @timestamp = TO_DATETIME(@timestamp), gh = TO_GEOHASH(hash), gt = TO_GEOTILE(tile), ghex = TO_GEOHEX(hex)
+| STATS
+last_gh   = LATEST(gh),
+last_gt   = LATEST(gt),
+last_ghex = LATEST(ghex)
+; 
+
+last_gh:geohash | last_gt:geotile | last_ghex:geohex
+dr5r            | 3/4/2           | 812bbffffffffff
+;

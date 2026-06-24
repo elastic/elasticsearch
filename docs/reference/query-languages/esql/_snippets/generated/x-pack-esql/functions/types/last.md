@@ -36,6 +36,18 @@
 | geo_shape {applies_to}`stack: ga 9.5.0` | date_nanos | geo_shape |
 | geo_shape {applies_to}`stack: ga 9.5.0` | integer | geo_shape |
 | geo_shape {applies_to}`stack: ga 9.5.0` | long | geo_shape |
+| geohash {applies_to}`stack: ga 9.5.0` | date | geohash |
+| geohash {applies_to}`stack: ga 9.5.0` | date_nanos | geohash |
+| geohash {applies_to}`stack: ga 9.5.0` | integer | geohash |
+| geohash {applies_to}`stack: ga 9.5.0` | long | geohash |
+| geohex {applies_to}`stack: ga 9.5.0` | date | geohex |
+| geohex {applies_to}`stack: ga 9.5.0` | date_nanos | geohex |
+| geohex {applies_to}`stack: ga 9.5.0` | integer | geohex |
+| geohex {applies_to}`stack: ga 9.5.0` | long | geohex |
+| geotile {applies_to}`stack: ga 9.5.0` | date | geotile |
+| geotile {applies_to}`stack: ga 9.5.0` | date_nanos | geotile |
+| geotile {applies_to}`stack: ga 9.5.0` | integer | geotile |
+| geotile {applies_to}`stack: ga 9.5.0` | long | geotile |
 | integer | date | integer |
 | integer | date_nanos | integer |
 | integer | integer | integer |

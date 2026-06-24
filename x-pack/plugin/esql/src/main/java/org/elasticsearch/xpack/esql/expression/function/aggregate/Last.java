@@ -72,7 +72,10 @@ public class Last extends AggregateFunction implements ToAggregator {
             "geo_point",
             "geo_shape",
             "cartesian_point",
-            "cartesian_shape" },
+            "cartesian_shape",
+            "geohash",
+            "geotile",
+            "geohex" },
         briefSummary = "Returns the latest occurrence of a field based on a sort field.",
         description = """
             This function calculates the latest occurrence of the search field
@@ -114,7 +117,10 @@ public class Last extends AggregateFunction implements ToAggregator {
                 "geo_point",
                 "geo_shape",
                 "cartesian_point",
-                "cartesian_shape" },
+                "cartesian_shape",
+                "geohash",
+                "geotile",
+                "geohex" },
             description = "The search field"
         ) Expression field,
         @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
@@ -184,7 +190,10 @@ public class Last extends AggregateFunction implements ToAggregator {
                 || dt == DataType.GEO_POINT
                 || dt == DataType.GEO_SHAPE
                 || dt == DataType.CARTESIAN_POINT
-                || dt == DataType.CARTESIAN_SHAPE,
+                || dt == DataType.CARTESIAN_SHAPE
+                || dt == DataType.GEOHASH
+                || dt == DataType.GEOTILE
+                || dt == DataType.GEOHEX,
             sourceText(),
             FIRST,
             "boolean",
@@ -211,7 +220,7 @@ public class Last extends AggregateFunction implements ToAggregator {
         if (sortFieldType == DataType.NULL || sort().foldable()) {
             return switch (searchFieldType) {
                 // Any value from the search field will do, so just pick the first one we encounter while still accounting for the type.
-                case LONG, DATETIME, DATE_NANOS -> new AnyLongAggregatorFunctionSupplier();
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX -> new AnyLongAggregatorFunctionSupplier();
                 case INTEGER -> new AnyIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
                 case FLOAT -> new AnyFloatAggregatorFunctionSupplier();
@@ -224,7 +233,7 @@ public class Last extends AggregateFunction implements ToAggregator {
 
         if (sortFieldType == DataType.LONG || sortFieldType == DataType.DATETIME || sortFieldType == DataType.DATE_NANOS) {
             return switch (searchFieldType) {
-                case LONG, DATETIME, DATE_NANOS -> new AllLastLongByLongAggregatorFunctionSupplier();
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX -> new AllLastLongByLongAggregatorFunctionSupplier();
                 case INTEGER -> new AllLastIntByLongAggregatorFunctionSupplier();
                 case DOUBLE -> new AllLastDoubleByLongAggregatorFunctionSupplier();
                 case FLOAT -> new AllLastFloatByLongAggregatorFunctionSupplier();
@@ -237,7 +246,7 @@ public class Last extends AggregateFunction implements ToAggregator {
 
         if (sortFieldType == DataType.INTEGER) {
             return switch (searchFieldType) {
-                case LONG, DATETIME, DATE_NANOS -> new AllLastLongByIntAggregatorFunctionSupplier();
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX -> new AllLastLongByIntAggregatorFunctionSupplier();
                 case INTEGER -> new AllLastIntByIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AllLastDoubleByIntAggregatorFunctionSupplier();
                 case FLOAT -> new AllLastFloatByIntAggregatorFunctionSupplier();

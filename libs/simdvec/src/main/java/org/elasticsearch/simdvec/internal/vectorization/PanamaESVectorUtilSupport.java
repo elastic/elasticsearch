@@ -49,7 +49,17 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     /*
      * A number of notes about implementing SIMD using Panama:
      *
-     * A small change in Java code can have a large impact in the result. Check what assembly code is actually generated
+     * Panama is transformed into SIMD native operations when the method is native-compiled (which may not happen immediately).
+     * The panama vector calls map directly onto native instructions. This means that in order for a method to actually use SIMD,
+     * the JIT needs to be sure that each callsite is a fixed and known vector species, so it can issue appropriate SIMD instructions.
+     * This means that if a Vector object reference is generic in T, that will never result in native SIMD ops being emitted,
+     * as the JIT does not know which particular species is used at that point (and generics do not exist at runtime).
+     * This includes if a call is in a loop with a variable cast/reshaping part number - the instructions issued
+     * heavily depend on the part number; if the part number used in a call can change,
+     * then there's no fixed native instructions the compiler can use at that point.
+     * Of course, the loop may be unrolled first, which fixes that problem, but that cannot be guaranteed.
+     *
+     * A small change in Java code can have a large impact on the result. Check what assembly code is actually generated
      * using java option
      *
      * -XX:CompileCommand=print,*PanamaESVectorUtilSupport.<method>
@@ -64,17 +74,16 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
      * - convertShape/castShape/slice with a non-zero part number on AVX2
      *
      * In general, prefer a scalar tail and/or nested vector calls rather than a masked tail.
+     * Ideally, Panama would run efficiently with a single loop with an all-set mask for most iterations,
+     * with the mask only taking effect in the final loop, but we're a long way from that at the moment.
      *
-     * Note that AVX2 is minimum 256-bit, so 128-bit is only for NEON-only CPUs,
+     * Note that AVX2 is minimum 256-bit, so 128-bit is only for NEON and some SVE CPUs,
      * which do have sensible sub-vector extraction instructions, so parts can be used
      * without issue on 128-bit-specific implementations.
      *
      * Sky Lake and Cascade Lake CPUs have a slow int32 multiply instruction vpmulld,
      * so for 512-bit the int16 operation is used instead, which doesn't have the same problem.
      * Ice Lake onwards, and all AMD, don't have the same issue.
-     *
-     * Ideally, Panama would run efficiently with a single loop with an all-set mask,
-     * with the mask only taking effect in the final loop, but we're a long way from that at the moment.
      *
      * Oh, and check the disassembly.
      */

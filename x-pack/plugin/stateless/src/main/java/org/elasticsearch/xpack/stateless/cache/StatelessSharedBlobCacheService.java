@@ -24,8 +24,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -33,7 +31,6 @@ import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
-import org.elasticsearch.xpack.stateless.utils.ClusterUtils;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -41,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class StatelessSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
@@ -98,9 +96,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     // asynchronously using a CacheBlobReader.
     private static final Executor IO_EXECUTOR = EsExecutors.DIRECT_EXECUTOR_SERVICE;
 
-    private static final Logger logger = LogManager.getLogger(StatelessSharedBlobCacheService.class);
-
-    private final ClusterService clusterService;
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
@@ -123,7 +118,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             blobCacheMetrics,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
         );
-        this.clusterService = clusterService;
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
@@ -145,7 +139,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             settings,
             threadPool,
             blobCacheMetrics,
-            clusterService,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService),
             relativeTimeInNanosSupplier,
             metricsHolder
@@ -158,13 +151,11 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Settings settings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
-        ClusterService clusterService,
         EvictionPolicy<FileCacheKey> evictionPolicy,
         LongSupplier relativeTimeInNanosSupplier,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
-        this.clusterService = clusterService;
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
@@ -294,17 +285,12 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     }
 
     /**
-     * Resets access counts for cache regions belonging to a search shard whose store has closed.
-     * The reset is scheduled asynchronously and skipped if the shard is locally allocated again when the task runs.
-     * No-op when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is disabled.
+     * Schedules an asynchronous reset of access counts for the given shard.
+     * The predicate is evaluated when the task runs; the reset is skipped when it returns {@code false}.
      */
-    public void onSearchShardStoreClosed(ShardId shardId) {
-        if (cacheBoostPreferenceEnabled == false) {
-            return;
-        }
+    public void asyncResetAccessCounts(ShardId shardId, Predicate<ShardId> shouldReset) {
         submitAsyncEviction(() -> {
-            if (ClusterUtils.isShardLocallyAllocated(clusterService, shardId)) {
-                logger.debug("skipping access count reset for shard [{}] because it is locally allocated again", shardId);
+            if (shouldReset.test(shardId) == false) {
                 return;
             }
             resetAccessCounts(shardId);

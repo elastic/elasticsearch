@@ -87,7 +87,9 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                     : clusterStateWithoutShardOnLocalNode(shardId, index)
             );
 
-            cacheService.onSearchShardStoreClosed(shardId);
+            if (cacheBoostEnabled) {
+                cacheService.asyncResetAccessCounts(shardId, id -> locallyAllocatedAtExecution == false);
+            }
             taskQueue.runAllRunnableTasks();
 
             if (expectReset) {

@@ -1517,7 +1517,14 @@ public class StatelessPlugin extends Plugin
                 @Override
                 public void onStoreClosed(ShardId shardId) {
                     getClosedShardService().onStoreClose(shardId);
-                    sharedBlobCacheService.get().onSearchShardStoreClosed(shardId);
+                    final var cacheService = sharedBlobCacheService.get();
+                    if (cacheService.isCacheBoostPreferenceEnabled()) {
+                        cacheService.asyncResetAccessCounts(shardId, id -> {
+                            final var state = clusterService.get().state();
+                            final String localNodeId = state.nodes().getLocalNodeId();
+                            return localNodeId != null && state.getRoutingNodes().hasShardOnNode(localNodeId, id) == false;
+                        });
+                    }
                 }
             });
 

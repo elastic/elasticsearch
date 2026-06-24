@@ -1562,6 +1562,27 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
+    /**
+     * Explicitly referencing a non-loadable PUNK (here a TEXT field, which has no KEYWORD converter) under {@code unmapped_fields="load"}
+     * warns that it falls back to null where unmapped. A second, unreferenced non-loadable PUNK stays silent, so exactly one warning fires.
+     */
+    public void testWarnsOnlyForExplicitlyMentionedNonLoadablePunk() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var mentioned = new EsField("mentioned_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var unmentioned = new EsField("unmentioned_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var esIndex = partialIndex(
+            Map.of("mentioned_text", mentioned, "unmentioned_text", unmentioned, "common", keywordField("common")),
+            Set.of("mentioned_text", "unmentioned_text")
+        );
+        var analyzer = analyzer().addIndex(esIndex);
+
+        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | KEEP mentioned_text, common"));
+        var mentionedAttr = plan.output().stream().filter(a -> a.name().equals("mentioned_text")).findFirst().orElseThrow();
+        assertThat(mentionedAttr.dataType(), equalTo(DataType.TEXT));
+        assertWarnings(nonLoadablePunkWarning("mentioned_text", "text"));
+    }
+
     public void testLoadWithPartiallyMappedNonKeywordInSortAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
@@ -1820,6 +1841,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(attr.name(), equalTo("x"));
         assertThat(attr.dataType(), equalTo(DataType.KEYWORD));
         assertThat(unionFields(plan), Matchers.empty());
+        // The cast targets the renamed alias, not the field itself, so the unmapped leg is not loaded and partial_text falls back to null.
+        assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
     }
 
     private static final List<DataType> SMALL_NUMERIC_TYPES = List.of(
@@ -1895,6 +1918,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private static EsField textField(String name) {
         return new EsField(name, DataType.TEXT, emptyMap(), false, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static String nonLoadablePunkWarning(String field, String type) {
+        return Strings.format(
+            "Field [%s] of type [%s] is unmapped in some indices and will not be loaded from _source; "
+                + "values will be null in those indices",
+            field,
+            type
+        );
     }
 
     private static List<UnionTypeEsField> unionFields(LogicalPlan plan) {

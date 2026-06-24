@@ -3351,6 +3351,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (context.unmappedResolution() != UnmappedResolution.LOAD) {
                 return plan;
             }
+            Set<String> keywordCastableFieldNames = keywordCastableFieldNames(plan);
+            Set<String> explicitlyMentionedFields = explicitlyMentionedFields(plan);
 
             return plan.transformUp(EsRelation.class, esRelation -> {
                 if (esRelation.indexMode() == IndexMode.LOOKUP) {
@@ -3372,6 +3374,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         ConvertFunction convert = convertFactory == null
                             ? null
                             : convertFactory.apply(fa.source(), fa, context.configuration());
+                        // A two-legged PUNK is read from _source only via a conversion from KEYWORD: either the implicit converter for
+                        // its mapped type accepts KEYWORD, or the user wrapped it in an explicit cast that does. Otherwise it falls back
+                        // to null where unmapped; warn when it was referenced explicitly.
+                        boolean loadableFromSource = (convert != null && convert.supportedTypes().contains(KEYWORD))
+                            || keywordCastableFieldNames.contains(fa.name());
+                        if (loadableFromSource == false) {
+                            warnFieldNotLoadable(fa, mappedType, explicitlyMentionedFields);
+                        }
                         // We can only load an unmapped field from _source as KEYWORD, so without a converter accepting KEYWORD input we
                         // can't auto-cast. Leave the PUNK in place: a cast applied directly to the field is resolved by ResolveUnionTypes
                         // (which loads the unmapped leg from _source), while every other use falls back to the mapped type in
@@ -3413,6 +3423,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return fa;
                 });
             });
+        }
+
+        /** Fields wrapped in an explicit cast that accepts KEYWORD input, hence loadable from _source even without an implicit converter. */
+        private static Set<String> keywordCastableFieldNames(LogicalPlan plan) {
+            Set<String> fieldNames = new HashSet<>();
+            plan.forEachExpressionDown(Expression.class, expression -> {
+                if (expression instanceof ConvertFunction convert && convert.supportedTypes().contains(KEYWORD)) {
+                    convert.field().forEachDown(Attribute.class, attr -> fieldNames.add(attr.name()));
+                }
+            });
+            return fieldNames;
+        }
+
+        private static Set<String> explicitlyMentionedFields(LogicalPlan plan) {
+            Set<String> fieldNames = new HashSet<>();
+            plan.forEachExpressionDown(UnresolvedAttribute.class, attr -> fieldNames.add(attr.name()));
+            return fieldNames;
+        }
+
+        private static void warnFieldNotLoadable(FieldAttribute fa, DataType mappedType, Set<String> explicitlyMentionedFields) {
+            if (explicitlyMentionedFields.contains(fa.name())) {
+                HeaderWarning.addWarning(
+                    "Field [{}] of type [{}] is unmapped in some indices and will not be loaded from _source; "
+                        + "values will be null in those indices",
+                    fa.name(),
+                    mappedType.typeName()
+                );
+            }
         }
     }
 

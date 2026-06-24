@@ -170,10 +170,12 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
         String apiKey = createPrometheusReadApiKey("prometheus-read-view-index-metadata-key", "metrics-*");
 
         List<String> defaultScopeValues = labelValuesData(
-            client().performRequest(labelValuesRequest("/_prometheus/api/v1/label/__name__/values", apiKey))
+            client().performRequest(labelValuesRequestWithApiKey("/_prometheus/api/v1/label/__name__/values", apiKey))
         );
         List<String> prometheusScopeValues = labelValuesData(
-            client().performRequest(labelValuesRequest("/_prometheus/metrics-*.prometheus-*/api/v1/label/__name__/values", apiKey))
+            client().performRequest(
+                labelValuesRequestWithApiKey("/_prometheus/metrics-*.prometheus-*/api/v1/label/__name__/values", apiKey)
+            )
         );
 
         assertThat(defaultScopeValues, hasItem(MIXED_METRICS_PROMETHEUS_METRIC));
@@ -214,7 +216,7 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
         return request;
     }
 
-    private Request labelValuesRequest(String path, String apiKey) {
+    private Request labelValuesRequestWithApiKey(String path, String apiKey) {
         return prometheusGetRequest(path, apiKey);
     }
 

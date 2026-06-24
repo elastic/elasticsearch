@@ -21,6 +21,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -162,7 +163,9 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     }
 
     private void doAddReadWriteAuth(Request request, String apiKey) {
-        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKey).build());
+        request.setOptions(
+            request.getOptions().toBuilder().removeHeader("Authorization").addHeader("Authorization", "ApiKey " + apiKey).build()
+        );
     }
 
     /**
@@ -442,7 +445,7 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
 
     private static Request makeRequest(String method, String path, String body, Object... args) {
         Request request = new Request(method, path);
-        request.setJsonEntity(String.format(body, args));
+        request.setJsonEntity(Strings.format(body, args));
         return request;
     }
 

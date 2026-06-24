@@ -593,3 +593,61 @@ FROM partial_mapping_sample_data, sample_data METADATA _index
 2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data                     | "{}"
 2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data                     | "{}"
 ;
+
+############################
+# Arrays and objects in source
+############################
+
+// Unmapped source fields containing JSON arrays are preserved verbatim in _unmapped_fields.
+// The CsvTestsDataLoader collapses single-element CSV arrays to scalar source values, so
+// only true multi-element arrays survive as JSON arrays in the source document.
+arraysInUnmappedFields
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_array_data
+| SORT id
+;
+
+id:keyword | _unmapped_fields:keyword
+1          | "{""tags"":[""web"",""api""]}"
+2          | "{""tags"":""web""}"
+3          | "{""tags"":""web""}"
+;
+
+// Unmapped source fields containing JSON objects are preserved verbatim in _unmapped_fields.
+objectsInUnmappedFields
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_object_data
+| SORT id
+;
+
+id:keyword | _unmapped_fields:keyword
+1          | "{""extra"":""hello""}"
+2          | "{""extra"":{""baz"":""world""}}"
+;
+
+############################
+# Cross-index mapping
+############################
+
+// (gap): when a field is mapped in at least one shard, DetermineUnmappedFieldsToKeep adds
+// it to the global exclude list for all shards. On shards where the field exists only in
+// _source (not mapped locally), the value is silently discarded: the field is excluded from
+// _unmapped_fields (because it appears in esr.output()) but returns null in the regular
+// column (not indexed locally). This test documents the correct intended behaviour; it will
+// fail until the production gap is fixed.
+crossMappingLosesSourceValues
+required_capability: optional_fields_load_all
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM cross_mapping_a, cross_mapping_b METADATA _index
+| SORT foo NULLS LAST, bar NULLS LAST
+;
+
+bar:keyword | foo:keyword | _index:keyword  | _unmapped_fields:keyword
+null        | a1          | cross_mapping_a | "{""bar"":""b1""}"
+b2          | null        | cross_mapping_b | "{""foo"":""a2""}"
+;

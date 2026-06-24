@@ -315,3 +315,102 @@ TS ts_window
 2024-01-01T00:01:00.000Z | a           | 2
 2024-01-01T00:01:00.000Z | b           | 20
 ;
+
+############################
+# Gap coverage: user-reported issues
+############################
+
+// (gap): LOAD_ALL_EXPAND on an index with no mapping at all crashes with an internal plan
+// error: "optimized incorrectly due to missing references [<no-fields>{r$}#...]". With no
+// mapped fields, the EsRelation output is empty, leaving a phantom attribute unresolved.
+// Intended: all source fields are expanded into keyword columns. This test documents the
+// correct intended behaviour; it will fail until the production gap is fixed.
+allFieldsUnmappedExpand
+required_capability: optional_fields_load_all_expand
+
+SET unmapped_fields="LOAD_ALL_EXPAND"\;
+FROM no_mapping_sample_data
+| SORT @timestamp
+| LIMIT 1
+;
+
+@timestamp:keyword        | client_ip:keyword | event_duration:keyword | language_code:keyword | message:keyword        | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z  | 173.21.2.162      | 3450232                | 4                     | Connected to 10.1.0.3! | g                       | 3450234                         | Disconnected from 10.1.0.3
+;
+
+// (gap): LOAD_ALL_EXPAND does not handle multi-value JSON arrays stored in unmapped source
+// fields. ExpandUnmappedFieldsPostProcessor encounters a Java List and falls through to
+// String.valueOf(), producing the List.toString() representation "[web, api]" (with space)
+// instead of a multi-value ES|QL keyword block. Note: single-element CSV arrays ([web]) are
+// collapsed to scalar source values by the data loader, so only multi-element arrays trigger
+// this bug. This test documents the correct intended behaviour; it will fail until the
+// production gap is fixed.
+arraysExpandGap
+required_capability: optional_fields_load_all_expand
+
+SET unmapped_fields="LOAD_ALL_EXPAND"\;
+FROM unmapped_array_data
+| SORT id
+;
+
+id:keyword | tags:keyword
+1          | [web,api]
+2          | web
+3          | web
+;
+
+// (gap): LOAD_ALL_EXPAND does not handle JSON object values stored in unmapped source
+// fields. ExpandUnmappedFieldsPostProcessor encounters a Java Map and falls through to
+// String.valueOf(), producing the Map.toString() representation "{baz=world}" (with = not :,
+// no quoting) instead of a valid JSON string. This test documents the correct intended
+// behaviour; it will fail until the production gap is fixed.
+objectsExpandGap
+required_capability: optional_fields_load_all_expand
+
+SET unmapped_fields="LOAD_ALL_EXPAND"\;
+FROM unmapped_object_data
+| SORT id
+;
+
+id:keyword | extra:keyword
+1          | hello
+2          | "{""baz"":""world""}"
+;
+
+// (gap): same cross-index source-value loss as crossMappingLosesSourceValues (LOAD_ALL),
+// but in LOAD_ALL_EXPAND mode there is no _unmapped_fields column to fall back to. Fields
+// that are mapped on at least one shard appear as regular columns; shards where the field is
+// not indexed return null for that column, and the source value is silently discarded with no
+// representation in the output. This test documents the correct intended behaviour; it will
+// fail until the production gap is fixed.
+crossMappingExpandGap
+required_capability: optional_fields_load_all_expand
+
+SET unmapped_fields="LOAD_ALL_EXPAND"\;
+FROM cross_mapping_a, cross_mapping_b METADATA _index
+| SORT foo NULLS LAST, bar NULLS LAST
+;
+
+bar:keyword | foo:keyword | _index:keyword
+b1          | a1          | cross_mapping_a
+b2          | a2          | cross_mapping_b
+;
+
+// (gap): explicitly requesting the _unmapped_fields synthetic column in LOAD_ALL_EXPAND mode
+// via KEEP causes a plan-optimisation error about duplicate output attributes. The intended
+// behaviour is either to return the _unmapped_fields JSON column as-is or to surface a clean
+// user-facing error. This test documents the correct intended behaviour; it will fail until
+// the production gap is fixed.
+keepUnmappedFieldsColumnExpand
+required_capability: optional_fields_load_all_expand
+
+SET unmapped_fields="LOAD_ALL_EXPAND"\;
+FROM partial_mapping_sample_data
+| KEEP _unmapped_fields
+| SORT _unmapped_fields
+| LIMIT 1
+;
+
+_unmapped_fields:keyword
+"{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+;

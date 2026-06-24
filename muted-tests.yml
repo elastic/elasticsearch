@@ -647,15 +647,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionDownloadPluginFuncTest
   method: resolves current version from local build
   issue: https://github.com/elastic/elasticsearch/issues/151851
-- class: org.elasticsearch.upgrades.RecoveryIT
-  method: testAutoExpandIndicesDuringRollingUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/151857
-- class: org.elasticsearch.upgrades.RecoveryIT
-  method: testRetentionLeasesEstablishedWhenRelocatingPrimary
-  issue: https://github.com/elastic/elasticsearch/issues/151858
-- class: org.elasticsearch.upgrades.RecoveryIT
-  method: testRecoveryClosedIndex
-  issue: https://github.com/elastic/elasticsearch/issues/151859
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
@@ -719,3 +710,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
   method: testMergingFallsBehindAndThenCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/152045
+- class: org.elasticsearch.search.simple.SimpleSearchIT
+  method: testIpCidrHighCardinality
+  issue: https://github.com/elastic/elasticsearch/issues/152049

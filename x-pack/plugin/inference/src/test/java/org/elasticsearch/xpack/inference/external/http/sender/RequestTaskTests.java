@@ -256,7 +256,31 @@ public class RequestTaskTests extends ESTestCase {
         assertThat(trackingCircuitBreaker.getUsed(), equalTo(-estimatedRamBytesUsed));
     }
 
-    // TODO: test circuit breaker releases bytes on timed listener failure
+    public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnTimedListenerFailure(){
+        @SuppressWarnings("unchecked")
+        ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
+        var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
+        var estimatedRamBytesUsed = 100L;
+
+        // Times out after 1 ms
+        var requestTask = new RequestTask(
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
+            ONE_MILLISECOND,
+            threadPool,
+            listener,
+            trackingCircuitBreaker,
+            estimatedRamBytesUsed
+        );
+
+        requestTask.getListener().onFailure(mock(Exception.class));
+        verify(listener, times(1)).onFailure(any());
+        assertTrue(requestTask.hasCompleted());
+
+        // TrackingCircuitBreaker's used bytes is initialized to 0
+        // When it releases 100 bytes we should see -100 used
+        assertThat(trackingCircuitBreaker.getUsed(), equalTo(-estimatedRamBytesUsed));
+    }
 
     // TODO: test circuit breaker releases bytes on RequestTask onRejection
 

@@ -418,7 +418,6 @@ public abstract class DocumentParserContext {
     }
 
     public final void enforceRequiredFields() {
-        requiredFields.removeAll(ignoredFields);
         if (requiredFields.isEmpty() == false) {
             throw new IllegalArgumentException(
                 "Field(s) [" + String.join(",", requiredFields) + "] are configured with [nullability=false] but were null"

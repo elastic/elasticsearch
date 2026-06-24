@@ -88,22 +88,19 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        if (arrayOrderSource == ArrayOrderSource.INLINE) {
-            // The ArrayOrderInlineNull format never collapses to "all counts == 1 means single value" (a lone null is count==1 with no
-            // binary blob), so we must always load the counts column and advance on it.
-            BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
-            if (bc == null) {
-                // Binary field absent in this segment (only all-null / empty arrays): every value reads as null.
-                return ConstantNull.COLUMN_READER;
-            }
-            return new ArrayOrderInlineNull(bc.binary(), bc.counts());
-        }
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
         }
         if (bc.counts() == null) {
+            // The .counts skipper proved maxValue <= 1, so no document carries the multi-slot ([count][...]/[len+1][val]) encoding: every
+            // present blob is a single raw value and an absent blob is a lone null / empty array, which the plain reader emits as null.
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
+        }
+        if (arrayOrderSource == ArrayOrderSource.INLINE) {
+            // Multi-slot documents exist (maxValue >= 2): decode the in-order inline-null format, advancing on the counts column since an
+            // all-null or empty array writes a count but no binary blob.
+            return new ArrayOrderInlineNull(bc.binary(), bc.counts());
         }
         if (arrayOrderSource == ArrayOrderSource.FROM_OFFSETS) {
             TrackingSortedDocValues offsets;

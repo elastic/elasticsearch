@@ -510,4 +510,64 @@ public class LiveVersionMapTests extends ESTestCase {
         assertEquals(map.reclaimableRefreshRamBytes(), 0L);
         assertEquals(map.ramBytesUsedForRefresh(), 0L);
     }
+
+    /**
+     * Minimal archive whose contents and unsafe state can be controlled by the test.
+     */
+    private static class ControllableArchive implements LiveVersionMapArchive {
+        private final Map<BytesRef, VersionValue> values = new HashMap<>();
+        private volatile boolean unsafe = false;
+
+        @Override
+        public void afterRefresh(LiveVersionMap.VersionLookup old) {}
+
+        @Override
+        public VersionValue get(BytesRef uid) {
+            return values.get(uid);
+        }
+
+        @Override
+        public long getMinDeleteTimestamp() {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public boolean isUnsafe() {
+            return unsafe;
+        }
+    }
+
+    public void testGetUnderLockOrUnsafeGatesArchiveLookupWhenUnsafe() throws IOException {
+        ControllableArchive archive = new ControllableArchive();
+        LiveVersionMap map = LiveVersionMapTestUtils.newLiveVersionMap(archive);
+
+        BytesRef archived = uid("archived");
+        IndexVersionValue archivedValue = new IndexVersionValue(randomTranslogLocation(), 1, 1, 1);
+        archive.values.put(archived, archivedValue);
+
+        // While the archive is safe, the gated lookup serves the archived value just like the non-gated one.
+        try (Releasable r = map.acquireLock(archived)) {
+            assertEquals(archivedValue, map.getUnderLock(archived));
+            assertEquals(archivedValue, map.getUnderLockOrUnsafe(archived));
+        }
+
+        // Once the archive becomes unsafe, the gated lookup refuses to serve the (possibly stale) archive value and returns the
+        // sentinel, while the non-gated lookup still returns the actual archived value (used by the recovery rebuild path).
+        archive.unsafe = true;
+        try (Releasable r = map.acquireLock(archived)) {
+            assertSame(LiveVersionMap.VERSION_MAP_UNSAFE, map.getUnderLockOrUnsafe(archived));
+            assertEquals(archivedValue, map.getUnderLock(archived));
+        }
+
+        // A fresh current hit is returned before the gate is reached, even when the archive is unsafe.
+        BytesRef fresh = uid("fresh");
+        IndexVersionValue freshValue = new IndexVersionValue(randomTranslogLocation(), 2, 2, 1);
+        map.enforceSafeAccess();
+        try (Releasable r = map.acquireLock(fresh)) {
+            map.putIndexUnderLock(fresh, freshValue);
+            assertTrue(map.isUnsafe());
+            assertEquals(freshValue, map.getUnderLockOrUnsafe(fresh));
+            assertEquals(freshValue, map.getUnderLock(fresh));
+        }
+    }
 }

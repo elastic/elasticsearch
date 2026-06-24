@@ -220,9 +220,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testStressWithRelocationFailures
-  issue: https://github.com/elastic/elasticsearch/issues/148129
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/147482
@@ -232,9 +229,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
   method: testEstimatedHeapHighWatermarkMonitorTriggersReroute
   issue: https://github.com/elastic/elasticsearch/issues/148246
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testStressWithoutFailures
-  issue: https://github.com/elastic/elasticsearch/issues/148310
 - class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
   method: testEmptyRangesAppendsNull
   issue: https://github.com/elastic/elasticsearch/issues/148378

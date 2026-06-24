@@ -48,6 +48,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapArchive;
 import org.junit.Before;
@@ -80,6 +81,7 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAcces
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -940,6 +942,67 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         }
         assertThat(getFromTranslogAttempts.get(), equalTo(1));
         assertThat(shardGetsOnSearchB.get(), equalTo(0));
+    }
+
+    public void testNoVersionConflictDuringUpdate() throws Exception {
+        // As of time when this test was created, LiveVersionMap could unexpectedly transition from safe to unsafe mode during an update.
+        // This caused a bug where an update could succeed without putting the version into the version map. So that the next update would
+        // hit a version conflict and require a retry. The bug was fixed and this test confirms that updates interleaved with refreshes
+        // do not result in version conflicts.
+        String indexNodeA = startIndexNode(
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                // Set a large max size and amount to control the uploads manually in the test
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+                .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1L))
+                .build()
+        );
+        startSearchNode();
+        ensureStableCluster(3);
+
+        String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNodeA);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final var indexShard = indexService.getShard(shardId.id());
+        final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        var map = indexEngine.getLiveVersionMap();
+
+        assertFalse(isUnsafe(map));
+
+        String docId = "doc-1";
+        // index 1 doc with doc-id. This should enforce safe access mode
+        client().prepareIndex(indexName).setId(docId).setSource("field1", randomUnicodeOfLength(10)).get();
+        assertTrue(isSafeAccessRequired(map));
+        var versionVal1 = get(map, docId);
+        assertNotNull(versionVal1);
+
+        var stopThreads = new AtomicBoolean(false);
+
+        final Thread refreshThread = new Thread(() -> {
+            while (stopThreads.get() == false) {
+                // trigger an internal refresh. We want this to cause safe -> unsafe transition in the middle of indexing
+                indexEngine.refresh("VERSION_CONFLICT_TEST");
+            }
+        }, "RefreshThread");
+        refreshThread.start();
+
+        try {
+            // 10 is usually enough to hit the bug. But the bug is fixed, so we don't unnecessarily try more.
+            for (int i = 0; i < 10; ++i) {
+                var bulkUpdateResponseN = client().prepareBulk()
+                    .add(client().prepareUpdate(indexName, docId).setDoc("field1", randomUnicodeOfLength(10)))
+                    .get();
+                assertNoFailures(bulkUpdateResponseN);
+            }
+        } finally {
+            stopThreads.set(true);
+            refreshThread.join();
+        }
     }
 
     private LiveVersionMap getLiveVersionMap(String indexNodeName, String indexName, int shardId) {

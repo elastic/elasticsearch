@@ -46,11 +46,12 @@ import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MEGABYTES_COPIED_PER_CHUNK_SETTING;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.google.fixture", "true"));
@@ -181,12 +182,13 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
      * configure two distinct storage classes, write blobs with each {@link OperationPurpose} via the single-part, resumable and
      * server-side copy paths, and read the storage class back from the object metadata.
      * <p>
-     * One of the two configured classes is always {@code STANDARD} (the default class) and the other is a colder class
-     * ({@code NEARLINE} or {@code COLDLINE}), so the positive assertions cover both an explicit default and an explicit non-default class.
+     * One of the two configured classes is always {@code STANDARD} (the default class) or {@code REGIONAL} (the legacy default class
+     * used by the test bucket elasticsearch-ci-thirdparty) and the other is a colder class ({@code NEARLINE} or {@code COLDLINE}),
+     * so the positive assertions cover both an explicit default and an explicit non-default class.
      * <p>
      * Unlike Azure (which exposes an "inferred" flag), GCS always reports a concrete storage class for an object: the fixture reports no
-     * class when none was configured, while a real bucket falls back to its default class (test buckets default to {@code STANDARD}).
-     * The non-snapshot purpose therefore asserts only that no colder class leaked onto the upload.
+     * class when none was configured, while a real bucket falls back to its default class (test buckets default to {@code STANDARD} or
+     * {@code REGIONAL}). The non-snapshot purpose therefore asserts only that no colder class leaked onto the upload.
      */
     public void testStorageClassPerOperationPurpose() throws Exception {
         // always configure STANDARD plus one colder class so the positive assertions exercise both the default and a non-default class
@@ -280,8 +282,8 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
             // (test buckets default to STANDARD). Either way, no colder class should have been applied to the blob.
             assertThat(
                 message + " should not carry a colder storage class",
-                actualStorageClass == null || actualStorageClass.equals(StorageClass.STANDARD),
-                is(true)
+                actualStorageClass,
+                anyOf(nullValue(), equalTo(StorageClass.STANDARD), equalTo(StorageClass.REGIONAL))
             );
         }
     }

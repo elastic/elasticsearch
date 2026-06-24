@@ -12,9 +12,12 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -30,11 +33,15 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.indices.recovery.PeerRecoverySourceService.Actions.START_RECOVERY;
+import static org.elasticsearch.indices.recovery.PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -103,7 +110,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             task,
             primary3,
             // The recovery will fail immediately because the fake target allocation ID is not in the shard's routing table
-            ActionListener.wrap(r -> fail("unexpected success"), exception -> {
+            ActionListener.wrap(ignored -> fail("unexpected success"), exception -> {
                 assertThat(exception, instanceOf(DelayRecoveryException.class));
                 completedListener.countDown();
             })
@@ -141,19 +148,19 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             newStartRecoveryRequest(primary3),
             task,
             primary3,
-            ActionListener.wrap(r -> fail("unexpected success"), e -> callOrder.add(1))
+            ActionListener.wrap(ignored -> fail("unexpected success"), ignored -> callOrder.add(1))
         );
         service.ongoingRecoveries.addOrEnqueueNewRecovery(
             newStartRecoveryRequest(primary4),
             task,
             primary4,
-            ActionListener.wrap(r -> fail("unexpected success"), e -> callOrder.add(2))
+            ActionListener.wrap(ignored -> fail("unexpected success"), ignored -> callOrder.add(2))
         );
         service.ongoingRecoveries.addOrEnqueueNewRecovery(
             newStartRecoveryRequest(primary5),
             task,
             primary5,
-            ActionListener.wrap(r -> fail("unexpected success"), e -> callOrder.add(3))
+            ActionListener.wrap(ignored -> fail("unexpected success"), ignored -> callOrder.add(3))
         );
         assertEquals(3, service.ongoingRecoveries.queuedRecoveryCount());
         // Newly processed recoveries will fail immediately: their target allocation ID is not in the shard's routing table
@@ -162,10 +169,64 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         closeShards(primary1, primary2, primary3, primary4, primary5);
     }
 
+    /// When a recovery slot becomes available, a new request must queue behind any already-pending
+    /// items rather than starting immediately, even though active < limit at that moment.
+    ///
+    /// In production this is a transient concurrent state: `onRecoveryComplete` releases the
+    /// lock after `remove()` but before calling `startRecoveriesUpToLimit()`, creating a
+    /// window where active < limit while the queue is non-empty. The test reproduces it
+    /// deterministically by calling `remove()` directly (freeing a slot without draining the
+    /// queue) and then calling `addOrEnqueueNewRecovery()` in the same thread.
+    public void testNewRequestEnqueuesIfPendingItemsExistWhenSlotBecomesAvailable() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final IndexShard primary3 = newStartedShard(true);
+        final IndexShard primary4 = newStartedShard(true);
+        final var service = newPeerRecoverySourceService(2);
+        service.start();
+        final var task = newRecoveryTask();
+
+        // Fill both active slots
+        final var handler1 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(primary1),
+            task,
+            primary1,
+            ActionListener.noop()
+        );
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+
+        // primary3 arrives while all slots are occupied, so it goes to the queue.
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
+
+        // Reproduce the concurrent window in onRecoveryComplete: call remove() directly to free
+        // a slot without triggering startRecoveriesUpToLimit(), leaving active (1) < limit (2)
+        // while the queue is still non-empty.
+        service.ongoingRecoveries.remove(primary1, handler1);
+        assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
+
+        // primary4 must be queued behind primary3 and not start directly, even though a slot is
+        // now free. Without pendingRecoveries.isEmpty() in addOrEnqueueNewRecovery it would bypass
+        // primary3 and start immediately.
+        final var handler4 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(primary4),
+            task,
+            primary4,
+            ActionListener.noop()
+        );
+        assertNull("primary4 must queue behind primary3, not bypass it", handler4);
+        // Both primary3 (added first) and primary4 are in the FIFO queue, with primary3 at the head.
+        assertEquals(2, service.ongoingRecoveries.queuedRecoveryCount());
+
+        closeShards(primary1, primary2, primary3, primary4);
+    }
+
     public void testSameShardFillsMultipleSlots() throws IOException {
         final IndexShard primary = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService(2);
+        final var service = newPeerRecoverySourceService();
         service.start();
         final var task = newRecoveryTask();
 
@@ -216,7 +277,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             newStartRecoveryRequest(primary3),
             task,
             primary3,
-            ActionListener.wrap(r -> fail("unexpected success"), primary3Response::set)
+            ActionListener.wrap(ignored -> fail("unexpected success"), primary3Response::set)
         );
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
@@ -266,7 +327,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             requestToDepartingNode,
             task,
             primary3,
-            ActionListener.wrap(r -> fail("unexpected success"), primary3Response::set)
+            ActionListener.wrap(ignored -> fail("unexpected success"), primary3Response::set)
         );
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
@@ -298,7 +359,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             newStartRecoveryRequest(primary3),
             task,
             primary3,
-            ActionListener.wrap(r -> fail("unexpected success"), primary3Response::set)
+            ActionListener.wrap(ignored -> fail("unexpected success"), primary3Response::set)
         );
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
@@ -314,7 +375,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
     public void testDuplicateRejected() throws IOException {
         final IndexShard primary = newStartedShard(true);
-        final var service = newPeerRecoverySourceService(2);
+        final var service = newPeerRecoverySourceService();
         service.start();
         final var task = newRecoveryTask();
 
@@ -393,7 +454,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService(2);
+        final var service = newPeerRecoverySourceService();
         service.start();
         final var task = newRecoveryTask();
 
@@ -425,7 +486,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
     public void testReestablishActiveRecovery() throws IOException {
         final IndexShard primary = newStartedShard(true);
-        final var service = newPeerRecoverySourceService(2);
+        final var service = newPeerRecoverySourceService();
         service.start();
         final var task = newRecoveryTask();
 
@@ -474,7 +535,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             request3,
             task,
             primary3,
-            ActionListener.wrap(r -> fail("unexpected success"), oldListenerResponse::set)
+            ActionListener.wrap(ignored -> fail("unexpected success"), oldListenerResponse::set)
         );
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
         assertEquals(1, primary3.recoveryStats().currentAsSourceQueued());
@@ -489,7 +550,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         service.ongoingRecoveries.reestablishRecovery(
             reestablishRequest,
             primary3,
-            ActionListener.wrap(r -> fail("unexpected success"), newListenerResponse::set)
+            ActionListener.wrap(ignored -> fail("unexpected success"), newListenerResponse::set)
         );
 
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
@@ -537,7 +598,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             queuedRequest,
             task,
             primary1,
-            ActionListener.wrap(r -> fail("unexpected success"), oldListenerResponse::set)
+            ActionListener.wrap(ignored -> fail("unexpected success"), oldListenerResponse::set)
         );
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
@@ -551,7 +612,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         service.ongoingRecoveries.reestablishRecovery(
             reestablishRequest,
             primary1,
-            ActionListener.wrap(r -> fail("unexpected success"), newListenerResponse::set)
+            ActionListener.wrap(ignored -> fail("unexpected success"), newListenerResponse::set)
         );
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
 
@@ -594,14 +655,336 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         closeShards(primary1, primary2);
     }
 
+    public void testDynamicLimitDecreaseQueuesNewRequests() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(3);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
+        service.start();
+        final var task = newRecoveryTask();
+
+        // Decrease the limit before any recoveries start
+        clusterSettings.applySettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+
+        // First request starts immediately under the new lower limit
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+
+        // Second request queues because the new limit (1) is already reached
+        final var queued = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(primary2),
+            task,
+            primary2,
+            ActionListener.noop()
+        );
+        assertNull(queued);
+        assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
+
+        closeShards(primary1, primary2);
+    }
+
+    public void testDynamicLimitDecreaseDoesNotAffectActiveRecoveries() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final IndexShard primary3 = newStartedShard(true);
+        final IndexShard primary4 = newStartedShard(true);
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(3);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
+        service.start();
+        final var task = newRecoveryTask();
+
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+        assertEquals(3, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+
+        // Decreasing the limit below the current active count must not cancel or disturb the in-flight recoveries
+        clusterSettings.applySettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+
+        assertEquals(3, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+
+        // New requests queue because active count (3) exceeds the new limit (1)
+        final var handler4 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(primary4),
+            task,
+            primary4,
+            ActionListener.noop()
+        );
+        assertNull(handler4);
+        assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
+
+        closeShards(primary1, primary2, primary3, primary4);
+    }
+
+    public void testDynamicLimitDecreaseDoesNotNotifySchedulingListeners() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final IndexShard primary3 = newStartedShard(true);
+        final IndexShard primary4 = newStartedShard(true);
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(3, schedulingListeners);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
+        service.start();
+        final var task = newRecoveryTask();
+
+        // Fill all 3 active slots, then queue primary4
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
+        assertEquals(3, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
+
+        final var dequeuedCount = new AtomicInteger();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+                dequeuedCount.incrementAndGet();
+            }
+        });
+
+        // Decreasing the limit must not dequeue primary4 even though it is pending
+        clusterSettings.applySettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+
+        assertEquals(0, dequeuedCount.get());
+        assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
+
+        closeShards(primary1, primary2, primary3, primary4);
+    }
+
+    public void testDynamicLimitIncreaseWithEmptyQueueDoesNotNotifySchedulingListeners() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2, schedulingListeners);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
+        service.start();
+        final var task = newRecoveryTask();
+
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+
+        final var dequeuedCount = new AtomicInteger();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+                dequeuedCount.incrementAndGet();
+            }
+        });
+
+        // Queue is empty, so raising the limit dequeues nothing and must not fire onRecoveryDequeuedAndStarted
+        clusterSettings.applySettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
+        );
+        assertEquals(0, dequeuedCount.get());
+
+        closeShards(primary1, primary2);
+    }
+
+    public void testDynamicLimitIncreaseAllowsDirectStart() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final IndexShard primary3 = newStartedShard(true);
+        final IndexShard primary4 = newStartedShard(true);
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
+        service.start();
+        final var task = newRecoveryTask();
+
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+
+        clusterSettings.applySettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
+        );
+
+        // Both new requests must start immediately because active count (2) is below the new higher limit (4)
+        final var handler3 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(primary3),
+            task,
+            primary3,
+            ActionListener.noop()
+        );
+        final var handler4 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(primary4),
+            task,
+            primary4,
+            ActionListener.noop()
+        );
+        assertNotNull(handler3);
+        assertNotNull(handler4);
+        assertEquals(4, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+
+        closeShards(primary1, primary2, primary3, primary4);
+    }
+
+    public void testDynamicLimitIncreaseDrainsFullQueue() throws Exception {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final IndexShard primary3 = newStartedShard(true);
+        final IndexShard primary4 = newStartedShard(true);
+        final IndexShard primary5 = newStartedShard(true);
+        // onRecoveryCompleted fires after remove() decrements activeRecoveryHandlerCount, so awaiting
+        // all 3 guarantees the active count is stable before we assert.
+        final var recoveriesCompleted = new CountDownLatch(3);
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                recoveriesCompleted.countDown();
+            }
+        });
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2, schedulingListeners);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
+        service.start();
+        final var task = newRecoveryTask();
+
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary5), task, primary5, ActionListener.noop());
+        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(3, service.ongoingRecoveries.queuedRecoveryCount());
+
+        // Raising the limit high enough to fit everything drains the entire queue at once
+        clusterSettings.applySettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 5).build()
+        );
+
+        // Wait for all 3 queued recoveries to complete.
+        safeAwait(recoveriesCompleted);
+        // primary1 and primary2 handlers were discarded, so recoverToTarget was never explicitly called on them.
+        // onRecoveryComplete never fires for those two, so they remain active.
+        // For the other 3 enqueued requests, recoverToTarget is invoked as part of startRecoveriesUpToLimit.
+        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+        assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
+        assertEquals(0, primary4.recoveryStats().currentAsSourceQueued());
+        assertEquals(0, primary5.recoveryStats().currentAsSourceQueued());
+
+        closeShards(primary1, primary2, primary3, primary4, primary5);
+    }
+
+    /// When the limit increase opens fewer new slots than items in the queue, the initial drain fills
+    /// the available slots immediately; remaining items are pulled out via the cascade as recoveries complete.
+    public void testDynamicLimitIncreaseDrainsViaInitialSlotsThenCascade() throws Exception {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final IndexShard primary3 = newStartedShard(true);
+        final IndexShard primary4 = newStartedShard(true);
+        final IndexShard primary5 = newStartedShard(true);
+        // onRecoveryCompleted fires after remove() decrements activeRecoveryHandlerCount, so awaiting
+        // all 3 guarantees the active count is stable before we assert.
+        final var recoveriesCompleted = new CountDownLatch(3);
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                recoveriesCompleted.countDown();
+            }
+        });
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2, schedulingListeners);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
+        service.start();
+        final var task = newRecoveryTask();
+
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+        // Queue 3 items. The limit increase opens only 2 initial slots, so the 3rd drains via cascade.
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary5), task, primary5, ActionListener.noop());
+        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(3, service.ongoingRecoveries.queuedRecoveryCount());
+
+        // Raising to 4 opens 2 initial slots; the remaining queued recovery drains via cascade
+        clusterSettings.applySettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
+        );
+
+        // Wait for all 3 queued recoveries to complete.
+        safeAwait(recoveriesCompleted);
+        // primary1 and primary2 handlers were discarded, so recoverToTarget was never called on them.
+        // onRecoveryComplete never fires for those two, so they remain active.
+        // For the other 3 enqueued requests, recoverToTarget is invoked as part of startRecoveriesUpToLimit.
+        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+        assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
+        assertEquals(0, primary4.recoveryStats().currentAsSourceQueued());
+        assertEquals(0, primary5.recoveryStats().currentAsSourceQueued());
+
+        closeShards(primary1, primary2, primary3, primary4, primary5);
+    }
+
+    private PeerRecoverySourceService newPeerRecoverySourceService() {
+        return newPeerRecoverySourceService(Integer.MAX_VALUE);
+    }
+
     private PeerRecoverySourceService newPeerRecoverySourceService(int limit) {
-        final var indicesService = mock(IndicesService.class);
-        final var clusterService = mock(ClusterService.class);
+        return newPeerRecoverySourceService(limit, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    }
+
+    private Tuple<PeerRecoverySourceService, ClusterSettings> newPeerRecoverySourceServiceWithDynamicLimit(int limit) {
+        return newPeerRecoverySourceServiceWithDynamicLimit(limit, new CompositeRecoverySchedulingListener());
+    }
+
+    private Tuple<PeerRecoverySourceService, ClusterSettings> newPeerRecoverySourceServiceWithDynamicLimit(
+        int limit,
+        CompositeRecoverySchedulingListener schedulingListeners
+    ) {
+        final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registeredSettings.add(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING);
+        final var settings = Settings.builder()
+            .put(NodeRoles.dataNode())
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
+            .build();
+        final var clusterSettings = new ClusterSettings(settings, registeredSettings);
+        return Tuple.tuple(newPeerRecoverySourceService(settings, clusterSettings, schedulingListeners), clusterSettings);
+    }
+
+    private PeerRecoverySourceService newPeerRecoverySourceService(int limit, Set<Setting<?>> registeredSettings) {
         final var settings = Settings.builder()
             .put(NodeRoles.dataNode())
             .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
             .build();
+        return newPeerRecoverySourceService(
+            settings,
+            new ClusterSettings(settings, registeredSettings),
+            new CompositeRecoverySchedulingListener()
+        );
+    }
+
+    private PeerRecoverySourceService newPeerRecoverySourceService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        CompositeRecoverySchedulingListener schedulingListeners
+    ) {
+        final var indicesService = mock(IndicesService.class);
+        final var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(indicesService.clusterService()).thenReturn(clusterService);
         final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         return new PeerRecoverySourceService(
@@ -610,7 +993,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             clusterService,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(RecoveryPlannerService.class),
-            new CompositeRecoverySchedulingListener()
+            schedulingListeners
         );
     }
 

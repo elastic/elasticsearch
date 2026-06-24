@@ -93,7 +93,8 @@ public class PulseDetector {
         double[] backgroundValues = backgroundExcluding(values, excursions, n);
         double stabilizingScale = Stats.asinhScale(backgroundValues);
         double[] stabilizedBackground = Stats.asinhStabilize(backgroundValues, stabilizingScale);
-        double[] stabilizedResiduals = Stats.rollingMedianResiduals(Stats.asinhStabilize(values, stabilizingScale), WEIGHT_HALF_WINDOW);
+        double[] stabilizedValues = Stats.asinhStabilize(values, stabilizingScale);
+        double[] stabilizedResiduals = Stats.rollingMedianResiduals(stabilizedValues, WEIGHT_HALF_WINDOW);
         // Floor the KDE bandwidth at a small multiple of the stabilized residual range. On a flat (e.g. all-
         // zero or constant) background the estimated spread collapses to ~0, and the empirical-step fallback
         // (Bonferroni-corrected over n) cannot call any single point significant so a clear outlier is missed.

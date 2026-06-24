@@ -144,7 +144,7 @@ public class EventDetector {
         for (int i = 0; i < order.length; i++) {
             order[i] = i;
         }
-        java.util.Arrays.sort(order, Comparator.comparingDouble(i -> events.get(i).pValue()));
+        java.util.Arrays.sort(order, Comparator.comparingDouble(i -> events.get(i).logPValue()));
 
         List<ChangeType> kept = new ArrayList<>();
         List<ChangeType> classification = new ArrayList<>();

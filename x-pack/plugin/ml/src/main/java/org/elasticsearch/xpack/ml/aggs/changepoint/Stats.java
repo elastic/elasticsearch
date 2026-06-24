@@ -122,8 +122,8 @@ public class Stats {
      */
     public static double compositeScale(double[] residuals, double magnitude) {
         double mad = madScale(residuals, 0, residuals.length);
-        double interdecile = interdecileScale(residuals, 0, residuals.length);
-        return Math.max(Math.max(mad, interdecile), residualNumericalScaleFloor(magnitude));
+        double idr = interdecileScale(residuals, 0, residuals.length);
+        return Math.max(Math.max(mad, idr), residualNumericalScaleFloor(magnitude));
     }
 
     /**
@@ -335,41 +335,48 @@ public class Stats {
     }
 
     /**
-     * Silverman's rule-of-thumb bandwidth on the background, using the robust {@code min(std, IQR/1.349)}
-     * spread so a residual heavy tail in the background cannot inflate it. Returns 0 for a degenerate
-     * constant or too-small) background, which {@link #kdeTailProbability} handles as an empirical step.
+     * Silverman's rule-of-thumb bandwidth on the background, using a Winsorized standard deviation as the spread
+     * so a residual heavy tail cannot inflate it. Returns 0 for a degenerate (constant or too-small) background,
+     * which {@link #kdeTailProbability} handles as an empirical step.
      */
     public static double kdeBandwidth(double[] background) {
         return kdeBandwidth(background, 0.0);
     }
 
     /**
-     * As {@link #kdeBandwidth(double[])}, but the result is floored at {@code minBandwidth}. On a degenerate
-     * (constant, e.g. flat-integer) background the estimated spread collapses to ~0, so the KDE tail falls
-     * back to an empirical step that, Bonferroni-corrected over the series, cannot call any point significant
-     * and a clear outlier is missed. A positive floor keeps a minimal, well-defined kernel width so an outlier
-     * still registers. The caller sets the floor from a scale that does not itself collapse (a small multiple
-     * of the residual range), so this only engages when the bandwidth would otherwise vanish; on a well-spread
-     * background Silverman's value dominates.
+     * As {@link #kdeBandwidth(double[])}, but {@code minBandwidth} rescues a <em>degenerate</em> background. The
+     * floor exists solely to avoid a zero bandwidth: a constant background collapses the spread to 0, the KDE tail
+     * falls back to an empirical step that, Bonferroni-corrected over the series, cannot call any point significant,
+     * and a clear outlier is missed. So the floor is applied <em>only</em> when the bandwidth is otherwise zero.
+     *
+     * <p>The spread is a <em>Winsorized</em> standard deviation: the residuals are clipped to the
+     * [{@link #WINSORIZE_ALPHA}, 1-{@link #WINSORIZE_ALPHA}] percentiles and the std of the clipped sample is taken.
+     * This is the robust scale that fits this job. Unlike a plain std it is not inflated by a heavy tail or by the
+     * sharp transition residuals of a structured regime (those are clipped).
      */
     public static double kdeBandwidth(double[] background, double minBandwidth) {
         int m = background.length;
         if (m < 2) {
             return Math.max(minBandwidth, 0.0);
         }
-        double backgroundMean = mean(background);
-        double variance = 0.0;
-        for (double x : background) {
-            double d = x - backgroundMean;
-            variance += d * d;
-        }
-        variance /= (m - 1);
-        double std = Math.sqrt(Math.max(variance, 0.0));
         double[] sorted = Arrays.copyOf(background, m);
         Arrays.sort(sorted);
-        double iqr = quantile(sorted, 0.75) - quantile(sorted, 0.25);
-        double spread = iqr > 0.0 ? Math.min(std, iqr / 1.349) : std;
-        return Math.max(SILVERMAN_FACTOR * spread * Math.pow(m, -0.2), Math.max(minBandwidth, 0.0));
+        double lo = quantile(sorted, WINSORIZE_ALPHA);
+        double hi = quantile(sorted, 1.0 - WINSORIZE_ALPHA);
+        double clippedSum = 0.0;
+        for (double x : background) {
+            clippedSum += Math.min(Math.max(x, lo), hi);
+        }
+        double clippedMean = clippedSum / m;
+        double clippedVariance = 0.0;
+        for (double x : background) {
+            double d = Math.min(Math.max(x, lo), hi) - clippedMean;
+            clippedVariance += d * d;
+        }
+        clippedVariance /= (m - 1);
+        double spread = Math.sqrt(Math.max(clippedVariance, 0.0));
+        double bandwidth = SILVERMAN_FACTOR * spread * Math.pow(m, -0.2);
+        return bandwidth > 0.0 ? bandwidth : Math.max(minBandwidth, 0.0);
     }
 
     /**
@@ -495,12 +502,12 @@ public class Stats {
         return mad > 0.0 ? mad / 0.6745 : 1.0;
     }
 
-    // The minimum variance returned by the local noise estimator, to prevent numerical collapse on flat or
-    // near-flat segments close to zero.
+    // The minimum variance returned by the local noise estimator, to prevent numerical collapse on flat
+    // or near-flat segments close to zero.
     private static final double MIN_VARIANCE = 1e-12;
     // Fraction of the local noise variance added back into a segment's RSS before taking its BIC (see
-    // stabilizeRss): a small regularizer so a near-perfect fit cannot earn an unbounded log-likelihood and
-    // dominate the model comparison on numerical noise.
+    // {@code stabilizeRss}): a small regularizer so a near-perfect fit cannot earn an unbounded log-
+    // likelihood and dominate the model comparison on numerical noise.
     private static final double VARIANCE_FLOOR_SCALE = 0.01;
     // The quantization step is the smallest first-difference magnitude that recurs at least this many times
     // (within QUANTIZATION_TOLERANCE, relative). Requiring recurrence stops a clean step series being read
@@ -511,6 +518,10 @@ public class Stats {
     // (a looser tolerance would mistake that clustering near the noise mode for quantization and floor at the
     // noise).
     private static final double QUANTIZATION_TOLERANCE = 1e-9;
+    // Per-tail fraction clipped when forming the Winsorized standard deviation for the KDE bandwidth: enough
+    // to clip a heavy tail or the sharp transition residuals of a structured regime, small enough to leave
+    // the bulk (and hence the within-regime noise) intact. Tuned against the synthetic benchmark.
+    private static final double WINSORIZE_ALPHA = 0.025;
     // Silverman's rule-of-thumb bandwidth on the background, using the robust {@code min(std, IQR/1.349)}
     // spread so a residual heavy tail in the background cannot inflate it.
     private static final double SILVERMAN_FACTOR = 0.9;

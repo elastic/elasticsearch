@@ -40,6 +40,10 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         return 1.0;
     }
 
+    default double logPvalue() {
+        return Math.log(pValue());
+    }
+
     default ChangeType remapChangePoint(int changePoint) {
         return this;
     }
@@ -61,12 +65,17 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
-        public int changePoint() {
-            return changePoint;
+        public double logPvalue() {
+            return logPValue;
         }
 
         public double magnitudePercent() {
             return magnitudePercent;
+        }
+
+        @Override
+        public int changePoint() {
+            return changePoint;
         }
 
         public AbstractChangePoint(StreamInput in) throws IOException {
@@ -250,6 +259,11 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
+        public double logPvalue() {
+            return logPValue;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject().field("p_value", pValue()).field("r_value", rValue).field("trend", trend).endObject();
         }
@@ -376,6 +390,21 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         @Override
         public double pValue() {
             return Math.exp(logPValue);
+        }
+
+        @Override
+        public double logPvalue() {
+            return logPValue;
+        }
+
+        @Override
+        public double rValue() {
+            return rValue;
+        }
+
+        @Override
+        public double magnitudePercent() {
+            return magnitudePercent;
         }
 
         @Override

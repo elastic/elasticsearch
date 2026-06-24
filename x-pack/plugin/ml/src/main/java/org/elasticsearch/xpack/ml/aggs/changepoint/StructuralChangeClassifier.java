@@ -241,14 +241,17 @@ public class StructuralChangeClassifier {
             return false;
         }
 
+        // Re-fit the same per-segment model with the weights around the boundary muted; if the gain mostly survives,
+        // the change is a sustained regime rather than a few extreme points. The muted split keeps each side's degree
+        // from the full fit, so this tests the same alternative under muting.
         double[] mutedWeights = mutedWeights(weights, start, cp, end);
         double mutedNoChangeBic = calculateNoChangeBic(values, mutedWeights, start, end, localNoiseVariance).bic();
-        double mutedChangeRss = splitPolynomialRss(values, mutedWeights, start, cp, end, change.degree());
-        double mutedChangeBic = bicFromRss(
-            Stats.stabilizeRss(mutedChangeRss, windowLength, localNoiseVariance),
+        double mutedChangeRss = Stats.stabilizeRss(
+            splitPolynomialRss(values, mutedWeights, start, cp, end, change.degree()),
             windowLength,
-            2 * (change.degree() + 1)
+            localNoiseVariance
         );
+        double mutedChangeBic = bicFromRss(mutedChangeRss, windowLength, 2 * (change.degree() + 1));
         return changePersists(bicGain, mutedNoChangeBic - mutedChangeBic) == false;
     }
 
@@ -275,31 +278,30 @@ public class StructuralChangeClassifier {
         double localNoiseVariance = intervalNoise[leftIdx][rightIdx];
 
         Bic noChange = bestNoChangeBic(intervalRss[leftIdx][rightIdx], windowLength, localNoiseVariance);
-        Bic meanSplit = symmetricSplit(intervalRss, leftIdx, cpIdx, rightIdx, windowLength, localNoiseVariance);
-        double meanGain = noChange.bic() - meanSplit.bic();
+        Bic change = symmetricSplit(intervalRss, leftIdx, cpIdx, rightIdx, windowLength, localNoiseVariance);
 
         if (toPValue(meanGain) < pValueThreshold) {
-            // A mean change (level or trend). log p-value = -gain/2 exactly (p = exp(-deltaBic/2)).
+            // A mean change (level or trend).
             double logPValue = -0.5 * Math.max(meanGain, 0.0);
-            // Local level and slope on a short shoulder window each side of the boundary. The series
-            // is mean-shifted, so add the offset back for a level-relative percentage; the step size
-            // and slope are themselves shift-invariant. The denominator is floored by the local noise
-            // scale so a near-zero baseline (a zero error count, a flat->ramp leak) does not blow the
-            // percentage up.
-            double floor = Math.max(Math.sqrt(Math.max(localNoiseVariance, 0.0)), MAGNITUDE_FLOOR);
+            // Local level and slope on a short shoulder window each side of the boundary. The series is
+            // mean-shifted, so add the offset back for a level-relative percentage; the step size and
+            // slope are themselves shift-invariant. The denominator is floored by the local noise scale
+            // so a near-zero baseline (a zero error count, a flat->ramp leak) does not blow up.
+            double floor = Math.max(Math.sqrt(Math.max(localNoiseVariance, 0.0)), SCALE_FLOOR);
             int shoulder = Math.min(minSegmentLength, windowLength);
             double[] left = localLine(values, weights, Math.max(grid[leftIdx], cp - shoulder), cp, cp);
             double[] right = localLine(values, weights, cp, Math.min(grid[rightIdx], cp + shoulder), cp);
             double levelBefore = left[0] + offset;
             double levelAfter = right[0] + offset;
-            if (meanSplit.degree() == 0) {
+            if (change.degree() == 0) {
                 double stepPercent = 100.0 * (levelAfter - levelBefore) / Math.max(Math.abs(levelBefore), floor);
                 return new ChangeType.StepChange(logPValue, cp, stepPercent);
             }
-            double r2 = Math.max(0.0, Math.min(1.0, 1.0 - (meanSplit.rss() / Math.max(noChange.rss(), 1e-10))));
+            double noChangeRss = Math.max(noChange.rss(), VAR_FLOOR * windowLength);
+            double r2 = Math.max(0.0, Math.min(1.0, 1.0 - (change.rss() / noChangeRss)));
             double levelAtChange = 0.5 * (levelBefore + levelAfter);
             double gradientPercent = 100.0 * (right[1] - left[1]) / Math.max(Math.abs(levelAtChange), floor);
-            return new ChangeType.TrendChange(logPValue, gradientPercent, r2, cp);
+            return new ChangeType.TrendChange(logPValue, r2, cp, gradientPercent);
         }
 
         if (detectVarianceShifts) {
@@ -343,7 +345,7 @@ public class StructuralChangeClassifier {
                 double logPValue = -0.5 * Math.max(varianceGain, 0.0);
                 double scaleBefore = Math.sqrt(varLeft);
                 double scaleAfter = Math.sqrt(varRight);
-                double scaleFloor = Math.max(Math.sqrt(Math.max(localNoiseVariance, 0.0)), MAGNITUDE_FLOOR);
+                double scaleFloor = Math.max(Math.sqrt(Math.max(localNoiseVariance, 0.0)), SCALE_FLOOR);
                 double magnitudePercent = 100.0 * (scaleAfter - scaleBefore) / Math.max(scaleBefore, scaleFloor);
                 return new ChangeType.DistributionChange(logPValue, cp, magnitudePercent);
             }
@@ -383,7 +385,9 @@ public class StructuralChangeClassifier {
         double bestRss = 0.0;
         int bestDegree = 0;
         for (int degree = 0; degree <= maxDegree; degree++) {
-            double rss = Math.max(intervalRss[leftIdx][cpIdx][degree] + intervalRss[cpIdx][rightIdx][degree], 1e-10);
+            double leftRss = intervalRss[leftIdx][cpIdx][degree];
+            double rightRss = intervalRss[cpIdx][rightIdx][degree];
+            double rss = Math.max(leftRss + rightRss, VAR_FLOOR * windowLength);
             double bic = bicFromRss(Stats.stabilizeRss(rss, windowLength, localNoiseVariance), windowLength, 2 * (degree + 1));
             if (bic < bestBic) {
                 bestBic = bic;
@@ -424,7 +428,7 @@ public class StructuralChangeClassifier {
             if (bic < bestBic) {
                 bestBic = bic;
                 bestRss = rss;
-                bestR2 = Math.max(0.0, Math.min(1.0, 1.0 - (rss / Math.max(rss0, 1e-10))));
+                bestR2 = Math.max(0.0, Math.min(1.0, 1.0 - (rss / Math.max(rss0, VAR_FLOOR * windowLength))));
                 bestDegree = degree;
             }
         }
@@ -475,7 +479,7 @@ public class StructuralChangeClassifier {
             LeastSquaresOnlineRegression regression = fitPolynomial(values, weights, start, end, maxDegree);
             int length = end - start;
             for (int degree = 1; degree <= maxDegree; degree++) {
-                rss[degree] = Math.max(regression.residualVarianceForDegree(degree) * length, 1e-10);
+                rss[degree] = Math.max(regression.residualVarianceForDegree(degree), SCALE_FLOOR * SCALE_FLOOR) * length;
             }
         }
         return rss;
@@ -513,7 +517,7 @@ public class StructuralChangeClassifier {
 
     private double bicFromRss(double rss, int n, int k, double effectiveFactor) {
         double effectiveN = Math.max(effectiveFactor * n, 2.0);
-        double flooredRss = Math.max(rss, n * quantizationVariance);
+        double flooredRss = Math.max(rss, n * Math.max(quantizationVariance, VAR_FLOOR));
         return effectiveFactor * n * Math.log(flooredRss / n) + k * Math.log(effectiveN);
     }
 
@@ -530,7 +534,7 @@ public class StructuralChangeClassifier {
             return Stats.weightedRss(values, weights, start, end);
         }
         LeastSquaresOnlineRegression reg = fitPolynomial(values, weights, start, end, degree);
-        return Math.max(reg.residualVariance() * (end - start), 1e-10);
+        return Math.max(reg.residualVariance(), VAR_FLOOR) * (end - start);
     }
 
     /** Computes the sign of the slope for a linear fit over the specified window. */
@@ -574,7 +578,8 @@ public class StructuralChangeClassifier {
 
     // Absolute floor for the denominator of a percent-change magnitude, to avoid division by zero
     // when both the baseline level and the local noise scale are ~0 (a perfectly constant series).
-    private static final double MAGNITUDE_FLOOR = 1e-10;
+    private static final double SCALE_FLOOR = 1e-10;
+    private static final double VAR_FLOOR = SCALE_FLOOR * SCALE_FLOOR;
 
     private final int minSegmentLength;
     // Highest polynomial order the validator may fit, applied symmetrically to the single no-change

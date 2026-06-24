@@ -226,7 +226,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     public void testSameShardFillsMultipleSlots() throws IOException {
         final IndexShard primary = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 

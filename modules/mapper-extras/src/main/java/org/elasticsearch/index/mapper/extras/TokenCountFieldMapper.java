@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocValueFetcher;
@@ -53,11 +54,7 @@ public class TokenCountFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.of(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters(),
-            false
-        );
+        private final FieldMapper.DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
         private final Parameter<NamedAnalyzer> analyzer = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, () -> null);
@@ -79,8 +76,16 @@ public class TokenCountFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name) {
+        private final IndexSettings indexSettings;
+
+        public Builder(String name, IndexSettings indexSettings) {
             super(name);
+            this.indexSettings = indexSettings;
+            this.docValuesParameters = FieldMapper.DocValuesParameter.of(
+                DEFAULT_DOC_VALUES_PARAMS,
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
+            );
         }
 
         @Override
@@ -148,7 +153,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
 
     private final boolean index;
     private final FieldMapper.DocValuesParameter.Values docValuesParameters;
@@ -157,6 +162,7 @@ public class TokenCountFieldMapper extends FieldMapper {
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
     private final DocValuesFieldFactory dvFactory;
+    private final IndexSettings indexSettings;
 
     protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, defaultFieldType, builderParams);
@@ -168,6 +174,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         this.store = builder.store.getValue();
         // in parseCreateField(), we call IndexType.points(), which defaults skippers to false
         this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, IndexVersion.current());
+        this.indexSettings = builder.indexSettings;
     }
 
     @Override
@@ -248,6 +255,6 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), indexSettings).init(this);
     }
 }

@@ -60,9 +60,7 @@ For clusters on a version before 8.17, upgrading provides the largest single per
 
 Query performance starts at index time. Your field mappings control what {{esql}} can do efficiently. 
 
-If you only aggregate or sort on a field, and never filter, set [`index: false`](/reference/elasticsearch/mapping-reference/mapping-index.md) to save disk space. {{esql}} can still read the field through doc values.
-
-If you never sort or aggregate on a field, disable [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) instead. Every structure you remove is one less thing {{esql}} has to read.
+If you only aggregate or sort on a field, and never filter, set [`index: false`](/reference/elasticsearch/mapping-reference/mapping-index.md) to save disk space. {{esql}} can still read the field through doc values. Keep doc values enabled for fields that {{esql}} needs to read, group, sort, or return. For fields that are rarely needed in results, remove them from the query output with [`KEEP`](/reference/query-languages/esql/commands/keep.md) or [`DROP`](/reference/query-languages/esql/commands/drop.md).
 
 ### Know your circuit breaker limits
 
@@ -85,7 +83,7 @@ These anti-patterns are the most common causes of {{esql}} query latency in prod
 | Missing [`WHERE`](/reference/query-languages/esql/commands/where.md) | No filter conditions at all | Full index scan |
 | Missing [`KEEP`](/reference/query-languages/esql/commands/keep.md) | No column selection | Returns all fields, producing large payloads |
 | Missing [`LIMIT`](/reference/query-languages/esql/commands/limit.md) | Unbounded result set | Slow serialization, can trigger deserialization errors in {{kib}} |
-| High-cardinality [`STATS`](/reference/query-languages/esql/commands/stats-by.md) `BY` | Grouping by raw timestamps, full URLs, or document IDs | Produces millions of buckets, can trip circuit breakers |
+| High-cardinality [`STATS BY`](/reference/query-languages/esql/commands/stats-by.md) | Grouping by raw timestamps, full URLs, or document IDs | Produces millions of buckets, can trip circuit breakers |
 | [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) or [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike) | Wildcard or regex text matching | Slower than full-text functions for text search, especially pre 8.18/9.0 |
 | [`GROK`](/reference/query-languages/esql/commands/grok.md) or [`DISSECT`](/reference/query-languages/esql/commands/dissect.md) | Text parsing on large datasets | CPU-intensive regex or tokenization per row |
 | [`CASE`](/reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/case.md) | Conditional aggregation through `CASE` | Lazy evaluation, slow |
@@ -125,7 +123,7 @@ In {{kib}}, the time picker automatically applies a time range filter. When writ
 
 ### Filter early with WHERE
 
-A [`WHERE`](/reference/query-languages/esql/commands/where.md) clause earlier in the pipeline reduces the dataset before downstream commands process it. Conditions on indexed fields such as `keyword`, [numeric](/reference/elasticsearch/mapping-reference/number.md), `date`, or `ip` types are pushed down to Lucene, which skips irrelevant documents entirely.
+A [`WHERE`](/reference/query-languages/esql/commands/where.md) clause earlier in the pipeline reduces the dataset before downstream commands process it. Conditions on indexed fields such as `keyword`, [numeric](/reference/elasticsearch/mapping-reference/number.md), `date`, `ip`, `geo_point`, `geo_shape`, `cartesian_point`, or `cartesian_shape` types are pushed down to Lucene, which skips irrelevant documents entirely.
 
 Without a [`WHERE`](/reference/query-languages/esql/commands/where.md), {{esql}} scans every document in the matched indices:
 
@@ -147,7 +145,7 @@ FROM logs-*
 
 ### Restrict the index pattern
 
-A broad [`FROM *`](/reference/query-languages/esql/commands/from.md) forces {{esql}} to discover field mappings across every index and then query each one. On clusters with thousands of indices, that discovery overhead alone can dominate query time.
+A broad [`FROM *`](/reference/query-languages/esql/commands/from.md) forces {{esql}} to discover field mappings across every index and then query each one. On clusters with thousands of indices, that discovery overhead alone can dominate query time. In {{serverless-short}}, `FROM *` can also expand to all linked projects in [cross-project search](/reference/query-languages/esql/esql-cross-serverless-projects.md). Use [`project_routing`](/reference/query-languages/esql/esql-cross-serverless-projects.md#use-project-routing) to limit a cross-project query to the projects that it actually needs.
 
 ❌ **Don't:** Use wildcards that match more indices than the query needs
 ```esql
@@ -308,7 +306,7 @@ Common reductions include: bucketing timestamps with [`DATE_TRUNC`](/reference/q
 
 ### Prefer fields backed by doc values
 
-{{esql}} reads field values through a block-loading system that strongly prefers [doc values](/reference/elasticsearch/mapping-reference/doc-values.md). Fields with doc values, such as `keyword`, [numeric](/reference/elasticsearch/mapping-reference/number.md), `date`, and `ip` types, are read in fast columnar batches. Fields without doc values, such as `text` and `match_only_text`, fall back to reading [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md), which requires decompressing and parsing the full JSON document per row. This applies to any operation that reads the field value, including filtering, grouping, sorting, and returning fields through [`KEEP`](/reference/query-languages/esql/commands/keep.md).
+{{esql}} reads field values through a block-loading system that strongly prefers [doc values](/reference/elasticsearch/mapping-reference/doc-values.md). Fields with doc values, such as `keyword`, [numeric](/reference/elasticsearch/mapping-reference/number.md), `date`, `ip`, `geo_point`, `geo_shape`, `cartesian_point`, and `cartesian_shape` types, are read in fast columnar batches. Fields without doc values, such as `text` and `match_only_text`, fall back to reading [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md), which requires decompressing and parsing the full JSON document per row. This applies to any operation that reads the field value, including filtering, grouping, sorting, and returning fields through [`KEEP`](/reference/query-languages/esql/commands/keep.md).
 
 If an exact `.keyword` subfield exists, the query planner automatically rewrites expressions to use it, so `message` and `message.keyword` perform the same in that case. However, if the `text` field has no `keyword` subfield, or if the subfield is not exact (for example, it uses `ignore_above`), the planner cannot rewrite and falls back to reading from `_source`, which is significantly slower. When no exact subfield is available, filter aggressively to limit the number of documents that require `_source` reads.
 
@@ -336,6 +334,12 @@ FROM logs-*
 | SORT count DESC
 | LIMIT 20
 ```
+
+### Return spatial fields only when you need source precision
+
+The spatial types `geo_point`, `geo_shape`, `cartesian_point`, and `cartesian_shape` are maintained at source precision in the original documents, but indexed at reduced precision by Lucene for performance. Reading spatial values from doc values is fast and usually precise enough. Returning the original spatial field preserves source precision, but requires reading from `_source`, which is slower. To prioritize performance, drop original spatial fields from the result unless the query consumer needs the exact original value.
+
+To learn more, refer to [Spatial precision](/reference/query-languages/esql/limitations.md#esql-limitations-spatial-precision).
 
 ### Use per-aggregation WHERE instead of CASE
 

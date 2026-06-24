@@ -8,16 +8,31 @@
 package org.elasticsearch.compute.data.sort;
 
 // begin generated imports
+$if(BytesRef || ExtraBytesRef)$
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+$endif$
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-$if(hasExtra && !(long && Extralong))$
+$if(hasExtra && !ExtraBytesRef && !(long && Extralong))$
 import org.elasticsearch.common.util.$ExtraType$Array;
 $endif$
+$if(BytesRef || ExtraBytesRef)$
+import org.elasticsearch.common.util.ObjectArray;
+$endif$
+$if(!BytesRef)$
 import org.elasticsearch.common.util.$Type$Array;
+$endif$
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
+$if(BytesRef || ExtraBytesRef)$
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+$endif$
+$if(BytesRef)$
+import org.elasticsearch.common.util.ByteUtils;
+$endif$
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
@@ -35,6 +50,9 @@ import java.util.stream.IntStream;
 public class $Name$$ExtraName$BucketedSort implements Releasable {
 
     private final BigArrays bigArrays;
+$if(BytesRef || ExtraBytesRef)$
+    private final CircuitBreaker breaker;
+$endif$
     private final SortOrder order;
     private final int bucketSize;
     /**
@@ -69,25 +87,44 @@ public class $Name$$ExtraName$BucketedSort implements Releasable {
      *     </li>
      * </ul>
      */
-$if(hasExtra)$
-    private $Array$ values;
-    private $ExtraArray$ extraValues;
-
+$if(BytesRef)$
+    private ObjectArray<BreakingBytesRefBuilder> values;
 $else$
     private $Array$ values;
 $endif$
+$if(hasExtra)$
+$if(ExtraBytesRef)$
+    private ObjectArray<BreakingBytesRefBuilder> extraValues;
 
+$else$
+    private $ExtraArray$ extraValues;
+
+$endif$
+$else$
+
+$endif$
     public $Name$$ExtraName$BucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
+$if(BytesRef || ExtraBytesRef)$
+        this.breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+$endif$
         this.order = order;
         this.bucketSize = bucketSize;
         heapMode = new BitArray(0, bigArrays);
 
         boolean success = false;
         try {
+$if(BytesRef)$
+            values = bigArrays.newObjectArray(0);
+$else$
             values = bigArrays.new$Type$Array(0, false);
+$endif$
 $if(hasExtra)$
+$if(ExtraBytesRef)$
+            extraValues = bigArrays.newObjectArray(0);
+$else$
             extraValues = bigArrays.new$ExtraType$Array(0, false);
+$endif$
 $endif$
             success = true;
         } finally {
@@ -106,10 +143,22 @@ $endif$
     public void collect($type$ value, $if(hasExtra)$$Extratype$ extraValue, $endif$int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex)$if(hasExtra)$, extraValue, extraValues.get(rootIndex)$endif$)) {
-                values.set(rootIndex, value);
+            $type$ rootValue = $if(BytesRef)$bytesAt(rootIndex)$else$values.get(rootIndex)$endif$;
 $if(hasExtra)$
+            $Extratype$ rootExtra = $if(ExtraBytesRef)$extraBytesAt(rootIndex)$else$extraValues.get(rootIndex)$endif$;
+$endif$
+            if (betterThan(value, rootValue$if(hasExtra)$, extraValue, rootExtra$endif$)) {
+$if(BytesRef)$
+                clearedBytesAt(rootIndex).append(value);
+$else$
+                values.set(rootIndex, value);
+$endif$
+$if(hasExtra)$
+$if(ExtraBytesRef)$
+                clearedExtraBytesAt(rootIndex).append(extraValue);
+$else$
                 extraValues.set(rootIndex, extraValue);
+$endif$
 $endif$
                 downHeap(rootIndex, 0, bucketSize);
             }
@@ -124,9 +173,17 @@ $endif$
         assert 0 <= next && next < bucketSize
             : "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
         long index = next + rootIndex;
+$if(BytesRef)$
+        clearedBytesAt(index).append(value);
+$else$
         values.set(index, value);
+$endif$
 $if(hasExtra)$
+$if(ExtraBytesRef)$
+        clearedExtraBytesAt(index).append(extraValue);
+$else$
         extraValues.set(index, extraValue);
+$endif$
 $endif$
         if (next == 0) {
             heapMode.set(bucket);
@@ -173,7 +230,19 @@ $endif$
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(other.values.get(i), $if(hasExtra)$other.extraValues.get(i), $endif$groupId);
+$if(BytesRef)$
+            $type$ otherValue = other.values.get(i) == null ? new BytesRef() : other.values.get(i).bytesRefView();
+$else$
+            $type$ otherValue = other.values.get(i);
+$endif$
+$if(hasExtra)$
+$if(ExtraBytesRef)$
+            $Extratype$ otherExtra = other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView();
+$else$
+            $Extratype$ otherExtra = other.extraValues.get(i);
+$endif$
+$endif$
+            collect(otherValue$if(hasExtra)$, otherExtra$endif$, groupId);
         }
     }
 
@@ -209,8 +278,16 @@ $if(hasExtra)$
                 }
 
                 if (size == 1) {
+$if(BytesRef)$
+                    appendValue(builder, rootIndex);
+$else$
                     builder.append$Type$(values.get(rootIndex));
+$endif$
+$if(ExtraBytesRef)$
+                    appendExtra(extraBuilder, rootIndex);
+$else$
                     extraBuilder.append$ExtraType$(extraValues.get(rootIndex));
+$endif$
                     continue;
                 }
 
@@ -223,8 +300,16 @@ $if(hasExtra)$
                 builder.beginPositionEntry();
                 extraBuilder.beginPositionEntry();
                 for (int i = 0; i < size; i++) {
+$if(BytesRef)$
+                    appendValue(builder, rootIndex + i);
+$else$
                     builder.append$Type$(values.get(rootIndex + i));
+$endif$
+$if(ExtraBytesRef)$
+                    appendExtra(extraBuilder, rootIndex + i);
+$else$
                     extraBuilder.append$ExtraType$(extraValues.get(rootIndex + i));
+$endif$
                 }
                 builder.endPositionEntry();
                 extraBuilder.endPositionEntry();
@@ -265,7 +350,11 @@ $else$
                 }
 
                 if (size == 1) {
+$if(BytesRef)$
+                    appendValue(builder, rootIndex);
+$else$
                     builder.append$Type$(values.get(rootIndex));
+$endif$
                     continue;
                 }
 
@@ -277,7 +366,11 @@ $else$
 
                 builder.beginPositionEntry();
                 for (int i = 0; i < size; i++) {
+$if(BytesRef)$
+                    appendValue(builder, rootIndex + i);
+$else$
                     builder.append$Type$(values.get(rootIndex + i));
+$endif$
                 }
                 builder.endPositionEntry();
             }
@@ -286,6 +379,70 @@ $else$
     }
 $endif$
 
+$if(ExtraBytesRef)$
+    private void appendExtra(org.elasticsearch.compute.data.BytesRefBlock.Builder extraBuilder, long index) {
+        BreakingBytesRefBuilder bytes = extraValues.get(index);
+        if (bytes == null) {
+            extraBuilder.appendNull();
+            return;
+        }
+        try {
+            extraBuilder.appendBytesRef(bytes.bytesRefView());
+        } finally {
+            extraValues.set(index, null);
+            Releasables.closeExpectNoException(bytes);
+        }
+    }
+
+    private BreakingBytesRefBuilder clearedExtraBytesAt(long index) {
+        BreakingBytesRefBuilder bytes = extraValues.get(index);
+        if (bytes == null) {
+            bytes = new BreakingBytesRefBuilder(breaker, "top");
+            extraValues.set(index, bytes);
+        } else {
+            bytes.clear();
+        }
+        return bytes;
+    }
+
+    private BytesRef extraBytesAt(long index) {
+        BreakingBytesRefBuilder bytes = extraValues.get(index);
+        return bytes == null ? new BytesRef() : bytes.bytesRefView();
+    }
+
+$endif$
+$if(BytesRef)$
+    private void appendValue(org.elasticsearch.compute.data.BytesRefBlock.Builder builder, long index) {
+        BreakingBytesRefBuilder bytes = values.get(index);
+        if (bytes == null) {
+            builder.appendNull();
+            return;
+        }
+        try {
+            builder.appendBytesRef(bytes.bytesRefView());
+        } finally {
+            values.set(index, null);
+            Releasables.closeExpectNoException(bytes);
+        }
+    }
+
+    private BreakingBytesRefBuilder clearedBytesAt(long index) {
+        BreakingBytesRefBuilder bytes = values.get(index);
+        if (bytes == null) {
+            bytes = new BreakingBytesRefBuilder(breaker, "top");
+            values.set(index, bytes);
+        } else {
+            bytes.clear();
+        }
+        return bytes;
+    }
+
+    private BytesRef bytesAt(long index) {
+        BreakingBytesRefBuilder bytes = values.get(index);
+        return bytes == null ? new BytesRef() : bytes.bytesRefView();
+    }
+
+$endif$
     /**
      * Checks if the selected groups are all empty.
      */
@@ -309,7 +466,11 @@ $endif$
      * at {@code rootIndex}.
      */
     private int getNextGatherOffset(long rootIndex) {
-$if(int)$
+$if(BytesRef)$
+        BreakingBytesRefBuilder bytes = values.get(rootIndex);
+        assert bytes != null && bytes.length() == Integer.BYTES;
+        return ByteUtils.readIntLE(bytes.bytes(), 0);
+$elseif(int)$
         return values.get(rootIndex);
 $else$
         return (int) values.get(rootIndex);
@@ -321,7 +482,11 @@ $endif$
      * at {@code rootIndex}.
      */
     private void setNextGatherOffset(long rootIndex, int offset) {
+$if(BytesRef)$
+        ByteUtils.writeIntLE(offset, values.get(rootIndex).bytes(), 0);
+$else$
         values.set(rootIndex, offset);
+$endif$
     }
 
     /**
@@ -330,12 +495,20 @@ $endif$
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     private boolean betterThan($type$ lhs, $type$ rhs$if(hasExtra)$, $Extratype$ lhsExtra, $Extratype$ rhsExtra$endif$) {
+$if(BytesRef)$
+        int res = lhs.compareTo(rhs);
+$else$
         int res = $Wrapper$.compare(lhs, rhs);
+$endif$
 $if(hasExtra)$
         if (res != 0) {
             return getOrder().reverseMul() * res < 0;
         }
+$if(ExtraBytesRef)$
+        res = lhsExtra.compareTo(rhsExtra);
+$else$
         res = $ExtraWrapper$.compare(lhsExtra, rhsExtra);
+$endif$
 $endif$
         return getOrder().reverseMul() * res < 0;
     }
@@ -363,7 +536,9 @@ $endif$
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.$TYPE$_PAGE_SIZE, $BYTES$);
+        int pageSize = $if(BytesRef)$PageCacheRecycler.OBJECT_PAGE_SIZE$else$PageCacheRecycler.$TYPE$_PAGE_SIZE$endif$;
+        int bytesPerElement = $BYTES$;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, pageSize, bytesPerElement);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -379,10 +554,26 @@ $endif$
      * Maintain the "next gather offsets" for newly allocated buckets.
      */
     private void fillGatherOffsets(long startingAt) {
+$if(BytesRef)$
+        assert startingAt % bucketSize == 0;
+        int nextOffset = getBucketSize() - 1;
+        for (long bucketRoot = startingAt; bucketRoot < values.size(); bucketRoot += getBucketSize()) {
+            BreakingBytesRefBuilder bytes = values.get(bucketRoot);
+            if (bytes != null) {
+                continue;
+            }
+            bytes = new BreakingBytesRefBuilder(breaker, "top");
+            values.set(bucketRoot, bytes);
+            bytes.grow(Integer.BYTES);
+            bytes.setLength(Integer.BYTES);
+            ByteUtils.writeIntLE(nextOffset, bytes.bytes(), 0);
+        }
+$else$
         int nextOffset = getBucketSize() - 1;
         for (long bucketRoot = startingAt; bucketRoot < values.size(); bucketRoot += getBucketSize()) {
             setNextGatherOffset(bucketRoot, nextOffset);
         }
+$endif$
     }
 
     /**
@@ -452,25 +643,29 @@ $endif$
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex)$if(hasExtra)$, extraValues.get(worstIndex), extraValues.get(leftIndex)$endif$)) {
+                $type$ worstValue = $if(BytesRef)$bytesAt(worstIndex)$else$values.get(worstIndex)$endif$;
+                $type$ leftValue = $if(BytesRef)$bytesAt(leftIndex)$else$values.get(leftIndex)$endif$;
+$if(hasExtra)$
+                $Extratype$ worstExtra = $if(ExtraBytesRef)$extraBytesAt(worstIndex)$else$extraValues.get(worstIndex)$endif$;
+                $Extratype$ leftExtra = $if(ExtraBytesRef)$extraBytesAt(leftIndex)$else$extraValues.get(leftIndex)$endif$;
+$endif$
+                if (betterThan(worstValue, leftValue$if(hasExtra)$, worstExtra, leftExtra$endif$)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
+                if (rightChild < heapSize) {
+                    worstValue = $if(BytesRef)$bytesAt(worstIndex)$else$values.get(worstIndex)$endif$;
+                    $type$ rightValue = $if(BytesRef)$bytesAt(rightIndex)$else$values.get(rightIndex)$endif$;
 $if(hasExtra)$
-                if (rightChild < heapSize
-                    && betterThan(
-                        values.get(worstIndex),
-                        values.get(rightIndex),
-                        extraValues.get(worstIndex),
-                        extraValues.get(rightIndex)
-                    )) {
-$else$
-                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
+                    worstExtra = $if(ExtraBytesRef)$extraBytesAt(worstIndex)$else$extraValues.get(worstIndex)$endif$;
+                    $Extratype$ rightExtra = $if(ExtraBytesRef)$extraBytesAt(rightIndex)$else$extraValues.get(rightIndex)$endif$;
 $endif$
-                    worst = rightChild;
-                    worstIndex = rightIndex;
+                    if (betterThan(worstValue, rightValue$if(hasExtra)$, worstExtra, rightExtra$endif$)) {
+                        worst = rightChild;
+                        worstIndex = rightIndex;
+                    }
                 }
             }
             if (worst == parent) {
@@ -483,6 +678,20 @@ $endif$
 
     @Override
     public final void close() {
+$if(ExtraBytesRef)$
+        if (extraValues != null) {
+            for (long i = 0; i < extraValues.size(); i++) {
+                Releasables.close(extraValues.get(i));
+            }
+        }
+$endif$
+$if(BytesRef)$
+        if (values != null) {
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
+        }
+$endif$
         Releasables.close(values, $if(hasExtra)$extraValues, $endif$heapMode);
     }
 }

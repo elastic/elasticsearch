@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -26,6 +28,15 @@ import java.util.function.Supplier;
  * Supports compound extensions (e.g. .csv.gz) via {@link DecompressionCodecRegistry}.
  */
 public class FormatReaderRegistry {
+
+    /**
+     * Whole-file compression codecs supported for text formats on release builds, keyed by
+     * {@link DecompressionCodec#name()}. {@code uncompressed} is the no-codec path and so is not listed.
+     * On snapshot builds the gate in {@link #byExtension(String)} is bypassed, so any registered codec
+     * resolves; the four codecs outside this set (bzip2, snappy, lz4, brotli) each return to the GA
+     * surface once benchmarked.
+     */
+    static final Set<String> GA_TEXT_CODECS = Set.of("gzip", "zstd");
 
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
@@ -138,6 +149,14 @@ public class FormatReaderRegistry {
                                 + "] suffix is not valid on ["
                                 + objectName
                                 + "]. Use an uncompressed file and rely on the format's built-in column compression instead."
+                        );
+                    }
+                    // On release builds the text-format codec surface is limited to the benchmarked set; the
+                    // remaining codecs (bzip2, snappy, lz4, brotli) stay available on snapshot builds only. This
+                    // runs after the whole-file veto so Parquet/ORC still report the more specific error above.
+                    if (Build.current().isSnapshot() == false && GA_TEXT_CODECS.contains(codec.name()) == false) {
+                        throw new IllegalArgumentException(
+                            "compression codec [" + codec.name() + "] is not supported; supported: uncompressed, gzip, zstd"
                         );
                     }
                     return new CompressionDelegatingFormatReader(inner, codec);

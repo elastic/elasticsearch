@@ -546,6 +546,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                 new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
                 new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+                // Unconditional like resolve_views: the FROM <dataset> rewrite is gated on datasets being present
+                // in cluster state, not on the feature flag, so its authorization gate must always be resolvable.
                 new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
                 new ActionHandler(EsqlResolveSchemaAction.TYPE, EsqlResolveSchemaAction.class),
                 new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)

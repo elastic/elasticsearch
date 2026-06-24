@@ -2626,13 +2626,20 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Standard ES metadata columns ({@code _id}, {@code _index}, {@code _version}, {@code _source}, ...)
+         * accepted in the {@code METADATA} clause of external-dataset {@code FROM}. Pre-feature
+         * coordinators reject the names with {@code Unknown column}; tests exercising these columns
+         * gate on this capability.
+         */
+        EXTERNAL_SOURCE_STANDARD_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
          * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
          * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
          * until they catch up.
          *
-         * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
-         * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
+         * <p>A known correctness gap remains for Parquet-Java MAP/STRUCT/nested LIST projection.
          */
         EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
@@ -2641,7 +2648,6 @@ public class EsqlCapabilities {
          * instead of throwing at planning time. The reconciler emits a warning header per
          * affected column, the per-file ColumnMapping carries a stringification cast, and the
          * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
-         * See esql-planning#794.
          */
         EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
@@ -3165,6 +3171,16 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MV_FUNCTIONS,
 
         /**
+         * Support for PromQL {@code histogram_count()}, {@code histogram_sum()} and {@code histogram_avg()} on native histograms.
+         */
+        PROMQL_HISTOGRAM_SUM_COUNT_AVG,
+
+        /**
+         * Support for PromQL {@code increase()} on exponential histograms.
+         */
+        PROMQL_INCREASE_ON_HISTOGRAM,
+
+        /**
          * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
          * throws "not implemented yet". Snapshot-only.
          */
@@ -3185,6 +3201,14 @@ public class EsqlCapabilities {
          * child output.
          */
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
+
+        /**
+         * Fix for PromQL {@code without} and ES|QL {@code TS_WITHOUT}: passthrough alias names (e.g. OTel
+         * {@code cpu} for the concrete dimension {@code attributes.cpu}) are now correctly resolved in the
+         * {@code _timeseries} block loader so excluded labels are actually removed from the series key.
+         * https://github.com/elastic/elasticsearch/issues/151540
+         */
+        FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

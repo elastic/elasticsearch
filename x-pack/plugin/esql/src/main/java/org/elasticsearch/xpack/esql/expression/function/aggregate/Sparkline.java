@@ -94,7 +94,9 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         .capabilities(
             "complex", // Fix for complex queries inside the agg inside the SPARKLINE
             "null_alongside", // Fix for null aggs (e.g. COUNT_DISTINCT(null)) paired with SPARKLINE
-            "reject_mv" // Rejects multi-valued aggregates (TOP, SAMPLE, VALUES) as first argument
+            "reject_mv", // Rejects multi-valued aggregates (TOP, SAMPLE, VALUES) as first argument
+            "duplicate_surrogates", // Fix for surrogate aggs appearing both inside and outside SPARKLINE
+            "nested" // Fix for more SPARKLINE nested in another expression
         )
         .name("sparkline");
 

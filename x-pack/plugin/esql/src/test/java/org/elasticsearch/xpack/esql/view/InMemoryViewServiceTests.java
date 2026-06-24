@@ -1912,7 +1912,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     /**
      * Per-view exclusion lists carry the position-aware exclusions from each view's referencing
-     * UnresolvedRelation. Reproduces the example from esql-planning #543 where {@code v1}'s body
+     * UnresolvedRelation. Reproduces the CPS linked-relation example where {@code v1}'s body
      * has {@code FROM v2,metrics*,-*2025} so the {@code v2} linked relation gets {@code [-*2025]}.
      */
     public void testLinkedRelationCarriesPositionAwareExclusions() {

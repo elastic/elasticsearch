@@ -35,7 +35,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -676,7 +678,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Pins the production wiring for elastic/esql-planning#836 on the parallel coordinator: a worker
+     * Pins the production wiring for typed-failure surfacing on the parallel coordinator: a worker
      * IOException surfaces as a typed {@link ExternalClientException} at the iterator's {@code hasNext()}
      * boundary (mirroring {@code CsvFormatReader} / {@code NdJsonPageIterator}), the coordinator stores it
      * in {@code firstError}, and {@code checkError()}'s {@code surface()} passes it through unchanged so the
@@ -1248,6 +1250,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * Minimal SegmentableFormatReader that scans for newlines.
      */
     private static class NewlineSegmentableReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegmentSize;
 
@@ -1294,6 +1300,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * single-column pages with keyword blocks. Used for testing parallel parsing.
      */
     private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final BlockFactory blockFactory;
 
@@ -1415,6 +1425,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * observe whether parallel-parsing worker threads can reach a bound sink.
      */
     private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final LineFormatReader delegate;
         private final String path;
@@ -1503,6 +1517,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * parsing.
      */
     private static class ContextRecordingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final BlockFactory blockFactory;
         private final long minSegmentSize;
@@ -1578,6 +1596,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * A line-oriented reader that throws after producing a configurable number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final BlockFactory blockFactory;
         private final int failAfterLines;

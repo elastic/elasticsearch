@@ -41,12 +41,18 @@ public record SchemaCacheKey(
     // null-filled, so captured row and column null counts must not be shared across policies.
     // - schema_resolution: changes multi-file schema merge (FFW vs UNION_BY_NAME) and therefore
     // which per-file stats are aggregated for aggregate pushdown.
-    // Runtime-only options that don't affect schema or captured stats (e.g. multi_value_syntax —
-    // bracket parsing happens after schema inference) are intentionally NOT included.
+    // - mode: quoted/escaped/plain changes record boundaries (row counts), null-ness (\N) and
+    // values on the same bytes, so neither schemas nor captured stats may cross modes.
+    // - multi_value_syntax: brackets selects the bracket-aware record scanner (newlines inside
+    // [..] are not record ends) and, on a no-quote baseline, bare brackets resolves the mode
+    // to quoted — so two configs differing only in this key can interpret the same bytes with
+    // different record boundaries and must not share schemas or stats.
     private static final Set<String> FORMAT_AFFECTING_PARAMS = Set.of(
         "delimiter",
         "quote",
         "escape",
+        "mode",
+        "multi_value_syntax",
         "encoding",
         "datetime_format",
         "hive_partitioning",

@@ -812,7 +812,7 @@ public class EsqlSession {
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
-        boolean isSemiJoinSubPlan
+        boolean isSubqueryJoinSubPlan
     ) {};
 
     private SubPlanAndCallback firstSubPlan(
@@ -932,11 +932,11 @@ public class EsqlSession {
         // An IN subquery may not have a pipeline breaker inside it, and mapper does not receive the SemiJoin node because only the right
         // hand side plans are sent to mapper. Ensure there is an ExchangeExec on top of it, so that the intermediate results can be sent
         // back to the coordinator
-        if (subPlan.isSemiJoinSubPlan()) {
+        if (subPlan.isSubqueryJoinSubPlan()) {
             physicalSubPlan = Mapper.ensureExchangeForSubPlan(physicalSubPlan);
         }
 
-        executionInfo.startSubPlans();
+        executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
 
         runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
             completionInfoAccumulator.accumulate(result.completionInfo());
@@ -961,6 +961,7 @@ public class EsqlSession {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             DriverCompletionInfo merged = completionInfoAccumulator.finish();
                             reconcileCapturedSourceStats(merged);
+                            EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                             finalListener.onResponse(
                                 new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
                             );
@@ -1219,6 +1220,7 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);

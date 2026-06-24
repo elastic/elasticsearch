@@ -180,7 +180,7 @@ public class ViewResolver {
         // body by the InlineView optimizer rule, and nested UnionAlls produced by that folding are lifted
         // by FlattenUnionAll, so the post-optimization plan carries a single flat UnionAll. Keeping the
         // resolver's output as un-inlined View nodes (rather than substituting the body in place here) is
-        // the foundation for the CPS lenient-field-caps work in esql-planning #543, #472.
+        // the foundation for the CPS lenient-field-caps work.
         replaceViews(
             plan,
             projectRouting,
@@ -416,7 +416,7 @@ public class ViewResolver {
 
         // Linked relations (a local view name that may also be a remote index on a linked project)
         // are only emitted in CPS mode — they drive a per-level lenient field-caps lookup against
-        // linked projects (esql-planning #543). In non-CPS mode there is no linked lookup, so we skip
+        // linked projects. In non-CPS mode there is no linked lookup, so we skip
         // the bookkeeping entirely; the rest of the resolver behaves as if they are not part of the tree.
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
         String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
@@ -866,7 +866,7 @@ public class ViewResolver {
             // with sibling/outer index relations and avoid branched plans. But exclusion patterns
             // must stay scoped to the view body — a bare UnresolvedRelation with an exclusion merged
             // with sibling or outer UnresolvedRelations would have its exclusion's scope widened
-            // across the merged pattern list (see #146XXX), so those go through the View branch below
+            // across the merged pattern list, so those go through the View branch below
             // to keep the view boundary intact.
             return ur;
         }

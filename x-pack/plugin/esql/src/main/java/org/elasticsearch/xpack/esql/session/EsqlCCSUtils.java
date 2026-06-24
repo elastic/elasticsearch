@@ -434,6 +434,27 @@ public class EsqlCCSUtils {
     }
 
     /**
+     * Finalize remote clusters that were only involved in sub-plan execution (e.g. an IN-subquery running on a remote cluster while
+     * the outer FROM is local). During sub-plan execution, {@code ClusterComputeHandler.updateExecutionInfo} accumulates shard counts
+     * and took time but never advances a cluster's status past {@code RUNNING} because {@code isMainPlan()} is {@code false}. After the
+     * main plan completes, any cluster still in {@code RUNNING} state was not touched by the main plan; set its final status based on
+     * accumulated failures from the sub-plan (PARTIAL if there were failures, SUCCESSFUL otherwise).
+     */
+    public static void finalizeSubPlanOnlyRemoteClusters(EsqlExecutionInfo executionInfo) {
+        for (String clusterAlias : executionInfo.clusterAliases()) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+                continue;
+            }
+            Cluster cluster = executionInfo.getCluster(clusterAlias);
+            if (cluster.getStatus() == Cluster.Status.RUNNING) {
+                Cluster.Status finalStatus = (Objects.requireNonNullElse(cluster.getFailedShards(), 0) > 0
+                    || cluster.getFailures().isEmpty() == false) ? Cluster.Status.PARTIAL : Cluster.Status.SUCCESSFUL;
+                executionInfo.swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(finalStatus).build());
+            }
+        }
+    }
+
+    /**
      * Mark cluster with a final status (success or failure).
      * Most metrics are set to 0 if not set yet, except for "took" which is set to the total time taken so far.
      * The status must be the final status of the cluster, not RUNNING.

@@ -201,7 +201,7 @@ public final class DatasetRewriter {
      * {@code projectMetadata == null} / no-datasets-registered short-circuits avoid touching the common path.
      *
      * <p>Throws {@link VerificationException} for: heterogeneous FROM (datasets + non-datasets), non-{@code STANDARD}
-     * {@link IndexMode} on a dataset, METADATA fields on a dataset, or {@code UnionAll} branch-cap exceeded. Designed
+     * {@link IndexMode} on a dataset, or {@code UnionAll} branch-cap exceeded. Designed
      * to run once on the parsed plan before pre-analysis (so the analyzer sees a uniform
      * {@code UnresolvedExternalRelation} tree regardless of whether the user wrote {@code FROM <dataset>} or inline
      * {@code EXTERNAL}).
@@ -269,11 +269,6 @@ public final class DatasetRewriter {
             };
             throw new VerificationException(message);
         }
-        if (relation.metadataFields().isEmpty() == false) {
-            // Reject rather than silently drop. _index synthesis on datasets is tracked separately
-            // (proposed: dataset name as _index); _id/_source/_score have no agreed semantics yet.
-            throw new VerificationException("METADATA fields are not supported on datasets; dataset(s) requested: " + datasetNames);
-        }
         if (resolution.hasNonDatasetTargets()) {
             // Counts only in the user-facing message (names may be unreadable to the caller); full names go to DEBUG for
             // operator triage. Rejection demanded by heterogeneous FROM (datasets + indices/aliases/data-streams).
@@ -302,7 +297,13 @@ public final class DatasetRewriter {
             }
             Map<String, Object> merged = mergeSettings(parent, dataset);
             Literal path = Literal.keyword(relation.source(), dataset.resource());
-            children.add(new UnresolvedExternalRelation(relation.source(), path, merged));
+            // Thread the user's METADATA clause through to the external leaf so
+            // ResolveExternalRelations binds each requested name to an ExternalMetadataAttribute of
+            // the type registered in MetadataAttribute.ATTRIBUTES_MAP. Every name in that map is
+            // accepted on external datasets; values are framework-synthesized by the COMPOSED path.
+            // The dataset name rides alongside so the per-file _index synthesizer can populate
+            // _index with the user-facing identifier rather than the underlying resource path.
+            children.add(new UnresolvedExternalRelation(relation.source(), path, merged, relation.metadataFields(), name));
         }
         // Cross-project (CPS): a wildcard that matched a dataset locally may also match indices in linked projects.
         // Mirror ViewResolver — keep the original wildcard as a sibling UnresolvedRelation so the remote half resolves

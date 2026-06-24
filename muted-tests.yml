@@ -716,3 +716,6 @@ tests:
 - class: org.elasticsearch.search.simple.SimpleSearchIT
   method: testIpCidrHighCardinality
   issue: https://github.com/elastic/elasticsearch/issues/152049
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
+  method: testDownsampling
+  issue: https://github.com/elastic/elasticsearch/issues/152060

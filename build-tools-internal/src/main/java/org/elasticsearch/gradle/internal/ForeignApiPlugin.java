@@ -113,7 +113,7 @@ public class ForeignApiPlugin implements Plugin<Project> {
         }
 
         @InputFile
-        @PathSensitive(PathSensitivity.NONE)
+        @PathSensitive(PathSensitivity.RELATIVE)
         @Optional
         public Provider<RegularFile> getJarFile() {
             return jarFile;

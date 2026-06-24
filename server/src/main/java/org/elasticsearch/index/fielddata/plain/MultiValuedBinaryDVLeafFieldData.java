@@ -70,7 +70,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
             if (arrayOrder) {
-                // High-cardinality columnar fields store values in document order with inline nulls (ArrayOrderInlineNull).
+                // High-cardinality columnar fields store values in document order with inline nulls (ArrayOrderDeduplicated).
                 return SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);
             }
             if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {

@@ -23,7 +23,7 @@ import java.util.Objects;
 
 /**
  * Loads {@code _source} for high-cardinality fields in strictly columnar index mode that store their values in document order via the
- * {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format (no sidecar {@code .offsets} field). Unlike
+ * {@link MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated ArrayOrderDeduplicated} format (no sidecar {@code .offsets} field). Unlike
  * {@link BinaryDocValuesSyntheticFieldLoaderLayer}, this layer preserves array order, duplicates, and inline {@code null} positions, and
  * it reconstructs all-null and empty arrays — so it advances on the {@code .counts} field (a document with no binary blob but a present
  * count is an all-null or empty array).

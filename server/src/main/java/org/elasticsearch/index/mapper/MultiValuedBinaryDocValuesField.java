@@ -298,14 +298,14 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
      * Because a document with no non-null values writes no binary blob, the matching reader must advance on the {@code .counts} field
      * (binary-absent-while-counts-present denotes an all-null or empty-array document).
      */
-    public static class ArrayOrderInlineNull extends MultiValuedBinaryDocValuesField {
+    public static class ArrayOrderDeduplicated extends MultiValuedBinaryDocValuesField {
 
         private boolean hasNonNullValue;
 
         // Held so the record* helpers can update the count on each slot without re-deriving the companion field from the document.
         private NumericDocValuesField countField;
 
-        public ArrayOrderInlineNull(String name) {
+        public ArrayOrderDeduplicated(String name) {
             super(name, ValueOrdering.UNSORTED);
         }
 
@@ -316,7 +316,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         /**
          * Records a non-null value directly into the document's accumulator for {@code fieldName}, in document order. The binary blob is
          * added to the document lazily on the first non-null value, so an all-null or empty-array document writes the {@code .counts}
-         * field alone (see {@link ArrayOrderInlineNull}).
+         * field alone (see {@link ArrayOrderDeduplicated}).
          */
         public static void recordValue(LuceneDocument doc, String fieldName, BytesRef value) {
             var field = getOrCreate(doc, fieldName);
@@ -357,9 +357,9 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * Looks up the per-field accumulator on the document, creating it on first use. The accumulator is registered by key (without
          * being added to the field list yet) and its always-present {@code .counts} companion is added to the document immediately.
          */
-        private static ArrayOrderInlineNull getOrCreate(LuceneDocument doc, String fieldName) {
-            return (ArrayOrderInlineNull) doc.getOrAddWithKey(fieldName, key -> {
-                var field = new ArrayOrderInlineNull(fieldName);
+        private static ArrayOrderDeduplicated getOrCreate(LuceneDocument doc, String fieldName) {
+            return (ArrayOrderDeduplicated) doc.getOrAddWithKey(fieldName, key -> {
+                var field = new ArrayOrderDeduplicated(fieldName);
                 field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 0);
                 // Only the always-present .counts companion is added here; the binary blob is added lazily on the first non-null value.
                 doc.add(field.countField);
@@ -389,7 +389,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
         /**
          * Encodes the given document-order slots (a {@code null} element denotes a {@code null} slot) into the format described on
-         * {@link ArrayOrderInlineNull}. Must only be called when at least one non-null value is present; the all-null and empty-array
+         * {@link ArrayOrderDeduplicated}. Must only be called when at least one non-null value is present; the all-null and empty-array
          * cases write no binary field.
          */
         public static BytesRef encode(List<BytesRef> slots) {

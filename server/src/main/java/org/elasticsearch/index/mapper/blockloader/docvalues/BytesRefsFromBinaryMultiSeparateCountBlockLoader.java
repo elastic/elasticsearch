@@ -100,7 +100,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         if (arrayOrderSource == ArrayOrderSource.INLINE) {
             // Multi-slot documents exist (maxValue >= 2): decode the in-order inline-null format, advancing on the counts column since an
             // all-null or empty array writes a count but no binary blob.
-            return new ArrayOrderInlineNull(bc.binary(), bc.counts());
+            return new ArrayOrderDeduplicated(bc.binary(), bc.counts());
         }
         if (arrayOrderSource == ArrayOrderSource.FROM_OFFSETS) {
             TrackingSortedDocValues offsets;
@@ -206,7 +206,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     }
 
     /**
-     * Reader for {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull}.
+     * Reader for {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated ArrayOrderDeduplicated}.
      * Decodes the per-doc deduplicating blob, drops null ordinals (0), and emits the non-null values in document order. Advances on
      * the {@code .counts} field, since an all-null or empty array writes a count but no binary blob.
      * <p>
@@ -214,7 +214,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
      * ordinal stream follows. When {@code slotCount > distinctCount} the ordinal stream {@code [ord1]...[ordSlotCount]} is appended
      * and {@code ord == 0} marks a null slot.
      */
-    static class ArrayOrderInlineNull extends AbstractBytesRefsFromBinaryReader {
+    static class ArrayOrderDeduplicated extends AbstractBytesRefsFromBinaryReader {
 
         private final TrackingNumericDocValues counts;
         private final ByteArrayStreamInput in = new ByteArrayStreamInput();
@@ -224,7 +224,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         private int[] ordinalOffsets = new int[8];
         private int[] ordinalLengths = new int[8];
 
-        ArrayOrderInlineNull(TrackingBinaryDocValues docValues, TrackingNumericDocValues counts) {
+        ArrayOrderDeduplicated(TrackingBinaryDocValues docValues, TrackingNumericDocValues counts) {
             super(docValues);
             this.counts = counts;
         }
@@ -320,7 +320,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
         @Override
         public String toString() {
-            return "BytesRefsFromArrayOrderInlineNullBinarySeparateCount";
+            return "BytesRefsFromArrayOrderDeduplicatedBinarySeparateCount";
         }
 
         @Override

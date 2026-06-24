@@ -22,7 +22,7 @@ import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import java.io.IOException;
 
 /**
- * Reader for the high-cardinality columnar {@code ArrayOrderInlineNull} binary doc-values format, where values are stored in document
+ * Reader for the high-cardinality columnar {@code ArrayOrderDeduplicated} binary doc-values format, where values are stored in document
  * (array) order with inline {@code null} markers and no {@code .offsets} sidecar. Per document the on-disk layout is:
  * <ul>
  *   <li>{@code .counts} absent &rarr; the field is absent for this document</li>
@@ -54,7 +54,7 @@ public final class SortingArrayOrderBinaryDocValues extends SortingBinaryDocValu
     public static SortingArrayOrderBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
         // ArrayOrder expects no offsets to be stored
         assert leafReader.getSortedDocValues(FieldArrayContext.offsetsFieldName(valuesFieldName)) == null
-            : "ArrayOrderInlineNull field [" + valuesFieldName + "] must not have an .offsets sidecar";
+            : "ArrayOrderDeduplicated field [" + valuesFieldName + "] must not have an .offsets sidecar";
         BinaryDocValues binary = DocValues.getBinary(leafReader, valuesFieldName);
         String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);

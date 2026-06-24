@@ -212,12 +212,12 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
     }
 
     /**
-     * Indexes one doc the way the in-order (columnar) write path will: the {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}
+     * Indexes one doc the way the in-order (columnar) write path will: the {@link MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated}
      * binary field is added only when there is at least one non-null value, while the {@code .counts} companion (total slots, including
      * nulls) is always written. A {@code null} element in {@code slots} denotes a null slot.
      */
     private static void addArrayOrderDoc(LuceneDocument doc, String field, List<BytesRef> slots) {
-        var binaryField = new MultiValuedBinaryDocValuesField.ArrayOrderInlineNull(field);
+        var binaryField = new MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated(field);
         for (BytesRef slot : slots) {
             if (slot == null) {
                 binaryField.addNull();
@@ -337,7 +337,7 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
 
         // Verify blob size: vint(3) + (vint(6)+"banana") + (vint(5)+"apple") + (vint(6)+"cherry")
         // = 1 + (1+6) + (1+5) + (1+6) = 21 bytes — no ordinal vints.
-        BytesRef blob = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(slots);
+        BytesRef blob = MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated.encode(slots);
         int expectedBlobLength = 1 + (1 + 6) + (1 + 5) + (1 + 6); // vint(D=3) + 3*(vint(len)+len)
         assertEquals("blob must not contain trailing ordinals", expectedBlobLength, blob.length);
 
@@ -354,12 +354,12 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
         // Case 1: duplicate value — slotCount(3) > D(2), so ordinals are required.
         List<BytesRef> withDup = List.of(new BytesRef("a"), new BytesRef("b"), new BytesRef("a"));
         int noOrdinalSize = 1 + (1 + 1) + (1 + 1); // vint(D=2) + 2*(vint(1)+1 byte)
-        BytesRef blobDup = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(withDup);
+        BytesRef blobDup = MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated.encode(withDup);
         assertTrue("blob with duplicate must include ordinal stream", blobDup.length > noOrdinalSize);
 
         // Case 2: null slot — slotCount(2) > D(1), so ordinals are required.
         List<BytesRef> withNull = Arrays.asList(new BytesRef("x"), null);
-        BytesRef blobNull = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(withNull);
+        BytesRef blobNull = MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated.encode(withNull);
         int noOrdinalSizeNull = 1 + (1 + 1); // vint(D=1) + vint(1)+1 byte
         assertTrue("blob with null slot must include ordinal stream", blobNull.length > noOrdinalSizeNull);
     }

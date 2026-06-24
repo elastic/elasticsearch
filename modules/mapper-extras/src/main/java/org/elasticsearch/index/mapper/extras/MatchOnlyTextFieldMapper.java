@@ -285,7 +285,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 this
             );
             // High-cardinality (binary doc values) match_only_text fields in strict columnar mode store their values in document order
-            // directly in the binary doc values (ArrayOrderInlineNull) instead of recording a sidecar .offsets field.
+            // directly in the binary doc values (ArrayOrderDeduplicated) instead of recording a sidecar .offsets field.
             if (offsetsFieldName != null && usesBinaryDocValues() && indexMode.isStrictColumnar()) {
                 this.arrayOrderBinaryDocValues = true;
                 this.offsetsFieldName = null;
@@ -316,7 +316,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final boolean usesBinaryDocValues;
         // Whether the block loader must emit values in indexed array order (via the offsets sidecar) rather than sorted doc-values order.
         private final boolean readInArrayOrder;
-        // Whether the (high-cardinality) binary doc values store their values in document order with inline nulls (ArrayOrderInlineNull).
+        // Whether the (high-cardinality) binary doc values store their values in document order with inline nulls (ArrayOrderDeduplicated).
         private final boolean useArrayOrderBinaryDocValues;
         private final FieldMapper.DocValuesParameter.Values docValuesParams;
 
@@ -349,7 +349,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.docValuesParams = docValuesParams;
         }
 
-        // Convenience constructor for callers that never use the in-order (ArrayOrderInlineNull) binary doc-values format.
+        // Convenience constructor for callers that never use the in-order (ArrayOrderDeduplicated) binary doc-values format.
         public MatchOnlyTextFieldType(
             String name,
             TextSearchInfo tsi,
@@ -411,7 +411,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         /**
          * Whether this field stores its (high-cardinality) binary doc values in document order with inline nulls
-         * ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) rather than via a sidecar offsets field.
+         * ({@link MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated}) rather than via a sidecar offsets field.
          */
         public boolean usesArrayOrderBinaryDocValues() {
             return useArrayOrderBinaryDocValues;
@@ -1194,7 +1194,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         if (value == null) {
             // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
             if (fieldType().usesArrayOrderBinaryDocValues()) {
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+                MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated.recordNull(context.doc(), fieldType().name());
             } else if (recordOffsets) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
@@ -1212,7 +1212,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             BytesRef binaryValue = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
             if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
+                MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated.recordValue(context.doc(), fieldType().name(), binaryValue);
             } else if (fieldType().usesBinaryDocValues()) {
                 dvFactory.addBinaryField(
                     context.doc(),

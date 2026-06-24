@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper;
 
 /**
  * Round-trips synthetic {@code _source} for high-cardinality keyword fields in strictly columnar mode, which store their values in
- * document order with inline nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) instead of a sidecar {@code .offsets}
+ * document order with inline nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated}) instead of a sidecar {@code .offsets}
  * field.
  */
 public class KeywordColumnarArrayOrderSyntheticSourceTests extends AbstractColumnarArrayOrderSyntheticSourceTestCase {

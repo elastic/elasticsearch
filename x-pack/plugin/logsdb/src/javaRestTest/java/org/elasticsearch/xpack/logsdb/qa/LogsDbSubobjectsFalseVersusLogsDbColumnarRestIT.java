@@ -63,7 +63,7 @@ import java.util.stream.Collectors;
  *       both sides. In logsdb_columnar, {@code doc_values:true} (the strict-columnar default) plus
  *       {@code multiValue=true} causes {@code usesBinaryDocValues()} to return {@code true}, which
  *       makes {@code SourceConfirmedTextQuery}'s position-confirming phase read from binary doc
- *       values in {@code ArrayOrderInlineNull} format. The existing reader
+ *       values in {@code ArrayOrderDeduplicated} format. The existing reader
  *       ({@code binaryDocValuesFieldFetcher}) expects {@code SeparateCount} format and crashes with
  *       an invalid-vInt. Setting {@code doc_values:false} disables the binary doc-values path
  *       entirely; with {@code index:true} queries route through the inverted index and
@@ -78,7 +78,7 @@ import java.util.stream.Collectors;
  *       {@code isIndexDisabledByDefault()=true} (set by logsdb_columnar), {@code hasTerms()=false}
  *       routes term/prefix/range queries through {@code SlowCustomBinaryDocValues*Query}, which
  *       uses {@code MultiValueSeparateCountBinaryDocValuesReader} expecting {@code SeparateCount}
- *       format; the binary DV is stored in {@code ArrayOrderInlineNull} format
+ *       format; the binary DV is stored in {@code ArrayOrderDeduplicated} format
  *       ({@code arrayOrderBinaryDocValues=true} in strict-columnar + multiValue), causing an
  *       invalid-vInt server crash. (b) {@code doc_values:false} kept as-is leaves the contender
  *       with {@code indexed=false} (due to {@code isIndexDisabledByDefault()=true}) AND no doc
@@ -105,7 +105,7 @@ import java.util.stream.Collectors;
  * so without explicit intervention the built-in {@code strings_as_keyword} dynamic template is
  * not inherited and dynamic string fields become {@code text}. In {@code logsdb_columnar},
  * {@code text} fields have {@code doc_values:true} by default, storing values in
- * {@code ArrayOrderInlineNull} format. Term queries on those fields crash with an
+ * {@code ArrayOrderDeduplicated} format. Term queries on those fields crash with an
  * {@code AssertionError} in the search thread. To prevent this, the contender mapping explicitly
  * includes its own {@code strings_as_keyword} dynamic template — using
  * {@code doc_values:{cardinality:low}} and {@code index:true} — so dynamic strings are mapped as
@@ -187,7 +187,7 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
         // The contender template (priority 101) overrides the built-in logs template (priority 100),
         // so the built-in strings_as_keyword dynamic template is not inherited. Without it, dynamically
         // mapped string fields become text in logsdb_columnar, where text fields have binary doc values
-        // (ArrayOrderInlineNull format) by default. Term queries on those fields cause an AssertionError.
+        // (ArrayOrderDeduplicated format) by default. Term queries on those fields cause an AssertionError.
         // Add strings_as_keyword with columnar-safe settings to match the baseline's dynamic mapping
         // behaviour while avoiding the binary-DV crash path.
         if (raw.get("_doc") instanceof Map<?, ?> docMap) {
@@ -284,7 +284,7 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
         // match_only_text: always force doc_values:false + index:true on both sides. In
         // logsdb_columnar, doc_values:true (strict-columnar default) plus multiValue=true causes
         // usesBinaryDocValues() to return true. SourceConfirmedTextQuery's position-confirming
-        // phase then reads from binary doc values in ArrayOrderInlineNull format, but
+        // phase then reads from binary doc values in ArrayOrderDeduplicated format, but
         // binaryDocValuesFieldFetcher expects SeparateCount format → Invalid vInt server crash.
         // Setting doc_values:false forces usesBinaryDocValues() to false; SourceConfirmedTextQuery
         // falls back to stored fields. index:true ensures both sides remain searchable via the
@@ -298,7 +298,7 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
         // default when the index setting is disabled), index:false means hasTerms()=false →
         // term/prefix/range queries route through SlowCustomBinaryDocValues*Query. That reader uses
         // MultiValueSeparateCountBinaryDocValuesReader which expects SeparateCount format, but the
-        // data is stored in ArrayOrderInlineNull format (arrayOrderBinaryDocValues=true in strict-
+        // data is stored in ArrayOrderDeduplicated format (arrayOrderBinaryDocValues=true in strict-
         // columnar + multiValue mode) → Invalid vInt server crash.
         // Two safeguards prevent the binary-DV query path:
         // (a) {cardinality:low} disables binary DV writes entirely (usesBinaryDocValues()=false),

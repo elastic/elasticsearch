@@ -31,7 +31,6 @@ import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -208,25 +207,21 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(evaluate(metrics, "cumulative_counter.type"), equalTo("long"));
         assertThat(evaluate(metrics, "cumulative_counter.time_series_metric"), equalTo("counter"));
         assertThat(evaluate(metrics, "delta_counter.type"), equalTo("long"));
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            assertThat(evaluate(metrics, "delta_counter.time_series_metric"), equalTo("counter"));
+        assertThat(evaluate(metrics, "delta_counter.time_series_metric"), equalTo("counter"));
 
-            Request esqlRequest = new Request("POST", "/_query");
-            esqlRequest.setJsonEntity("""
-                {
-                    "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name | LIMIT 100"
-                }
-                """);
-            ObjectPath esqlResponse = ObjectPath.createFromResponse(client().performRequest(esqlRequest));
-            List<List<Object>> values = esqlResponse.evaluate("values");
-            assertThat(values.size(), equalTo(2));
-            assertThat((String) values.get(0).get(0), equalTo("metrics.cumulative_counter"));
-            assertThat((String) values.get(0).get(1), containsString("\"temporality\":\"cumulative\""));
-            assertThat((String) values.get(1).get(0), equalTo("metrics.delta_counter"));
-            assertThat((String) values.get(1).get(1), containsString("\"temporality\":\"delta\""));
-        } else {
-            assertThat(evaluate(metrics, "delta_counter.time_series_metric"), equalTo("gauge"));
-        }
+        Request esqlRequest = new Request("POST", "/_query");
+        esqlRequest.setJsonEntity("""
+            {
+                "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name | LIMIT 100"
+            }
+            """);
+        ObjectPath esqlResponse = ObjectPath.createFromResponse(client().performRequest(esqlRequest));
+        List<List<Object>> values = esqlResponse.evaluate("values");
+        assertThat(values.size(), equalTo(2));
+        assertThat((String) values.get(0).get(0), equalTo("metrics.cumulative_counter"));
+        assertThat((String) values.get(0).get(1), containsString("\"temporality\":\"cumulative\""));
+        assertThat((String) values.get(1).get(0), equalTo("metrics.delta_counter"));
+        assertThat((String) values.get(1).get(1), containsString("\"temporality\":\"delta\""));
     }
 
     public void testCounterMonotonicity() throws Exception {
@@ -245,25 +240,22 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(evaluate(metrics, "up_down_counter_delta.type"), equalTo("long"));
         assertThat(evaluate(metrics, "up_down_counter_delta.time_series_metric"), equalTo("gauge"));
 
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            Request esqlRequest = new Request("POST", "/_query");
-            esqlRequest.setJsonEntity("""
-                {
-                    "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name | LIMIT 100"
-                }
-                """);
-            ObjectPath esqlResponse = ObjectPath.createFromResponse(client().performRequest(esqlRequest));
-            List<List<Object>> values = esqlResponse.evaluate("values");
-            assertThat(values.size(), equalTo(2));
-            assertThat((String) values.get(0).get(0), equalTo("metrics.up_down_counter"));
-            assertThat((String) values.get(0).get(1), containsString("\"temporality\":\"cumulative\""));
-            assertThat((String) values.get(1).get(0), equalTo("metrics.up_down_counter_delta"));
-            assertThat((String) values.get(1).get(1), containsString("\"temporality\":\"delta\""));
-        }
+        Request esqlRequest = new Request("POST", "/_query");
+        esqlRequest.setJsonEntity("""
+            {
+                "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name | LIMIT 100"
+            }
+            """);
+        ObjectPath esqlResponse = ObjectPath.createFromResponse(client().performRequest(esqlRequest));
+        List<List<Object>> values = esqlResponse.evaluate("values");
+        assertThat(values.size(), equalTo(2));
+        assertThat((String) values.get(0).get(0), equalTo("metrics.up_down_counter"));
+        assertThat((String) values.get(0).get(1), containsString("\"temporality\":\"cumulative\""));
+        assertThat((String) values.get(1).get(0), equalTo("metrics.up_down_counter_delta"));
+        assertThat((String) values.get(1).get(1), containsString("\"temporality\":\"delta\""));
     }
 
     public void testTemporalityGrouping() throws Exception {
-        assumeTrue("requires temporality feature flag", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         long now = Clock.getDefault().now();
         export(
             List.of(
@@ -277,7 +269,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testCumulativeHistogramAsExponentialHistogram() throws Exception {
-        assumeTrue("requires temporality feature flag", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         long now = Clock.getDefault().now();
         export(List.of(createHistogram(now, "cumulative_histogram", CUMULATIVE, Attributes.empty())));
 
@@ -293,7 +284,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testCumulativeExponentialHistogramAsExponentialHistogram() throws Exception {
-        assumeTrue("requires temporality feature flag", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         long now = Clock.getDefault().now();
         export(List.of(createExponentialHistogram(now, "cumulative_exp_histogram", CUMULATIVE, Attributes.empty())));
 
@@ -361,11 +351,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         ObjectPath search = search("metrics-generic.otel-default");
         assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            assertThat(evaluate(source, "temporality"), equalTo("delta"));
-        } else {
-            assertThat(evaluate(source, "temporality"), equalTo(null));
-        }
+        assertThat(evaluate(source, "temporality"), equalTo("delta"));
         assertThat(evaluate(source, "metrics.exponential_histogram.counts"), equalTo(List.of(2, 1, 10, 1, 2)));
         assertThat(evaluate(source, "metrics.exponential_histogram.values"), equalTo(List.of(-3.0, -1.5, 0.0, 1.5, 3.0)));
     }
@@ -381,11 +367,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         ObjectPath search = search("metrics-generic.otel-default");
         assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            assertThat(evaluate(source, "temporality"), equalTo("delta"));
-        } else {
-            assertThat(evaluate(source, "temporality"), equalTo(null));
-        }
+        assertThat(evaluate(source, "temporality"), equalTo("delta"));
         assertThat(evaluate(source, "metrics.exponential_histogram.scale"), equalTo(0));
         assertThat(evaluate(source, "metrics.exponential_histogram.zero.count"), equalTo(10));
         assertThat(evaluate(source, "metrics.exponential_histogram.positive.indices"), equalTo(List.of(0, 1)));
@@ -419,11 +401,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         ObjectPath search = search("metrics-generic.otel-default");
         assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            assertThat(evaluate(source, "temporality"), equalTo("delta"));
-        } else {
-            assertThat(evaluate(source, "temporality"), equalTo(null));
-        }
+        assertThat(evaluate(source, "temporality"), equalTo("delta"));
         assertThat(evaluate(source, "_doc_count"), equalTo(16));
         assertThat(evaluate(source, "metrics.exponential_histogram_summary.value_count"), equalTo(16));
         assertThat(evaluate(source, "metrics.exponential_histogram_summary.sum"), equalTo(10.0));
@@ -443,11 +421,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         ObjectPath search = search("metrics-generic.otel-default");
         assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            assertThat(evaluate(source, "temporality"), equalTo("delta"));
-        } else {
-            assertThat(evaluate(source, "temporality"), equalTo(null));
-        }
+        assertThat(evaluate(source, "temporality"), equalTo("delta"));
         assertThat(evaluate(source, "metrics.histogram.counts"), equalTo(List.of(1, 2, 3, 4, 5, 6)));
         List<Double> values = evaluate(source, "metrics.histogram.values");
         assertThat(values, equalTo(List.of(1.0, 3.0, 5.0, 7.0, 9.0, 10.0)));
@@ -465,11 +439,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         ObjectPath search = search("metrics-generic.otel-default");
         assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            assertThat(evaluate(source, "temporality"), equalTo("delta"));
-        } else {
-            assertThat(evaluate(source, "temporality"), equalTo(null));
-        }
+        assertThat(evaluate(source, "temporality"), equalTo("delta"));
         assertThat(evaluate(source, "metrics.histogram.scale"), equalTo(38)); // ExponentialHistogram.MAX_SCALE
         assertThat(evaluate(source, "metrics.histogram.zero"), equalTo(null));
         assertThat(
@@ -505,11 +475,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         ObjectPath search = search("metrics-generic.otel-default");
         assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            assertThat(evaluate(source, "temporality"), equalTo("delta"));
-        } else {
-            assertThat(evaluate(source, "temporality"), equalTo(null));
-        }
+        assertThat(evaluate(source, "temporality"), equalTo("delta"));
         assertThat(evaluate(source, "_doc_count"), equalTo(21));
         assertThat(evaluate(source, "metrics.histogram_summary.value_count"), equalTo(21));
         assertThat(evaluate(source, "metrics.histogram_summary.sum"), equalTo(10.0));
@@ -591,7 +557,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testTsidForBulkIsSameDeltaCounter() throws Exception {
-        assumeTrue("requires temporality feature flag", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         long now = Clock.getDefault().now();
 
         export(List.of(createCounter(TEST_RESOURCE, Attributes.of(stringKey("string"), "foo"), "metric", 42, "By", now, DELTA, MONOTONIC)));

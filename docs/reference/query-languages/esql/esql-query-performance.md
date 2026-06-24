@@ -407,6 +407,11 @@ FROM logs-*
 
 ### Use approximate aggregations where possible
 
+```{applies_to}
+stack: preview 9.4
+serverless: preview
+```
+
 For large [`STATS`](/reference/query-languages/esql/commands/stats-by.md) queries, exact results can be expensive. If approximate results are acceptable, [approximate `STATS` queries](/reference/query-languages/esql/esql-query-approximation.md) can trade exactness for much faster execution on large datasets.
 
 Approximation is useful for exploratory analysis, dashboard panels, and high-cardinality aggregations where a close estimate is enough. Use exact aggregations when the result feeds billing, compliance, alerting, or other workflows that require precise values.

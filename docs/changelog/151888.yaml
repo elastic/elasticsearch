@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 149021
-pr: 151888
-summary: "[semantic field ] add limit on base64 values"
-type: feature

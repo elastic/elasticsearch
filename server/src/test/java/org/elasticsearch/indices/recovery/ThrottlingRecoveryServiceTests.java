@@ -70,7 +70,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         stats = new RecoveryStats();
     }
 
-    /// Regression test for a context-leaking bug: [issue-7052](https://github.com/elastic/elasticsearch-serverless/issues/7052)
+    /// Regression test for a context-leaking bug: [issue-152039](https://github.com/elastic/elasticsearch/issues/152039)
     public void testQueuedRecoveryIsDispatchedWithCleanThreadContext() throws Exception {
         final var service = new ThrottlingRecoveryService(threadPool, newClusterService(1), new CompositeRecoverySchedulingListener());
 

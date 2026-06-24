@@ -396,6 +396,21 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // Reproducer for the MV_EXPAND-vs-KEEP divergence: the first branch references unmapped_message through a generating command
+    // (MV_EXPAND), so it surfaces as a ReferenceAttribute in the FORK output union. The sibling WHERE branch does not reference the
+    // field; since all FORK branches share the same source index it must still be loaded into that branch's own source (Decision A in
+    // #142033) rather than null-filled - the load-align decision keys off the field name, not the (now transformed) representative's
+    // runtime type. Without the fix the sibling branch null-fills unmapped_message while the KEEP analog above loads it.
+    public void testForkLoadsUnmappedFieldExpandedInOneBranchOnly() throws Exception {
+        runTests("""
+            FROM partial_mapping_sample_data
+            | FORK (MV_EXPAND unmapped_message)
+                   (WHERE message == "42")
+            | KEEP _fork, message, unmapped_message
+            | SORT _fork, message, unmapped_message
+            """);
+    }
+
     public void testForkRenamesUnmappedFieldInOneBranch() throws Exception {
         runTests("""
             FROM partial_mapping_sample_data

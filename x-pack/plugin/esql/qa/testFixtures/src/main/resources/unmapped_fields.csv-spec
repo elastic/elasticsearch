@@ -1074,7 +1074,8 @@ emp_no:integer | emp_no_foo:keyword | emp_no_plus:long
 ;
 
 // MV_EXPAND on a multi-value field loaded from _source in one FORK branch splits its values into rows. The
-// sibling branch that references the same field via KEEP keeps the multi-value form unchanged.
+// sibling branch does not reference the field, but since all FORK branches share the same source index it is
+// loaded there too and keeps its multi-value form (it is not null-filled).
 loadMvUnmappedFieldExpandInForkBranch
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
@@ -1082,7 +1083,7 @@ required_capability: fork_v9
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_sample_data
 | WHERE message == "42" OR message == "Connected to 10.1.0.1!"
-| FORK (MV_EXPAND unmapped_mv) (WHERE message == "42" | KEEP message, unmapped_mv)
+| FORK (MV_EXPAND unmapped_mv) (WHERE message == "42")
 | KEEP _fork, message, unmapped_mv
 | SORT _fork, message, unmapped_mv
 ;
@@ -1092,6 +1093,27 @@ fork1         | 42                     | h
 fork1         | 42                     | i
 fork1         | Connected to 10.1.0.1! | a
 fork1         | Connected to 10.1.0.1! | b
+fork2         | 42                     | [i, h]
+;
+
+// Same shared-root loading as the MV_EXPAND case, but the referencing branch transforms the field via EVAL
+// (a different generating command). The sibling WHERE branch still loads the field from the shared source.
+loadEvalUnmappedFieldInForkBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| WHERE message == "42" OR message == "Connected to 10.1.0.1!"
+| FORK (EVAL unmapped_mv = MV_SORT(unmapped_mv))
+       (WHERE message == "42")
+| KEEP _fork, message, unmapped_mv
+| SORT _fork, message
+;
+
+_fork:keyword | message:keyword        | unmapped_mv:keyword
+fork1         | 42                     | [h, i]
+fork1         | Connected to 10.1.0.1! | [a, b]
 fork2         | 42                     | [i, h]
 ;
 

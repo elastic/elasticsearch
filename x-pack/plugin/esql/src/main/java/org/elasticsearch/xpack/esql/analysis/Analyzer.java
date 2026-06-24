@@ -1483,6 +1483,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // The load-from-_source alignment below applies to FORK only: its branches share a single source index. Subqueries
             // and views (UnionAll / ViewUnionAll) read from independent sources and are handled separately (see #142033).
             boolean loadAlignAcrossBranches = unmappedResolution == UnmappedResolution.LOAD && fork instanceof UnionAll == false;
+            // Field names loadable from _source as unmapped keywords anywhere in the FORK, used to decide load vs null-fill below.
+            Set<String> forkLoadableUnmappedKeywordNames = loadAlignAcrossBranches ? loadableUnmappedKeywordNames(fork) : Set.of();
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -1505,9 +1507,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // We load it into this branch's own source relation so it surfaces in the branch output; null-filling it instead
                     // would shadow the value loaded from _source. Branches that cannot surface a loaded field (an aggregation,
                     // projection or non-index source in the way) fall back to null-filling, which also keeps the alignment terminating.
+                    // The loadability check is by field name rather than the representative's runtime type: a sibling branch that
+                    // references the field through a generating command (MV_EXPAND, EVAL, DISSECT, GROK, ...) surfaces it as a
+                    // ReferenceAttribute in the output union, which must not hide its loadable-from-_source origin.
                     if (loadAlignAcrossBranches
-                        && attr instanceof FieldAttribute fa
-                        && fa.field() instanceof PotentiallyUnmappedKeywordEsField
+                        && forkLoadableUnmappedKeywordNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan)) {
                         toLoad.add(insistKeyword(attr));
                         continue;
@@ -1606,6 +1610,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> outputColumns
         ) {
             return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
+        }
+
+        /**
+         * Names of fields loadable from {@code _source} as unmapped keywords ({@link PotentiallyUnmappedKeywordEsField}) anywhere in
+         * the FORK branches' source relations. Because all FORK branches read the same source index, a field loaded in one branch is
+         * loadable in every branch; {@link #resolveFork} uses this to load such a field into a sibling branch that does not reference it
+         * (so it surfaces the real {@code _source} value) instead of null-filling it. Scanning the {@link EsRelation}s rather than the
+         * branch outputs is what makes this robust when the referencing branch transforms the field into a {@code ReferenceAttribute}
+         * (e.g. MV_EXPAND, EVAL, DISSECT, GROK), which would otherwise hide its loadable origin in the branch output.
+         */
+        private static Set<String> loadableUnmappedKeywordNames(Fork fork) {
+            Set<String> names = new HashSet<>();
+            for (LogicalPlan branch : fork.children()) {
+                branch.forEachDown(EsRelation.class, esr -> {
+                    if (esr.indexMode() == IndexMode.LOOKUP) {
+                        return;
+                    }
+                    for (Attribute attr : esr.output()) {
+                        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                            names.add(fa.name());
+                        }
+                    }
+                });
+            }
+            return names;
         }
 
         /**

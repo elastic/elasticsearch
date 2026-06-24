@@ -22,8 +22,8 @@
 | boolean | double | | double |
 | boolean | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | exponential_histogram |
 | boolean | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | | exponential_histogram |
-| boolean | flattened | flattened | flattened |
-| boolean | flattened | | flattened |
+| boolean | flattened {applies_to}`stack: preview 9.5.0` | flattened {applies_to}`stack: preview 9.5.0` | flattened |
+| boolean | flattened {applies_to}`stack: preview 9.5.0` | | flattened |
 | boolean | geo_point | geo_point | geo_point |
 | boolean | geo_point | | geo_point |
 | boolean | geo_shape | geo_shape | geo_shape |

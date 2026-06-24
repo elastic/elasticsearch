@@ -4,6 +4,6 @@
 
 | field | path | result |
 | --- | --- | --- |
-| flattened | keyword | keyword |
-| flattened | text | keyword |
+| flattened {applies_to}`stack: preview 9.5.0` | keyword | keyword |
+| flattened {applies_to}`stack: preview 9.5.0` | text | keyword |
 

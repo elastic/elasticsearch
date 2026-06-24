@@ -198,7 +198,7 @@ public class RequestTaskTests extends ESTestCase {
         verifyNoMoreInteractions(listener);
     }
 
-    public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnListenerTimeout() throws InterruptedException {
+    public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnTimedListenerTimeout() throws InterruptedException {
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
         var calledOnFailureLatch = new CountDownLatch(1);
@@ -256,7 +256,39 @@ public class RequestTaskTests extends ESTestCase {
         assertThat(trackingCircuitBreaker.getUsed(), equalTo(-estimatedRamBytesUsed));
     }
 
-    public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnTimedListenerFailure(){
+    public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnTimedListenerFailure() throws InterruptedException {
+        @SuppressWarnings("unchecked")
+        ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
+        var calledOnFailureLatch = new CountDownLatch(1);
+        var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
+        var estimatedRamBytesUsed = 100L;
+
+        doAnswer(invocation -> {
+            calledOnFailureLatch.countDown();
+            return Void.TYPE;
+        }).when(listener).onFailure(any());
+
+        // Times out after 1 ms
+        var requestTask = new RequestTask(
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
+            ONE_MILLISECOND,
+            threadPool,
+            listener,
+            trackingCircuitBreaker,
+            estimatedRamBytesUsed
+        );
+
+        calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        verify(listener, times(1)).onFailure(any());
+        assertTrue(requestTask.hasCompleted());
+
+        // TrackingCircuitBreaker's used bytes is initialized to 0
+        // When it releases 100 bytes we should see -100 used
+        assertThat(trackingCircuitBreaker.getUsed(), equalTo(-estimatedRamBytesUsed));
+    }
+
+    public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnRejection(){
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
         var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
@@ -273,16 +305,13 @@ public class RequestTaskTests extends ESTestCase {
             estimatedRamBytesUsed
         );
 
-        requestTask.getListener().onFailure(mock(Exception.class));
-        verify(listener, times(1)).onFailure(any());
+        requestTask.onRejection(mock(Exception.class));
         assertTrue(requestTask.hasCompleted());
 
         // TrackingCircuitBreaker's used bytes is initialized to 0
         // When it releases 100 bytes we should see -100 used
         assertThat(trackingCircuitBreaker.getUsed(), equalTo(-estimatedRamBytesUsed));
     }
-
-    // TODO: test circuit breaker releases bytes on RequestTask onRejection
 
     private ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable) {
         var mockThreadPool = mock(ThreadPool.class);

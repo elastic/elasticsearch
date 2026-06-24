@@ -112,10 +112,10 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
                 jar.write(stubBytes);
                 jar.closeEntry();
                 count++;
-                getLogger().lifecycle("  {}", entryName);
+                getLogger().debug("  {}", entryName);
             }
         }
-        getLogger().lifecycle("Generated {} with {} class(es)", outputPath, count);
+        getLogger().debug("Generated {} with {} class(es)", outputPath, count);
     }
 
     static byte[] createStub(InputStream classStream) throws IOException {

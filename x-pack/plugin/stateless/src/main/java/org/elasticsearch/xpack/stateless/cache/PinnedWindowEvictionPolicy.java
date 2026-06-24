@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
-import org.elasticsearch.xpack.stateless.utils.ClusterUtils;
 
 import java.util.Objects;
 
@@ -70,7 +69,12 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
      */
     protected boolean isShardLocallyAllocated(ShardId shardId) {
         assert clusterService != null;
-        return ClusterUtils.isShardLocallyAllocated(clusterService, shardId);
+        final var state = clusterService.state();
+        final String localNodeId = state.nodes().getLocalNodeId();
+        if (localNodeId == null) {
+            return false;
+        }
+        return state.getRoutingNodes().hasShardOnNode(localNodeId, shardId);
     }
 
     protected long currentTimeMillis() {

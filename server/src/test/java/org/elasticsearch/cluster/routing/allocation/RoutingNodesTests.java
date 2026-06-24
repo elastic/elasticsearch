@@ -31,6 +31,8 @@ import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
@@ -544,5 +546,90 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
     private boolean assertShardStats(RoutingNodes routingNodes) {
         return RoutingNodes.assertShardStats(routingNodes);
+    }
+
+    public void testHasShardOnNodeReturnsFalseForUnknownNode() {
+        final ShardId shardId = new ShardId("test", UUIDs.randomBase64UUID(), 0);
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), Settings.EMPTY))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false)).build())
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node", "node")))
+            .build();
+        assertFalse(clusterState.getRoutingNodes().hasShardOnNode("node", shardId));
+    }
+
+    public void testHasShardOnNodeReturnsFalseWhenShardNotOnNode() {
+        final ShardId localShard = new ShardId("local", UUIDs.randomBase64UUID(), 0);
+        final ShardId remoteShard = new ShardId("remote", UUIDs.randomBase64UUID(), 0);
+        final IndexMetadata localIndex = IndexMetadata.builder("local")
+            .settings(indexSettings(IndexVersion.current(), Settings.EMPTY))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(ProjectId.DEFAULT).put(localIndex, false)).build())
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node", "node")).localNodeId("node"))
+            .routingTable(
+                GlobalRoutingTableTestHelper.routingTable(
+                    ProjectId.DEFAULT,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(localShard.getIndex())
+                                .addShard(shardRoutingBuilder(localShard, "node", true, STARTED).build())
+                                .build()
+                        )
+                        .build()
+                )
+            )
+            .build();
+        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        assertTrue(routingNodes.hasShardOnNode("node", localShard));
+        assertFalse(routingNodes.hasShardOnNode("node", remoteShard));
+    }
+
+    public void testHasShardOnNodeReturnsTrueForStartedShardOnNode() {
+        assertHasShardOnNodeForRoutingState(STARTED, true);
+    }
+
+    public void testHasShardOnNodeReturnsTrueForRelocationTargetOnNode() {
+        assertHasShardOnNodeForRoutingState(INITIALIZING, true);
+    }
+
+    public void testHasShardOnNodeReturnsTrueForRelocatingShardOnNode() {
+        assertHasShardOnNodeForRoutingState(RELOCATING, true);
+    }
+
+    private void assertHasShardOnNodeForRoutingState(ShardRoutingState routingState, boolean expected) {
+        final ShardId shardId = new ShardId("test", UUIDs.randomBase64UUID(), 0);
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), Settings.EMPTY))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        final var shardRouting = switch (routingState) {
+            case INITIALIZING, RELOCATING -> TestShardRouting.newShardRouting(shardId, "node", "other-node", true, routingState);
+            case STARTED -> TestShardRouting.newShardRouting(shardId, "node", true, STARTED);
+            case UNASSIGNED -> throw new IllegalArgumentException("unsupported routing state [" + routingState + "]");
+        };
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false)).build())
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create("node", "node"))
+                    .add(DiscoveryNodeUtils.create("other-node", "other-node"))
+                    .localNodeId("node")
+            )
+            .routingTable(
+                GlobalRoutingTableTestHelper.routingTable(
+                    ProjectId.DEFAULT,
+                    RoutingTable.builder().add(IndexRoutingTable.builder(shardId.getIndex()).addShard(shardRouting).build()).build()
+                )
+            )
+            .build();
+        assertThat(clusterState.getRoutingNodes().hasShardOnNode("node", shardId), equalTo(expected));
     }
 }

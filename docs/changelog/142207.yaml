@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 140457
+pr: 142207
+summary: Improve PIT error handling
+type: bug

@@ -427,7 +427,20 @@ public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQuery
         }
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
         sqp.setType(type);
-        Query query = sqp.parse(queryText);
+        Query query;
+        try {
+            query = sqp.parse(queryText);
+        } catch (StackOverflowError e) {
+            // A deeply nested query string overflows the stack of Lucene's recursive-descent parser. Convert it to a client
+            // error (HTTP 400) so it does not reach the uncaught exception handler and halt the node. The query is truncated
+            // in the message to avoid echoing a potentially huge payload back into the response and logs.
+            throw new QueryShardException(
+                context,
+                "Failed to parse query [{}]: query is too deeply nested",
+                e,
+                Strings.cleanTruncate(queryText, 1024)
+            );
+        }
         return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
 

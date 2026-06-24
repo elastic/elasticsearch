@@ -757,6 +757,21 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     /**
+     * A deeply nested parenthesized query string drives Lucene's recursive-descent classic query parser into a
+     * {@link StackOverflowError}. Verify that this is converted into a {@link QueryShardException} (a client error)
+     * rather than escaping to the uncaught exception handler, which would halt the node.
+     */
+    public void testToQueryWithDeeplyNestedParentheses() {
+        int depth = 100000;
+        String queryString = "(".repeat(depth) + TEXT_FIELD_NAME + ":value" + ")".repeat(depth);
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery(queryString).defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        assertThat(e.getMessage(), containsString("too deeply nested"));
+    }
+
+    /**
      * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
      */
     public void testToQueryRegExpQueryMaxDeterminizedStatesParsing() throws Exception {

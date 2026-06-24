@@ -463,6 +463,22 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(expected, query);
     }
 
+    /**
+     * A deeply nested parenthesized query string drives Lucene's recursive-descent simple query parser into a
+     * {@link StackOverflowError}. Verify that this is converted into a {@link QueryShardException} (a client error)
+     * rather than escaping to the uncaught exception handler, which would halt the node. Parenthesis (precedence)
+     * parsing is enabled by the default {@link SimpleQueryStringFlag#ALL} flags.
+     */
+    public void testToQueryWithDeeplyNestedParentheses() {
+        int depth = 100000;
+        String queryString = "(".repeat(depth) + "value" + ")".repeat(depth);
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> new SimpleQueryStringBuilder(queryString).field(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        assertThat(e.getMessage(), containsString("too deeply nested"));
+    }
+
     public void testAnalyzeWildcard() throws IOException {
         SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
         settings.analyzeWildcard(true);

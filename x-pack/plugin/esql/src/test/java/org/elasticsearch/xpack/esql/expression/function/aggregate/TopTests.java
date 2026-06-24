@@ -67,14 +67,18 @@ public class TopTests extends AbstractAggregationTestCase {
                     MultiRowTestCaseSupplier.intCases(rows, rows, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.longCases(rows, rows, Long.MIN_VALUE, Long.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.doubleCases(rows, rows, -Double.MAX_VALUE, Double.MAX_VALUE, true),
-                    MultiRowTestCaseSupplier.dateCases(rows, rows)
+                    MultiRowTestCaseSupplier.dateCases(rows, rows),
+                    MultiRowTestCaseSupplier.stringCases(rows, rows, DataType.KEYWORD),
+                    MultiRowTestCaseSupplier.stringCases(rows, rows, DataType.TEXT)
                 ).flatMap(List::stream).toList();
                 for (var fieldCaseSupplier : fieldCaseSuppliers) {
                     List<TestCaseSupplier.TypedDataSupplier> outputFieldCaseSuppliers = Stream.of(
                         MultiRowTestCaseSupplier.intCases(rows, rows, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
                         MultiRowTestCaseSupplier.longCases(rows, rows, Long.MIN_VALUE, Long.MAX_VALUE, true),
                         MultiRowTestCaseSupplier.doubleCases(rows, rows, -Double.MAX_VALUE, Double.MAX_VALUE, true),
-                        MultiRowTestCaseSupplier.dateCases(rows, rows)
+                        MultiRowTestCaseSupplier.dateCases(rows, rows),
+                        MultiRowTestCaseSupplier.stringCases(rows, rows, DataType.KEYWORD),
+                        MultiRowTestCaseSupplier.stringCases(rows, rows, DataType.TEXT)
                     ).flatMap(List::stream).toList();
                     for (var outputFieldCaseSupplier : outputFieldCaseSuppliers) {
                         if (fieldCaseSupplier.name().equals(outputFieldCaseSupplier.name())) {
@@ -356,7 +360,7 @@ public class TopTests extends AbstractAggregationTestCase {
             dataTypes.add(outputFieldSupplier.type());
         }
 
-        DataType expectedType = outputFieldSupplied ? outputFieldSupplier.type() : fieldSupplier.type();
+        DataType expectedType = outputFieldSupplied ? outputFieldSupplier.type().noText() : fieldSupplier.type();
         String name = fieldSupplier.name() + ", " + limitCaseSupplier.name() + ", " + order;
         if (outputFieldSupplied) {
             name += ", " + outputFieldSupplier.name();

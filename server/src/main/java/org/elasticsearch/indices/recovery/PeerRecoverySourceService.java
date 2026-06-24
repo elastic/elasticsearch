@@ -146,9 +146,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         final ClusterService clusterService = indicesService.clusterService();
         if (DiscoveryNode.canContainData(clusterService.getSettings())) {
             // This should be enforced by the ordering sequence of the node shutdown sequence.
-            // IndicesService.stop() is called prior to PeerRecoverySourceService.close() starting and we drain
-            // the queue during the stop() `beforeStop` phase.
-            // If this assertion fails the pending recovery will be dequeued once the active ones complete and most likely fail.
+            // `IndicesService.stop()` is called prior to `PeerRecoverySourceService.close()` starting and we drain
+            // the queue during the `stop()` `beforeStop` phase. Any new incoming recovery should fail on
+            // a `indexServiceSafe()` call in `recoverWithFreshClusterState`.
+            // If this assertion did not hold, the pending recovery would just be started once the active ones
+            // complete (and most likely fail), which was already a valid state at this point prior to queuing being added.
             assert ongoingRecoveries.queuedRecoveryCount() == 0 : "pending recoveries queue should already be drained";
             ongoingRecoveries.awaitEmpty();
             indicesService.clusterService().removeListener(this);

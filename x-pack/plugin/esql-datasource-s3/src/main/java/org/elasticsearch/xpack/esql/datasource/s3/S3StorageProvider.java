@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -85,6 +86,13 @@ import java.util.NoSuchElementException;
 public class S3StorageProvider implements StorageProvider {
     private static final Logger LOGGER = LogManager.getLogger(S3StorageProvider.class);
     private static final String DEFAULT_ROLE_SESSION_NAME = "elasticsearch-esql-datasource";
+
+    // Connection-pool ceiling for the async client: a deliberate local-resource bound, not a throttle defense.
+    // Replaces the SDK's default of 50 (which mirrored the old per-query budget and capped read parallelism well
+    // below what S3 serves). S3 throttles per key-prefix request rate and pushes back via 503/backoff; we let the
+    // pool be wide and handle throttling reactively. See elastic/esql-planning#896.
+    private static final int MAX_CONNECTIONS = 256;
+    private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
 
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
@@ -204,8 +212,18 @@ public class S3StorageProvider implements StorageProvider {
         // Pass the builder (not a pre-built client) so the SDK takes ownership of the Netty client
         // and closes it when S3AsyncClient.close() is called. A pre-built client passed via
         // .httpClient() is wrapped in NonManagedSdkAsyncHttpClient whose close() is a no-op.
+        // Size the connection pool as a deliberate local-resource bound, not a throttle defense. The SDK's
+        // default maxConcurrency is 50, which (matching the old per-query budget) caps a single query's read
+        // parallelism well below what S3 serves happily — S3 throttles per key-prefix request rate, not per
+        // per-machine connection count, and pushes back with 503/backoff when it actually needs to. We let the
+        // pool be wide and lean on reactive backoff for throttling; a deliberate node-level guardrail bounds our
+        // own resources. connectionAcquisitionTimeout is generous so brief pool contention queues rather than
+        // failing the read. See elastic/esql-planning#896.
         return configureCommon(S3AsyncClient.builder(), config, credentials).httpClientBuilder(
-            NettyNioAsyncHttpClient.builder().putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
+            NettyNioAsyncHttpClient.builder()
+                .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
+                .maxConcurrency(MAX_CONNECTIONS)
+                .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
         ).build();
     }
 

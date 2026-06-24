@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_EQUALITY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
@@ -157,7 +158,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         "lookupJoinExpressionAfterLimitAndRemoteEnrich",
         "lookupJoinWithSemanticFilterDeduplicationComplex",
         // Lookup join after FORK is not support in CCS yet
-        "forkBeforeLookupJoin"
+        "forkBeforeLookupJoin",
+        // Lookup join after FROM-union subquery with remote indices is not supported in CCS yet
+        "inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin",
+        // Lookup join after INLINE STATS (coordinator-only) is not supported in CCS yet
+        "Inline stats by and lookup join",
+        // Lookup join after STATS (coordinator-only) is not supported in CCS yet
+        "Lookup join after stats by"
     );
 
     @Override
@@ -212,7 +219,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 hasCapabilities(remoteClusterClient(), List.of(INLINE_STATS_SUPPORTS_REMOTE.capabilityName()))
             );
         }
-        if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())) {
+        if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())
+            || testCase.requiredCapabilities.contains(APPROXIMATION_LOOKUP_JOIN_V2.capabilityName())) {
             assumeTrue(
                 "LOOKUP JOIN not yet supported in CCS",
                 hasCapabilities(adminClient(), List.of(ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName()))
@@ -244,11 +252,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
         );
 
-        // TODO remove this when addressing https://github.com/elastic/esql-planning/issues/517
-        assumeFalse(
-            "skip CCS for IN subqueries until convertToRemoteIndices supports IN subquery",
-            testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
-        );
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -385,12 +388,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
         }
-        // convertToRemoteIndices does not support WHERE IN subquery yet
         if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
-            || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())) {
-            return testCase;
-        }
-        if (testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
+            || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())
+            || testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
             return convertSubqueryToRemoteIndices(testCase);
         }
         String query = testCase.query;
@@ -477,7 +477,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     /**
-     * Convert index patterns and subqueries in FROM commands to use remote indices for a given test case.
+     * Convert index patterns and subqueries in FROM and WHERE IN subqueries to use remote
+     * indices for a given test case.
      */
     private static CsvSpecReader.CsvTestCase convertSubqueryToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         String query = testCase.query;

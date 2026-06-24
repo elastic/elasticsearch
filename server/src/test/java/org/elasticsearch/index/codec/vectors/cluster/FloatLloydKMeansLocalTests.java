@@ -10,8 +10,6 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
-import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,102 +19,36 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class LloydKMeansLocalTests extends ESTestCase {
+public class FloatLloydKMeansLocalTests extends AbstractLloydKMeansLocalTestCase<float[]> {
 
-    public void testIllegalClustersPerNeighborhood() {
-        KMeansLocal<float[]> kMeansLocal = new LloydKMeansLocalSerial<>(CentroidOps.FLOAT, randomInt(), randomInt());
-        KMeansIntermediate<float[]> kMeansIntermediate = new KMeansIntermediate<>(new float[0][], new int[0], i -> i);
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> kMeansLocal.cluster(
-                KMeansFloatVectorValues.build(List.of(), null, randomInt(1024)),
-                kMeansIntermediate,
-                randomIntBetween(Integer.MIN_VALUE, 1),
-                randomFloat()
-            )
-        );
-        assertThat(ex.getMessage(), containsString("clustersPerNeighborhood must be at least 2"));
+    @Override
+    protected CentroidOps<float[]> centroidOps() {
+        return CentroidOps.FLOAT;
     }
 
-    public void testKMeansNeighbors() throws IOException {
-        int nClusters = random().nextInt(1, 10);
-        int nVectors = random().nextInt(nClusters * 100, nClusters * 200);
-        int dims = random().nextInt(2, 20);
-        int sampleSize = random().nextInt(100, nVectors + 1);
-        int maxIterations = random().nextInt(0, 100);
-        int clustersPerNeighborhood = random().nextInt(2, 512);
-        float soarLambda = random().nextFloat(0.5f, 1.5f);
-        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters);
-
-        float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);
-        LloydKMeansLocal.cluster(vectors, CentroidOps.FLOAT, centroids, sampleSize, maxIterations);
-
-        int[] assignments = new int[vectors.size()];
-        int[] assignmentOrdinals = new int[vectors.size()];
-        for (int i = 0; i < vectors.size(); i++) {
-            float minDist = Float.MAX_VALUE;
-            int ord = -1;
-            for (int j = 0; j < centroids.length; j++) {
-                float dist = VectorUtil.squareDistance(vectors.vectorValue(i), centroids[j]);
-                if (dist < minDist) {
-                    minDist = dist;
-                    ord = j;
-                }
-            }
-            assignments[i] = ord;
-            assignmentOrdinals[i] = i;
-        }
-
-        KMeansIntermediate<float[]> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal<float[]> kMeansLocal = new LloydKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations);
-        kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
-
-        assertEquals(nClusters, centroids.length);
-        assertNotNull(kMeansIntermediate.soarAssignments());
+    @Override
+    protected ClusteringVectorValues<float[]> generateData(int nSamples, int nDims, int nClusters) {
+        return KMeansTestData.generateFloatData(nSamples, nDims, nClusters);
     }
 
-    public void testKMeansNeighborsAllZero() throws IOException {
-        int nClusters = 10;
-        int maxIterations = 10;
-        int clustersPerNeighborhood = 128;
-        float soarLambda = 1.0f;
-        int nVectors = 1000;
-        List<float[]> vectors = new ArrayList<>();
+    @Override
+    protected ClusteringVectorValues<float[]> generateZeroData(int nVectors, int dims) {
+        List<float[]> vectors = new ArrayList<>(nVectors);
         for (int i = 0; i < nVectors; i++) {
-            float[] vector = new float[5];
-            vectors.add(vector);
+            vectors.add(new float[dims]);
         }
-        int sampleSize = vectors.size();
-        KMeansFloatVectorValues fvv = KMeansFloatVectorValues.build(vectors, null, 5);
+        return KMeansFloatVectorValues.build(vectors, null, dims);
+    }
 
-        float[][] centroids = KMeansLocal.pickInitialCentroids(fvv, nClusters, CentroidOps.FLOAT);
-        LloydKMeansLocal.cluster(fvv, CentroidOps.FLOAT, centroids, sampleSize, maxIterations);
+    @Override
+    protected ClusteringVectorValues<float[]> buildEmptyVectors(int dims) {
+        return KMeansFloatVectorValues.build(List.of(), null, dims);
+    }
 
-        int[] assignments = new int[vectors.size()];
-        int[] assignmentOrdinals = new int[vectors.size()];
-        for (int i = 0; i < vectors.size(); i++) {
-            float minDist = Float.MAX_VALUE;
-            int ord = -1;
-            for (int j = 0; j < centroids.length; j++) {
-                float dist = VectorUtil.squareDistance(fvv.vectorValue(i), centroids[j]);
-                if (dist < minDist) {
-                    minDist = dist;
-                    ord = j;
-                }
-            }
-            assignments[i] = ord;
-            assignmentOrdinals[i] = i;
-        }
-
-        KMeansIntermediate<float[]> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal<float[]> kMeansLocal = new LloydKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations);
-        kMeansLocal.cluster(fvv, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
-
-        assertEquals(nClusters, centroids.length);
-        assertNotNull(kMeansIntermediate.soarAssignments());
+    @Override
+    protected void assertCentroidsAreZero(float[][] centroids) {
         for (float[] centroid : centroids) {
             for (float v : centroid) {
                 if (v > 0.0000001f) {
@@ -124,27 +56,6 @@ public class LloydKMeansLocalTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    private static KMeansFloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
-        List<float[]> vectors = new ArrayList<>(nSamples);
-        float[][] centroids = new float[nClusters][nDims];
-        // Generate random centroids
-        for (int i = 0; i < nClusters; i++) {
-            for (int j = 0; j < nDims; j++) {
-                centroids[i][j] = random().nextFloat() * 100;
-            }
-        }
-        // Generate data points around centroids
-        for (int i = 0; i < nSamples; i++) {
-            int cluster = random().nextInt(nClusters);
-            float[] vector = new float[nDims];
-            for (int j = 0; j < nDims; j++) {
-                vector[j] = centroids[cluster][j] + random().nextFloat() * 10 - 5;
-            }
-            vectors.add(vector);
-        }
-        return KMeansFloatVectorValues.build(vectors, null, nDims);
     }
 
     public void testComputeNeighbours() throws IOException {
@@ -157,8 +68,12 @@ public class LloydKMeansLocalTests extends ESTestCase {
             }
         }
         int clustersPerNeighbour = randomIntBetween(64, 128);
-        NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
-        NeighborHood[] neighborHoodsBruteForce = NeighborHood.computeNeighborhoodsBruteForce(vectors, clustersPerNeighbour);
+        NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(CentroidOps.FLOAT, vectors, clustersPerNeighbour);
+        NeighborHood[] neighborHoodsBruteForce = NeighborHood.computeNeighborhoodsBruteForce(
+            CentroidOps.FLOAT,
+            vectors,
+            clustersPerNeighbour
+        );
         assertEquals(neighborHoodsGraph.length, neighborHoodsBruteForce.length);
         for (int i = 0; i < neighborHoodsGraph.length; i++) {
             assertEquals(neighborHoodsBruteForce[i].neighbors().length, neighborHoodsGraph[i].neighbors().length);
@@ -174,6 +89,7 @@ public class LloydKMeansLocalTests extends ESTestCase {
         try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
             TaskExecutor taskExecutor = new TaskExecutor(executorService);
             NeighborHood[] neighborHoodsGraphConcurrent = NeighborHood.computeNeighborhoodsGraph(
+                CentroidOps.FLOAT,
                 taskExecutor,
                 numThreads,
                 vectors,
@@ -217,7 +133,7 @@ public class LloydKMeansLocalTests extends ESTestCase {
         int clustersPerNeighbour = randomIntBetween(32, 64);
 
         // sequential version
-        NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
+        NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(CentroidOps.FLOAT, vectors, clustersPerNeighbour);
 
         // multiple concurrent executions for consistency
         for (int iter = 0; iter < 50; iter++) {
@@ -225,6 +141,7 @@ public class LloydKMeansLocalTests extends ESTestCase {
             try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
                 TaskExecutor taskExecutor = new TaskExecutor(executorService);
                 NeighborHood[] neighborHoodsGraphConcurrent = NeighborHood.computeNeighborhoodsGraph(
+                    CentroidOps.FLOAT,
                     taskExecutor,
                     numThreads,
                     vectors,

@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.List;
+import java.util.OptionalInt;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
@@ -151,6 +152,7 @@ public class GoogleCloudBlobStoreTests extends ESTestCase {
             service,
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
+            OptionalInt.empty(),
             BackoffPolicy.noBackoff(),
             mock(GcsRepositoryStatsCollector.class),
             dataStorageClass,

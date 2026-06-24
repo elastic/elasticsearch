@@ -713,3 +713,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:views.mixedIndexWithViewRowInFromSubquery}
   issue: https://github.com/elastic/elasticsearch/issues/152040
+- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceIT
+  method: testCreateIndexBatching
+  issue: https://github.com/elastic/elasticsearch/issues/152041

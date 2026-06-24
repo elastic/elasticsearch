@@ -221,6 +221,17 @@ public final class OtelSdkSettings {
     /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_OTEL_LOGS_ENABLED} is true. */
     public static final Setting<String> TELEMETRY_OTEL_LOGS_ENDPOINT = Setting.simpleString("telemetry.otel.logs.endpoint", "", NodeScope);
 
+    /**
+     * Maximum number of log records the {@code BatchLogRecordProcessor} buffers before dropping.
+     * Sized for ~30 MB of in-flight records at ~3 KB/record average.
+     */
+    public static final Setting<Integer> TELEMETRY_OTEL_LOGS_BATCH_MAX_QUEUE_SIZE = Setting.intSetting(
+        "telemetry.otel.logs.batch.max_queue_size",
+        10_000,
+        1,
+        NodeScope
+    );
+
     /** Whether the OTel SDK audit-log export path is active. When false, {@link OtelSdkExportLogsSupplier} installs nothing. */
     public static final Setting<Boolean> TELEMETRY_OTEL_LOGS_ENABLED = Setting.boolSetting(
         "telemetry.otel.logs.enabled",

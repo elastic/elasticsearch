@@ -11,13 +11,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
@@ -33,6 +36,8 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.utils.ClusterUtils;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
@@ -44,6 +49,33 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache_boost_preference.enabled",
         false,
+        // Boost preference relies on timestamp ranges in {@link BlobFileRanges} which are only built up when use of replicated content is
+        // enabled.
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                final boolean replicatedContentEnabled = (boolean) settings.get(
+                    SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                );
+                if (value && replicatedContentEnabled == false) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "Setting [%s] cannot be [true] unless setting [%s] is also [true]",
+                            STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(),
+                            SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return Iterators.single(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
+            }
+        },
         Setting.Property.NodeScope
     );
 
@@ -108,15 +140,30 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         LongSupplier relativeTimeInNanosSupplier,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(
+        this(
             environment,
             settings,
             threadPool,
-            IO_EXECUTOR,
             blobCacheMetrics,
+            clusterService,
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService),
             relativeTimeInNanosSupplier,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
+            metricsHolder
         );
+    }
+
+    // for tests
+    protected StatelessSharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        BlobCacheMetrics blobCacheMetrics,
+        ClusterService clusterService,
+        EvictionPolicy<FileCacheKey> evictionPolicy,
+        LongSupplier relativeTimeInNanosSupplier,
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
+    ) {
+        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
         this.clusterService = clusterService;
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
@@ -240,6 +287,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder() {
         return metricsHolder;
+    }
+
+    public boolean isCacheBoostPreferenceEnabled() {
+        return cacheBoostPreferenceEnabled;
     }
 
     /**

@@ -36,7 +36,7 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
      */
     public static final Setting<TimeValue> PINNED_WINDOW_DURATION_SETTING = Setting.timeSetting(
         "stateless.cache_boost_preference.pinned_window.duration",
-        TimeValue.timeValueDays(1),
+        TimeValue.timeValueHours(12),
         TimeValue.timeValueSeconds(1),
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
@@ -92,9 +92,12 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
         }
         final long timestampMillis = region.timestampMillis();
         // Protect locally allocated regions until their content age can be evaluated.
+        // Also protect shards without timestamps.
         if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
             return false;
         }
+        // TODO: regions of unboosted shards, and of shards with a boost multiplier of less than 1, should be
+        // evicted irrespective of their timestamp.
         return isWithinPinnedWindow(timestampMillis) == false;
     }
 

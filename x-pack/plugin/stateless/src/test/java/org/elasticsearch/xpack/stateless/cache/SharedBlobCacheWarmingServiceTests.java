@@ -1607,16 +1607,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
             appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
             vbcc.freeze();
-            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                fakeNode.getShardContainer()
-                    .writeBlobAtomic(OperationPurpose.INDICES, vbcc.getBlobName(), vbccInputStream, vbcc.getTotalSizeInBytes(), true);
-            }
-            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
-            BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
-                fakeNode.searchDirectory,
-                vbcc.lastCompoundCommit().primaryTermAndGeneration(),
-                fakeNode.clusterService.localNode().getId()
-            );
 
             // Force a single, known timestamp for every file in the recovered commit so the ShardWarmer's per-file resolution is
             // deterministic regardless of which segment/region ends up being warmed.

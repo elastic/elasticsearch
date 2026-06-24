@@ -351,7 +351,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             prefetcher.maybePrefetchLatestCommit(notification, 0L, future);
             taskQueue.runAllRunnableTasks();
-            future.actionGet();
+            safeGet(future);
 
             final FileCacheKey internalBlobKey = new FileCacheKey(shardId, internalBlob.primaryTerm(), internalBlob.blobName());
             final long expectedTimestamp = boostEnabled ? notificationRange.midpointMillis() : UNKNOWN_TIMESTAMP;

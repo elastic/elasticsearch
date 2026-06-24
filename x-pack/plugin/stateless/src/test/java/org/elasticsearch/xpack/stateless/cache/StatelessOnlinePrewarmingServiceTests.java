@@ -265,21 +265,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             // Mark the BCC as uploaded so the warming read routes through the (synthetic) object store container.
             fakeNode.searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(primaryTerm, 1L));
 
-            CountDownLatch prewarmLatch = new CountDownLatch(1);
             IndexShard searchShard = mockSearchShard(fakeNode);
-            fakeNode.onlinePrewarmingService.prewarm(searchShard, new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    prewarmLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    prewarmLatch.countDown();
-                    fail(e);
-                }
-            });
-            assertTrue(prewarmLatch.await(5, TimeUnit.SECONDS));
+            safeAwait((ActionListener<Void> l) -> fakeNode.onlinePrewarmingService.prewarm(searchShard, l));
 
             final var cacheKey = new FileCacheKey(fakeNode.shardId, primaryTerm, siLocation.blobName());
             final long expected = boostEnabled ? BlobFileRanges.midpointMillisOrUnknown(range) : SharedBlobCacheService.UNKNOWN_TIMESTAMP;

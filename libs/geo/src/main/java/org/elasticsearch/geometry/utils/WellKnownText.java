@@ -22,11 +22,15 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.io.StreamTokenizer;
 import java.io.StringReader;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -411,8 +415,20 @@ public class WellKnownText {
         sb.append(RPAREN);
     }
 
+    public static Geometry fromWKT(GeometryValidator validator, boolean coerce, byte[] utfBytes, int offset, int length) throws IOException,
+        ParseException {
+        return fromWKT(
+            validator,
+            coerce,
+            new InputStreamReader(new ByteArrayInputStream(utfBytes, offset, length), StandardCharsets.UTF_8)
+        );
+    }
+
     public static Geometry fromWKT(GeometryValidator validator, boolean coerce, String wkt) throws IOException, ParseException {
-        StringReader reader = new StringReader(wkt);
+        return fromWKT(validator, coerce, new StringReader(wkt));
+    }
+
+    private static Geometry fromWKT(GeometryValidator validator, boolean coerce, Reader reader) throws IOException, ParseException {
         try {
             // setup the tokenizer; configured to read words w/o numbers
             StreamTokenizer tokenizer = new StreamTokenizer(reader);

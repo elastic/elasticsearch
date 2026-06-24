@@ -29,6 +29,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -48,11 +49,17 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
+import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
@@ -63,6 +70,9 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -524,6 +534,210 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         }
     }
 
+    public void testDifferentPrefetchDepthsProduceSameResults() throws IOException {
+        int numDocs = 500;
+        int dimensions = random().nextInt(12, 64);
+        int k = 10;
+        long seed = random().nextLong();
+
+        float[] queryVector = randomVector(dimensions);
+        int[] depths = { 1, 2, 4, 8 };
+        TopDocs[] allResults = new TopDocs[depths.length];
+
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(new PrefetchDepthOverrideFormat()));
+            iwc.setMaxBufferedDocs(numDocs + 1);
+            iwc.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+
+            Random rng = new Random(seed);
+            prefetchRingDepthForTests.set(1);
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    float[] vec = new float[dimensions];
+                    for (int v = 0; v < dimensions; v++) {
+                        vec[v] = rng.nextFloat() - 0.5f;
+                    }
+                    VectorUtil.l2normalize(vec);
+                    doc.add(new KnnFloatVectorField("field", vec, VectorSimilarityFunction.DOT_PRODUCT));
+                    w.addDocument(doc);
+                }
+                w.forceMerge(1);
+            } finally {
+                prefetchRingDepthForTests.remove();
+            }
+
+            for (int d = 0; d < depths.length; d++) {
+                prefetchRingDepthForTests.set(depths[d]);
+                try (IndexReader reader = DirectoryReader.open(dir)) {
+                    LeafReader leaf = getOnlyLeafReader(reader);
+                    allResults[d] = leaf.searchNearestVectors(
+                        "field",
+                        queryVector,
+                        k,
+                        AcceptDocs.fromLiveDocs(leaf.getLiveDocs(), leaf.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                } finally {
+                    prefetchRingDepthForTests.remove();
+                }
+            }
+        }
+
+        TopDocs baseline = allResults[0];
+        for (int d = 1; d < depths.length; d++) {
+            assertEquals(
+                "depth=" + depths[d] + " returned different count than depth=1",
+                baseline.scoreDocs.length,
+                allResults[d].scoreDocs.length
+            );
+            for (int j = 0; j < baseline.scoreDocs.length; j++) {
+                assertEquals(
+                    "doc mismatch at position " + j + " with depth=" + depths[d],
+                    baseline.scoreDocs[j].doc,
+                    allResults[d].scoreDocs[j].doc
+                );
+                assertEquals(
+                    "score mismatch at position " + j + " with depth=" + depths[d],
+                    baseline.scoreDocs[j].score,
+                    allResults[d].scoreDocs[j].score,
+                    1e-4f
+                );
+            }
+        }
+    }
+
+    public void testDifferentPrefetchDepthsWithFilter() throws IOException {
+        int numDocs = 500;
+        int dimensions = random().nextInt(12, 64);
+        int k = 10;
+        long seed = random().nextLong();
+
+        float[] queryVector = randomVector(dimensions);
+        int[] depths = { 1, 4, 8 };
+        TopDocs[] allResults = new TopDocs[depths.length];
+
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(new PrefetchDepthOverrideFormat()));
+            iwc.setMaxBufferedDocs(numDocs + 1);
+            iwc.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+
+            Random rng = new Random(seed);
+            prefetchRingDepthForTests.set(1);
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    float[] vec = new float[dimensions];
+                    for (int v = 0; v < dimensions; v++) {
+                        vec[v] = rng.nextFloat() - 0.5f;
+                    }
+                    VectorUtil.l2normalize(vec);
+                    doc.add(new KnnFloatVectorField("field", vec, VectorSimilarityFunction.DOT_PRODUCT));
+                    w.addDocument(doc);
+                }
+                w.forceMerge(1);
+            } finally {
+                prefetchRingDepthForTests.remove();
+            }
+
+            for (int d = 0; d < depths.length; d++) {
+                prefetchRingDepthForTests.set(depths[d]);
+                try (IndexReader reader = DirectoryReader.open(dir)) {
+                    LeafReader leaf = getOnlyLeafReader(reader);
+                    Bits evenDocs = new Bits() {
+                        @Override
+                        public boolean get(int index) {
+                            return index % 2 == 0;
+                        }
+
+                        @Override
+                        public int length() {
+                            return leaf.maxDoc();
+                        }
+                    };
+                    allResults[d] = leaf.searchNearestVectors(
+                        "field",
+                        queryVector,
+                        k,
+                        AcceptDocs.fromLiveDocs(evenDocs, leaf.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                } finally {
+                    prefetchRingDepthForTests.remove();
+                }
+            }
+        }
+
+        TopDocs baseline = allResults[0];
+        for (int d = 1; d < depths.length; d++) {
+            assertEquals(
+                "depth=" + depths[d] + " returned different count than depth=1 (filtered)",
+                baseline.scoreDocs.length,
+                allResults[d].scoreDocs.length
+            );
+            for (int j = 0; j < baseline.scoreDocs.length; j++) {
+                assertEquals(
+                    "doc mismatch at position " + j + " with depth=" + depths[d] + " (filtered)",
+                    baseline.scoreDocs[j].doc,
+                    allResults[d].scoreDocs[j].doc
+                );
+                assertEquals(
+                    "score mismatch at position " + j + " with depth=" + depths[d] + " (filtered)",
+                    baseline.scoreDocs[j].score,
+                    allResults[d].scoreDocs[j].score,
+                    1e-4f
+                );
+            }
+        }
+    }
+
+    /**
+     * Ring depth for {@link PrefetchDepthOverrideFormat} is read from this thread-local so the same
+     * on-disk index can be searched with different prefetch depths (codec reload only stores the
+     * codec name, not per-open parameters).
+     */
+    private static final ThreadLocal<Integer> prefetchRingDepthForTests = new ThreadLocal<>();
+
+    /**
+     * An {@link ESNextDiskBBQVectorsFormat} subclass that produces a reader with a configurable
+     * prefetch depth, allowing tests to verify that different depths yield identical results.
+     */
+    private static class PrefetchDepthOverrideFormat extends ESNextDiskBBQVectorsFormat {
+
+        PrefetchDepthOverrideFormat() {
+            super(128, 4, null);
+        }
+
+        @Override
+        public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+            var float32Fmt = new DirectIOCapableLucene99FlatVectorsFormat(ES93GenericFlatVectorScorer.INSTANCE);
+            var bfloat16Fmt = new ES93BFloat16FlatVectorsFormat(ES93GenericFlatVectorScorer.INSTANCE);
+            var formats = Map.of(float32Fmt.getName(), float32Fmt, bfloat16Fmt.getName(), bfloat16Fmt);
+            return new ESNextDiskBBQVectorsReader(state, (f, dio) -> {
+                var fmt = formats.get(f);
+                if (fmt == null) return null;
+                return fmt.fieldsReader(state, dio);
+            }) {
+                @Override
+                CentroidIterator getPostingListPrefetchIterator(
+                    CentroidIterator centroidIterator,
+                    IndexInput postingListSlice,
+                    int initialCentroidBatchSize,
+                    int ringPrefetchDepth
+                ) throws IOException {
+                    // match PrefetchingCentroidIterator-only behavior: vary ring depth, no initial centroid batch.
+                    int prefetchDepth = Objects.requireNonNull(
+                        prefetchRingDepthForTests.get(),
+                        "prefetchRingDepthForTests must be set while using PrefetchDepthOverrideFormat"
+                    );
+                    return new BudgetPrefetchCentroidIterator(centroidIterator, postingListSlice, 0, prefetchDepth);
+                }
+            };
+        }
+    }
+
     private static void addSortedVectorDoc(IndexWriter writer, String id, float[] vector) throws IOException {
         Document doc = new Document();
         doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
@@ -723,5 +937,4 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
             }
         }
     }
-
 }

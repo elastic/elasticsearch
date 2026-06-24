@@ -36,7 +36,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
-import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -63,6 +62,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         VectorPreconditioner,
         CalibrationAwareReader {
 
+    private static final int PREFETCH_DEPTH = 4;
+
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
         super(
@@ -79,10 +80,32 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         );
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
-        // so we don't bother prefetching many lists we won't end up scoring
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
+    CentroidIterator getPostingListPrefetchIterator(
+        CentroidIterator centroidIterator,
+        IndexInput postingListSlice,
+        int initialCentroidBatchSize,
+        int ringPrefetchDepth
+    ) throws IOException {
+        return new BudgetPrefetchCentroidIterator(centroidIterator, postingListSlice, initialCentroidBatchSize, ringPrefetchDepth);
+    }
+
+    /**
+     * how many centroids to include in the {@link BudgetPrefetchCentroidIterator} initial prefetch batch.
+     * under semi-balanced IVF clustering, vectors per centroid approximate {@code numVectors / numCentroids}. The batch size
+     * {@code min(max(centroidRatio * numCentroids, 1), numCentroids)} therefore tracks the same visit-ratio knob that drives
+     * {@code maxVectorVisited} (approximately {@code 2 * visitRatio * numVectors}) in
+     * {@link org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader#search}.
+     */
+    static int computeInitialCentroidBatchSize(float centroidRatio, int numCentroids, FixedBitSet acceptCentroids) {
+        int target = (int) Math.clamp(centroidRatio * numCentroids, 1f, numCentroids);
+        if (acceptCentroids != null) {
+            int filtered = acceptCentroids.cardinality();
+            if (filtered == 0) {
+                return 0;
+            }
+            target = Math.min(target, filtered);
+        }
+        return target;
     }
 
     @Override
@@ -162,11 +185,13 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             quantized[i] = (byte) scratch[i];
         }
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension(), bulkSize);
+        final float centroidRatioForBatch;
         // build iterator
         CentroidIterator centroidIterator;
         if (numParents > 0) {
             // equivalent to (float) centroidsPerParentCluster / 2
             float centroidOversampling = (float) fieldEntry.numCentroids() / (2 * numParents);
+            centroidRatioForBatch = visitRatio * centroidOversampling;
             centroidIterator = getCentroidIteratorWithParents(
                 fieldInfo,
                 centroids,
@@ -176,12 +201,13 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 quantized,
                 queryParams,
                 fieldEntry.globalCentroidDp(),
-                visitRatio * centroidOversampling,
+                centroidRatioForBatch,
                 acceptParents,
                 acceptCentroids,
                 bulkSize
             );
         } else {
+            centroidRatioForBatch = visitRatio;
             if (acceptCentroids != null && acceptParents != null) {
                 acceptCentroids.and(acceptParents);
             }
@@ -197,7 +223,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 bulkSize
             );
         }
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+        int initialCentroidBatch = computeInitialCentroidBatchSize(centroidRatioForBatch, numCentroids, acceptCentroids);
+        return getPostingListPrefetchIterator(centroidIterator, postingListSlice, initialCentroidBatch, PREFETCH_DEPTH);
     }
 
     private FixedBitSet getCentroidFilter(

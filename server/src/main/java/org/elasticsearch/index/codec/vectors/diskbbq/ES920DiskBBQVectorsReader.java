@@ -41,6 +41,8 @@ import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
  */
 public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader.FieldEntry> {
 
+    private static final int PREFETCH_DEPTH = 1;
+
     // QUERY_BITS value copied from Lucene102BinaryQuantizedVectorsFormat where it became package private
     private static final byte QUERY_BITS = 4;
 
@@ -61,7 +63,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
         throws IOException {
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
+        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, PREFETCH_DEPTH);
     }
 
     @Override
@@ -639,6 +641,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
             }
             return scoredDocs;
         }
+
     }
 
     @Override

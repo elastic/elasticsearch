@@ -208,12 +208,11 @@ public class RequestTaskTests extends ESTestCase {
         doAnswer(invocation -> {
             calledOnFailureLatch.countDown();
             return Void.TYPE;
-        }
-        ).when(listener).onFailure(any());
+        }).when(listener).onFailure(any());
 
         // Times out after 1 ms
         var requestTask = new RequestTask(
-        OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
             new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             threadPool,

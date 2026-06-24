@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -255,10 +254,11 @@ public class ExternalSourceResolver {
             object = provider.newObject(storagePath);
         }
 
-        // Capture the raw file schema before enriching with virtual columns: schemaMap describes
-        // the physical schema each reader actually sees, not the user-facing projection.
+        // Capture the raw file schema: schemaMap describes the physical schema each reader actually
+        // sees, not the user-facing projection. _file.* columns are no longer glued onto the schema
+        // here — they are request-driven (FROM ... METADATA _file.path, or the temporary EXTERNAL
+        // shim that injects them into the relation's metadataFields). See ResolveExternalRelations.
         List<Attribute> fileSchema = extMetadata.schema();
-        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
 
         FileList singletonList = GlobExpander.fileListOf(
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
@@ -415,7 +415,8 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
+        // _file.* columns are request-driven now; no auto-attach to the schema. See
+        // ResolveExternalRelations / the EXTERNAL shim.
 
         // FFW: every file's readSchema is the anchor's data-only schema, identity mapping.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
@@ -570,7 +571,8 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
+        // _file.* columns are request-driven now; no auto-attach to the schema. See
+        // ResolveExternalRelations / the EXTERNAL shim.
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
         return new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
@@ -933,28 +935,6 @@ public class ExternalSourceResolver {
             // Marking them synthetic causes AnalyzerRules.maybeResolveAgainstList to skip them during name resolution
             // and produces "Unknown column [X], did you mean [X]?" errors.
             enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, nullability, null, false));
-        }
-
-        return withSchema(metadata, List.copyOf(enrichedSchema));
-    }
-
-    public static ExternalSourceMetadata enrichSchemaWithFileMetadataColumns(ExternalSourceMetadata metadata) {
-        List<Attribute> originalSchema = metadata.schema();
-        Set<String> existingNames = new LinkedHashSet<>();
-        for (Attribute attr : originalSchema) {
-            existingNames.add(attr.name());
-        }
-
-        List<Attribute> enrichedSchema = new ArrayList<>(originalSchema);
-        for (Map.Entry<String, DataType> entry : FileMetadataColumns.COLUMNS.entrySet()) {
-            String name = entry.getKey();
-            if (existingNames.contains(name) == false) {
-                enrichedSchema.add(new ExternalMetadataAttribute(Source.EMPTY, name, entry.getValue()));
-            }
-        }
-
-        if (enrichedSchema.size() == originalSchema.size()) {
-            return metadata;
         }
 
         return withSchema(metadata, List.copyOf(enrichedSchema));

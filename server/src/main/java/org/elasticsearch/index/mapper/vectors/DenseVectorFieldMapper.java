@@ -276,8 +276,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
     public static final int MAX_DIMS_COUNT_BIT = 4096 * Byte.SIZE; // maximum allowed number of dimensions
 
-    public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to
-    // vector
+    // minimum number of dims for floats to be dynamically mapped to vector
+    public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128;
+    // lower threshold used for vectordb index mode
+    public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB = 32;
     public static final int MAGNITUDE_BYTES = 4;
     public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
     public static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
@@ -3458,12 +3460,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Nullable
         private static BytesRef[] extractSliceRouting(@Nullable String sliceRouting, boolean sliceEnabled) {
             if (sliceRouting == null) {
-                if (sliceEnabled) {
-                    throw new IllegalArgumentException(
-                        "[" + SliceIndexing.PARAM_NAME + "] is required for KNN queries when [index.slice.enabled] is true"
-                    );
-                }
-                return null;
+                return sliceEnabled ? new BytesRef[0] : null;
             }
             String[] sliceValues = Strings.splitStringByCommaToArray(sliceRouting.trim());
             if (sliceValues.length == 0) {

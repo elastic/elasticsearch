@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -18,6 +19,19 @@ import java.util.Map;
  * modules/ingest-common/src/main/resources/org/elasticsearch/ingest/common/processors_whitelist.txt
  */
 public final class Processors {
+
+    /**
+     * Uses {@link CommandLineParserProcessor} to parse a command line string
+     * into a list of arguments following shell-specific quoting and escaping
+     * rules.
+     *
+     * @param commandLine the command line string to parse
+     * @param shell       the shell syntax to use (e.g. "bash", "cmd", "powershell")
+     * @return a list of parsed arguments
+     */
+    public static List<String> commandLineArgs(String commandLine, String shell) {
+        return CommandLineParserProcessor.apply(commandLine, shell);
+    }
 
     /**
      * Uses {@link BytesProcessor} to return the number of bytes in a

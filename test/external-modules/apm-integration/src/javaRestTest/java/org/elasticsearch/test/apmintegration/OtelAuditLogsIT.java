@@ -29,8 +29,8 @@ import java.util.function.Consumer;
  * Verifies that audit events emitted by {@code LoggingAuditTrail} flow out via the OTel SDK as
  * OTLP log records and arrive at {@link RecordingApmServer} over gRPC.
  *
- * <p>This is the end-to-end pipeline test for ES-14356: log4j → OpenTelemetryAppender (attached
- * programmatically by {@code OtelSdkExportLogsSupplier}) → {@code SdkLoggerProvider} →
+ * <p>Full export chain (ES-14356): log4j → OpenTelemetryAppender (attached programmatically by
+ * {@code OtelSdkExportAuditLogPipeline}) → {@code SdkLoggerProvider} →
  * {@code OtlpGrpcLogRecordExporter} → gRPC recording server.
  */
 public class OtelAuditLogsIT extends AbstractTelemetryIT {
@@ -58,9 +58,9 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         .setting("xpack.security.audit.logfile.emit_node_id", "false")
         .setting("xpack.security.audit.logfile.emit_cluster_name", "false")
         .setting("xpack.security.audit.logfile.emit_cluster_uuid", "false")
-        .setting("telemetry.otel.logs.enabled", "true")
+        .setting("telemetry.logs.audit.enabled", "true")
         // OTLP/gRPC endpoint: scheme http, no path (different shape than HTTP-protobuf endpoint).
-        .setting("telemetry.otel.logs.endpoint", () -> recordingApmServer.getGrpcEndpoint())
+        .setting("telemetry.logs.audit.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .user(API_USER, "api-password", "superuser", false)
         .build();
 

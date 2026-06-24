@@ -40,6 +40,7 @@ dependencies {
   runtimeOnly "io.opentelemetry:opentelemetry-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-okhttp:${otelVersion}"
   implementation "com.squareup.okhttp3:okhttp-jvm:5.3.2"
+  implementation project(':libs:ssl-config')
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-otlp-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-jdk:${otelVersion}"

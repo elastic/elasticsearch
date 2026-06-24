@@ -532,6 +532,11 @@ public class RestIndexActionIT extends ESIntegTestCase {
         openPit.addParameter("keep_alive", "1m");
         Response pitResponse = getRestClient().performRequest(openPit);
         assertThat(pitResponse.getStatusLine().getStatusCode(), equalTo(200));
+
+        String pitId = ObjectPath.createFromResponse(pitResponse).evaluate("id");
+        Request closePit = new Request("DELETE", "/_pit");
+        closePit.setJsonEntity("{\"id\":\"" + pitId + "\"}");
+        getRestClient().performRequest(closePit);
     }
 
     public void testSearchUrlSliceRejectedWhenNoSliceEnabledIndices() throws Exception {

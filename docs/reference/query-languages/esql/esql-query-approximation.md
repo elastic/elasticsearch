@@ -124,8 +124,18 @@ Some of these (such as `MIN` and `MAX`) are intrinsically difficult to estimate 
 
 The following query patterns are not currently supported for approximation and fall back to exact execution:
 
+::::{applies-switch}
+:::{applies-item} { "stack": "preview 9.5", "serverless": "preview" }
 - Queries using the `TS` and `PROMQL` source command
 - Pipelines containing two or more `STATS` commands
+:::
+:::{applies-item} {"stack": "preview =9.4"}
+- Queries using the `TS` and `PROMQL` source command
+- Queries using the `FORK`, `LOOKUP JOIN` and `INLINE STATS` processing commands
+- Pipelines containing two or more `STATS` commands
+:::
+::::
+
 
 ## When approximation is less effective
 

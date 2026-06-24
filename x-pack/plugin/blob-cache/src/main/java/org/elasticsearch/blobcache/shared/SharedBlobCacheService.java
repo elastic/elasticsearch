@@ -2651,7 +2651,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final long startNanos = relativeNanosProvider.getAsLong();
             final int[] entriesScanned = new int[1];
             final long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
-            SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, entriesScanned);
+            final Predicate<CacheRegion<KeyType>> canEvict = evictionPolicy.createPredicate(incoming.chunk);
+            SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, entriesScanned, canEvict);
             if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
@@ -2666,7 +2667,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Free, entriesScanned[0]);
                     return freeRegion;
                 }
-                result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq, entriesScanned);
+                result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq, entriesScanned, canEvict);
                 if (result != null) {
                     logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Evicted, entriesScanned[0]);
                     return result;
@@ -2698,12 +2699,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final LFUCacheEntry incoming,
             final Runnable evictedNotification,
             final int freq,
-            final int[] entriesScanned
+            final int[] entriesScanned,
+            final Predicate<CacheRegion<KeyType>> canEvict
         ) {
             assert entriesScanned.length == 1 && entriesScanned[0] >= 0;
             for (LFUCacheEntry entry = freqs[freq].head; entry != null; entry = entry.next) {
                 entriesScanned[0]++;
-                if (evictionPolicy.canEvict(entry.chunk, incoming.chunk) == false) {
+                if (canEvict.test(entry.chunk) == false) {
                     continue;
                 }
 
@@ -2772,9 +2774,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             boolean found = false;
             synchronized (SharedBlobCacheService.this) {
                 startNanos = relativeNanosProvider.getAsLong();
+                final Predicate<CacheRegion<KeyType>> canEvict = evictionPolicy.createPredicate(incoming);
                 for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
                     entriesScanned++;
-                    if (evictionPolicy.canEvict(entry.chunk, incoming) == false) {
+                    if (canEvict.test(entry.chunk) == false) {
                         continue;
                     }
 

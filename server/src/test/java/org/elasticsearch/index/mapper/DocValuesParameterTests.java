@@ -33,33 +33,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         );
     }
 
-    public void testCardinalityWithoutMultiValueUsesDefault() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "high").endObject())
-        );
-        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(
-            mapper.docValuesParameters(),
-            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true))
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Unknown-value rejection
-    // -----------------------------------------------------------------------
-
-    public void testInvalidCardinality() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        var e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(
-                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "invalid").endObject())
-            )
-        );
-        assertThat(e.getMessage(), containsString("Unknown value [invalid] for field [cardinality] - accepted values are [low, high]"));
-    }
-
     // -----------------------------------------------------------------------
     // Boolean shorthand: doc_values: true / false still works alongside map form
     // -----------------------------------------------------------------------

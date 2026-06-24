@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
@@ -677,7 +676,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("kwd");
             b.field("type", "keyword");
-            b.startObject("doc_values").field("cardinality", "low").endObject();
             b.endObject();
         }));
 
@@ -687,8 +685,13 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         // Build a modified Lucene document: keep the _ignored_source blob but change kwd doc values to "docvalues_value".
         List<IndexableField> modified = new ArrayList<>();
         for (IndexableField field : parsed.rootDoc()) {
-            if (field instanceof SortedSetDocValuesField && field.name().equals("kwd")) {
-                modified.add(new SortedSetDocValuesField("kwd", new BytesRef("docvalues_value")));
+            if (field instanceof MultiValuedBinaryDocValuesField && field.name().equals("kwd")) {
+                var replacement = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "kwd",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
+                replacement.add(new BytesRef("docvalues_value"));
+                modified.add(replacement);
             } else {
                 modified.add(field);
             }

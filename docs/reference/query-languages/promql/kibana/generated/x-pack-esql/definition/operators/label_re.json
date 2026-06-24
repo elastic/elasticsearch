@@ -27,6 +27,5 @@
   "examples" : [
     "requests_total{method=~\"GET|POST\"}"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

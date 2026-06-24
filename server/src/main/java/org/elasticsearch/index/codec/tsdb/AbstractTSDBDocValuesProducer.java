@@ -81,9 +81,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     final int version;
     private final int primarySortFieldNumber;
     private final boolean merging;
-    private final int numericBlockShift;
-    protected final int numericBlockSize;
-    private final int numericBlockMask;
     private final long[] skipIndexJumpLengthPerLevel;
     private static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
     private final TSDBDocValuesFormatConfig formatConfig;
@@ -151,10 +148,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 CodecUtil.checkFooter(in, priorE);
             }
         }
-
-        this.numericBlockShift = blockShift;
-        this.numericBlockSize = 1 << blockShift;
-        this.numericBlockMask = numericBlockSize - 1;
 
         String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
         this.data = state.directory.openInput(dataName, state.context);
@@ -230,9 +223,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         this.version = original.version;
         this.primarySortFieldNumber = original.primarySortFieldNumber;
         this.merging = true;
-        this.numericBlockShift = original.numericBlockShift;
-        this.numericBlockSize = original.numericBlockSize;
-        this.numericBlockMask = original.numericBlockMask;
         this.skipIndexJumpLengthPerLevel = original.skipIndexJumpLengthPerLevel;
         this.formatConfig = original.formatConfig;
     }
@@ -937,6 +927,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
+        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            assert offset <= doc;
+            upTo = Math.min(upTo, maxDoc);
+            if (upTo > doc) {
+                bitSet.set(doc - offset, upTo - offset);
+                advance(upTo);
+            }
+        }
+
+        @Override
         @Nullable
         public BlockLoader.Block tryRead(
             BlockLoader.BlockFactory factory,
@@ -1004,6 +1004,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public long cost() {
                     return binaryDocValues.cost();
                 }
+
+                @Override
+                public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                    binaryDocValues.intoBitSet(upTo, bitSet, offset);
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return binaryDocValues.docIDRunEnd();
+                }
             };
         }
     }
@@ -1044,6 +1054,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public int docIDRunEnd() throws IOException {
             return disi.docIDRunEnd();
+        }
+
+        @Override
+        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            disi.intoBitSet(upTo, bitSet, offset);
         }
 
         @Override
@@ -1113,6 +1128,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public long cost() {
                     return binaryDocValues.cost();
                 }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return binaryDocValues.docIDRunEnd();
+                }
+
+                @Override
+                public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                    binaryDocValues.intoBitSet(upTo, bitSet, offset);
+                }
             };
         }
     }
@@ -1167,6 +1192,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             }
 
             @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                ords.intoBitSet(upTo, bitSet, offset);
+            }
+
+            @Override
             public BlockLoader.Block tryRead(
                 BlockLoader.BlockFactory factory,
                 BlockLoader.Docs docs,
@@ -1183,7 +1213,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         return block;
                     }
                     try (var builder = factory.singletonOrdinalsBuilder(this, docs.count() - offset, true)) {
-                        BlockLoader.SingletonLongBuilder delegate = new SingletonLongToSingletonOrdinalDelegate(builder, numericBlockSize);
+                        BlockLoader.SingletonLongBuilder delegate = new SingletonLongToSingletonOrdinalDelegate(
+                            builder,
+                            entry.ordsEntry.blockSize
+                        );
                         var result = denseOrds.tryRead(delegate, docs, offset);
                         if (result != null) {
                             return result;
@@ -1352,6 +1385,20 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return maxDoc;
         }
 
+        public final int docIDRunEnd() throws IOException {
+            return maxDoc;
+        }
+
+        @Override
+        public final void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            assert offset <= doc;
+            upTo = Math.min(upTo, maxDoc);
+            if (upTo > doc) {
+                bitSet.set(doc - offset, upTo - offset);
+                advance(upTo);
+            }
+        }
+
         @Override
         public BlockLoader.Block tryRead(
             BlockLoader.BlockFactory factory,
@@ -1405,6 +1452,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public final long cost() {
             return disi.cost();
+        }
+
+        @Override
+        public final int docIDRunEnd() throws IOException {
+            return disi.docIDRunEnd();
+        }
+
+        @Override
+        public final void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            disi.intoBitSet(upTo, bitSet, offset);
         }
 
         @Override
@@ -1759,6 +1816,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             @Override
             public int docIDRunEnd() throws IOException {
                 return ords.docIDRunEnd();
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                if (upTo > docID()) {
+                    set = false;
+                    ords.intoBitSet(upTo, bitSet, offset);
+                }
             }
         };
     }
@@ -2129,7 +2194,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         } else {
             var numericFieldReader = numericCodec.createReader(readContext);
             final NumericFieldReader.Decoder decoder = numericFieldReader.decoder(entry.pipelineDescriptor);
-            return (input, values) -> decoder.decodeBlock(input, values, numericBlockSize);
+            final int blockSize = entry.blockSize;
+            return (input, values) -> decoder.decodeBlock(input, values, blockSize);
         }
     }
 
@@ -2189,11 +2255,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public int docIDRunEnd() {
-                        return maxDoc;
-                    }
-
-                    @Override
                     long lookAheadValueAt(int targetDoc) throws IOException {
                         return 0L;
                     }
@@ -2217,11 +2278,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     public long longValue() throws IOException {
                         return 0L;
                     }
-
-                    @Override
-                    public int docIDRunEnd() throws IOException {
-                        return disi.docIDRunEnd();
-                    }
                 };
             }
         } else if (entry.sortedOrdinals != null) {
@@ -2232,6 +2288,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice, merging);
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
 
+        final int numericBlockSize = entry.blockSize;
+        final int numericBlockShift = Integer.numberOfTrailingZeros(numericBlockSize);
+        final int numericBlockMask = numericBlockSize - 1;
+
         if (entry.docsWithFieldOffset == -1) {
             // dense
             return new BaseDenseNumericValues(maxDoc) {
@@ -2241,11 +2301,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 private long lookaheadBlockIndex = -1;
                 private long[] lookaheadBlock;
                 private IndexInput lookaheadData = null;
-
-                @Override
-                public int docIDRunEnd() {
-                    return maxDoc;
-                }
 
                 @Override
                 public long longValue() throws IOException {
@@ -2607,11 +2662,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 private final long[] currentBlock = new long[numericBlockSize];
 
                 @Override
-                public int docIDRunEnd() throws IOException {
-                    return disi.docIDRunEnd();
-                }
-
-                @Override
                 public long longValue() throws IOException {
                     final int index = disi.index();
                     final int blockIndex = index >>> numericBlockShift;
@@ -2719,11 +2769,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public int docIDRunEnd() throws IOException {
-                    return maxDoc;
-                }
-
-                @Override
                 SortedOrdinalReader sortedOrdinalReader() {
                     return ordinalsReader;
                 }
@@ -2742,11 +2787,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public long longValue() {
                     return ordinalsReader.readValueAndAdvance(disi.docID());
                 }
-
-                @Override
-                public int docIDRunEnd() throws IOException {
-                    return disi.docIDRunEnd();
-                }
             };
         }
     }
@@ -2758,6 +2798,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
 
+        final int numericBlockSize = entry.blockSize;
+        final int numericBlockShift = Integer.numberOfTrailingZeros(numericBlockSize);
+        final int numericBlockMask = numericBlockSize - 1;
         final long[] currentBlockIndex = { -1 };
         final long[] currentBlock = new long[numericBlockSize];
         final BlockDecoder decoder = blockDecoder(entry, maxOrd);
@@ -2848,6 +2891,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public int docIDRunEnd() {
                     return maxDoc;
                 }
+
+                @Override
+                public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                    assert offset <= doc;
+                    upTo = Math.min(upTo, maxDoc);
+                    if (upTo > doc) {
+                        bitSet.set(doc - offset, upTo - offset);
+                        advance(upTo);
+                    }
+                }
             };
         } else {
             // sparse
@@ -2910,6 +2963,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     return disi.docIDRunEnd();
                 }
 
+                @Override
+                public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                    disi.intoBitSet(upTo, bitSet, offset);
+                }
+
                 private void set() {
                     if (set == false) {
                         final int index = disi.index();
@@ -2939,6 +2997,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public long valuesLength;
         public DirectMonotonicReader.Meta sortedOrdinals;
         public PipelineDescriptor pipelineDescriptor;
+        // NOTE: per-field block size. Equals pipelineDescriptor.blockSize() when present
+        // (ES95 pipeline-encoded entries); otherwise the format-level default read from
+        // the numeric block shift header byte, used by ES819 entries and ordinal-stream
+        // entries that have no pipeline descriptor.
+        public int blockSize;
     }
 
     static class BinaryEntry {

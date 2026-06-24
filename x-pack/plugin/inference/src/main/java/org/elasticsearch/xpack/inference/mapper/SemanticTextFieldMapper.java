@@ -42,7 +42,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
@@ -599,24 +598,19 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        public String getDefaultHighlighter() {
-            return SemanticTextHighlighter.NAME;
-        }
-
-        @Override
-        protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
+        protected ValueFetcher valueFetcher(SearchExecutionContext context) {
             return useLegacyFormat
                 ? SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null)
-                : super.originalValueFetcher(context);
+                : super.valueFetcher(context);
         }
 
         @Override
-        protected ValueFetcher allValuesFetcher(BlockLoaderContext blContext) {
+        protected ValueFetcher valueFetcher(BlockLoaderContext blContext) {
             if (useLegacyFormat) {
                 return SourceValueFetcher.toString(blContext.sourcePaths(getOriginalTextFieldName(name())), blContext.indexSettings());
             }
 
-            return super.allValuesFetcher(blContext);
+            return super.valueFetcher(blContext);
         }
 
     }

@@ -1127,6 +1127,7 @@ ignoreOrder:true
 ;
 
 lookupIPFromIndexKeepKeep
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: join_lookup_v12
 
 FROM sample_data
@@ -1684,6 +1685,7 @@ ignoreOrder:true
 ;
 
 lookupIPAndMessageFromIndexChainedRenameKeep
+skip_flattened_rewrite: lookup_join_type_mismatch
 required_capability: join_lookup_v12
 
 FROM sample_data
@@ -1945,6 +1947,7 @@ event_duration:long
 ;
 
 dropAgainWithWildcardAfterEval2
+skip_flattened_rewrite: lookup_join_type_mismatch
 required_capability: join_lookup_v12
 required_capability: drop_again_with_wildcard_after_eval
 from addresses,cartesian_multipolygons,hosts
@@ -1969,6 +1972,7 @@ null            | null                                          | null
 
 
 joinMaskingRegex
+skip_flattened_rewrite: enrich_on_rejects_flattened
 // https://github.com/elastic/elasticsearch/issues/127467
 required_capability: union_types
 required_capability: join_lookup_v12
@@ -5042,6 +5046,7 @@ Connected to 10.1.0.1 | 1                     | English               | Success
 
 
 lookupJoinAfterLimitAndRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: join_lookup_v12
 
 FROM sample_data
@@ -5065,6 +5070,7 @@ Connected to 10.1.0.1 | English                      | null                  | U
 
 
 lookupJoinAfterTopNAndRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: join_lookup_v12
 
 FROM sample_data
@@ -6047,6 +6053,7 @@ message:keyword | type:keyword
 
 // See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseBeforeLookupJoinWithMatchOnEmployees
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: join_lookup_v12
 required_capability: match_function
 required_capability: propagate_empty_relation_past_joins

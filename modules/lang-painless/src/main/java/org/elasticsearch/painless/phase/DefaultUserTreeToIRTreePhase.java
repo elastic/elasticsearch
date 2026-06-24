@@ -233,6 +233,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceBinding;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDIterableName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDIterableType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxAllocationBytes;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxLoopCounter;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDModifiers;
@@ -276,6 +277,16 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.attachCondition(IRCInstanceCancellationCheck.class);
         }
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+    }
+
+    /**
+     * Attaches the per-context allocation byte limit to {@code irFunctionNode} so the ASM phase can emit allocation
+     * pre-checks inside the function. A value of {@code -1} means tracking is disabled and no allocation bytecode is
+     * emitted. Kept separate from {@link #attachLoopProtection} on purpose: loop protection and allocation tracking are
+     * independent concerns with different gating, mirroring how each rides its own decoration through to the writer.
+     */
+    protected static void attachAllocationLimit(FunctionNode irFunctionNode, ScriptScope scriptScope) {
+        irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(scriptScope.getCompilerSettings().getMaxAllocationBytes()));
     }
 
     /**
@@ -658,6 +669,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         }
 
         attachLoopProtection(irFunctionNode, scriptScope);
+        attachAllocationLimit(irFunctionNode, scriptScope);
 
         scriptScope.putDecoration(userFunctionNode, new IRNodeDecoration(irFunctionNode));
     }
@@ -1419,6 +1431,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         }
         irFunctionNode.attachCondition(IRCSynthetic.class);
         attachLoopProtection(irFunctionNode, scriptScope);
+        attachAllocationLimit(irFunctionNode, scriptScope);
         irClassNode.addFunctionNode(irFunctionNode);
 
         boolean injectCancelCapture = irFunctionNode.hasCondition(IRCStatic.class)
@@ -1925,7 +1938,23 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             PainlessMethod method = scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).standardPainlessMethod();
             Object[] injections = PainlessLookupUtility.buildInjections(method, scriptScope.getCompilerSettings().asMap());
             Class<?>[] parameterTypes = method.javaMethod().getParameterTypes();
+            boolean cancellationAware = method.annotations().containsKey(ScriptAwareAnnotation.class);
+
+            // Where in the Java parameterTypes array the injected constants start. The compiler synthesises a `loadThis()`
+            // (PainlessScript) at index 0 for @script_aware methods and routes the augmented receiver through index 1 (or 0 if not
+            // augmented). Injections follow those, then the user-supplied arguments.
             int augmentedOffset = method.javaMethod().getDeclaringClass() == method.targetClass() ? 0 : 1;
+            if (cancellationAware) {
+                augmentedOffset++;
+            }
+
+            // Order must match the Java method signature: [PainlessScript], [receiver], injections..., user args...
+            // The PainlessScript prefix is emitted as a `loadThis()` in the ASM phase, so here we add the receiver as the first
+            // invoke argument when @script_aware (mirroring how non-@script_aware augmentations get the receiver via the wrapping
+            // BinaryImplNode below).
+            if (cancellationAware) {
+                irInvokeCallNode.addArgumentNode((ExpressionNode) visit(userCallNode.getPrefixNode(), scriptScope));
+            }
 
             for (int i = 0; i < injections.length; i++) {
                 Object injection = injections[i];
@@ -1939,11 +1968,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 constantNode.attachDecoration(new IRDExpressionType(parameterType));
                 constantNode.attachDecoration(new IRDConstant(injection));
                 irInvokeCallNode.addArgumentNode(constantNode);
-            }
-
-            boolean cancellationAware = method.annotations().containsKey(ScriptAwareAnnotation.class);
-            if (cancellationAware) {
-                irInvokeCallNode.addArgumentNode((ExpressionNode) visit(userCallNode.getPrefixNode(), scriptScope));
             }
 
             for (AExpression userCallArgumentNode : userCallNode.getArgumentNodes()) {

@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -200,6 +204,78 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
             assertEquals(95.5, ((DoubleBlock) page.getBlock(1)).getDouble(0), 0.001);
         }
+    }
+
+    /**
+     * Early-close leak regression. {@code CsvFormatReader}'s batch iterator buffers one look-ahead page
+     * in {@code hasNext()}; before it extended
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator} a consumer that closed
+     * after {@code hasNext()} but before {@code next()} (a pushed-down {@code LIMIT}, a cancellation, a
+     * downstream error) left that page's blocks unreleased against the breaker. These tests drive a real
+     * read on a tracking breaker and assert usage returns to zero.
+     */
+    private static String multiRowCsv(int rows) {
+        StringBuilder sb = new StringBuilder("id:integer\n");
+        for (int i = 1; i <= rows; i++) {
+            sb.append(i).append('\n');
+        }
+        return sb.toString();
+    }
+
+    private static BlockFactory trackingBlockFactory(CircuitBreaker[] outBreaker) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        outBreaker[0] = breaker;
+        return BlockFactory.builder(bigArrays).breaker(breaker).build();
+    }
+
+    public void testCloseAfterHasNextWithoutNextDoesNotLeak() throws IOException {
+        CircuitBreaker[] breaker = new CircuitBreaker[1];
+        BlockFactory trackingFactory = trackingBlockFactory(breaker);
+
+        StorageObject object = createStorageObject(multiRowCsv(50));
+        CsvFormatReader reader = new CsvFormatReader(trackingFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 8)) {
+            assertTrue(iterator.hasNext()); // materializes (and allocates) the first look-ahead page
+            assertThat("hasNext must have buffered a page", breaker[0].getUsed(), Matchers.greaterThan(0L));
+            // Abandon without next(): try-with-resources close() must release the buffered page.
+        }
+        assertEquals("the buffered look-ahead page must be released on early close", 0L, breaker[0].getUsed());
+    }
+
+    public void testCloseMidStreamDoesNotLeak() throws IOException {
+        CircuitBreaker[] breaker = new CircuitBreaker[1];
+        BlockFactory trackingFactory = trackingBlockFactory(breaker);
+
+        StorageObject object = createStorageObject(multiRowCsv(50));
+        CsvFormatReader reader = new CsvFormatReader(trackingFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 8)) {
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext()); // buffers a third page that we never consume
+            assertThat(breaker[0].getUsed(), Matchers.greaterThan(0L));
+        }
+        assertEquals("no page may leak when the consumer aborts mid-stream", 0L, breaker[0].getUsed());
+    }
+
+    public void testCloseAfterFullConsumptionDoesNotLeak() throws IOException {
+        CircuitBreaker[] breaker = new CircuitBreaker[1];
+        BlockFactory trackingFactory = trackingBlockFactory(breaker);
+
+        StorageObject object = createStorageObject(multiRowCsv(20));
+        CsvFormatReader reader = new CsvFormatReader(trackingFactory);
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 8)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(20, totalRows);
+        assertEquals("draining to exhaustion then closing must leave the breaker at zero", 0L, breaker[0].getUsed());
     }
 
     public void testReadWithBatching() throws IOException {
@@ -1556,7 +1632,8 @@ public class CsvFormatReaderTests extends ESTestCase {
                     options.quoteChar(),
                     delim,
                     SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                    options.encoding()
+                    options.encoding(),
+                    options.quoting()
                 );
                 while (recordReader.readRecord(bracketAware) != null) {
                     parserRecords++;
@@ -5306,7 +5383,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * Sampling under SKIP_ROW with a tight budget exhausts and surfaces a capped budget error.
      * Sampling errors count against the SAME max_errors budget the data path uses, matching
-     * ClickHouse's input_format_allow_errors_num semantics.
+     * common database readers' error-tolerance semantics.
      */
     public void testSamplingSkipRowExceedsBudget() {
         StringBuilder csv = new StringBuilder();
@@ -6221,5 +6298,162 @@ public class CsvFormatReaderTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan((long) bytes.length / 2)
         );
+    }
+
+    /**
+     * Regression for https://github.com/elastic/esql-planning/issues/894: the Jackson hot data path enforces
+     * {@code max_record_size} via the upstream {@link CsvRecordCappingInputStream}. An oversized record
+     * trips the cap during the {@link java.io.BufferedReader} bulk fill (potentially before any individual
+     * row has been emitted), the {@link CsvRecordTooLargeException} propagates as an {@link IOException},
+     * and the outer {@code CsvBatchIterator.hasNext()} wraps it in a {@link RuntimeException} whose cause
+     * chain carries the original {@code "max_record_size [N]"} message.
+     */
+    public void testJacksonBulkPathPropagatesMaxRecordSizeError() {
+        int maxRecordBytes = 32;
+        String csv = "id:long,text:keyword\n1,ok\n100," + "x".repeat(maxRecordBytes) + "\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    Page page = iterator.next();
+                    page.releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertTrue("expected a CsvRecordTooLargeException in the cause chain, got: " + ex, rootCause instanceof CsvRecordTooLargeException);
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Lenient policy still aborts the read once an oversized record trips the byte cap because the underlying
+     * {@link CsvRecordCappingInputStream} cannot resume after a thrown {@link IOException}; the destructive
+     * stream wrapper exists precisely to keep the byte-accounting monotonic with the parser's consumption.
+     * This is a deliberate tradeoff documented on
+     * {@link org.elasticsearch.xpack.esql.datasource.csv.CsvRecordCappingInputStream}: cap-too-large becomes
+     * stream-fatal on the Jackson bulk path. The bracket-aware path retains row-level recovery via
+     * {@link org.elasticsearch.xpack.esql.datasource.csv.CsvLogicalRecordReader}'s char-decoded accounting.
+     */
+    public void testJacksonBulkPathAbortsOnCapTooLargeEvenUnderLenientPolicy() {
+        int maxRecordBytes = 32;
+        String csv = "id:long,text:keyword\n1,ok\n100," + "x".repeat(maxRecordBytes) + "\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertTrue(
+            "lenient policy must still abort with the cap exception in the cause chain, got: " + ex,
+            rootCause instanceof CsvRecordTooLargeException
+        );
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Regression for the inferred-schema bulk-path engagement (issue #894 review feedback): when the schema is
+     * inferred at read time, the per-record sampling iterator must be torn down after sampling so the data path
+     * picks up the Jackson bulk iterator. Without this, post-sample reads stay on the slow per-record
+     * {@code CsvLogicalRecordReader} loop and the headline perf fix never engages for ad-hoc CSVs.
+     *
+     * <p>Behavioral assertion: the cap-stream wrap (active on non-bracket-aware reads) trips the cap as a
+     * stream-fatal abort once an oversized data row is reached past the sampling window — which is only
+     * possible if the bulk path is engaged after sampling. If the iterator stayed on
+     * {@code CsvRecordIterator}, the cap would surface per-row and the read would either skip (lenient) or
+     * fail with a different exception shape — neither matching the strict-mode contract asserted below.
+     */
+    public void testInferredSchemaSwitchesToJacksonBulkPathAfterSampling() {
+        int maxRecordBytes = 64;
+        StringBuilder csv = new StringBuilder("id,name\n");
+        // A handful of small rows to feed schema inference, well below the cap.
+        for (int i = 0; i < 10; i++) {
+            csv.append(i).append(",row").append(i).append('\n');
+        }
+        // Oversized data row past the sampling prefix; only the Jackson-bulk-path cap stream sees this byte
+        // span. Adding the row terminator makes the record length exceed maxRecordBytes.
+        csv.append("99,").append("x".repeat(maxRecordBytes)).append('\n');
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertTrue(
+            "inferred-schema reads must reach the cap-stream-protected bulk path after sampling, got: " + ex,
+            rootCause instanceof CsvRecordTooLargeException
+        );
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Regression for the bracket-aware row-recovery contract (issue #894 review feedback): when bracket-multi-value
+     * parsing is enabled the cap-stream wrap is suppressed in {@link CsvFormatReader#read} so the cap stays an
+     * exact, recoverable per-record check inside {@link CsvLogicalRecordReader#addBytes}. Under lenient policy an
+     * oversized row must be skipped and the surrounding rows must still parse, rather than the cap-stream-wrapped
+     * destructive abort that the non-bracket-aware path exhibits.
+     */
+    public void testBracketAwareLenientSkipsOversizedRecordAndKeepsReading() throws IOException {
+        int maxRecordBytes = 32;
+        StringBuilder csv = new StringBuilder("id:long,tags:keyword\n");
+        csv.append("1,[a,b]\n");
+        csv.append("2,[").append("x".repeat(maxRecordBytes)).append("]\n");
+        csv.append("3,[c,d]\n");
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        long total = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                total += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("bracket-aware lenient must drop the oversized row and keep the surrounding rows", 2L, total);
     }
 }

@@ -359,6 +359,50 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertTrue(unionByName.formatConfig().contains("schema_resolution=union_by_name"));
     }
 
+    /**
+     * The mode changes record boundaries, null-ness ({@code \N}) and values on the same bytes,
+     * so queries differing only in mode must never share a schema-cache entry or a stats
+     * fingerprint.
+     */
+    public void testSchemaCacheKeySeparatesModes() {
+        SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.tsv", 1000L, ".tsv", Map.of("format", "tsv", "header_row", true));
+        SchemaCacheKey quoted = SchemaCacheKey.build(
+            "s3://b/f.tsv",
+            1000L,
+            ".tsv",
+            Map.of("format", "tsv", "header_row", true, "mode", "quoted")
+        );
+        SchemaCacheKey escaped = SchemaCacheKey.build(
+            "s3://b/f.tsv",
+            1000L,
+            ".tsv",
+            Map.of("format", "tsv", "header_row", true, "mode", "escaped")
+        );
+        assertNotEquals(base.formatConfig(), quoted.formatConfig());
+        assertNotEquals(base.formatConfig(), escaped.formatConfig());
+        assertNotEquals(quoted.formatConfig(), escaped.formatConfig());
+        assertTrue(quoted.formatConfig().contains("mode=quoted"));
+        assertTrue(escaped.formatConfig().contains("mode=escaped"));
+    }
+
+    /**
+     * Bare {@code multi_value_syntax: brackets} resolves the mode to quoted on a no-quote
+     * baseline (and selects the bracket-aware record scanner everywhere), so two configs differing
+     * only in this key can interpret the same bytes with different record boundaries — they must
+     * not share a schema-cache entry or a stats fingerprint.
+     */
+    public void testSchemaCacheKeySeparatesMultiValueSyntax() {
+        SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.tsv", 1000L, ".tsv", Map.of("format", "tsv", "header_row", true));
+        SchemaCacheKey brackets = SchemaCacheKey.build(
+            "s3://b/f.tsv",
+            1000L,
+            ".tsv",
+            Map.of("format", "tsv", "header_row", true, "multi_value_syntax", "brackets")
+        );
+        assertNotEquals(base.formatConfig(), brackets.formatConfig());
+        assertTrue(brackets.formatConfig().contains("multi_value_syntax=brackets"));
+    }
+
     public void testReconcileSourceStatsDiscriminatesOnConfigFingerprint() throws Exception {
         // Two queries over the SAME file under different WITH options produce two distinct
         // SchemaCacheEntry records that share (path, mtime) but differ on formatConfig. Each
@@ -511,52 +555,85 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testReconcileGatesPartialChunksOnFinalize() throws Exception {
-        // Partials present but no Finalize marker → drop the whole batch. Locks the finalize
-        // gate that prevents under-counting COUNT(*) when a chunk got lost in flight: without
-        // proof the partition is complete we cannot trust the sum.
+    public void testReconcilePartialChunksWithoutCompleteCoverNotCached() throws Exception {
+        // Partials that do not tile [0, end) with a flagged tail (here: a single [0,40) range that
+        // never observed end-of-input) are an incomplete cover — committing their sum would
+        // under-count COUNT(*). The reconciler leaves the entry un-enriched so the warm query
+        // re-scans rather than serving a wrong count.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
             SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
             seedSchemaCache(service, key, path, "fp");
 
-            Map<String, Object> partialA = partialChunk(mtime, "fp", 40L);
-            Map<String, Object> partialB = partialChunk(mtime, "fp", 60L);
+            Map<String, Object> partialA = coveredChunk(mtime, "fp", 40L, 0, 40, false);
+            Map<String, Object> partialB = coveredChunk(mtime, "fp", 60L, 40, 100, false); // no range flagged last
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(partialA, partialB)));
 
             SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
-            // Compare the full metadata map (not just absence of STATS_ROW_COUNT) so the test
-            // catches any silent partial-merge — e.g., an mtime or fingerprint key leaking onto
-            // the entry from the dropped partials.
             assertEquals(
-                "partials without a Finalize must leave the seeded entry untouched",
+                "an incomplete cover must leave the seeded entry untouched",
                 Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"),
                 untouched.safeMetadata()
             );
         }
     }
 
-    public void testReconcileSumsPartialChunksWhenFinalized() throws Exception {
-        // Finalize + partials → sum via mergeStatistics. Locks the partial-sum branch that
-        // drives the parallel-parsing publish path: once the finalize marker proves the chunk
-        // set is complete, the row counts add up to the file's true count.
+    public void testReconcileSumsDisjointCoverageRanges() throws Exception {
+        // Disjoint coverage ranges that tile [0, end) with a flagged tail sum to the file's true
+        // count — the parallel-parsing / macro-split partition path.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
             SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
             seedSchemaCache(service, key, path, "fp");
 
-            Map<String, Object> partialA = partialChunk(mtime, "fp", 40L);
-            Map<String, Object> partialB = partialChunk(mtime, "fp", 60L);
-            Map<String, Object> finalize = new LinkedHashMap<>();
-            finalize.put(ExternalStats.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
+            Map<String, Object> partialA = coveredChunk(mtime, "fp", 40L, 0, 40, false);
+            Map<String, Object> partialB = coveredChunk(mtime, "fp", 60L, 40, 100, true);
 
-            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(partialA, partialB, finalize)));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(partialA, partialB)));
 
             SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
-            assertEquals("finalized partials must sum", 100L, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertEquals(
+                "disjoint ranges tiling the file must sum",
+                100L,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
+    public void testReconcileDedupsIdenticalCoverageFromTwoScans() throws Exception {
+        // REGRESSION for [CI] NdJsonCompressedFormatSpecIT external-basic.aggregateCount [ndjson.zstd/LOCAL]
+        // (issue #150723: "expected <100L> but was <200L>") and its sibling fileMetadataWildcard family.
+        //
+        // A query that scans the SAME external file twice (a two-branch FORK — each branch an
+        // independent subplan re-scanning the source) ships, merged-by-path, TWO complete covers of one
+        // file. Both observe the SAME deterministic chunk byte-ranges. The reconciler unions by range,
+        // so the identical ranges are counted ONCE — 100, not the 40+60+40+60 = 200 the old
+        // sum-everything reconciler produced. Crucially this is range-driven, not scan-counting: the
+        // exact same union also SUMS genuinely disjoint ranges (see testReconcileSumsDisjointCoverageRanges),
+        // so macro-split partitions are unaffected.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            Map<String, Object> scanOneA = coveredChunk(mtime, "fp", 40L, 0, 40, false);
+            Map<String, Object> scanOneB = coveredChunk(mtime, "fp", 60L, 40, 100, true);
+            // Sibling FORK branch re-scans the same file → identical deterministic chunk ranges.
+            Map<String, Object> scanTwoA = coveredChunk(mtime, "fp", 40L, 0, 40, false);
+            Map<String, Object> scanTwoB = coveredChunk(mtime, "fp", 60L, 40, 100, true);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(scanOneA, scanOneB, scanTwoA, scanTwoB)));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "a byte range observed by two scans of one file must be counted once, not doubled",
+                100L,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
         }
     }
 
@@ -571,11 +648,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             seedSchemaCache(service, key, path, "fp");
 
             Map<String, Object> wholeFile = wholeFileStats(mtime, "fp", 100L);
-            Map<String, Object> partial = partialChunk(mtime, "fp", 40L);
-            Map<String, Object> finalize = new LinkedHashMap<>();
-            finalize.put(ExternalStats.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
+            Map<String, Object> partial = coveredChunk(mtime, "fp", 40L, 0, 40, true);
 
-            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(partial, wholeFile, finalize)));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(partial, wholeFile)));
 
             SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals(
@@ -676,9 +751,13 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         return m;
     }
 
-    private static Map<String, Object> partialChunk(long mtime, String fingerprint, long rows) {
+    /** A coverage-addressed partial chunk: {@code rows} rows observed over byte range [{@code start},{@code end}). */
+    private static Map<String, Object> coveredChunk(long mtime, String fingerprint, long rows, long start, long end, boolean last) {
         Map<String, Object> m = wholeFileStats(mtime, fingerprint, rows);
         m.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+        m.put(ExternalStats.COVERAGE_START_KEY, start);
+        m.put(ExternalStats.COVERAGE_END_KEY, end);
+        m.put(ExternalStats.COVERAGE_IS_LAST_KEY, last);
         return m;
     }
 

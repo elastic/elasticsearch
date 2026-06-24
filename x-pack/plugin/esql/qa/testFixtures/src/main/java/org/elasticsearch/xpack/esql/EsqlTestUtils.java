@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -54,6 +55,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.geoip.IpDatabase;
+import org.elasticsearch.ingest.geoip.IpDatabaseProvider;
+import org.elasticsearch.ingest.geoip.IpLocationServiceAdapter;
+import org.elasticsearch.iplocation.api.IpDataLookupInfo;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -71,6 +77,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -692,6 +699,42 @@ public final class EsqlTestUtils {
     }
 
     public static final EsqlFunctionRegistry TEST_FUNCTION_REGISTRY = new EsqlFunctionRegistry();
+
+    /**
+     * A lightweight {@link IpLocationService} for parse-time tests. Backed by a null-returning
+     * {@link IpDatabaseProvider} so that {@code getIpDataLookupInfo} resolves database schemas
+     * from filenames (via {@link IpLocationServiceAdapter}) without requiring actual database files.
+     */
+    public static final IpLocationService TEST_IP_LOCATION_SERVICE = IpLocationServiceAdapter.fromDatabaseProvider(
+        new IpDatabaseProvider() {
+            @Override
+            public Boolean isValid(ProjectId projectId, String name) {
+                return true;
+            }
+
+            @Override
+            public IpDatabase getDatabase(ProjectId projectId, String name) {
+                return null;
+            }
+        }
+    );
+
+    /**
+     * Service-backed {@link IpLocationResolution} for analyzer tests. Production builds a prefetched, plan-derived resolution in
+     * {@code EsqlSession}; the test analyzer context is built before the query plan is known, so it instead resolves database
+     * metadata on demand against {@link #TEST_IP_LOCATION_SERVICE}.
+     */
+    public static final IpLocationResolution TEST_IP_LOCATION_RESOLUTION = new IpLocationResolution() {
+        @Override
+        public boolean serviceAvailable() {
+            return true;
+        }
+
+        @Override
+        public IpDataLookupInfo databaseInfo(String databaseFile) {
+            return TEST_IP_LOCATION_SERVICE.getIpDataLookupInfo(databaseFile);
+        }
+    };
 
     public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
 
@@ -1551,12 +1594,11 @@ public final class EsqlTestUtils {
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
         String command = commandParts[0].trim();
         if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
-            String[] indices = TEST_PARSER.parseQuery(afterSetStatements)
-                .collect(UnresolvedRelation.class)
-                .getFirst()
-                .indexPattern()
-                .indexPattern()
-                .split(",");
+            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
+            if (relations.isEmpty()) {
+                return false;
+            }
+            String[] indices = relations.getFirst().indexPattern().indexPattern().split(",");
             for (String index : indices) {
                 String indexName = index.trim().toLowerCase(Locale.ROOT);
                 if (indicesToCheck.contains(indexName)) {
@@ -1588,12 +1630,11 @@ public final class EsqlTestUtils {
         assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
         if (SourceCommand.isSourceCommand(command)) {
             String commandArgs = commandParts[1].trim();
-            String[] indices = TEST_PARSER.parseQuery(afterSetStatements)
-                .collect(UnresolvedRelation.class)
-                .getFirst()
-                .indexPattern()
-                .indexPattern()
-                .split(",");
+            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
+            if (relations.isEmpty()) {
+                return query;
+            }
+            String[] indices = relations.getFirst().indexPattern().indexPattern().split(",");
             // This method may be called multiple times on the same testcase when using @Repeat
             boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
             if (alreadyConverted == false) {
@@ -1668,6 +1709,15 @@ public final class EsqlTestUtils {
         // find the main source command, ignoring pipes inside subqueries
         List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
         String mainFrom = mainFromCommandAndTheRest.get(0).strip();
+        // Strip any leading SET statements (e.g. "SET unmapped_fields=\"nullify\";") so that the
+        // source command (FROM/TS) is correctly detected. The original SET prefix is re-prepended
+        // to the rewritten source command to preserve the original query semantics.
+        var setMatcher = SET_SPLIT_PATTERN.matcher(mainFrom);
+        String setStatements = "";
+        if (setMatcher.find()) {
+            setStatements = mainFrom.substring(0, setMatcher.end());
+            mainFrom = mainFrom.substring(setMatcher.end()).strip();
+        }
         // Detect whether the outer source command is FROM or TS so that we preserve the
         // command keyword when rebuilding. TS cannot host nested subqueries, but it may
         // appear as the body of a subquery passed recursively to this method.
@@ -1709,8 +1759,8 @@ public final class EsqlTestUtils {
                 transformed.add(remoteIndex);
             }
         }
-        // rebuild source command from transformed index patterns and subqueries
-        String transformedFrom = sourceCommand + " " + String.join(", ", transformed) + metadata;
+        // rebuild source command from transformed index patterns and subqueries, prepending any SET statements
+        String transformedFrom = setStatements + sourceCommand + " " + String.join(", ", transformed) + metadata;
         // rebuild the whole query
         mainFromCommandAndTheRest.set(0, transformedFrom);
         testQuery = String.join(" | ", mainFromCommandAndTheRest);

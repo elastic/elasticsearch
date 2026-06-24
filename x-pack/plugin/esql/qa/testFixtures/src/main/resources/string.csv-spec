@@ -263,7 +263,7 @@ sub:keyword
 ""
 ;
 
-substring Emoji#[skip:-8.13.99,reason:bug fix in 8.14]
+substring Emoji
 row a = "🐱Meow!🐶Woof!" | eval sub1 = substring(a, 2) | eval sub2 = substring(a, 2, 100);
 
 a:keyword | sub1:keyword | sub2:keyword
@@ -478,6 +478,7 @@ hello | true
 ;
 
 containsWarnings
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fn_contains
 
 from hosts | where host=="epsilon" | eval l1 = contains(host_group, "ate"), l2 = contains(description, "ate") | keep l1, l2;
@@ -493,6 +494,7 @@ null       | false
 
 // Note: no matches in MV returned
 in
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 ignoreOrder:true
@@ -609,7 +611,7 @@ ROW a=["foo", "zoo", "bar"]
 // end::mv_concat-result[]
 ;
 
-mvFirst#[skip:-8.12.99, reason:Added in 8.13.0]
+mvFirst
 // tag::mv_first[]
 ROW a="foo;bar;baz"
 | EVAL first_a = MV_FIRST(SPLIT(a, ";"))
@@ -622,7 +624,7 @@ foo;bar;baz | "foo"
 // end::mv_first-result[]
 ;
 
-mvLast#[skip:-8.12.99, reason:Added in 8.13.0]
+mvLast
 // tag::mv_last[]
 ROW a="foo;bar;baz"
 | EVAL last_a = MV_LAST(SPLIT(a, ";"))
@@ -712,6 +714,7 @@ emp_no:integer |positions:keyword                                               
 ;
 
 lessThanMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions < "C" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions < \\\"C\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -724,6 +727,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 greaterThanMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions > "C" | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[job_positions > \\\"C\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -740,6 +744,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions == "Accountant" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions == \\\"Accountant\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -751,6 +756,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToOrEqualToMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions\] failed, treating result as null. Only first 20 failures recorded.
@@ -763,6 +769,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 inMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions in ("Accountant", "Tech Lead") | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions in \(\\\"Accountant\\\", \\"Tech Lead\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -775,6 +782,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notLessThanMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where not(job_positions < "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions < \\\"C\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -791,6 +799,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notGreaterThanMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where not(job_positions > "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions > \\\"C\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -803,6 +812,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notEqualToMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where not(job_positions == "Accountant") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions == \\\"Accountant\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -925,6 +935,48 @@ ROW a=[10, 9, 8]
  a:integer | j:keyword
 [10, 9, 8] | "10, 9, 8"
 // end::mv_concat-to_string-result[]
+;
+
+mvConcatFromEmployees
+request_stored: skip
+FROM employees
+| WHERE emp_no < 10010
+| EVAL joined = MV_CONCAT(job_positions, ", ")
+| KEEP emp_no, joined
+| SORT emp_no DESC
+;
+
+emp_no:integer | joined:keyword
+10009          | "Internship, Senior Python Developer"
+10008          | "Internship, Junior Developer, Purchase Manager, Senior Python Developer"
+10007          | null
+10006          | "Principal Support Engineer, Senior Team Lead, Tech Lead"
+10005          | null
+10004          | "Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead"
+10003          | null
+10002          | "Senior Team Lead"
+10001          | "Accountant, Senior Python Developer"
+;
+
+mvConcatFieldDelimiter
+request_stored: skip
+FROM employees
+| WHERE emp_no < 10010
+| EVAL joined = MV_CONCAT(job_positions, last_name)
+| KEEP emp_no, joined
+| SORT emp_no DESC
+;
+
+emp_no:integer | joined:keyword
+10009          | "InternshipPeacSenior Python Developer"
+10008          | "InternshipKalloufiJunior DeveloperKalloufiPurchase ManagerKalloufiSenior Python Developer"
+10007          | null
+10006          | "Principal Support EngineerPreusigSenior Team LeadPreusigTech Lead"
+10005          | null
+10004          | "Head Human ResourcesKoblickReporting AnalystKoblickSupport EngineerKoblickTech Lead"
+10003          | null
+10002          | "Senior Team Lead"
+10001          | "AccountantFacelloSenior Python Developer"
 ;
 
 mvSort
@@ -1062,6 +1114,7 @@ beta             | Kubernetes cluster       | [beta k8s server, beta k8s server2
 ;
 
 lengthOfText
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from hosts | where host=="epsilon" | eval l1 = length(host_group), l2 = length(description) | keep l1, l2;
 ignoreOrder:true
@@ -1075,6 +1128,7 @@ null                   | 19
 ;
 
 lengthOfMvPushed
+skip_flattened_rewrite: field_extract_multivalue_null
 FROM employees
 | EVAL jpl = LENGTH(job_positions)
 | WHERE emp_no <= 10002 AND (jpl IS NULL OR jpl == 16)
@@ -1092,6 +1146,7 @@ null
 ;
 
 startsWithText
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;
 ignoreOrder:true
@@ -1146,6 +1201,7 @@ epsilon gw instance
 ;
 
 substringOfText
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
 ignoreOrder:true
@@ -1159,6 +1215,7 @@ Gatew                  | null
 ;
 
 concatOfText
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from hosts | where host == "epsilon" | eval l1 = concat(host, "/", host_group), l2 = concat(host_group, "/", description) | sort l1 |  keep l1, l2;
 warning:Line 1:86: evaluation of [concat(host_group, \"/\", description)] failed, treating result as null. Only first 20 failures recorded.
@@ -1260,6 +1317,7 @@ null            |null
 ;
 
 replaceWarnings
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: functions_source_serialization_warnings
 
 FROM employees
@@ -1752,7 +1810,7 @@ is_there:boolean
 true
 ;
 
-toLowerRow#[skip:-8.12.99]
+toLowerRow
 // tag::to_lower[]
 ROW message = "Some Text"
 | EVAL message_lower = TO_LOWER(message)
@@ -1766,7 +1824,7 @@ Some Text       | some text
 ;
 
 
-toLower#[skip:-8.12.99]
+toLower
 from employees | sort emp_no | eval name_lower = TO_LOWER(first_name) | keep emp_no, first_name, name_lower | limit 1;
 
 emp_no:integer  | first_name:keyword    | name_lower:keyword
@@ -1788,7 +1846,7 @@ ROW v = TO_LOWER(["Some", "Text"])
 ;
 
 
-toUpperRow#[skip:-8.12.99]
+toUpperRow
 // tag::to_upper[]
 ROW message = "Some Text"
 | EVAL message_upper = TO_UPPER(message)
@@ -1802,7 +1860,7 @@ Some Text       | SOME TEXT
 ;
 
 
-toUpper#[skip:-8.12.99]
+toUpper
 from employees | sort emp_no | eval name_upper = TO_UPPER(first_name) | keep emp_no, first_name, name_upper | limit 1;
 
 emp_no:integer  | first_name:keyword    | name_upper:keyword
@@ -1824,14 +1882,14 @@ ROW v = TO_UPPER(["Some", "Text"])
 ;
 
 
-toUpperLowerUnicode#[skip:-8.12.99]
+toUpperLowerUnicode
 row a = "π/2 + a + B + Λ ºC" | eval lower = to_lower(a), upper = to_upper(a) | keep a, upper, lower;
 
 a:keyword           | upper:keyword         | lower:keyword
 π/2 + a + B + Λ ºC  | Π/2 + A + B + Λ ºC    | π/2 + a + b + λ ºc
 ;
 
-equalsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToUpperPushedDown
 from employees
 | where to_upper(first_name) == "GEORGI"
 | keep emp_no, first_name
@@ -1841,7 +1899,7 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
-equalsToUpperNestedPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToUpperNestedPushedDown
 from employees
 | where to_upper(to_upper(to_lower(first_name))) == "GEORGI"
 | keep emp_no, first_name
@@ -1851,7 +1909,7 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
-negatedEqualsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+negatedEqualsToUpperPushedDown
 from employees
 | sort emp_no
 | where not(to_upper(first_name) == "GEORGI")
@@ -1863,7 +1921,7 @@ emp_no:integer  | first_name:keyword
 10002           | Bezalel
 ;
 
-notEqualsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+notEqualsToUpperPushedDown
 from employees
 | sort emp_no
 | where to_upper(first_name) != "GEORGI"
@@ -1875,7 +1933,7 @@ emp_no:integer  | first_name:keyword
 10002           | Bezalel
 ;
 
-negatedNotEqualsToUpperPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+negatedNotEqualsToUpperPushedDown
 from employees
 | sort emp_no
 | where not(to_upper(first_name) != "GEORGI")
@@ -1887,7 +1945,7 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
-equalsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToUpperFolded
 from employees
 | where to_upper(first_name) == "Georgi"
 | keep emp_no, first_name
@@ -1896,7 +1954,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-negatedEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+negatedEqualsToUpperFolded
 from employees
 | where not(to_upper(first_name) == "Georgi")
 | stats c = count()
@@ -1906,7 +1964,7 @@ c:long
 90
 ;
 
-equalsToUpperNullFolded#[skip:-8.16.99, reason:function's type corrected in #114334]
+equalsToUpperNullFolded
 from employees
 | where to_upper(null) == "Georgi"
 | keep emp_no, first_name
@@ -1915,7 +1973,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-equalsNullToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsNullToUpperFolded
 from employees
 | where to_upper(first_name) == to_string(null)
 | keep emp_no, first_name
@@ -1924,7 +1982,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsToUpperNullFolded#[skip:-8.16.99, reason:function's type corrected in #114334]
+notEqualsToUpperNullFolded
 from employees
 | where to_upper(null) != "Georgi"
 | keep emp_no, first_name
@@ -1933,7 +1991,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsNullToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+notEqualsNullToUpperFolded
 from employees
 | where to_upper(first_name) != to_string(null)
 | keep emp_no, first_name
@@ -1942,7 +2000,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+notEqualsToUpperFolded
 from employees
 | where to_upper(first_name) != "Georgi"
 | stats c = count()
@@ -1952,7 +2010,7 @@ c:long
 90
 ;
 
-negatedNotEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+negatedNotEqualsToUpperFolded
 from employees
 | where not(to_upper(first_name) != "Georgi")
 | stats c = count()
@@ -1962,7 +2020,7 @@ c:long
 0
 ;
 
-equalsToLowerPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToLowerPushedDown
 from employees
 | where to_lower(first_name) == "georgi"
 | keep emp_no, first_name
@@ -1972,7 +2030,7 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
-notEqualsToLowerPushedDown#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+notEqualsToLowerPushedDown
 from employees
 | sort emp_no
 | where to_lower(first_name) != "georgi"
@@ -1984,7 +2042,7 @@ emp_no:integer  | first_name:keyword
 10002           | Bezalel
 ;
 
-equalsToLowerFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToLowerFolded
 from employees
 | where to_lower(first_name) == "Georgi"
 | keep emp_no, first_name
@@ -1993,7 +2051,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsToLowerFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+notEqualsToLowerFolded
 from employees
 | where to_lower(first_name) != "Georgi"
 | stats c = count()
@@ -2003,7 +2061,7 @@ c:long
 90
 ;
 
-equalsToLowerWithUnico(rn|d)s#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+equalsToLowerWithUnico(rn|d)s
 from employees
 | where to_lower(concat(first_name, "🦄🦄")) != "georgi🦄🦄"
 | stats c = count()
@@ -2064,6 +2122,7 @@ áéíóúàèìòùâêîôû😊👍🏽🎉💖कंठाी
 ;
 
 reverseMultiValue
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fn_reverse
 FROM employees | SORT emp_no | EVAL jobs_reversed = REVERSE(job_positions) | KEEP job*, emp_no | LIMIT 5;
 
@@ -2183,7 +2242,7 @@ gender:keyword | split:keyword
 M              | [foo, bar]
 ;
 
-locate#[skip:-8.13.99,reason:new string function added in 8.14]
+locate
 // tag::locate[]
 ROW a = "hello"
 | EVAL a_ll = LOCATE(a, "ll")
@@ -2196,49 +2255,49 @@ hello     | 3
 // end::locate-result[]
 ;
 
-locateFail#[skip:-8.13.99,reason:new string function added in 8.14]
+locateFail
 row a = "hello" | eval a_ll = locate(a, "int");
 
 a:keyword | a_ll:integer
 hello | 0
 ;
 
-locateZeroStart#[skip:-8.13.99,reason:new string function added in 8.14]
+locateZeroStart
 row a = "hello" | eval a_ll = locate(a, "ll", 0);
 
 a:keyword | a_ll:integer
 hello | 3
 ;
 
-locateExactStart#[skip:-8.13.99,reason:new string function added in 8.14]
+locateExactStart
 row a = "hello" | eval a_ll = locate(a, "ll", 3);
 
 a:keyword | a_ll:integer
 hello | 3
 ;
 
-locateLongerStart#[skip:-8.13.99,reason:new string function added in 8.14]
+locateLongerStart
 row a = "hello" | eval a_ll = locate(a, "ll", 10);
 
 a:keyword | a_ll:integer
 hello | 0
 ;
 
-locateLongerSubstr#[skip:-8.13.99,reason:new string function added in 8.14]
+locateLongerSubstr
 row a = "hello" | eval a_ll = locate(a, "farewell");
 
 a:keyword | a_ll:integer
 hello | 0
 ;
 
-locateSame#[skip:-8.13.99,reason:new string function added in 8.14]
+locateSame
 row a = "hello" | eval a_ll = locate(a, "hello");
 
 a:keyword | a_ll:integer
 hello | 1
 ;
 
-locateWithSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
+locateWithSubstring
 from employees | where emp_no <= 10010 | eval f_s = substring(last_name, 2) | eval f_l = locate(last_name, f_s) | keep emp_no, last_name, f_s, f_l;
 ignoreOrder:true
 
@@ -2255,28 +2314,28 @@ emp_no:integer | last_name:keyword | f_s:keyword | f_l:integer
 10010 | Piveteau  | iveteau | 2
 ;
 
-locateUtf16Emoji#[skip:-8.13.99,reason:new string function added in 8.14]
+locateUtf16Emoji
 row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 2) | eval f_l = locate(a, f_s);
 
 a:keyword | f_s:keyword | f_l:integer
 🐱Meow!🐶Woof! | Meow!🐶Woof! | 2
 ;
 
-locateNestedSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
+locateNestedSubstring
 row a = "hello" | eval a_ll = substring(a, locate(a, "ll"));
 
 a:keyword | a_ll:keyword
 hello | llo
 ;
 
-locateNestSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
+locateNestSubstring
 row a = "hello" | eval a_ll = locate(substring(a, 2), "ll");
 
 a:keyword | a_ll:integer
 hello | 2
 ;
 
-locateStats#[skip:-8.13.99,reason:new string function added in 8.14]
+locateStats
 from employees | where emp_no <= 10010 | eval f_l = locate(last_name, "ll") | stats min(f_l), max(f_l) by job_positions | sort job_positions | limit 5;
 
 min(f_l):integer | max(f_l):integer | job_positions:keyword
@@ -2287,7 +2346,8 @@ min(f_l):integer | max(f_l):integer | job_positions:keyword
 3               | 3               | Junior Developer
 ;
 
-locateWarnings#[skip:-8.13.99,reason:new string function added in 8.14]
+locateWarnings
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from hosts | where host=="epsilon" | eval l1 = locate(host_group, "ate"), l2 = locate(description, "ate") | keep l1, l2;
 ignoreOrder:true
@@ -2462,7 +2522,7 @@ emp_no:integer | first_name:keyword | job_positions:keyword | x:keyword | y:keyw
 ;         
 
 
-base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+base64Encode
 required_capability: base64_decode_encode
 
 // tag::to_base64[]
@@ -2477,7 +2537,7 @@ elastic   | ZWxhc3RpYw==
 // end::to_base64-result[]
 ;
 
-base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+base64Decode
 required_capability: base64_decode_encode
 
 // tag::from_base64[]
@@ -2492,7 +2552,7 @@ ZWxhc3RpYw== | elastic
 // end::from_base64-result[]
 ;
 
-base64EncodeDecodeEmp#[skip:-8.13.99,reason:new base64 function added in 8.14]
+base64EncodeDecodeEmp
 required_capability: base64_decode_encode
 
 from employees
@@ -2556,6 +2616,7 @@ cheese | ""
 ;
 
 repeatNegative
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: repeat 
 
 from employees | sort emp_no | limit 1 | eval repeated = repeat(first_name, emp_no - 10002) | keep first_name, repeated;
@@ -2677,6 +2738,7 @@ null
 ;
 
 spaceNegative
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: space
 FROM employees | SORT emp_no | LIMIT 1 | EVAL s = SPACE(-LENGTH(first_name)) | KEEP s;
 
@@ -2880,6 +2942,7 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 ;
 
 mvKeyword_IN_MultiValueConstant
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fix_mv_constant_equals_field
 FROM employees
 | WHERE job_positions IN (["Tech Lead" , "Data Scientist", "Senior Team Lead"])
@@ -2892,6 +2955,7 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 ;
 
 mvKeywordEqualsMultiValueConstant
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fix_mv_constant_equals_field
 FROM employees
 | WHERE job_positions == ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
@@ -2904,6 +2968,7 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 ;
 
 mvKeywordNotEqualsMultiValueConstant
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fix_mv_constant_comparison_field
 FROM employees
 | WHERE job_positions != ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
@@ -2950,6 +3015,22 @@ ROW u = ["hello elastic!", "a+b-c%d", "", ".-_~", "!#$&'()*+,/:;=?@[]", "🔥�
 
 u:keyword
 ["hello+elastic%21", "a%2Bb-c%25d", "", ".-_~", "%21%23%24%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D", "%F0%9F%94%A5%F0%9F%92%A7"]
+;
+
+url_encode tests with text field table reads
+required_capability: url_encode
+
+FROM books
+| EVAL author_encoded = URL_ENCODE(author),
+        title_encoded = URL_ENCODE(title)
+| KEEP book_no, author_encoded, title_encoded
+| SORT book_no
+| WHERE book_no IN ("1211", "1463")
+;
+
+book_no:keyword | author_encoded:keyword | title_encoded:keyword
+1211            | Fyodor+Dostoevsky      | The+brothers+Karamazov
+1463            | J.+R.+R.+Tolkien       | Realms+of+Tolkien%3A+Images+of+Middle-earth
 ;
 
 url_decode sample for docs
@@ -3063,6 +3144,19 @@ ROW a = "+!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcd
 
 a:keyword                                                                                                                                                   | b:keyword | c:keyword
 "%2B%21%22%23%24%25%26%27%28%29%2A%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~" | ".-_~"    |❗🐶🐱
+;
+
+url_encode_component tests with keyword field table reads
+required_capability: url_encode_component
+
+FROM sample_data
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL encoded = URL_ENCODE_COMPONENT(message)
+| KEEP encoded
+;
+
+encoded:keyword
+Connected%20to%2010.1.0.1
 ;
 
 url_encode_component tests with table reads

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
@@ -43,6 +44,20 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
     }
 
     protected abstract ExponentialHistogram downsampledValue();
+
+    @Override
+    public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
+        if (isDone()) {
+            return;
+        }
+        for (int i = 0; i < docIdBuffer.size() && isDone() == false; i++) {
+            int docId = docIdBuffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            collectCurrentValues(docValues);
+        }
+    }
 
     public static boolean supportsFieldType(MappedFieldType fieldType) {
         return ExponentialHistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());

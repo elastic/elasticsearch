@@ -70,17 +70,17 @@ public class MatchSerializationTests extends AbstractExpressionSerializationTest
 
         if (randomBoolean()) {
             entries.add(Literal.keyword(Source.EMPTY, "fuzzy_transpositions"));
-            entries.add(Literal.keyword(Source.EMPTY, randomFrom("true", "false")));
+            entries.add(Literal.fromBoolean(Source.EMPTY, randomBoolean()));
         }
 
         if (randomBoolean()) {
             entries.add(Literal.keyword(Source.EMPTY, "generate_synonyms_phrase_query"));
-            entries.add(Literal.keyword(Source.EMPTY, randomFrom("true", "false")));
+            entries.add(Literal.fromBoolean(Source.EMPTY, randomBoolean()));
         }
 
         if (randomBoolean()) {
             entries.add(Literal.keyword(Source.EMPTY, "lenient"));
-            entries.add(Literal.keyword(Source.EMPTY, randomFrom("true", "false")));
+            entries.add(Literal.fromBoolean(Source.EMPTY, randomBoolean()));
         }
 
         if (randomBoolean()) {

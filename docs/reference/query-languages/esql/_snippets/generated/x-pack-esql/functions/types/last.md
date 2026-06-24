@@ -8,6 +8,14 @@
 | boolean | date_nanos | boolean |
 | boolean | integer | boolean |
 | boolean | long | boolean |
+| cartesian_point {applies_to}`stack: ga 9.5.0` | date | cartesian_point |
+| cartesian_point {applies_to}`stack: ga 9.5.0` | date_nanos | cartesian_point |
+| cartesian_point {applies_to}`stack: ga 9.5.0` | integer | cartesian_point |
+| cartesian_point {applies_to}`stack: ga 9.5.0` | long | cartesian_point |
+| cartesian_shape {applies_to}`stack: ga 9.5.0` | date | cartesian_shape |
+| cartesian_shape {applies_to}`stack: ga 9.5.0` | date_nanos | cartesian_shape |
+| cartesian_shape {applies_to}`stack: ga 9.5.0` | integer | cartesian_shape |
+| cartesian_shape {applies_to}`stack: ga 9.5.0` | long | cartesian_shape |
 | date | date | date |
 | date | date_nanos | date |
 | date | integer | date |

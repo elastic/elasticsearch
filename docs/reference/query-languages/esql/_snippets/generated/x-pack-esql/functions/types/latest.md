@@ -5,6 +5,8 @@
 | field | result |
 | --- | --- |
 | boolean | boolean |
+| cartesian_point {applies_to}`stack: ga 9.5.0` | cartesian_point |
+| cartesian_shape {applies_to}`stack: ga 9.5.0` | cartesian_shape |
 | date | date |
 | date_nanos | date_nanos |
 | double | double |

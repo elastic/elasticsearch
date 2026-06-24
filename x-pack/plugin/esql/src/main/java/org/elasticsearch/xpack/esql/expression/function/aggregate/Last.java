@@ -59,7 +59,20 @@ public class Last extends AggregateFunction implements ToAggregator {
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos", "version", "geo_point", "geo_shape" },
+        returnType = {
+            "long",
+            "integer",
+            "double",
+            "keyword",
+            "ip",
+            "boolean",
+            "date",
+            "date_nanos",
+            "version",
+            "geo_point",
+            "geo_shape",
+            "cartesian_point",
+            "cartesian_shape" },
         briefSummary = "Returns the latest occurrence of a field based on a sort field.",
         description = """
             This function calculates the latest occurrence of the search field
@@ -99,7 +112,9 @@ public class Last extends AggregateFunction implements ToAggregator {
                 "date_nanos",
                 "version",
                 "geo_point",
-                "geo_shape" },
+                "geo_shape",
+                "cartesian_point",
+                "cartesian_shape" },
             description = "The search field"
         ) Expression field,
         @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
@@ -167,7 +182,9 @@ public class Last extends AggregateFunction implements ToAggregator {
                 || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG)
                 || dt == DataType.VERSION
                 || dt == DataType.GEO_POINT
-                || dt == DataType.GEO_SHAPE,
+                || dt == DataType.GEO_SHAPE
+                || dt == DataType.CARTESIAN_POINT
+                || dt == DataType.CARTESIAN_SHAPE,
             sourceText(),
             FIRST,
             "boolean",
@@ -198,7 +215,8 @@ public class Last extends AggregateFunction implements ToAggregator {
                 case INTEGER -> new AnyIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
                 case FLOAT -> new AnyFloatAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE -> new AnyBytesRefAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE ->
+                    new AnyBytesRefAggregatorFunctionSupplier();
                 case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
             };
@@ -210,7 +228,8 @@ public class Last extends AggregateFunction implements ToAggregator {
                 case INTEGER -> new AllLastIntByLongAggregatorFunctionSupplier();
                 case DOUBLE -> new AllLastDoubleByLongAggregatorFunctionSupplier();
                 case FLOAT -> new AllLastFloatByLongAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE -> new AllLastBytesRefByLongAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE ->
+                    new AllLastBytesRefByLongAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllLastBooleanByLongAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
             };
@@ -222,7 +241,8 @@ public class Last extends AggregateFunction implements ToAggregator {
                 case INTEGER -> new AllLastIntByIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AllLastDoubleByIntAggregatorFunctionSupplier();
                 case FLOAT -> new AllLastFloatByIntAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE -> new AllLastBytesRefByIntAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE ->
+                    new AllLastBytesRefByIntAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllLastBooleanByIntAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
             };

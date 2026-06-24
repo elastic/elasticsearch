@@ -177,97 +177,99 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testRandomBuilder() {
-        String[] indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> Strings.format("index_%2d", n)).toArray(String[]::new);
+        for (int round = 0; round < 100; round++) {
+            String[] indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> Strings.format("index_%2d", n)).toArray(String[]::new);
 
-        List<String> nonSearchableIndices = new ArrayList<>();
-        List<String> nonAggregatableIndices = new ArrayList<>();
-        List<String> nonInferenceIndices = new ArrayList<>();
-        List<String> nonDimensionIndices = new ArrayList<>();
+            List<String> nonSearchableIndices = new ArrayList<>();
+            List<String> nonAggregatableIndices = new ArrayList<>();
+            List<String> nonInferenceIndices = new ArrayList<>();
+            List<String> nonDimensionIndices = new ArrayList<>();
 
-        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        for (int i = 0; i < indices.length;) {
-            int bulkSize = randomIntBetween(1, indices.length - i);
-            String[] groupIndices = ArrayUtil.copyOfSubArray(indices, i, i + bulkSize);
+            FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
+            for (int i = 0; i < indices.length; ) {
+                int bulkSize = randomIntBetween(1, indices.length - i);
+                String[] groupIndices = ArrayUtil.copyOfSubArray(indices, i, i + bulkSize);
 
-            final boolean searchable = randomBoolean();
-            if (searchable == false) {
-                nonSearchableIndices.addAll(Arrays.asList(groupIndices));
+                final boolean searchable = randomBoolean();
+                if (searchable == false) {
+                    nonSearchableIndices.addAll(Arrays.asList(groupIndices));
+                }
+
+                final boolean aggregatable = randomBoolean();
+                if (aggregatable == false) {
+                    nonAggregatableIndices.addAll(Arrays.asList(groupIndices));
+                }
+
+                final boolean isInference = randomBoolean();
+                if (isInference == false) {
+                    nonInferenceIndices.addAll(Arrays.asList(groupIndices));
+                }
+
+                final boolean isDimension = randomBoolean();
+                if (isDimension == false) {
+                    nonDimensionIndices.addAll(Arrays.asList(groupIndices));
+                }
+
+                builder.add(groupIndices, false, searchable, aggregatable, isInference, isDimension, null, Map.of());
+                i += bulkSize;
             }
 
-            final boolean aggregatable = randomBoolean();
-            if (aggregatable == false) {
-                nonAggregatableIndices.addAll(Arrays.asList(groupIndices));
+            boolean withIndices = randomBoolean();
+            FieldCapabilities fieldCaps = builder.build(withIndices);
+            if (withIndices) {
+                assertThat(fieldCaps.indices(), equalTo(indices));
             }
 
-            final boolean isInference = randomBoolean();
-            if (isInference == false) {
-                nonInferenceIndices.addAll(Arrays.asList(groupIndices));
-            }
-
-            final boolean isDimension = randomBoolean();
-            if (isDimension == false) {
-                nonDimensionIndices.addAll(Arrays.asList(groupIndices));
-            }
-
-            builder.add(groupIndices, false, searchable, aggregatable, isInference, isDimension, null, Map.of());
-            i += bulkSize;
-        }
-
-        boolean withIndices = randomBoolean();
-        FieldCapabilities fieldCaps = builder.build(withIndices);
-        if (withIndices) {
-            assertThat(fieldCaps.indices(), equalTo(indices));
-        }
-
-        // search
-        if (nonSearchableIndices.isEmpty()) {
-            assertTrue(fieldCaps.isSearchable());
-            assertNull(fieldCaps.nonSearchableIndices());
-        } else {
-            assertFalse(fieldCaps.isSearchable());
-            if (nonSearchableIndices.size() == indices.length) {
-                assertThat(fieldCaps.nonSearchableIndices(), equalTo(null));
+            // search
+            if (nonSearchableIndices.isEmpty()) {
+                assertTrue(fieldCaps.isSearchable());
+                assertNull(fieldCaps.nonSearchableIndices());
             } else {
-                assertThat(fieldCaps.nonSearchableIndices(), equalTo(nonSearchableIndices.toArray(String[]::new)));
+                assertFalse(fieldCaps.isSearchable());
+                if (nonSearchableIndices.size() == indices.length) {
+                    assertThat(fieldCaps.nonSearchableIndices(), equalTo(null));
+                } else {
+                    assertThat(fieldCaps.nonSearchableIndices(), equalTo(nonSearchableIndices.toArray(String[]::new)));
+                }
             }
-        }
 
-        // aggregate
-        if (nonAggregatableIndices.isEmpty()) {
-            assertTrue(fieldCaps.isAggregatable());
-            assertNull(fieldCaps.nonAggregatableIndices());
-        } else {
-            assertFalse(fieldCaps.isAggregatable());
-            if (nonAggregatableIndices.size() == indices.length) {
-                assertThat(fieldCaps.nonAggregatableIndices(), equalTo(null));
+            // aggregate
+            if (nonAggregatableIndices.isEmpty()) {
+                assertTrue(fieldCaps.isAggregatable());
+                assertNull(fieldCaps.nonAggregatableIndices());
             } else {
-                assertThat(fieldCaps.nonAggregatableIndices(), equalTo(nonAggregatableIndices.toArray(String[]::new)));
+                assertFalse(fieldCaps.isAggregatable());
+                if (nonAggregatableIndices.size() == indices.length) {
+                    assertThat(fieldCaps.nonAggregatableIndices(), equalTo(null));
+                } else {
+                    assertThat(fieldCaps.nonAggregatableIndices(), equalTo(nonAggregatableIndices.toArray(String[]::new)));
+                }
             }
-        }
 
-        // inference
-        if (nonInferenceIndices.isEmpty()) {
-            assertTrue(fieldCaps.isInference());
-            assertNull(fieldCaps.nonInferenceIndices());
-        } else {
-            assertFalse(fieldCaps.isInference());
-            if (nonInferenceIndices.size() == indices.length) {
-                assertThat(fieldCaps.nonInferenceIndices(), equalTo(null));
+            // inference
+            if (nonInferenceIndices.isEmpty()) {
+                assertTrue(fieldCaps.isInference());
+                assertNull(fieldCaps.nonInferenceIndices());
             } else {
-                assertThat(fieldCaps.nonInferenceIndices(), equalTo(nonInferenceIndices.toArray(String[]::new)));
+                assertFalse(fieldCaps.isInference());
+                if (nonInferenceIndices.size() == indices.length) {
+                    assertThat(fieldCaps.nonInferenceIndices(), equalTo(null));
+                } else {
+                    assertThat(fieldCaps.nonInferenceIndices(), equalTo(nonInferenceIndices.toArray(String[]::new)));
+                }
             }
-        }
 
-        // dimension
-        if (nonDimensionIndices.isEmpty()) {
-            assertTrue(fieldCaps.isDimension());
-            assertNull(fieldCaps.nonDimensionIndices());
-        } else {
-            assertFalse(fieldCaps.isDimension());
-            if (nonDimensionIndices.size() == indices.length) {
-                assertThat(fieldCaps.nonDimensionIndices(), equalTo(null));
+            // dimension
+            if (nonDimensionIndices.isEmpty()) {
+                assertTrue(fieldCaps.isDimension());
+                assertNull(fieldCaps.nonDimensionIndices());
             } else {
-                assertThat(fieldCaps.nonDimensionIndices(), equalTo(nonDimensionIndices.toArray(String[]::new)));
+                assertFalse(fieldCaps.isDimension());
+                if (nonDimensionIndices.size() == indices.length) {
+                    assertThat(fieldCaps.nonDimensionIndices(), equalTo(null));
+                } else {
+                    assertThat(fieldCaps.nonDimensionIndices(), equalTo(nonDimensionIndices.toArray(String[]::new)));
+                }
             }
         }
     }

@@ -722,3 +722,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testDownsamplingTriggersOnlyUpToMaxIndices
   issue: https://github.com/elastic/elasticsearch/issues/152061
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
+  method: testDownsamplingOnlyExecutesTheLastMatchingRound
+  issue: https://github.com/elastic/elasticsearch/issues/152062

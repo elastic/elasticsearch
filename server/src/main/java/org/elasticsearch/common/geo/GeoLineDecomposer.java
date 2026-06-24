@@ -6,7 +6,6 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.geometry.Line;
@@ -60,8 +59,20 @@ class GeoLineDecomposer {
         double[] lats = new double[lons.length];
 
         for (int i = 0; i < lons.length; i++) {
-            double[] lonLat = new double[] { line.getX(i), line.getY(i) };
-            normalizePoint(lonLat, false, true);
+            double x = line.getX(i);
+            double y = line.getY(i);
+            // Reject non-finite values and longitudes beyond a conservative safety threshold.
+            // Cross-dateline encodings use continuous longitude sequences (e.g. lon=200 for
+            // -160° wrapped), so values moderately above ±180 are legitimate. However, values
+            // of magnitude ~1e19 drive the anti-meridian loop to ~1e17 iterations, exhausting
+            // the heap. 1e6° is a conservative upper bound that keeps the worst-case iteration
+            // count under ~3000 while rejecting any plausible data-corruption value.
+            if (Double.isFinite(x) == false || Double.isFinite(y) == false || Math.abs(x) > 1e6) {
+                throw new IllegalArgumentException(
+                    "invalid LineString coordinate at index " + i + ": [" + x + ", " + y + "]");
+            }
+            double[] lonLat = new double[] {x, y};
+            normalizePoint(lonLat,false, true);
             lons[i] = lonLat[0];
             lats[i] = lonLat[1];
         }
@@ -138,7 +149,7 @@ class GeoLineDecomposer {
     private static double calculateShift(double lon, boolean include180) {
         double normalized = GeoUtils.centeredModulus(lon, 360);
         double shift = Math.round(normalized - lon);
-        if (include180 == false && normalized == 180.0) {
+        if (!include180 && normalized == 180.0) {
             shift = shift - 360;
         }
         return shift;

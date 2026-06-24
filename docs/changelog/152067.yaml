@@ -1,0 +1,6 @@
+pr: 152067
+summary: Reject extreme or non-finite coordinates in GeoLineDecomposer to prevent OOM
+area: Geo
+type: bug
+issues:
+ - 152066

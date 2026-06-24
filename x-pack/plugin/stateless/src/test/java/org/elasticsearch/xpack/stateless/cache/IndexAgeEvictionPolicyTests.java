@@ -219,6 +219,6 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
     }
 
     private static boolean canEvict(IndexAgeEvictionPolicy policy, CacheRegion<FileCacheKey> region, CacheRegion<FileCacheKey> incoming) {
-        return policy.createEvictionPredicate(incoming).test(region);
+        return policy.createPredicate(incoming).test(region);
     }
 }

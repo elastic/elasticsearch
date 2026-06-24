@@ -44,7 +44,7 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * @param incoming the new cache region that needs a slot; eviction of a cached region would free
      *                 space for this entry
      */
-    Predicate<CacheRegion<KeyType>> createEvictionPredicate(CacheRegion<KeyType> incoming);
+    Predicate<CacheRegion<KeyType>> createPredicate(CacheRegion<KeyType> incoming);
 
     /**
      * Called when a region is assigned a cache slot (after successful allocation or eviction+take).

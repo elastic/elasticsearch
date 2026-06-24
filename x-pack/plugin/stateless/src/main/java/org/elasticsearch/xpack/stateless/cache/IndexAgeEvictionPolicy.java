@@ -49,7 +49,7 @@ public class IndexAgeEvictionPolicy implements EvictionPolicy<FileCacheKey> {
     }
 
     @Override
-    public Predicate<CacheRegion<FileCacheKey>> createEvictionPredicate(CacheRegion<FileCacheKey> incoming) {
+    public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
         final long incomingDate = indexCreationDateMillis(incoming.key().shardId());
         return region -> indexCreationDateMillis(region.key().shardId()) <= incomingDate;
         // When the cache is full of regions from newer indices, older indices might not be able to get a cache region.

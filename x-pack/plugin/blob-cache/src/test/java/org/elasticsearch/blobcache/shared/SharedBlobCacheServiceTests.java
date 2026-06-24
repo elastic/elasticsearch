@@ -1708,7 +1708,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final RecordingMeterRegistry recordingNone = new RecordingMeterRegistry();
         final EvictionPolicy<TestCacheKey> neverEvict = new EvictionPolicy<>() {
             @Override
-            public Predicate<CacheRegion<TestCacheKey>> createEvictionPredicate(CacheRegion<TestCacheKey> incoming) {
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
                 return Predicates.never();
             }
 
@@ -1794,7 +1794,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final AtomicBoolean forcedOnce = new AtomicBoolean(false);
 
             @Override
-            public Predicate<CacheRegion<TestCacheKey>> createEvictionPredicate(CacheRegion<TestCacheKey> incoming) {
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
                 if (forcedOnce.compareAndSet(false, true)) {
                     serviceRef.get().forceEvict(victimKey::equals);
                 }
@@ -1895,7 +1895,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final Set<TestCacheKey> protectedKeys = new HashSet<>();
         final EvictionPolicy<TestCacheKey> protectFirstSkip = new EvictionPolicy<>() {
             @Override
-            public Predicate<CacheRegion<TestCacheKey>> createEvictionPredicate(CacheRegion<TestCacheKey> incoming) {
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
                 return region -> protectedKeys.contains(region.key()) == false;
             }
 
@@ -2009,7 +2009,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final Set<TestCacheKey> protectedKeys = new HashSet<>();
         final EvictionPolicy<TestCacheKey> protectByKey = new EvictionPolicy<>() {
             @Override
-            public Predicate<CacheRegion<TestCacheKey>> createEvictionPredicate(CacheRegion<TestCacheKey> incoming) {
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
                 return region -> protectedKeys.contains(region.key()) == false;
             }
 

@@ -308,7 +308,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         CacheRegion<FileCacheKey> region,
         CacheRegion<FileCacheKey> incoming
     ) {
-        return policy.createEvictionPredicate(incoming).test(region);
+        return policy.createPredicate(incoming).test(region);
     }
 
     private static IndexMetadata indexMetadata(String indexName, String indexUuid) {

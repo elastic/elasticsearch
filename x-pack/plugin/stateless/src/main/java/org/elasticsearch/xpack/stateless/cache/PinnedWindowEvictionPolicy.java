@@ -92,7 +92,7 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     }
 
     @Override
-    public Predicate<CacheRegion<FileCacheKey>> createEvictionPredicate(CacheRegion<FileCacheKey> incoming) {
+    public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
         return region -> {
             if (isShardLocallyAllocated(region.key().shardId()) == false) {
                 return true;

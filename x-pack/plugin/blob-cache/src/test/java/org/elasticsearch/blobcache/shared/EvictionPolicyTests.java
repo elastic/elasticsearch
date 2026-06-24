@@ -136,7 +136,7 @@ public class EvictionPolicyTests extends ESTestCase {
             }
 
             @Override
-            public Predicate<CacheRegion<TimestampKey>> createEvictionPredicate(CacheRegion<TimestampKey> incoming) {
+            public Predicate<CacheRegion<TimestampKey>> createPredicate(CacheRegion<TimestampKey> incoming) {
                 final boolean incomingIsRecent = isRecent(incoming.key());
                 return region -> {
                     boolean regionIsRecent = isRecent(region.key());
@@ -268,7 +268,7 @@ public class EvictionPolicyTests extends ESTestCase {
         // "newer wins": evict the existing region only if it is not newer than the incoming data.
         final var policy = new EvictionPolicy<TestKey>() {
             @Override
-            public Predicate<CacheRegion<TestKey>> createEvictionPredicate(CacheRegion<TestKey> incoming) {
+            public Predicate<CacheRegion<TestKey>> createPredicate(CacheRegion<TestKey> incoming) {
                 if (incoming.timestampMillis() == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
                     fail("incoming region must have a known timestamp in this test case");
                 }

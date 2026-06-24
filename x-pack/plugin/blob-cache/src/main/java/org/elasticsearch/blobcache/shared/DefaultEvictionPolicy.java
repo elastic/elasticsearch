@@ -17,7 +17,7 @@ import java.util.function.Predicate;
 public class DefaultEvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> implements EvictionPolicy<KeyType> {
 
     @Override
-    public Predicate<CacheRegion<KeyType>> createEvictionPredicate(CacheRegion<KeyType> incoming) {
+    public Predicate<CacheRegion<KeyType>> createPredicate(CacheRegion<KeyType> incoming) {
         return Predicates.always();
     }
 

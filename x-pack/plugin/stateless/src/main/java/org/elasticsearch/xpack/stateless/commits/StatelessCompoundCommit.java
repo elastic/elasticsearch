@@ -685,6 +685,10 @@ public record StatelessCompoundCommit(
             this(in.readLong(), in.readLong());
         }
 
+        public long midpointMillis() {
+            return minMillis + (maxMillis - minMillis) / 2;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(minMillis);

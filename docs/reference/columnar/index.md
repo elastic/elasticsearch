@@ -123,8 +123,6 @@ PUT my-logs-index
 
 ## Dynamic mappings [dynamic-mappings]
 
-In columnar mode, each unmapped fields gets automatically mapped as
-
 With the columnar modes, fields that are unmapped will continue to be mapped via dynamic mappings:
 * Whole numbers are mapped as a long field type.
 * Decimal numbers are mapped as a double type.
@@ -150,8 +148,3 @@ The following features are not supported in columnar index modes:
 - **Disabling `_source`**: Setting `"_source": {"enabled": false}` is not allowed.
 - **Stored source mode**: The traditional `stored` source mode is not supported; only `synthetic` and `columnar_stored` are available.
 - **Default query fields**: The `index.query.default_field` index setting in columnar mode will by default only include fields that are indexed (by default text based fields are indexed).
-
-## Settings reference [columnar-settings-reference]
-
-$$$columnar-use-columnar-id-by-default$$$ `index.mapping.use_columnar_id_mode_by_default`
-:   (Static, boolean) Controls whether the columnar `_id` storage mode is used by default. Defaults to `true` for columnar index modes. When `true`, `_id` is stored as sorted doc values with an inverted index and no stored field is written. Can be overridden per-index via the `mode` attribute on the `_id` field mapper.

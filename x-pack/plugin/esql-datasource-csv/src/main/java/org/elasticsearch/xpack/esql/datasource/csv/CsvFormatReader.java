@@ -2162,6 +2162,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * fragments per ordinal by interval-cover, and misaligned sibling tilings collapse to one answer.
          */
         private void emitPerStripe() {
+            // chunkAbsEnd is in the same (decompressed) coordinate as the per-record offsets: compression is
+            // a delegating layer (DecompressingStorageObject), so byteCounter counts decompressed bytes.
             long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : -1L;
             if (chunkBytes <= 0) {
                 return; // unknown / empty byte range — safe miss

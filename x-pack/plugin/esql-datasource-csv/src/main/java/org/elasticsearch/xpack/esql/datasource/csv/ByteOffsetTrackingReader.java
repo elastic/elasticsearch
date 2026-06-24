@@ -43,8 +43,6 @@ final class ByteOffsetTrackingReader extends Reader {
 
     /** Total characters produced (handed to the consumer) so far. */
     private long charsProduced;
-    /** Byte offset (relative to {@link #baseByteOffset}) one past the last character produced. */
-    private long bytesProduced;
 
     /** Character offset the cursor has advanced to; {@link #cursorByteOffset} is the byte offset there. */
     private long cursorCharOffset;
@@ -103,7 +101,6 @@ final class ByteOffsetTrackingReader extends Reader {
         }
         widths[pending++] = (byte) width;
         charsProduced++;
-        bytesProduced += width;
     }
 
     /**

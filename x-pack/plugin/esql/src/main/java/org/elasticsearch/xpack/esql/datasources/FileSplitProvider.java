@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.Split
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -105,7 +106,7 @@ public class FileSplitProvider implements SplitProvider {
 
     static final String RANGE_SPLIT_KEY = "_range_split";
     static final String FILE_LENGTH_KEY = "_file_length";
-    static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
+    public static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
 
     /**
      * Configuration keys this splitter consumes from a query-time configuration map. Aggregated by
@@ -122,6 +123,15 @@ public class FileSplitProvider implements SplitProvider {
      * so single-threaded fallback paths do not skip or trim aligned ranges.
      */
     static final String RECORD_ALIGNED_MACRO_SPLIT_KEY = "_record_aligned_macro_split";
+    /**
+     * Marks splits whose {@code offset()} is a COMPRESSED byte position (bzip2 block-aligned /
+     * zstd-indexed frame groups). Text readers anchor {@code _rowPosition} as
+     * {@code splitStartByte + decompressed-bytes-consumed}; a compressed anchor plus a
+     * decompressed delta is a value on no axis — not split-invariant and collision-prone across
+     * splits — so the dispatcher must not compose {@code _id} from these splits (it null-splices
+     * the {@code _rowPosition} slot instead).
+     */
+    static final String COMPRESSED_OFFSET_SPLIT_KEY = "_compressed_offset_split";
 
     /** Maximum parallel per-file I/O tasks during split discovery (Parquet footer reads, etc.). */
     static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
@@ -178,10 +188,10 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     @Override
-    public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
+    public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
         FileList fileList = context.fileList();
         if (fileList == null || fileList.isResolved() == false) {
-            return List.of();
+            return SplitDiscoveryResult.EMPTY;
         }
 
         PartitionMetadata partitionInfo = context.partitionInfo();
@@ -293,7 +303,7 @@ public class FileSplitProvider implements SplitProvider {
         }
 
         if (tasks.isEmpty()) {
-            return List.of();
+            return SplitDiscoveryResult.EMPTY;
         }
 
         // Phase 2: I/O-bound split discovery — parallelize when executor is available.
@@ -326,7 +336,9 @@ public class FileSplitProvider implements SplitProvider {
         for (List<ExternalSplit> fileSplits : perFileSplits) {
             splits.addAll(fileSplits);
         }
-        return List.copyOf(splits);
+        // Each surviving task produces at least one split, so the task count is the number of
+        // distinct files that are actually scanned after coordinator-side pruning.
+        return new SplitDiscoveryResult(splits, tasks.size());
     }
 
     /**
@@ -532,6 +544,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
 
                 Map<String, Object> splitConfig = new HashMap<>(config);
+                splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
                 if (m == 0) {
                     splitConfig.put(FIRST_SPLIT_KEY, "true");
                 }
@@ -795,6 +808,7 @@ public class FileSplitProvider implements SplitProvider {
                 if (accumulated >= DEFAULT_MACRO_SPLIT_TARGET || isLast) {
                     long groupEnd = frame.compressedOffset() + frame.compressedSize();
                     Map<String, Object> splitConfig = new HashMap<>(config);
+                    splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
                     if (splitCount == 0) {
                         splitConfig.put(FIRST_SPLIT_KEY, "true");
                     }
@@ -894,7 +908,20 @@ public class FileSplitProvider implements SplitProvider {
         if (s.isEmpty()) {
             return targetSplitSizeBytes;
         }
-        long result = ByteSizeValue.parseBytesSizeValue(s, CONFIG_TARGET_SPLIT_SIZE).getBytes();
+        return validateTargetSplitSize(s);
+    }
+
+    /**
+     * Parses and validates an already-trimmed {@code target_split_size} value, returning the size in
+     * bytes. Shared by the query path ({@link #resolveTargetSplitSize}) and the dataset CRUD validator
+     * so both accept exactly the same inputs. The caller owns trimming and the null/empty fallback to a
+     * default; this method always parses.
+     *
+     * @throws org.elasticsearch.ElasticsearchParseException if the unit suffix is missing or malformed
+     * @throws IllegalArgumentException                      if the resulting size is not positive
+     */
+    public static long validateTargetSplitSize(String value) {
+        long result = ByteSizeValue.parseBytesSizeValue(value, CONFIG_TARGET_SPLIT_SIZE).getBytes();
         Check.isTrue(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_TARGET_SPLIT_SIZE, value);
         return result;
     }

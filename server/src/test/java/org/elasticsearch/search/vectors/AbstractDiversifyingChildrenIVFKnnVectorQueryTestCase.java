@@ -68,7 +68,12 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends LuceneTestCase {
 
     protected TestIvfQueryConfigResolver testResolver() {
-        return new TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f);
+        return new TestIvfQueryConfigResolver(
+            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+            false,
+            1.0f
+        );
     }
 
     static String encodeInts(int[] i) {

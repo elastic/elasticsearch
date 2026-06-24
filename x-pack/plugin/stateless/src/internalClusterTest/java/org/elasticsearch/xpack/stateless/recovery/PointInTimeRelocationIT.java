@@ -549,7 +549,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 logger.info("Executing search t1 #" + i);
                 assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1.get())), resp -> {
                     final TotalHits totalHits = resp.getHits().getTotalHits();
-                    assertEquals("Wrong hits for search " + i, totalHits.value(), numDocs_pit1);
+                    assertEquals("Wrong hits for search " + i, numDocs_pit1, totalHits.value());
                     pitId1.set(resp.pointInTimeId());
                 });
             }
@@ -562,7 +562,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 logger.info("Executing search t2 #" + i);
                 assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1.get())), resp -> {
                     final TotalHits totalHits = resp.getHits().getTotalHits();
-                    assertEquals("Wrong hits for search " + i, totalHits.value(), numDocs_pit1);
+                    assertEquals("Wrong hits for search " + i, numDocs_pit1, totalHits.value());
                     pitId1.set(resp.pointInTimeId());
                 });
             }

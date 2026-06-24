@@ -74,8 +74,6 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         "primary_encryption_key_cleartext_transport"
     );
 
-    static final TransportVersion PRIMARY_ENCRYPTION_KEY_DEGRADED = TransportVersion.fromName("primary_encryption_key_degraded");
-
     private static final ParseField KEYS_FIELD = new ParseField("keys");
     private static final ParseField ACTIVE_KEY_ID_FIELD = new ParseField("active_key_id");
     private static final ParseField PASSWORD_ID_FIELD = new ParseField("password_id");
@@ -192,7 +190,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     ProjectEncryptionKeyMetadata(StreamInput in, PekEncryption pekEncryption) throws IOException {
         this.pekEncryption = pekEncryption;
-        if (in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_DEGRADED) && in.readBoolean()) {
+        if (in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT) && in.readBoolean()) {
             this.unwrapFailureReason = in.readString();
             this.activeKeyId = in.readString();
             this.passwordId = in.readString();
@@ -314,12 +312,12 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return unwrapFailureReason != null ? PRIMARY_ENCRYPTION_KEY_DEGRADED : PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT;
+        return unwrapFailureReason != null ? PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT : PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_DEGRADED)) {
+        if (out.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT)) {
             out.writeBoolean(unwrapFailureReason != null);
             if (unwrapFailureReason != null) {
                 out.writeString(unwrapFailureReason);

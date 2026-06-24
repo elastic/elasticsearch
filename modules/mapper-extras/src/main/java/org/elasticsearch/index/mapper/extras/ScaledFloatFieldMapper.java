@@ -224,10 +224,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     && indexSettings.useDocValuesSkipper()) {
                     return IndexType.skippers();
                 }
-                if (indexSettings.getMode() == IndexMode.COLUMNAR
-                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.COLUMNAR_NUMERICS_USE_SKIPPERS)) {
-                    return IndexType.skippers();
-                }
             }
             return IndexType.points(false, docValuesParameters.getValue().enabled());
         }

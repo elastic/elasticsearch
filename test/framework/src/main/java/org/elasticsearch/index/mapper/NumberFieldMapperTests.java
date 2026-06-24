@@ -604,17 +604,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
 
         {
-            // The index.mapping.use_doc_values_skipper has no effect here
-            Settings settings = Settings.builder()
-                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
-                .build();
-
-            MapperService mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
-            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
-        }
-
-        {
             // Skippers are only used for indexes created after the relevant version
             IndexVersion preColumnarSkippers = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_NUMERICS_USE_SKIPPERS);
             Settings settings = Settings.builder()

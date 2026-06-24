@@ -260,10 +260,6 @@ public class NumberFieldMapper extends FieldMapper {
                     && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
                     return IndexType.skippers();
                 }
-                if (indexSettings.getMode() == IndexMode.COLUMNAR
-                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.COLUMNAR_NUMERICS_USE_SKIPPERS)) {
-                    return IndexType.skippers();
-                }
             }
             return IndexType.points(indexed.get(), docValuesParameters.get().enabled());
         }

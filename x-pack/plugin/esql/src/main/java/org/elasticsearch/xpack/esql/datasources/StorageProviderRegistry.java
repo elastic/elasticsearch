@@ -60,7 +60,7 @@ public class StorageProviderRegistry implements Closeable {
     private final List<StorageProvider> createdProviders = new ArrayList<>();
 
     private final Map<String, ConcurrencyLimiter> limiters = new ConcurrentHashMap<>();
-    private final Map<String, AdaptiveBackoff> backoffs = new ConcurrentHashMap<>();
+    private final Map<String, RetryPolicy> scopedPolicies = new ConcurrentHashMap<>();
 
     // Cache for providers created with a non-empty per-query configuration map.
     // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
@@ -247,7 +247,7 @@ public class StorageProviderRegistry implements Closeable {
         StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
         // The adaptive backoff is selected per throttle scope (per-bucket/account) at read time, not baked in here:
         // a hot bucket backs off only its own traffic, not every read on the same store. See #896.
-        return new RetryableStorageProvider(limited, buildRetryPolicy(), retryScheduler, this::backoffForScope);
+        return new RetryableStorageProvider(limited, retryScheduler, this::retryPolicyForScope);
     }
 
     private ConcurrencyLimiter limiterForScheme(String scheme) {
@@ -260,25 +260,26 @@ public class StorageProviderRegistry implements Closeable {
         });
     }
 
-    private AdaptiveBackoff backoffForScope(StoragePath path) {
-        // One AdaptiveBackoff per distinct throttle scope (bucket/account), created on first use. The map is
-        // bounded by the number of distinct buckets the node ever reads; each entry is a few dozen bytes, so the
-        // growth is negligible in practice and left unpruned.
-        return backoffs.computeIfAbsent(throttleScope(path), k -> new AdaptiveBackoff());
+    private RetryPolicy retryPolicyForScope(StoragePath path) {
+        // One RetryPolicy per distinct throttle scope (bucket/account), computed once and reused across every read
+        // in that scope. Each carries its own AdaptiveBackoff, so a hot scope backs off only its own traffic. The
+        // map is bounded by the number of distinct buckets the node ever reads; each entry is small and left
+        // unpruned.
+        return scopedPolicies.computeIfAbsent(throttleScope(path), k -> buildRetryPolicy().withAdaptiveBackoff(new AdaptiveBackoff()));
     }
 
     /**
      * The throttle-scope key for adaptive backoff: the store's own hot unit, derived generically from the path as
-     * {@code scheme://[userInfo@]host[:port]} — per-bucket for S3/GCS, per-container@account for Azure. A hot scope
-     * backs off only its own traffic. The host is lowercased (DNS is case-insensitive) so the same bucket maps to
-     * one scope; the port is included so two custom endpoints on the same host but different ports stay isolated.
-     * Finer per-prefix granularity for S3 is the deferred per-store SPI refinement. See elastic/esql-planning#896.
+     * {@code scheme://host[:port]} — per-bucket for S3/GCS, per-account for Azure (the host carries the bucket or
+     * the {@code account.blob.core.windows.net}; Azure throttles per account, not per container). A hot scope backs
+     * off only its own traffic. The host is lowercased (DNS is case-insensitive) so the same bucket maps to one
+     * scope; the port is included so two custom endpoints on the same host but different ports stay isolated.
+     * {@code userInfo} is deliberately excluded: it can carry credentials (which must never be retained in this
+     * long-lived map) and is not a throttle axis. Finer per-prefix granularity for S3 is the deferred per-store SPI
+     * refinement. See elastic/esql-planning#896.
      */
     static String throttleScope(StoragePath path) {
         StringBuilder sb = new StringBuilder(path.scheme()).append("://");
-        if (path.userInfo() != null) {
-            sb.append(path.userInfo()).append('@');
-        }
         if (path.host() != null) {
             sb.append(path.host().toLowerCase(Locale.ROOT));
         }

@@ -21,50 +21,52 @@ import java.util.function.Function;
  * is automatically wrapped with retry logic for transient storage failures.
  * <p>
  * The reactive {@link AdaptiveBackoff} is selected per <em>throttle scope</em> (the store's own hot unit —
- * per-bucket for S3/GCS, per-account/container for Azure), not per scheme: a hot bucket backs off only its own
- * traffic instead of slowing every read on the same store. The scope's backoff is bound onto the base policy when
- * an object is created (the path — hence the scope — is known there). When no scope lookup is supplied (tests),
- * the base policy is used unchanged. See elastic/esql-planning#896.
+ * per-bucket for S3/GCS, per-account for Azure), not per scheme: a hot bucket backs off only its own traffic
+ * instead of slowing every read on the same store. The scope's {@link RetryPolicy} (which carries that scope's
+ * backoff) is looked up — cached, computed once per scope — when an object is created, since the path, hence the
+ * scope, is known there. The two- and three-arg constructors bind a single fixed policy for every path (used by
+ * tests and any caller that does not need per-scope backoff). See elastic/esql-planning#896.
  */
 class RetryableStorageProvider implements StorageProvider {
 
     private final StorageProvider delegate;
-    private final RetryPolicy basePolicy;
     private final RetryScheduler retryScheduler;
-    private final Function<StoragePath, AdaptiveBackoff> backoffForScope;
+    private final Function<StoragePath, RetryPolicy> policyForScope;
 
     RetryableStorageProvider(StorageProvider delegate, RetryPolicy retryPolicy) {
-        this(delegate, retryPolicy, RetryScheduler.DIRECT, null);
+        this(delegate, RetryScheduler.DIRECT, fixed(retryPolicy));
     }
 
     RetryableStorageProvider(StorageProvider delegate, RetryPolicy retryPolicy, RetryScheduler retryScheduler) {
-        this(delegate, retryPolicy, retryScheduler, null);
+        this(delegate, retryScheduler, fixed(retryPolicy));
     }
 
-    RetryableStorageProvider(
-        StorageProvider delegate,
-        RetryPolicy retryPolicy,
-        RetryScheduler retryScheduler,
-        Function<StoragePath, AdaptiveBackoff> backoffForScope
-    ) {
+    RetryableStorageProvider(StorageProvider delegate, RetryScheduler retryScheduler, Function<StoragePath, RetryPolicy> policyForScope) {
         if (delegate == null) {
             throw new IllegalArgumentException("delegate cannot be null");
-        }
-        if (retryPolicy == null) {
-            throw new IllegalArgumentException("retryPolicy cannot be null");
         }
         if (retryScheduler == null) {
             throw new IllegalArgumentException("retryScheduler cannot be null");
         }
+        if (policyForScope == null) {
+            throw new IllegalArgumentException("policyForScope cannot be null");
+        }
         this.delegate = delegate;
-        this.basePolicy = retryPolicy;
         this.retryScheduler = retryScheduler;
-        this.backoffForScope = backoffForScope;
+        this.policyForScope = policyForScope;
     }
 
-    /** The base retry policy with the per-scope adaptive backoff bound on (or unchanged when no lookup is set). */
+    /** A scope lookup that returns the same fixed policy for every path (no per-scope backoff). */
+    private static Function<StoragePath, RetryPolicy> fixed(RetryPolicy policy) {
+        if (policy == null) {
+            throw new IllegalArgumentException("retryPolicy cannot be null");
+        }
+        return path -> policy;
+    }
+
+    /** The retry policy for this path's throttle scope (cached per scope; the scope carries its adaptive backoff). */
     private RetryPolicy policyFor(StoragePath path) {
-        return backoffForScope == null ? basePolicy : basePolicy.withAdaptiveBackoff(backoffForScope.apply(path));
+        return policyForScope.apply(path);
     }
 
     @Override

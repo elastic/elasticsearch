@@ -170,14 +170,8 @@ public class MergingDigestTests extends TDigestTests {
     }
 
     /**
-     * Reproduces a bug where the MergingDigest merge loop uses an unclamped incremental
-     * weighted average formula that can produce non-monotonic centroids due to floating-point
-     * rounding. This manifests during histogram downsampling when merging centroids from
-     * multiple T-Digests with overlapping data distributions.
-     *
-     * The clamped {@code AbstractTDigest.weightedAverageSorted()} explicitly documents that
-     * floating-point arithmetic does NOT guarantee the result stays in [x1, x2], but the
-     * MergingDigest merge loop does not use that clamped helper.
+     * Reproduces a bug where the MergingDigest algorithm could yield non-monotonic centroids
+     * due to floating point errors.
      */
     public void testCentroidsRemainSortedAfterMergingNearbyValues() {
         Random rng = random();
@@ -224,8 +218,7 @@ public class MergingDigestTests extends TDigestTests {
 
     /**
      * Targeted test that forces the merge to process centroids with extreme weight ratios
-     * at nearly identical means, maximizing the chance of the unclamped incremental weighted
-     * average drifting past the input value boundary.
+     * at nearly identical means, maximizing the chance of floating point errors.
      */
     public void testCentroidOrderWithExtremeWeightRatios() {
         Random rng = random();

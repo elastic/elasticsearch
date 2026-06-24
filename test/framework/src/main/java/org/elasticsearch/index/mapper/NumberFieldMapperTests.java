@@ -415,6 +415,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
 
         @Override
+        public boolean enforcesSingleValue() {
+            return enforceSingleValue && indexMode().isStrictColumnar();
+        }
+
+        @Override
         public IndexMode indexMode() {
             return enforceSingleValue ? IndexMode.COLUMNAR : IndexMode.STANDARD;
         }

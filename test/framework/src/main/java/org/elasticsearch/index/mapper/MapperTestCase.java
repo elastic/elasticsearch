@@ -1362,7 +1362,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * with more than one value for the field is rejected at parse time and {@link #example} must only produce single-valued documents.
          */
         default boolean enforcesSingleValue() {
-            return indexMode().isStrictColumnar();
+            return false;
         }
 
         /**

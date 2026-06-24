@@ -452,8 +452,11 @@ public class TestAnalyzer {
     }
 
     /**
-     * Set external source resolution. Enriches the schema with {@code _file.*} metadata columns
-     * to mirror the production path in {@link ExternalSourceResolver}.
+     * Set external source resolution from a bare data-only schema, mirroring the production path in
+     * {@link ExternalSourceResolver}: the schema is used as-is, with no {@code _file.*} auto-attach.
+     * External metadata columns are request-driven now — they reach the relation only through the
+     * METADATA clause (FROM path) or the temporary EXTERNAL-command shim that injects {@code _file.*}
+     * into the relation's metadataFields at parse time.
      */
     public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
         var metadata = new ExternalSourceMetadata() {
@@ -472,8 +475,7 @@ public class TestAnalyzer {
                 return "parquet";
             }
         };
-        var enriched = ExternalSourceResolver.enrichSchemaWithFileMetadataColumns(metadata);
-        var resolvedSource = new ExternalSourceResolution.ResolvedSource(enriched, fileSet, java.util.Map.of());
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet, java.util.Map.of());
         return externalSourceResolution(new ExternalSourceResolution(Map.of(path, resolvedSource)));
     }
 

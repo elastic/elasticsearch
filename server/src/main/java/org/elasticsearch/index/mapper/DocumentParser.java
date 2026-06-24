@@ -381,7 +381,7 @@ public final class DocumentParser {
     }
 
     private static void innerParseObject(DocumentParserContext context, String flatPrefix) throws IOException {
-
+        assert flatPrefix == null || flatPrefix.length() > 1 && flatPrefix.endsWith(".");
         final XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;

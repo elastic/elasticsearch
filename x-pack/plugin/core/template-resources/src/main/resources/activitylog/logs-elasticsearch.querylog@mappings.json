@@ -150,12 +150,8 @@
                   "ignore_above": 32765
                 },
                 "params": {
-                  "type": "keyword",
-                  "index": false,
-                  "ignore_above": 32765
-                },
-                "named_params": {
                   "type": "flattened",
+                  "preserve_leaf_arrays": "exact",
                   "index": false,
                   "ignore_above": 32765
                 },

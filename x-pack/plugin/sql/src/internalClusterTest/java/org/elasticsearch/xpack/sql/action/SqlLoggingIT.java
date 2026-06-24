@@ -45,9 +45,11 @@ import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
+import static org.elasticsearch.test.ActivityLoggingUtils.getMessageField;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -121,6 +123,7 @@ public class SqlLoggingIT extends AbstractSqlBlockingIntegTestCase {
         assertThat(sqlMessage.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
     }
 
+    @SuppressWarnings("unchecked")
     public void testSqlLoggingParams() {
         prepareIndex();
         String query = "SELECT data, count FROM test WHERE host = ? AND count < ? ORDER BY count";
@@ -136,9 +139,13 @@ public class SqlLoggingIT extends AbstractSqlBlockingIntegTestCase {
         var sqlMessage = getMessageData(appender.events.get(1));
         assertMessageSuccess(sqlMessage, SqlLogContext.TYPE, query);
         assertThat(sqlMessage.get(QUERY_FIELD_RESULT_COUNT), equalTo("2"));
-        String params = sqlMessage.get(QUERY_FIELD_PARAMS);
-        assertThat(params, containsString("192.168.0.1"));
-        assertThat(params, containsString("100"));
+        var params = (Map<String, Object>) getMessageField(appender.events.get(1), QUERY_FIELD_PARAMS);
+        assertNotNull(params);
+        assertThat(params, hasKey(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL));
+        var posParams = (List<Object>) params.get(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL);
+        assertThat(posParams, hasSize(2));
+        assertThat(posParams.get(0), equalTo("192.168.0.1"));
+        assertThat(posParams.get(1), equalTo("100"));
     }
 
     public void testSqlFailureLogging() {

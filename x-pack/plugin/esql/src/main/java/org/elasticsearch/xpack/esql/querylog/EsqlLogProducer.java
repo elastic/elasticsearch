@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 
+import java.util.Map;
 import java.util.Optional;
 
 public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
@@ -41,10 +42,10 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
         if (namedParams.isEmpty()) {
             var params = context.params();
             if (params.isEmpty() == false) {
-                msg.field(QueryLogging.QUERY_FIELD_PARAMS, params);
+                msg.field(QueryLogging.QUERY_FIELD_PARAMS, Map.of(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL, params));
             }
         } else {
-            msg.field(QueryLogging.QUERY_FIELD_NAMED_PARAMS, namedParams);
+            msg.field(QueryLogging.QUERY_FIELD_PARAMS, namedParams);
         }
 
         // Query-level rollup counters from the response root, surfaced unconditionally so the slow

@@ -34,10 +34,10 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_FILTER;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
-import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_NAMED_PARAMS;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_PARAMS;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_QUERY;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
@@ -45,12 +45,15 @@ import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
+import static org.elasticsearch.test.ActivityLoggingUtils.getMessageField;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
@@ -106,37 +109,45 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         assertQuery(request, "FROM index-filter | LIMIT 100", numDocs, filter, "index-filter");
     }
 
+    @SuppressWarnings("unchecked")
     public void testLoggingPositionalParams() throws Exception {
         int numDocs = setupIndex("index-1", "192.168.0.1");
-        String query = "FROM index-1 | WHERE host == ? AND value < ? | LIMIT 100";
+        String query = "FROM index-1 | WHERE host == ? AND value < ? AND value != ? | LIMIT 100";
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
-        request.params(new QueryParams(List.of(paramAsConstant(null, "192.168.0.1"), paramAsConstant(null, 1000))));
+        request.params(
+            new QueryParams(List.of(paramAsConstant(null, "192.168.0.1"), paramAsConstant(null, 1000), paramAsConstant(null, 1000)))
+        );
         try (var resp = run(request)) {
-            var message = getMessageData(appender.getLastEventAndReset());
+            var event = appender.getLastEventAndReset();
+            var message = getMessageData(event);
             assertMessageSuccess(message, EsqlLogContext.TYPE, query);
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
-            String params = message.get(QUERY_FIELD_PARAMS);
-            assertThat(params, containsString("192.168.0.1"));
-            assertThat(params, containsString("1000"));
-            assertNull(message.get(QUERY_FIELD_NAMED_PARAMS));
+            var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
+            assertNotNull(params);
+            assertThat(params, hasKey(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL));
+            var posParams = (List<Object>) params.get(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL);
+            assertThat(posParams, hasSize(3));
+            assertThat(posParams.get(0), equalTo("192.168.0.1"));
+            assertThat(posParams.get(1), equalTo("1000"));
+            assertThat(posParams.get(2), equalTo("1000"));
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testLoggingNamedParams() {
         int numDocs = setupIndex("index-1", "192.168.0.1");
         String query = "FROM index-1 | WHERE host == ?host_name AND value < ?max_value | LIMIT 100";
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.params(new QueryParams(List.of(paramAsConstant("host_name", "192.168.0.1"), paramAsConstant("max_value", 1000))));
         try (var resp = run(request)) {
-            var message = getMessageData(appender.getLastEventAndReset());
+            var event = appender.getLastEventAndReset();
+            var message = getMessageData(event);
             assertMessageSuccess(message, EsqlLogContext.TYPE, query);
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(numDocs)));
-            String namedParams = message.get(QUERY_FIELD_NAMED_PARAMS);
-            assertThat(namedParams, containsString("host_name"));
-            assertThat(namedParams, containsString("192.168.0.1"));
-            assertThat(namedParams, containsString("max_value"));
-            assertThat(namedParams, containsString("1000"));
-            assertNull(message.get(QUERY_FIELD_PARAMS));
+            var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
+            assertNotNull(params);
+            assertThat(params.get("host_name"), equalTo("192.168.0.1"));
+            assertThat(params.get("max_value"), equalTo("1000"));
         }
     }
 

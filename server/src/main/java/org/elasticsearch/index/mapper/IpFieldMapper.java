@@ -132,7 +132,7 @@ public class IpFieldMapper extends FieldMapper {
             );
             this.script.precludesParameters(nullValue, ignoreMalformed);
 
-            this.docValuesParameters = DocValuesParameter.ofWithCardinality(
+            this.docValuesParameters = DocValuesParameter.of(
                 defaultDocValuesParameters(indexSettings),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()

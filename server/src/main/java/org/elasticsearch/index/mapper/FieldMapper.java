@@ -42,7 +42,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -1550,75 +1549,42 @@ public abstract class FieldMapper extends Mapper {
             public static Values DISABLED = new Values(false, Cardinality.LOW, true);
         }
 
-        public final Optional<Parameter<Values.Cardinality>> cardinalityParameter;
         public final Parameter<Boolean> multiValueParameter;
         private final boolean supportsMultiValue;
 
         /**
-         * Factory for field types that do not expose a user-configurable {@code cardinality} sub-parameter (numerics, dates, booleans, IP,
-         * etc.).
+         * Factory for field types whose default doc_values configuration is known eagerly at construction time (numerics, dates, booleans,
+         * IP, keyword family, etc.).
          */
         public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsMultiValue) {
-            return new DocValuesParameter(defaultValue, initializer, false, supportsMultiValue);
+            return new DocValuesParameter(defaultValue, initializer, supportsMultiValue);
         }
 
         /**
-         * Factory for field types that expose a user-configurable {@code cardinality} sub-parameter (keyword family and text family).
+         * Variant of {@link #of(Values, Function, boolean)} that computes the default value lazily so it can depend on sibling multi-fields,
+         * which are only known after this parameter is constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
          */
-        public static DocValuesParameter ofWithCardinality(
-            Values defaultValue,
-            Function<FieldMapper, Values> initializer,
-            boolean supportsMultiValue
-        ) {
-            return new DocValuesParameter(defaultValue, initializer, true, supportsMultiValue);
-        }
-
-        /**
-         * Variant of {@link #ofWithCardinality(Values, Function, boolean)} that computes the default value lazily so it can depend on sibling
-         * multi-fields, which are only known after this parameter is constructed. The {@code subParameterDefaults} provides the
-         * {@code cardinality} and {@code multi_value} sub-parameter defaults, which do not vary lazily.
-         */
-        public static DocValuesParameter ofWithCardinality(
+        public static DocValuesParameter of(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
             Function<FieldMapper, Values> initializer,
             boolean supportsMultiValue
         ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, true, supportsMultiValue);
+            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsMultiValue);
         }
 
-        private DocValuesParameter(
-            Values defaultValue,
-            Function<FieldMapper, Values> initializer,
-            boolean supportsCardinality,
-            boolean supportsMultiValue
-        ) {
-            this(() -> defaultValue, defaultValue, initializer, supportsCardinality, supportsMultiValue);
+        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsMultiValue) {
+            this(() -> defaultValue, defaultValue, initializer, supportsMultiValue);
         }
 
         private DocValuesParameter(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
             Function<FieldMapper, Values> initializer,
-            boolean supportsCardinality,
             boolean supportsMultiValue
         ) {
             super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
             this.supportsMultiValue = supportsMultiValue;
-
-            if (supportsCardinality) {
-                cardinalityParameter = Optional.of(
-                    Parameter.enumParam(
-                        "cardinality",
-                        false,
-                        m -> initializer.apply(m).cardinality,
-                        subParameterDefaults.cardinality,
-                        Values.Cardinality.class
-                    )
-                );
-            } else {
-                cardinalityParameter = Optional.empty();
-            }
 
             multiValueParameter = Parameter.boolParam(
                 "multi_value",
@@ -1635,19 +1601,16 @@ public abstract class FieldMapper extends Mapper {
          * <ul>
          *   <li>{@code "doc_values": false} - doc_values disabled</li>
          *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
-         *   <li>{@code "doc_values": { "cardinality": "low" }} - doc_values enabled with LOW cardinality</li>
-         *   <li>{@code "doc_values": { "cardinality": "high" }} - doc_values enabled with HIGH cardinality</li>
          *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default)</li>
          *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * additional cardinality and multi_value settings.
+         * the multi_value setting. Cardinality is decided internally and is not user-configurable.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
             if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                cardinalityParameter.ifPresent(p -> p.parse(field, context, valueMap.get(p.name)));
                 if (valueMap.containsKey(multiValueParameter.name)) {
                     if (supportsMultiValue == false) {
                         throw new MapperParsingException(
@@ -1660,13 +1623,7 @@ public abstract class FieldMapper extends Mapper {
                     multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
                 }
 
-                setValue(
-                    new Values(
-                        true,
-                        cardinalityParameter.map(Parameter::getValue).orElse(getDefaultValue().cardinality()),
-                        multiValueParameter.getValue()
-                    )
-                );
+                setValue(new Values(true, getDefaultValue().cardinality(), multiValueParameter.getValue()));
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
                     setValue(new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue()));
@@ -1679,7 +1636,6 @@ public abstract class FieldMapper extends Mapper {
         @Override
         public void setValue(Values value) {
             super.setValue(value);
-            cardinalityParameter.ifPresent(p -> p.setValue(value.cardinality));
             multiValueParameter.setValue(value.multiValue);
         }
 
@@ -1691,22 +1647,12 @@ public abstract class FieldMapper extends Mapper {
                 } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
                     builder.field(name, true);
                 } else {
-                    boolean cardinalityConfigured = cardinalityParameter.map(Parameter::isConfigured).orElse(false);
                     boolean multiValueConfigured = multiValueParameter.isConfigured();
-                    if (includeDefaults == false && cardinalityConfigured == false && multiValueConfigured == false) {
+                    if (includeDefaults == false && multiValueConfigured == false) {
                         // no sub-parameters were explicitly set; use the boolean shorthand to match the original source
                         builder.field(name, true);
                     } else {
                         builder.startObject(name);
-                        cardinalityParameter.ifPresent(p -> {
-                            if (includeDefaults || p.isConfigured()) {
-                                try {
-                                    builder.field(p.name, value.cardinality);
-                                } catch (IOException e) {
-                                    throw new UncheckedIOException(e);
-                                }
-                            }
-                        });
                         if (supportsMultiValue && (includeDefaults || multiValueConfigured)) {
                             builder.field(multiValueParameter.name, value.multiValue);
                         }
@@ -2066,9 +2012,8 @@ public abstract class FieldMapper extends Mapper {
         }
 
         /**
-         * Ensures that index sort fields don't use binary (non-sortable) doc values.
-         * If the default for a columnar index is HIGH cardinality, it is silently overridden to LOW.
-         * If the user explicitly configured HIGH cardinality, a {@link MapperParsingException} is thrown.
+         * Ensures that index sort fields don't use binary (non-sortable) doc values. If the default for a columnar index is HIGH
+         * cardinality, it is silently overridden to LOW since sort fields require sortable doc values.
          */
         protected static void enforceIndexSortDocValuesCompatibility(
             String fullFieldName,
@@ -2084,15 +2029,6 @@ public abstract class FieldMapper extends Mapper {
             DocValuesParameter.Values currentValues = docValuesParameters.getValue();
             if (currentValues.cardinality() != DocValuesParameter.Values.Cardinality.HIGH) {
                 return;
-            }
-            boolean cardinalityExplicitlySet = docValuesParameters.cardinalityParameter.map(Parameter::isSet).orElse(false);
-            if (cardinalityExplicitlySet) {
-                throw new MapperParsingException(
-                    "field ["
-                        + fullFieldName
-                        + "] cannot use [cardinality: high] because it is configured as an index sort field,"
-                        + " which requires sortable doc values"
-                );
             }
             // Default was HIGH (columnar mode) — override to LOW since sort fields require sortable doc values.
             docValuesParameters.setValue(

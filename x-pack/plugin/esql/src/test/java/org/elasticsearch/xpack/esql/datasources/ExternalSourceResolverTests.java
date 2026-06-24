@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -32,6 +33,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -51,10 +55,13 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Tests for {@link ExternalSourceResolver} multi-file schema resolution behavior.
@@ -70,7 +77,8 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class ExternalSourceResolverTests extends ESTestCase {
 
-    private static final int FILE_META_COUNT = FileMetadataColumns.COLUMNS.size();
+    // _file.* columns are no longer auto-attached to the resolved schema (they are request-driven),
+    // so the resolved-schema width assertions below count data columns + partition columns only.
 
     private BlockFactory blockFactory;
 
@@ -129,7 +137,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             List<String> expectedDataNames = expectedDataColumnNames.get(strategy);
             List<Attribute> resolvedSchema = resolved.metadata().schema();
-            assertEquals("[" + strategy + "] resolved schema width", expectedDataNames.size() + FILE_META_COUNT, resolvedSchema.size());
+            assertEquals("[" + strategy + "] resolved schema width", expectedDataNames.size(), resolvedSchema.size());
             List<String> dataNames = resolvedSchema.stream().limit(expectedDataNames.size()).map(Attribute::name).toList();
             assertEquals("[" + strategy + "] resolved data column names", expectedDataNames, dataNames);
         }
@@ -176,7 +184,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             List<String> expectedDataNames = expectedDataColumnNames.get(strategy);
             List<Attribute> resolvedSchema = resolved.metadata().schema();
-            assertEquals("[" + strategy + "] resolved schema width", expectedDataNames.size() + FILE_META_COUNT, resolvedSchema.size());
+            assertEquals("[" + strategy + "] resolved schema width", expectedDataNames.size(), resolvedSchema.size());
             List<String> dataNames = resolvedSchema.stream().limit(expectedDataNames.size()).map(Attribute::name).toList();
             assertEquals("[" + strategy + "] resolved data column names", expectedDataNames, dataNames);
         }
@@ -205,7 +213,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             List<Attribute> resolvedSchema = resolved.metadata().schema();
-            assertEquals("[" + strategy + "] resolved schema width", 2 + FILE_META_COUNT, resolvedSchema.size());
+            assertEquals("[" + strategy + "] resolved schema width", 2, resolvedSchema.size());
             assertEquals("[" + strategy + "] resolved column 0 name", "id", resolvedSchema.get(0).name());
             assertEquals("[" + strategy + "] resolved column 1 name", "value", resolvedSchema.get(1).name());
             assertEquals("[" + strategy + "] resolved column 0 type", DataType.LONG, resolvedSchema.get(0).dataType());
@@ -391,12 +399,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
             } else {
                 // UNION_BY_NAME: each entry's fileSchema is the file's own schema, and the
                 // mapping rewrites the unified schema [col0, col1, col2] into the file's local
-                // column order, with -1 for columns the file is missing. The metadata schema
-                // is enriched with virtual file-metadata columns (_file.*) appended after the
-                // data columns; assertions here cover the data prefix only.
+                // column order, with -1 for columns the file is missing. _file.* columns are no
+                // longer auto-attached, so the metadata schema is exactly the data columns.
                 List<String> expectedDataColumns = List.of("col0", "col1", "col2");
                 List<Attribute> unifiedSchema = resolved.metadata().schema();
-                assertEquals("[" + strategy + "] unified schema width", expectedDataColumns.size() + FILE_META_COUNT, unifiedSchema.size());
+                assertEquals("[" + strategy + "] unified schema width", expectedDataColumns.size(), unifiedSchema.size());
                 List<String> dataColumnNames = unifiedSchema.stream().limit(expectedDataColumns.size()).map(Attribute::name).toList();
                 assertEquals("[" + strategy + "] unified data columns", expectedDataColumns, dataColumnNames);
 
@@ -570,6 +577,197 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(e.getMessage().contains("Glob pattern matched no files"));
     }
 
+    // ===== Cancellation =====
+
+    /**
+     * A multi-file resolve must abort with {@link TaskCancelledException} when the originating query is
+     * cancelled mid-flight, and must stop reading further per-file footers rather than scanning the whole
+     * glob. The resolver runs on the DIRECT executor here, so footer reads happen sequentially and the
+     * cancellation flag (flipped after a couple of reads) deterministically short-circuits the rest.
+     */
+    public void testMultiFileResolveCancellationStopsReadingFooters() {
+        int fileCount = 5;
+        int cancelAfter = 2;
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < fileCount; i++) {
+            String path = "s3://bucket/data/f" + i + ".parquet";
+            schemasByPath.put(path, schema);
+            listing.add(entry(path, 100 + i));
+        }
+
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of("s3://bucket/data/*.parquet").patternPrefix().toString(), listing);
+
+        AtomicInteger reads = new AtomicInteger(0);
+        // Flip cancellation once a couple of footers have been read.
+        BooleanSupplier isCancelled = () -> reads.get() >= cancelAfter;
+
+        ExternalSourceResolver resolver = createResolverWithCancellation(schemasByPath, listingsByPrefix, isCancelled, reads);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of("s3://bucket/data/*.parquet"), Map.of(), future);
+
+        // Cancellation surfaces unwrapped (not wrapped in a generic "Failed to resolve external source").
+        expectThrows(TaskCancelledException.class, future::actionGet);
+        assertThat(
+            "cancellation must stop the resolver before reading every footer; read " + reads.get() + " of " + fileCount,
+            reads.get(),
+            lessThan(fileCount)
+        );
+    }
+
+    /**
+     * A query already cancelled before resolution starts must perform no footer reads at all: the early
+     * cancellation check at the top of {@code resolveSource} aborts before glob expansion, cache listing, or
+     * any footer read. Surfaces as {@link TaskCancelledException} with a footer read count of exactly zero.
+     */
+    public void testResolveCancelledUpFrontReadsNoFooters() {
+        int fileCount = 4;
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < fileCount; i++) {
+            String path = "s3://bucket/data/f" + i + ".parquet";
+            schemasByPath.put(path, schema);
+            listing.add(entry(path, 100 + i));
+        }
+
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of("s3://bucket/data/*.parquet").patternPrefix().toString(), listing);
+
+        AtomicInteger reads = new AtomicInteger(0);
+        ExternalSourceResolver resolver = createResolverWithCancellation(schemasByPath, listingsByPrefix, () -> true, reads);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of("s3://bucket/data/*.parquet"), Map.of(), future);
+
+        expectThrows(TaskCancelledException.class, future::actionGet);
+        assertEquals("a query cancelled before resolution must read zero footers", 0, reads.get());
+    }
+
+    /**
+     * Cancellation observed while reading a footer on the cacheable FIRST_FILE_WINS stats path must surface as
+     * {@link TaskCancelledException}, not be masked as a partial-stats result. The schema cache wraps loader
+     * failures in an {@code ExecutionException}, so the resolver cannot rely on the exception type alone — it
+     * re-checks cancellation in its partial-stats fallback. Here the format reader flips the cancellation flag
+     * and fails the second file's footer read; the resolve must abort with {@code TaskCancelledException} rather
+     * than complete with partial (anchor-only) stats.
+     */
+    public void testCachedMultiFileResolveSurfacesCancellationObservedMidRead() throws Exception {
+        int fileCount = 2;
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, Long> rowCountsByPath = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < fileCount; i++) {
+            String path = "s3://bucket/data/f" + i + ".parquet";
+            schemasByPath.put(path, schema);
+            rowCountsByPath.put(path, 10L);
+            listing.add(entry(path, 100 + i));
+        }
+
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of("s3://bucket/data/*.parquet").patternPrefix().toString(), listing);
+
+        AtomicInteger reads = new AtomicInteger(0);
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        // The lex-smallest file (f0) is the anchor; f1 is therefore only read inside the aggregate loop. Fail
+        // f1's footer read with the query already flipped to cancelled, simulating a read that aborts because the
+        // client cancelled mid-flight — exercising the partial-stats fallback's cancellation re-check.
+        String failOnPathSuffix = "f1.parquet";
+
+        Settings cacheSettings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
+            ExternalSourceResolver resolver = createCachedResolverFailingMidRead(
+                schemasByPath,
+                rowCountsByPath,
+                listingsByPrefix,
+                cacheService,
+                cancelled,
+                reads,
+                failOnPathSuffix
+            );
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of("s3://bucket/data/*.parquet"),
+                Map.of("s3://bucket/data/*.parquet", new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
+                future
+            );
+
+            // Without the cancellation re-check the wrapped failure would degrade to partial stats and the resolve
+            // would succeed; instead it must surface cancellation.
+            expectThrows(TaskCancelledException.class, future::actionGet);
+            assertTrue("the failing footer read must have flipped the query to cancelled", cancelled.get());
+        }
+    }
+
+    /**
+     * Cancellation observed while reading the FIRST_FILE_WINS anchor footer (before the per-file aggregate loop is
+     * even reached) must surface as {@link TaskCancelledException}, not as a generic resolution error. The anchor
+     * read happens outside the aggregate loop and the cache wraps the failure in an {@code ExecutionException}, so
+     * the resolver re-checks cancellation in its failure path. Here the format reader fails the anchor (lex-smallest)
+     * file's footer read with the query already flipped to cancelled.
+     */
+    public void testCachedMultiFileResolveSurfacesCancellationDuringAnchorRead() throws Exception {
+        int fileCount = 2;
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, Long> rowCountsByPath = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < fileCount; i++) {
+            String path = "s3://bucket/data/f" + i + ".parquet";
+            schemasByPath.put(path, schema);
+            rowCountsByPath.put(path, 10L);
+            listing.add(entry(path, 100 + i));
+        }
+
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of("s3://bucket/data/*.parquet").patternPrefix().toString(), listing);
+
+        AtomicInteger reads = new AtomicInteger(0);
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        // f0 is the lex-smallest file, hence the FFW anchor read that runs before the aggregate loop.
+        String failOnPathSuffix = "f0.parquet";
+
+        Settings cacheSettings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
+            ExternalSourceResolver resolver = createCachedResolverFailingMidRead(
+                schemasByPath,
+                rowCountsByPath,
+                listingsByPrefix,
+                cacheService,
+                cancelled,
+                reads,
+                failOnPathSuffix
+            );
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of("s3://bucket/data/*.parquet"),
+                Map.of("s3://bucket/data/*.parquet", new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
+                future
+            );
+
+            expectThrows(TaskCancelledException.class, future::actionGet);
+            assertTrue("the failing anchor read must have flipped the query to cancelled", cancelled.get());
+        }
+    }
+
     // ===== Single-file resolution returns a resolved singleton FileList =====
 
     public void testSingleFileResolutionReturnsResolvedSingletonFileList() throws Exception {
@@ -637,7 +835,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         List<Attribute> resolvedSchema = resolved.metadata().schema();
-        assertEquals(5 + FILE_META_COUNT, resolvedSchema.size());
+        assertEquals(5, resolvedSchema.size());
         assertEquals(DataType.LONG, resolvedSchema.get(0).dataType());
         assertEquals(DataType.KEYWORD, resolvedSchema.get(1).dataType());
         assertEquals(DataType.DOUBLE, resolvedSchema.get(2).dataType());
@@ -743,7 +941,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
-        assertEquals(3 + FILE_META_COUNT, resolvedSchema.size());
+        assertEquals(3, resolvedSchema.size());
         assertEquals("emp_no", resolvedSchema.get(0).name());
         assertEquals("name", resolvedSchema.get(1).name());
         assertEquals("year", resolvedSchema.get(2).name());
@@ -766,7 +964,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
-        assertEquals(2 + FILE_META_COUNT, resolvedSchema.size());
+        assertEquals(2, resolvedSchema.size());
         assertEquals("name", resolvedSchema.get(0).name());
         assertEquals("year", resolvedSchema.get(1).name());
         // Partition column type should be INTEGER (from path), not KEYWORD (from data)
@@ -789,7 +987,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
-        assertEquals(2 + FILE_META_COUNT, resolvedSchema.size());
+        assertEquals(2, resolvedSchema.size());
         assertEquals("a", resolvedSchema.get(0).name());
         assertEquals("b", resolvedSchema.get(1).name());
     }
@@ -813,7 +1011,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/month=*/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
-        assertEquals(3 + FILE_META_COUNT, resolvedSchema.size());
+        assertEquals(3, resolvedSchema.size());
         // Data column is first
         assertEquals("value", resolvedSchema.get(0).name());
         // Partition columns appended at tail in path declaration order
@@ -1638,6 +1836,218 @@ public class ExternalSourceResolverTests extends ESTestCase {
         };
     }
 
+    /**
+     * Builds a resolver wired with an {@code isCancelled} supplier and a format reader that counts footer
+     * reads, so cancellation behavior can be observed end-to-end. Runs on the DIRECT executor so reads are
+     * sequential and deterministic.
+     */
+    private ExternalSourceResolver createResolverWithCancellation(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        BooleanSupplier isCancelled,
+        AtomicInteger readCounter
+    ) {
+        NoConfigFormatReader formatReader = new NoConfigFormatReader() {
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                readCounter.incrementAndGet();
+                String path = object.path().toString();
+                List<Attribute> schema = schemasByPath.get(path);
+                if (schema == null) {
+                    throw new IllegalArgumentException("No schema configured for path: " + path);
+                }
+                return new StubSourceMetadata(path, schema);
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet");
+            }
+
+            @Override
+            public void close() {}
+        };
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(),
+            () -> false
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, null, isCancelled);
+    }
+
+    /**
+     * Builds a cacheable resolver whose format reader returns per-file row-count statistics, counts footer reads,
+     * and on the {@code failOnRead}-th read flips {@code cancelled} to {@code true} before throwing — modelling a
+     * footer read that aborts because the originating query was cancelled mid-flight. The resolver's cancellation
+     * supplier is wired to {@code cancelled}, so the partial-stats fallback can re-observe the cancellation.
+     */
+    private ExternalSourceResolver createCachedResolverFailingMidRead(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, Long> rowCountsByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        ExternalSourceCacheService cacheService,
+        AtomicBoolean cancelled,
+        AtomicInteger readCounter,
+        String failOnPathSuffix
+    ) {
+        NoConfigFormatReader formatReader = new NoConfigFormatReader() {
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                readCounter.incrementAndGet();
+                if (object.path().toString().endsWith(failOnPathSuffix)) {
+                    cancelled.set(true);
+                    throw new IllegalStateException("footer read failed after cancellation");
+                }
+                String path = object.path().toString();
+                List<Attribute> schema = schemasByPath.get(path);
+                if (schema == null) {
+                    throw new IllegalArgumentException("No schema configured for path: " + path);
+                }
+                Long rowCount = rowCountsByPath.get(path);
+                return new SourceMetadata() {
+                    @Override
+                    public List<Attribute> schema() {
+                        return schema;
+                    }
+
+                    @Override
+                    public String sourceType() {
+                        return "parquet";
+                    }
+
+                    @Override
+                    public String location() {
+                        return path;
+                    }
+
+                    @Override
+                    public Optional<SourceStatistics> statistics() {
+                        if (rowCount == null) {
+                            return Optional.empty();
+                        }
+                        return Optional.of(new SourceStatistics() {
+                            @Override
+                            public OptionalLong rowCount() {
+                                return OptionalLong.of(rowCount);
+                            }
+
+                            @Override
+                            public OptionalLong sizeInBytes() {
+                                return OptionalLong.empty();
+                            }
+                        });
+                    }
+                };
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet");
+            }
+
+            @Override
+            public void close() {}
+        };
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(),
+            () -> false
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService, cancelled::get);
+    }
+
     private ExternalSourceResolver createResolverWithCache(
         StorageProvider storageProvider,
         Map<String, List<Attribute>> schemasByPath,
@@ -1685,6 +2095,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Stub implementations =====
 
     private static class StubFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final Map<String, List<Attribute>> schemasByPath;
 
@@ -1751,6 +2165,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * Used to test the aggregated stats path in multi-file resolution.
      */
     private static class StubFormatReaderWithStats implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final Map<String, List<Attribute>> schemasByPath;
         private final Map<String, Long> rowCountsByPath;

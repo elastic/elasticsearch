@@ -160,7 +160,7 @@ if [[ "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" != *"k8s"* ]]; then
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
 
   export GCP_PREEMPTION_WATCHDOG=true
-  # export GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=1800 # Uncomment to force a fake preemption after that many seconds
+  # export GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=300 # Uncomment to force a fake preemption after that many seconds
 fi
 
 # Initialize the build scan and gobld annotations with empty/open <details> tags

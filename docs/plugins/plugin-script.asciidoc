@@ -109,7 +109,7 @@ To install a plugin from an HTTP URL:
 +
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install https://some.domain/path/to/plugin.zip
+sudo bin/elasticsearch-plugin install https://<EXAMPLE_PLUGIN_HOST_URL>/plugin.zip
 -----------------------------------
 +
 The plugin script will refuse to talk to an HTTPS URL with an untrusted
@@ -118,7 +118,7 @@ to a local Java truststore and pass the location to the script as follows:
 +
 [source,shell]
 -----------------------------------
-sudo CLI_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
+sudo CLI_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://<MY_HOST_URL>/plugin.zip
 -----------------------------------
 --
 
@@ -324,7 +324,7 @@ plugins:
   - id: analysis-icu
   - id: repository-azure
   - id: custom-mapper
-    location: https://example.com/archive/custom-mapper-1.0.0.zip
+    location: <EXAMPLE_URL>/archive/custom-mapper-1.0.0.zip
 ----
 
 This example installs the official `analysis-icu` and
@@ -342,6 +342,6 @@ HTTP proxy to use explicitly in the configuration file. For example:
 ----
 plugins:
   - id: custom-mapper
-    location: https://example.com/archive/custom-mapper-1.0.0.zip
+    location: <EXAMPLE_URL>/archive/custom-mapper-1.0.0.zip
 proxy: proxy.example.com:8443
 ----

@@ -244,10 +244,10 @@ public class StorageProviderRegistry implements Closeable {
         // reads raise plain IOExceptions, never the throttling-typed ExternalUnavailableException it retries on).
         // See elastic/esql-planning#896.
         ConcurrencyLimiter limiter = limiterForScheme(scheme);
-        AdaptiveBackoff backoff = backoffForScheme(scheme);
-        RetryPolicy retryPolicy = buildRetryPolicy(backoff);
         StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
-        return new RetryableStorageProvider(limited, retryPolicy, retryScheduler);
+        // The adaptive backoff is selected per throttle scope (per-bucket/account) at read time, not baked in here:
+        // a hot bucket backs off only its own traffic, not every read on the same store. See #896.
+        return new RetryableStorageProvider(limited, buildRetryPolicy(), retryScheduler, this::backoffForScope);
     }
 
     private ConcurrencyLimiter limiterForScheme(String scheme) {
@@ -260,12 +260,29 @@ public class StorageProviderRegistry implements Closeable {
         });
     }
 
-    private AdaptiveBackoff backoffForScheme(String scheme) {
-        return backoffs.computeIfAbsent(scheme, k -> new AdaptiveBackoff());
+    private AdaptiveBackoff backoffForScope(StoragePath path) {
+        return backoffs.computeIfAbsent(throttleScope(path), k -> new AdaptiveBackoff());
     }
 
-    private RetryPolicy buildRetryPolicy(AdaptiveBackoff backoff) {
-        RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
+    /**
+     * The throttle-scope key for adaptive backoff: the store's own hot unit, derived generically from the path as
+     * {@code scheme://[userInfo@]host} — per-bucket for S3/GCS, per-container@account for Azure. A hot scope backs
+     * off only its own traffic. Finer per-prefix granularity for S3 is the deferred per-store SPI refinement.
+     * See elastic/esql-planning#896.
+     */
+    static String throttleScope(StoragePath path) {
+        StringBuilder sb = new StringBuilder(path.scheme()).append("://");
+        if (path.userInfo() != null) {
+            sb.append(path.userInfo()).append('@');
+        }
+        if (path.host() != null) {
+            sb.append(path.host());
+        }
+        return sb.toString();
+    }
+
+    private RetryPolicy buildRetryPolicy() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
         if (throttleMaxRetryDurationSeconds > 0) {
             policy = policy.withTotalDurationBudget(throttleMaxRetryDurationSeconds * 1000L);
         }

@@ -136,7 +136,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         FloatVectorValues values,
         float visitRatio
     ) throws IOException {
-        final ESNextDiskBBQVectorsReader.NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
+        ESNextDiskBBQVectorsReader.NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         CentroidIndex index = switch (fieldEntry.centroidIndexFormat()) {
             case FLAT -> new FlatCentroidIndex(
                 fieldInfo,

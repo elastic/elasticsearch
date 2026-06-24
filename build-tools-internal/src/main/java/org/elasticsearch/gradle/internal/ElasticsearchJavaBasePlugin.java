@@ -32,6 +32,7 @@ import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JvmVendorSpec;
 
 import java.util.List;
 import java.util.Map;
@@ -96,6 +97,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
             compileTask.getJavaCompiler().set(javaToolchains.compilerFor(spec -> {
                 spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));
+                spec.getVendor().set(JvmVendorSpec.ORACLE);
             }));
 
             CompileOptions compileOptions = compileTask.getOptions();

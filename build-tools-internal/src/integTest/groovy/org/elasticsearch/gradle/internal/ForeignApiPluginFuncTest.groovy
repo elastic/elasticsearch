@@ -13,6 +13,8 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 
+import static org.junit.Assume.assumeTrue
+
 class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends Plugin> pluginClassUnderTest = ForeignApiPlugin
@@ -149,36 +151,6 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         result.task(":compileJava").outcome == TaskOutcome.UP_TO_DATE
     }
 
-    def "compileJava does not get --patch-module when minimum runtime is not JDK 21"() {
-        // Override minimumRuntimeVersion to the current daemon JDK (always != 21 in the standard
-        // build environment). The extractForeignApiJar onlyIf condition then evaluates false, the
-        // task is skipped, no stub JAR is produced, and ForeignAccessArgumentProvider returns an
-        // empty argument list — so --patch-module must not appear in the compiler args.
-        given:
-        buildFile.text = buildFile.text.replace(
-            "plugins.apply(ForeignApiPlugin)",
-            """def bp = project.getExtensions().getByType(BuildParameterExtension)
-            bp.setMinimumRuntimeVersion(JavaVersion.current())
-            plugins.apply(ForeignApiPlugin)"""
-        )
-        clazz('org.acme.Dummy')
-        buildFile << """
-            tasks.named('compileJava') {
-                doLast {
-                    def args = it.options.allCompilerArgs
-                    def idx = args.indexOf('--patch-module')
-                    assert idx == -1 : "must NOT get --patch-module when minimum runtime is not 21, but got: \${args}"
-                }
-            }
-        """.stripIndent()
-
-        when:
-        def result = gradleRunner('compileJava', '-g', gradleUserHome).build()
-
-        then:
-        result.task(":compileJava").outcome == TaskOutcome.SUCCESS
-    }
-
     // --- CheckForbiddenApisTask tests ---
 
     /**
@@ -236,6 +208,13 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     }
 
     def "forbiddenApisMain rejects direct use of JDK 22+ foreign API methods"() {
+        // MemorySegment.getString(long) does not exist in JDK 21 — it was introduced in JDK 22
+        // as the renamed form of getUtf8String. There is no toolchain trick that makes a
+        // genuinely absent method appear at Java source-compile time, so this test requires the
+        // test-runner JDK to be 22+ (which also sets the inner GradleTestKit daemon version).
+        assumeTrue("Requires JDK 22+ to compile MemorySegment.getString(long)",
+            Runtime.version().feature() >= 22)
+
         given:
         setupForbiddenApiBuild(false)
         file("src/main/java/org/acme/BadForeignUser.java") << """

@@ -35,7 +35,7 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
 
     @Override
     protected BlobFileRanges mutateInstance(BlobFileRanges instance) throws IOException {
-        return switch (randomIntBetween(0, 1)) {
+        return switch (randomIntBetween(0, 2)) {
             case 0 -> new BlobFileRanges(
                 createBlobLocation(
                     randomValueOtherThan(instance.primaryTerm(), () -> randomLongBetween(1, 10)),
@@ -48,6 +48,9 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
                 instance.blobLocation(),
                 randomValueOtherThan(instance.timestampRange(), () -> randomBoolean() ? randomTimestampFieldValueRange() : null)
             );
+            case 2 -> instance.hasReplicatedRanges()
+                ? new BlobFileRanges(instance.blobLocation(), instance.timestampRange())
+                : randomValueOtherThan(instance, BlobFileRangesTests::randomBlobFileRangesFromCommit);
             default -> throw new IllegalStateException("unreachable");
         };
     }

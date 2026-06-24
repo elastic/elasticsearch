@@ -65,32 +65,20 @@ public class BlobFileRanges implements Writeable {
 
     public BlobFileRanges(final StreamInput in) throws IOException {
         blobLocation = BlobLocation.readFromTransport(in);
-        final int rangeCount = in.readVInt();
-        if (rangeCount == 0) {
-            this.replicatedRanges = Collections.emptyNavigableMap();
-        } else {
-            final var ranges = new TreeMap<Long, ReplicatedByteRange>();
-            for (int i = 0; i < rangeCount; i++) {
-                final long position = in.readVLong();
-                final short length = in.readShort();
-                final long copy = in.readVLong();
-                ranges.put(position, new ReplicatedByteRange(position, length, copy));
-            }
-            this.replicatedRanges = unmodifiableNavigableMap(ranges);
-        }
-        this.timestampRange = in.readOptionalWriteable(StatelessCompoundCommit.TimestampFieldValueRange::new);
+        replicatedRanges = unmodifiableNavigableMap(
+            in.<Long, ReplicatedByteRange, TreeMap<Long, ReplicatedByteRange>>readMapValues(
+                ReplicatedByteRange::new,
+                ReplicatedByteRange::position,
+                ignored -> new TreeMap<>()
+            )
+        );
+        timestampRange = in.readOptionalWriteable(StatelessCompoundCommit.TimestampFieldValueRange::new);
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         blobLocation.writeTo(out);
-        out.writeVInt(replicatedRanges.size());
-        for (final var entry : replicatedRanges.entrySet()) {
-            out.writeVLong(entry.getKey());
-            final ReplicatedByteRange range = entry.getValue();
-            out.writeShort(range.length());
-            out.writeVLong(range.copy());
-        }
+        out.writeMapValues(replicatedRanges);
         out.writeOptionalWriteable(timestampRange);
     }
 
@@ -153,7 +141,7 @@ public class BlobFileRanges implements Writeable {
      * @param length    the length of the range of bytes
      * @param copy      the position at which a copy of the same bytes exists in the blob
      */
-    private record ReplicatedByteRange(long position, short length, long copy) {
+    private record ReplicatedByteRange(long position, short length, long copy) implements Writeable {
 
         /**
          * Returns the position to read in the replicated range if the bytes to read are present in the range, otherwise returns {@code pos}
@@ -163,6 +151,17 @@ public class BlobFileRanges implements Writeable {
                 return this.copy + (pos - this.position);
             }
             return pos;
+        }
+
+        public ReplicatedByteRange(StreamInput in) throws IOException {
+            this(in.readVLong(), in.readShort(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(position);
+            out.writeShort(length);
+            out.writeVLong(copy);
         }
     }
 

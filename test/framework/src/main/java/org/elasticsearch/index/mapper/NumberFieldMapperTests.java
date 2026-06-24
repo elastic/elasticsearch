@@ -602,21 +602,9 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
 
         {
-            // Skippers are only used for indexes created after the relevant version
-            IndexVersion preColumnarSkippers = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_NUMERICS_USE_SKIPPERS);
-            Settings settings = Settings.builder()
-                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
-                .build();
-
-            MapperService mapperService = createMapperService(preColumnarSkippers, settings, fieldMapping(this::minimalMapping));
-            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
-        }
-
-        {
             // If index=true then we use points and not skippers
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-            MapperService mapperService = createMapperService(IndexVersions.COLUMNAR_NUMERICS_USE_SKIPPERS, settings, fieldMapping(b -> {
+            MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("index", true);
             }));

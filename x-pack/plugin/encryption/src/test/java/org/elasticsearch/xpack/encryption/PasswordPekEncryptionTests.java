@@ -97,7 +97,7 @@ public class PasswordPekEncryptionTests extends ESTestCase {
 
     public void testObservesSettingsReloadViaSupplier() {
         String passwordId = "v1";
-        AtomicReference<Settings> settingsRef = new AtomicReference<>(settingsWithPassword(passwordId, "old-password"));
+        AtomicReference<Settings> settingsRef = new AtomicReference<>(settingsWithPassword(passwordId, "old-password-fips-ok-v1"));
         PasswordPekEncryption enc = new PasswordPekEncryption(settingsRef::get);
 
         byte[] plaintext = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
@@ -106,7 +106,7 @@ public class PasswordPekEncryptionTests extends ESTestCase {
         // Wrap under old password, then rotate to new password and re-wrap.
         WrappedKey wrappedOld = enc.wrap(plaintext);
 
-        settingsRef.set(settingsWithPassword(passwordId, "new-password"));
+        settingsRef.set(settingsWithPassword(passwordId, "new-password-fips-ok-v1"));
         WrappedKey wrappedNew = enc.wrap(plaintext);
 
         // Old wrapped bytes can no longer be unwrapped (wrong password) — GCM tag mismatch.

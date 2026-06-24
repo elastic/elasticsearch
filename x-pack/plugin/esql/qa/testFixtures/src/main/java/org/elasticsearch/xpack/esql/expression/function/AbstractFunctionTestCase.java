@@ -721,9 +721,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                             tc.expectedType()
                         );
                         int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
-                        for (int i = 0; i < tc.getData().size() && initialProvidedParamIndex + i < args.size(); i++) {
+                        List<TestCaseSupplier.TypedData> providedData = providedParameters(testClass, tc.getData());
+                        assertTrue(
+                            "Subclass " + testClass.getSimpleName() + " failed to filter out injected parameters",
+                            providedData.size() <= args.size() - initialProvidedParamIndex
+                        );
+                        for (int i = 0; i < providedData.size() && initialProvidedParamIndex + i < args.size(); i++) {
                             int argIndex = initialProvidedParamIndex + i;
-                            TestCaseSupplier.TypedData argData = tc.getData().get(i);
+                            TestCaseSupplier.TypedData argData = providedData.get(i);
                             boolean isForceLiteral = argData.isForceLiteral();
                             if (alwaysLiteral[argIndex] == null) {
                                 alwaysLiteral[argIndex] = isForceLiteral;
@@ -973,6 +978,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return (List<DocsV3Support.Param>) method.invoke(null, types);
         } catch (NoSuchMethodException ingored) {
             return types;
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<TestCaseSupplier.TypedData> providedParameters(Class<?> testClass, List<TestCaseSupplier.TypedData> params) {
+        try {
+            Method method = testClass.getMethod("providedParameters", List.class);
+            return (List<TestCaseSupplier.TypedData>) method.invoke(null, params);
+        } catch (NoSuchMethodException ignored) {
+            return params;
         } catch (Exception e) {
             throw new AssertionError(e);
         }

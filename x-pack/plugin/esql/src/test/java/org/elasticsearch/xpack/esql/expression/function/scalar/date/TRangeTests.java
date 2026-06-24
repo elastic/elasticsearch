@@ -489,6 +489,17 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         return List.of(params.get(0), params.get(1));
     }
 
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params.getLast().type(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+
+        if (params.size() == 2) {
+            return List.of(params.get(0));
+        }
+
+        assertThat(params, hasSize(3));
+        return List.of(params.get(0), params.get(1));
+    }
+
     @Override
     protected boolean canSerialize() {
         return false;

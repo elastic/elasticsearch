@@ -343,4 +343,11 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
         assertThat(params.get(tsIndex).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
         return params.subList(0, tsIndex);
     }
+
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params.size(), anyOf(equalTo(2), equalTo(4)));
+        int tsIndex = params.size() - 1;
+        assertThat(params.get(tsIndex).type(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+        return params.subList(0, tsIndex);
+    }
 }

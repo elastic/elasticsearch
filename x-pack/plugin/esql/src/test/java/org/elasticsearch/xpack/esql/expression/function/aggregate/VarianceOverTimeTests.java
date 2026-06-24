@@ -50,4 +50,8 @@ public class VarianceOverTimeTests extends AbstractAggregationTestCase {
         copies.add(window);
         return copies;
     }
+
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        return params;
+    }
 }

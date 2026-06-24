@@ -17,29 +17,29 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testDefaults() {
         Settings settings = Settings.EMPTY;
-        assertEquals(50, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
+        assertEquals(256, (int) ExternalSourceSettings.MAX_CONNECTIONS.get(settings));
         assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
     }
 
     public void testCustomValues() {
         Settings settings = Settings.builder()
-            .put("esql.external.max_concurrent_requests", 100)
+            .put("esql.external.max_connections", 100)
             .put("esql.external.throttle_max_retry_duration", 60)
             .build();
 
-        assertEquals(100, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
+        assertEquals(100, (int) ExternalSourceSettings.MAX_CONNECTIONS.get(settings));
         assertEquals(60, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
     }
 
     public void testZeroConcurrencyDisablesLimiting() {
-        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 0).build();
-        assertEquals(0, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
+        Settings settings = Settings.builder().put("esql.external.max_connections", 0).build();
+        assertEquals(0, (int) ExternalSourceSettings.MAX_CONNECTIONS.get(settings));
     }
 
     public void testConcurrencyUpperBound() {
         expectThrows(IllegalArgumentException.class, () -> {
-            Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 501).build();
-            ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings);
+            Settings settings = Settings.builder().put("esql.external.max_connections", 501).build();
+            ExternalSourceSettings.MAX_CONNECTIONS.get(settings);
         });
     }
 

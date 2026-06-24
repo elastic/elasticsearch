@@ -71,7 +71,7 @@ public class StorageProviderRegistry implements Closeable {
     /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
     @Nullable
     private final DataSourceCredentials credentials;
-    private volatile int maxConcurrentRequests;
+    private volatile int maxConnections;
     private volatile int throttleMaxRetryDurationSeconds;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
@@ -105,7 +105,7 @@ public class StorageProviderRegistry implements Closeable {
         this.credentials = credentials;
         this.workloadIdentityEnabled = workloadIdentityEnabled;
         this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
-        this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
+        this.maxConnections = ExternalSourceSettings.MAX_CONNECTIONS.get(this.settings);
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
     }
 
@@ -252,7 +252,7 @@ public class StorageProviderRegistry implements Closeable {
 
     private ConcurrencyLimiter limiterForScheme(String scheme) {
         return limiters.computeIfAbsent(scheme, k -> {
-            int permits = maxConcurrentRequests;
+            int permits = maxConnections;
             if (permits <= 0) {
                 return ConcurrencyLimiter.UNLIMITED;
             }
@@ -261,14 +261,18 @@ public class StorageProviderRegistry implements Closeable {
     }
 
     private AdaptiveBackoff backoffForScope(StoragePath path) {
+        // One AdaptiveBackoff per distinct throttle scope (bucket/account), created on first use. The map is
+        // bounded by the number of distinct buckets the node ever reads; each entry is a few dozen bytes, so the
+        // growth is negligible in practice and left unpruned.
         return backoffs.computeIfAbsent(throttleScope(path), k -> new AdaptiveBackoff());
     }
 
     /**
      * The throttle-scope key for adaptive backoff: the store's own hot unit, derived generically from the path as
-     * {@code scheme://[userInfo@]host} — per-bucket for S3/GCS, per-container@account for Azure. A hot scope backs
-     * off only its own traffic. Finer per-prefix granularity for S3 is the deferred per-store SPI refinement.
-     * See elastic/esql-planning#896.
+     * {@code scheme://[userInfo@]host[:port]} — per-bucket for S3/GCS, per-container@account for Azure. A hot scope
+     * backs off only its own traffic. The host is lowercased (DNS is case-insensitive) so the same bucket maps to
+     * one scope; the port is included so two custom endpoints on the same host but different ports stay isolated.
+     * Finer per-prefix granularity for S3 is the deferred per-store SPI refinement. See elastic/esql-planning#896.
      */
     static String throttleScope(StoragePath path) {
         StringBuilder sb = new StringBuilder(path.scheme()).append("://");
@@ -276,7 +280,10 @@ public class StorageProviderRegistry implements Closeable {
             sb.append(path.userInfo()).append('@');
         }
         if (path.host() != null) {
-            sb.append(path.host());
+            sb.append(path.host().toLowerCase(Locale.ROOT));
+        }
+        if (path.port() >= 0) {
+            sb.append(':').append(path.port());
         }
         return sb.toString();
     }

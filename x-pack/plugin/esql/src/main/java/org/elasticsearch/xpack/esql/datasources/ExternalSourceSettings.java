@@ -15,23 +15,30 @@ import java.util.List;
  * Cluster settings for controlling ESQL external source behavior.
  * All settings are dynamic (can be changed without restart) and node-scoped.
  * <p>
- * Covers two areas: cloud API rate limiting (concurrency cap, retry duration budget)
- * and glob/listing safety limits (max discovered files, max brace expansion) to
- * prevent degenerate queries from overwhelming storage backends.
+ * Covers three areas: a local-resource concurrency guardrail ({@link #MAX_CONNECTIONS}); reactive throttle
+ * handling for object stores (the retry duration budget — throttling is handled by backoff, not a concurrency
+ * cap); and glob/listing safety limits (max discovered files, max brace expansion) to prevent degenerate queries
+ * from overwhelming storage backends.
  */
 public final class ExternalSourceSettings {
 
     private ExternalSourceSettings() {}
 
     /**
-     * Maximum number of concurrent cloud API requests per storage scheme per node.
-     * Set to 0 to disable concurrency limiting entirely.
-     * Default: 50. Cloud APIs typically handle 50 concurrent requests per IP easily;
-     * increase for high-throughput clusters, decrease if experiencing throttling.
+     * Maximum number of concurrent in-flight storage reads per storage scheme per node — a deliberate
+     * local-resource guardrail (connections, buffers, file handles), not a throttle defense. Object-store
+     * throttling is handled reactively by retry + adaptive backoff on 503/SlowDown; this bound exists to protect
+     * our own node and backends that cannot signal backpressure (the local filesystem). It blocks (queues) when
+     * reached rather than failing a query. Set to 0 to disable the guardrail entirely.
+     * <p>
+     * Default: 256 — sized to local resources, generous enough that S3/GCS/Azure parallelism is not artificially
+     * capped (the old default of 50 mirrored the AWS SDK's connection-pool default and throttled throughput). The
+     * S3 async client's connection pool is sized above this setting's maximum so the guardrail, not the SDK pool,
+     * is always the binding constraint. See elastic/esql-planning#896.
      */
-    public static final Setting<Integer> MAX_CONCURRENT_REQUESTS = Setting.intSetting(
-        "esql.external.max_concurrent_requests",
-        50,
+    public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
+        "esql.external.max_connections",
+        256,
         0,
         500,
         Setting.Property.NodeScope,
@@ -102,12 +109,6 @@ public final class ExternalSourceSettings {
     );
 
     public static List<Setting<?>> settings() {
-        return List.of(
-            MAX_CONCURRENT_REQUESTS,
-            THROTTLE_MAX_RETRY_DURATION,
-            MAX_DISCOVERED_FILES,
-            MAX_GLOB_EXPANSION,
-            WORKLOAD_IDENTITY_ENABLED
-        );
+        return List.of(MAX_CONNECTIONS, THROTTLE_MAX_RETRY_DURATION, MAX_DISCOVERED_FILES, MAX_GLOB_EXPANSION, WORKLOAD_IDENTITY_ENABLED);
     }
 }

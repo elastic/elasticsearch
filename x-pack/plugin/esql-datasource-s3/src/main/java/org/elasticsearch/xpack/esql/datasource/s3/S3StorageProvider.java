@@ -87,11 +87,13 @@ public class S3StorageProvider implements StorageProvider {
     private static final Logger LOGGER = LogManager.getLogger(S3StorageProvider.class);
     private static final String DEFAULT_ROLE_SESSION_NAME = "elasticsearch-esql-datasource";
 
-    // Connection-pool ceiling for the async client: a deliberate local-resource bound, not a throttle defense.
-    // Replaces the SDK's default of 50 (which mirrored the old per-query budget and capped read parallelism well
-    // below what S3 serves). S3 throttles per key-prefix request rate and pushes back via 503/backoff; we let the
-    // pool be wide and handle throttling reactively. See elastic/esql-planning#896.
-    private static final int MAX_CONNECTIONS = 256;
+    // Connection-pool ceiling for the async client. Sized ABOVE the node guardrail's maximum
+    // (esql.external.max_connections, max 500) so the guardrail — not this SDK pool — is always the binding
+    // constraint on read concurrency, and the SDK's connectionAcquisitionTimeout is never reached under guardrail
+    // control. Replaces the SDK default of 50, which mirrored the old per-query budget and capped read parallelism
+    // far below what S3 serves; S3 throttles per key-prefix request rate and we handle that reactively via
+    // retry/backoff, not by a low connection cap. See elastic/esql-planning#896.
+    private static final int ASYNC_CLIENT_MAX_CONNECTIONS = 512;
     private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
 
     private final S3Client s3Client;
@@ -222,7 +224,7 @@ public class S3StorageProvider implements StorageProvider {
         return configureCommon(S3AsyncClient.builder(), config, credentials).httpClientBuilder(
             NettyNioAsyncHttpClient.builder()
                 .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
-                .maxConcurrency(MAX_CONNECTIONS)
+                .maxConcurrency(ASYNC_CLIENT_MAX_CONNECTIONS)
                 .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
         ).build();
     }

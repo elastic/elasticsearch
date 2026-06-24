@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.blobcache.shared.CacheRegion;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +43,6 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
         Setting.Property.NodeScope
     );
 
-    @Nullable
     private final ClusterService clusterService;
 
     private volatile TimeValue pinnedWindowDuration = PINNED_WINDOW_DURATION_SETTING.getDefault(Settings.EMPTY);
@@ -54,10 +54,11 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     }
 
     /**
-     * For test subclasses that override {@link #isShardLocallyAllocated} and optionally {@link #currentTimeMillis()}.
+     * For test subclasses that override {@link #isShardLocallyAllocated(RoutingNode, ShardId)} and optionally
+     * {@link #currentTimeMillis()}.
      */
-    protected PinnedWindowEvictionPolicy(TimeValue pinnedWindowDuration) {
-        this.clusterService = null;
+    protected PinnedWindowEvictionPolicy(ClusterService clusterService, TimeValue pinnedWindowDuration) {
+        this.clusterService = Objects.requireNonNull(clusterService);
         this.pinnedWindowDuration = pinnedWindowDuration;
     }
 
@@ -66,21 +67,35 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     }
 
     /**
-     * Returns {@code true} if the shard is assigned to the local node, including as a relocation target.
+     * Returns the local routing node from the currently applied cluster state.
+     * <p>
+     * {@link ClusterService#state()} is updated only after cluster state appliers finish
+     * ({@link org.elasticsearch.cluster.service.ClusterApplierService}), so during application
+     * of a new state a recovering shard may cache data before this method reflects its local
+     * allocation. In that small window, eviction may treat the shard as remote and allow its
+     * cached regions to be evicted.
      */
-    protected boolean isShardLocallyAllocated(ShardId shardId) {
-        assert clusterService != null;
+    @Nullable
+    private RoutingNode localRoutingNode() {
         final var state = clusterService.state();
         final String localNodeId = state.nodes().getLocalNodeId();
         if (localNodeId == null) {
-            return false;
+            return null;
         }
-        final var routingNode = state.getRoutingNodes().node(localNodeId);
-        return routingNode != null && routingNode.getByShardId(shardId) != null;
+        return state.getRoutingNodes().node(localNodeId);
+    }
+
+    /**
+     * Returns {@code true} if the shard is assigned to the local node, including as a relocation target.
+     *
+     * @param localRoutingNode routing node for the local node; must not be {@code null}
+     */
+    protected boolean isShardLocallyAllocated(RoutingNode localRoutingNode, ShardId shardId) {
+        return Objects.requireNonNull(localRoutingNode).getByShardId(shardId) != null;
     }
 
     protected long currentTimeMillis() {
-        return System.currentTimeMillis();
+        return clusterService.threadPool().absoluteTimeInMillis();
     }
 
     /**
@@ -94,8 +109,9 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     @Override
     public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
         final long pinnedWindowCutoffMillis = currentTimeMillis() - pinnedWindowDuration.getMillis();
+        final RoutingNode localRoutingNode = localRoutingNode();
         return region -> {
-            if (isShardLocallyAllocated(region.key().shardId()) == false) {
+            if (localRoutingNode == null || isShardLocallyAllocated(localRoutingNode, region.key().shardId()) == false) {
                 return true;
             }
             final long timestampMillis = region.timestampMillis();

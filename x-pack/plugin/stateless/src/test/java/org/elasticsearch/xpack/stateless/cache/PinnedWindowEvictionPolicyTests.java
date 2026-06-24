@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -42,6 +43,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Set;
@@ -60,18 +63,40 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     private static final String OUTSIDE_WINDOW_FILE_PREFIX = "outside-window-file-";
     private static final TimeValue PINNED_WINDOW_DURATION = PINNED_WINDOW_DURATION_SETTING.getDefault(Settings.EMPTY);
 
+    private DeterministicTaskQueue taskQueue;
+    private ClusterService testClusterService;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        taskQueue = new DeterministicTaskQueue();
+        taskQueue.runTasksUpToTimeInOrder(System.currentTimeMillis());
+        testClusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool());
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        testClusterService.close();
+        super.tearDown();
+    }
+
     private static final class TestPinnedWindowEvictionPolicy extends PinnedWindowEvictionPolicy {
         private final Set<ShardId> locallyAllocatedShards;
         private final long fixedCurrentTimeMillis;
 
-        TestPinnedWindowEvictionPolicy(Set<ShardId> locallyAllocatedShards, long fixedCurrentTimeMillis, long pinnedWindowDurationMillis) {
-            super(TimeValue.timeValueMillis(pinnedWindowDurationMillis));
+        TestPinnedWindowEvictionPolicy(
+            ClusterService clusterService,
+            Set<ShardId> locallyAllocatedShards,
+            long fixedCurrentTimeMillis,
+            long pinnedWindowDurationMillis
+        ) {
+            super(clusterService, TimeValue.timeValueMillis(pinnedWindowDurationMillis));
             this.locallyAllocatedShards = locallyAllocatedShards;
             this.fixedCurrentTimeMillis = fixedCurrentTimeMillis;
         }
 
         @Override
-        protected boolean isShardLocallyAllocated(ShardId shardId) {
+        protected boolean isShardLocallyAllocated(RoutingNode localRoutingNode, ShardId shardId) {
             return locallyAllocatedShards.contains(shardId);
         }
 
@@ -103,7 +128,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final long pinnedWindowDurationMillis = PINNED_WINDOW_DURATION.millis();
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
         final long timestampMillis = now - randomLongBetween(0, pinnedWindowDurationMillis - 1);
-        final var policy = new TestPinnedWindowEvictionPolicy(Set.of(shardId), now, pinnedWindowDurationMillis);
+        final var policy = new TestPinnedWindowEvictionPolicy(testClusterService, Set.of(shardId), now, pinnedWindowDurationMillis);
 
         assertFalse(canEvict(policy, region(shardId, timestampMillis), region(shardId, timestampMillis + 1)));
     }
@@ -115,7 +140,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     public void testCannotEvictLocallyAllocatedRegionWithUnknownTimestamp() {
         final long now = randomLongBetween(1, Long.MAX_VALUE);
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
-        final var policy = new TestPinnedWindowEvictionPolicy(Set.of(shardId), now, PINNED_WINDOW_DURATION.millis());
+        final var policy = new TestPinnedWindowEvictionPolicy(testClusterService, Set.of(shardId), now, PINNED_WINDOW_DURATION.millis());
 
         assertFalse(canEvict(policy, region(shardId, UNKNOWN_TIMESTAMP), region(shardId, now)));
     }
@@ -125,7 +150,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final long pinnedWindowDurationMillis = PINNED_WINDOW_DURATION.millis();
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
         final long timestampMillis = now - pinnedWindowDurationMillis - randomLongBetween(1, TimeValue.timeValueDays(30).millis());
-        final var policy = new TestPinnedWindowEvictionPolicy(Set.of(shardId), now, pinnedWindowDurationMillis);
+        final var policy = new TestPinnedWindowEvictionPolicy(testClusterService, Set.of(shardId), now, pinnedWindowDurationMillis);
 
         assertTrue(canEvict(policy, region(shardId, timestampMillis), region(shardId, now)));
     }
@@ -136,7 +161,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final ShardId localShard = new ShardId("local", randomUUID(), 0);
         final ShardId remoteShard = new ShardId("remote", randomUUID(), 0);
         final long timestampMillis = now - randomLongBetween(0, pinnedWindowDurationMillis - 1);
-        final var policy = new TestPinnedWindowEvictionPolicy(Set.of(localShard), now, pinnedWindowDurationMillis);
+        final var policy = new TestPinnedWindowEvictionPolicy(testClusterService, Set.of(localShard), now, pinnedWindowDurationMillis);
 
         assertTrue(canEvict(policy, region(remoteShard, timestampMillis), region(localShard, timestampMillis)));
     }
@@ -145,21 +170,21 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final long pinnedWindowDurationMillis = PINNED_WINDOW_DURATION.millis();
         final long now = pinnedWindowDurationMillis + randomLongBetween(1, Long.MAX_VALUE / 2);
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
-        final var policy = new TestPinnedWindowEvictionPolicy(Set.of(shardId), now, pinnedWindowDurationMillis);
+        final var policy = new TestPinnedWindowEvictionPolicy(testClusterService, Set.of(shardId), now, pinnedWindowDurationMillis);
 
         assertFalse(canEvict(policy, region(shardId, now - pinnedWindowDurationMillis), region(shardId, now)));
         assertTrue(canEvict(policy, region(shardId, now - pinnedWindowDurationMillis - 1), region(shardId, now)));
     }
 
     public void testShrinkingPinnedWindowMakesRegionEvictable() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        taskQueue.runTasksUpToTimeInOrder(System.currentTimeMillis());
         final ClusterSettings clusterSettings = createClusterSettings(
             Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), PINNED_WINDOW_DURATION).build()
         );
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
-        final long now = System.currentTimeMillis();
-        final long timestampMillis = now - TimeValue.timeValueHours(8).millis();
         try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
+            final long now = clusterService.threadPool().absoluteTimeInMillis();
+            final long timestampMillis = now - TimeValue.timeValueHours(8).millis();
             ClusterServiceUtils.setState(
                 clusterService,
                 clusterStateWithShardOnLocalNode(
@@ -201,7 +226,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final int outsideWindowRegionCount = numRegions - unknownTimestampRegionCount;
         final long regionSizeInBytes = cacheRegionSizeInBytes(100);
         final TimeValue pinnedWindowDuration = PINNED_WINDOW_DURATION;
-        final long now = System.currentTimeMillis();
+        final long now = taskQueue.getCurrentTimeMillis();
         final long outsideWindowTimestamp = now - pinnedWindowDuration.millis() - randomLongBetween(
             1,
             TimeValue.timeValueHours(1).millis()
@@ -218,7 +243,6 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final ShardId oldShard = new ShardId(oldIndex.getIndex(), 0);
         final ShardId newShard = new ShardId(newIndex.getIndex(), 0);
 
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(
                 taskQueue.getThreadPool(),
@@ -283,14 +307,13 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     private void assertProtectedForLocalShardRoutingState(ShardRoutingState routingState) {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ClusterSettings clusterSettings = createClusterSettings(
             Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), PINNED_WINDOW_DURATION).build()
         );
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
-        final long now = System.currentTimeMillis();
-        final long timestampMillis = now - randomLongBetween(0, PINNED_WINDOW_DURATION.millis() - 1);
         try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
+            final long now = clusterService.threadPool().absoluteTimeInMillis();
+            final long timestampMillis = now - randomLongBetween(0, PINNED_WINDOW_DURATION.millis() - 1);
             ClusterServiceUtils.setState(
                 clusterService,
                 clusterStateWithShardOnLocalNode(shardId, indexMetadata(shardId.getIndexName(), shardId.getIndex().getUUID()), routingState)

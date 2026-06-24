@@ -1083,7 +1083,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector minVec = FloatVector.broadcast(FLOAT_SPECIES, Float.MAX_VALUE);
             FloatVector maxVec = FloatVector.broadcast(FLOAT_SPECIES, -Float.MAX_VALUE);
             int count = 0;
-            for (; i < BYTES_FOR_4BYTE_SPECIES.loopBound(vector.length); i += FLOAT_SPECIES.length()) {
+            for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= vector.length; i += FLOAT_SPECIES.length()) {
                 ByteVector bv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, vector, i);
                 ByteVector bc = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, centroid, i);
                 ++count;
@@ -1173,7 +1173,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector maxVec = FloatVector.broadcast(FLOAT_SPECIES, -Float.MAX_VALUE);
             FloatVector centroidDotVec = FloatVector.zero(FLOAT_SPECIES);
             int count = 0;
-            for (; i < BYTES_FOR_4BYTE_SPECIES.loopBound(vector.length); i += FLOAT_SPECIES.length()) {
+            for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= vector.length; i += FLOAT_SPECIES.length()) {
                 ByteVector bv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, vector, i);
                 ByteVector bc = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, centroid, i);
                 ++count;
@@ -1407,7 +1407,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         IntVector sqAcc = IntVector.zero(INTEGER_SPECIES);
         FloatVector projAcc = FloatVector.zero(FLOAT_SPECIES);
         int i = 0;
-        for (; i < BYTES_FOR_4BYTE_SPECIES.loopBound(v1.length); i += INTEGER_SPECIES.length()) {
+        for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= v1.length; i += INTEGER_SPECIES.length()) {
             ByteVector qv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, v1, i);
             ByteVector cv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, centroid, i);
             Vector<Integer> diff = qv.castShape(INTEGER_SPECIES, 0).sub(cv.castShape(INTEGER_SPECIES, 0));
@@ -2187,7 +2187,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector projAcc2 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector projAcc3 = FloatVector.zero(FLOAT_SPECIES);
 
-            for (; i < BYTES_FOR_4BYTE_SPECIES.loopBound(v1.length); i += FLOAT_SPECIES.length()) {
+            for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= v1.length; i += FLOAT_SPECIES.length()) {
                 ByteVector qv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, v1, i);
                 ByteVector bv0 = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, c0, i);
                 ByteVector bv1 = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, c1, i);

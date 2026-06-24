@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.gradle.api.Named;
 import org.gradle.api.Plugin;
@@ -54,10 +55,13 @@ public class ForeignApiPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
 
+        BuildParameterExtension buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
+        int minRuntime = Integer.parseInt(buildParams.getMinimumRuntimeVersion().getMajorVersion());
+
         TaskProvider<ExtractForeignApiTask> extractTask = project.getTasks()
             .register(EXTRACT_FOREIGN_API_TASK_NAME, ExtractForeignApiTask.class, t -> {
                 t.getOutputJar().set(project.getLayout().getBuildDirectory().file("jdk21-foreign-api.jar"));
-                t.onlyIf("JDK 21 required for preview API stubs", task -> Runtime.version().feature() == 21);
+                t.onlyIf("JDK 21 required for preview API stubs", task -> minRuntime == 21);
             });
 
         Provider<RegularFile> jarFile = extractTask.flatMap(ExtractForeignApiTask::getOutputJar);
@@ -68,17 +72,19 @@ public class ForeignApiPlugin implements Plugin<Project> {
         });
 
         project.getTasks().withType(Javadoc.class).configureEach(javadocTask -> {
-            javadocTask.dependsOn(extractTask);
-            javadocTask.doFirst(t -> {
-                File jar = jarFile.get().getAsFile();
-                if (jar.exists()) {
-                    CoreJavadocOptions options = (CoreJavadocOptions) javadocTask.getOptions();
-                    options.addStringOption("-patch-module", "java.base=" + jar.getAbsolutePath());
-                }
-            });
+            if (minRuntime == 21) {
+                javadocTask.dependsOn(extractTask);
+                javadocTask.doFirst(t -> {
+                    File jar = jarFile.get().getAsFile();
+                    if (jar.exists()) {
+                        CoreJavadocOptions options = (CoreJavadocOptions) javadocTask.getOptions();
+                        options.addStringOption("-patch-module", "java.base=" + jar.getAbsolutePath());
+                    }
+                });
+            }
         });
 
-        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(jarFile));
+        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(jarFile, minRuntime));
     }
 
     /**

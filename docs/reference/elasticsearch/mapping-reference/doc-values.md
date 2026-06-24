@@ -148,7 +148,7 @@ stack: ga 9.3
 Doc values skippers are an additional data structure on doc values fields that store summary information for multi-level blocks of documents (currently minimum value, maximum value and doc count).
 They can assist fast querying and aggregation over a field without the need for a terms or points index structure, significantly reducing its disk footprint. This is particularly true when the field in question is correlated with the index sort.  For example, timestamp filtered queries in time series indexes can use skippers to filter out large blocks of documents without having to inspect individual field values.
 
-Skippers can be enabled for all fields in an index that are marked as `docvalues=true` and `index=false` by using the index-level setting `index.mapping.use_doc_values_skippers`.  They are enabled by default for [`time_series indexes`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode).
+Skippers can be enabled for all fields in an index that are marked as `docvalues=true` and `index=false` by using the index-level setting `index.mapping.use_doc_values_skippers`.  They are enabled by default for [`time_series indexes`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode) and the columnar index modes.
 
 
 

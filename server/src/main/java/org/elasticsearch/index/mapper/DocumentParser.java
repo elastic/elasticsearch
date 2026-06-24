@@ -300,10 +300,10 @@ public final class DocumentParser {
     }
 
     /**
-     * Parse an object from the current token, prepending {@code flatPrefix} (e.g. {@code "host."}) to every
-     * immediate child field name.
+     * Parse an object from the current token, prepending {@code flatParentName + "."} to every
+     * immediate child field name. Pass {@code null} when no prefix is needed.
      */
-    private static void parseObjectOrNested(DocumentParserContext context, String flatPrefix) throws IOException {
+    private static void parseObjectOrNested(DocumentParserContext context, String flatParentName) throws IOException {
         XContentParser parser = context.parser();
         String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
@@ -362,7 +362,7 @@ public final class DocumentParser {
             parser.nextToken();
         }
 
-        innerParseObject(context, flatPrefix);
+        innerParseObject(context, flatParentName == null ? null : flatParentName.concat("."));
         // restore the enable path flag
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());
@@ -484,7 +484,7 @@ public final class DocumentParser {
             if (shouldFlattenObject(context, fieldMapper)) {
                 String currentFieldName = fieldMapper.leafName();
                 context.path().remove();
-                parseObjectOrNested(context, currentFieldName + ".");
+                parseObjectOrNested(context, currentFieldName);
                 context.path().add(currentFieldName);
             } else {
                 var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
@@ -560,7 +560,7 @@ public final class DocumentParser {
             final ObjectMapper parent = context.parent();
             boolean subobjectsDisabled = parent.subobjects() == ObjectMapper.Subobjects.DISABLED;
             if (subobjectsDisabled && parent.hasMappedFieldsWithPrefix(currentFieldName)) {
-                parseObjectOrNested(context, currentFieldName + ".");
+                parseObjectOrNested(context, currentFieldName);
             } else {
                 parseObjectDynamic(context, currentFieldName);
             }
@@ -632,7 +632,7 @@ public final class DocumentParser {
                 if (dynamicObjectBuilder == null || dynamicObjectBuilder instanceof ObjectMapper.Builder) {
                     // We have an ObjectMapper builder (or a RUNTIME no-op) but subobjects are disallowed;
                     // parse children with currentFieldName prepended to their field names.
-                    parseObjectOrNested(context, currentFieldName + ".");
+                    parseObjectOrNested(context, currentFieldName);
                     return;
                 }
 

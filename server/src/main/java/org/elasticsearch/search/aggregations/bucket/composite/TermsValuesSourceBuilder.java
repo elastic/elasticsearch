@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -173,14 +172,17 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     if (valuesSourceConfig.hasOrdinals()
                         && reader instanceof DirectoryReader
                         && compositeValuesSourceConfig.fieldType() != null) {
-                        // Order composite buckets by _key on segment ordinals, remapping the (at most `size`) queue slots
-                        // at each segment boundary. The segment doc values are read straight from the leaf reader.
-                        final String field = compositeValuesSourceConfig.fieldType().name();
+                        // Order composite buckets by _key on per-segment ordinals, remapping the (at most `size`) queue
+                        // slots at each segment boundary. Read the segment ordinals through the value source (rather than
+                        // the raw doc values) so synthetic sources such as constant_keyword resolve correctly; these are
+                        // per-segment ordinals, so no global OrdinalMap is built.
+                        final ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig
+                            .valuesSource();
                         return new SegmentOrdinalValuesSource(
                             bigArrays,
                             addRequestCircuitBreakerBytes,
                             compositeValuesSourceConfig.fieldType(),
-                            leaf -> DocValues.getSortedSet(leaf.reader(), field),
+                            vs::ordinalsValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
                             compositeValuesSourceConfig.missingOrder(),

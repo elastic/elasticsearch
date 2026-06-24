@@ -10,8 +10,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -45,8 +45,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
-        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-        if (Build.current().isSnapshot() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             if (allowIgnoredSource && ESTestCase.randomBoolean()) {
                 return FieldMapper.DocValuesParameter.Values.DISABLED;
             } else {
@@ -169,18 +168,12 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
         if (docValues.enabled() == false) {
             b.field("doc_values", false);
+        } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && docValues.multiValue() == false) {
+            b.startObject("doc_values");
+            b.field("multi_value", false);
+            b.endObject();
         } else {
-            // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-            if (Build.current().isSnapshot() == false) {
-                b.field("doc_values", true);
-            } else {
-                b.startObject("doc_values");
-                b.field("cardinality", docValues.cardinality().toString());
-                if (docValues.multiValue() == false) {
-                    b.field("multi_value", false);
-                }
-                b.endObject();
-            }
+            b.field("doc_values", true);
         }
     }
 

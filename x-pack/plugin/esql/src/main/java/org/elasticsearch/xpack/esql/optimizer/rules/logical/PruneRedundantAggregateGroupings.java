@@ -145,13 +145,13 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
     private static AttributeMap<Attribute> groupingOutputAttributes(List<? extends NamedExpression> aggregates) {
         AttributeMap.Builder<Attribute> outputAttributes = AttributeMap.builder();
         for (NamedExpression aggregate : aggregates) {
-            if (aggregate instanceof Alias alias && alias.child() instanceof Attribute attribute) {
-                outputAttributes.put(attribute, alias.toAttribute());
-            }
-        }
-        for (NamedExpression aggregate : aggregates) {
+            // A direct pass-through (e.g. `BY x` emitting `x`) takes precedence over a rename of the same underlying
+            // attribute: put() always wins for the identity case, while computeIfAbsent() keeps an alias only when no
+            // pass-through has claimed the key.
             if (aggregate instanceof Attribute attribute) {
                 outputAttributes.put(attribute, attribute);
+            } else if (aggregate instanceof Alias alias && alias.child() instanceof Attribute attribute) {
+                outputAttributes.computeIfAbsent(attribute, key -> alias.toAttribute());
             }
         }
         return outputAttributes.build();

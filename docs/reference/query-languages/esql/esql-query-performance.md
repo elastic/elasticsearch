@@ -422,6 +422,7 @@ Once a query is written, several tools help confirm whether it is actually fast 
 
 - [**Inspect panel**](#inspect-panel-in-kib): Check a query from Discover or a dashboard.
 - [**Query activity**](#query-activity): Find and cancel in-flight queries.
+- [**Profile API responses**](#profile-api-responses): Inspect how a query executed through the API.
 - [**Query logging**](#query-logging): Analyze historical slow queries.
 - [**Task management API**](#task-management-api): Monitor or cancel {{esql}} tasks from the API.
 
@@ -437,6 +438,10 @@ serverless: preview
 ```
 
 The [**Query activity**](docs-content://deploy-manage/monitor/query-activity.md) page in {{kib}} provides a real-time view of all in-flight search work in your cluster, including {{esql}}, Query DSL, EQL, and SQL queries. Use it to find long-running queries, trace them back to their source in {{kib}}, and cancel them when needed.
+
+### Profile API responses
+
+When running an {{esql}} query through the [ES|QL query API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-query), set the `profile` body parameter to `true` to include a `profile` object in the response. The profile output is intended for human debugging and can help identify which parts of a query contribute to its runtime. The response format can change at any time, so use it for investigation rather than automation.
 
 ### Query logging
 

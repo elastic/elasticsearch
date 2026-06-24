@@ -153,7 +153,7 @@ public class BlobFileRanges implements Writeable {
             return pos;
         }
 
-        public ReplicatedByteRange(StreamInput in) throws IOException {
+        ReplicatedByteRange(StreamInput in) throws IOException {
             this(in.readVLong(), in.readShort(), in.readVLong());
         }
 

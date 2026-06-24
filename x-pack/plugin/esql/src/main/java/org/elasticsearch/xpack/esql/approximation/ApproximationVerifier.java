@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -57,7 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.View;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -126,7 +125,6 @@ public class ApproximationVerifier {
         new AbstractMap.SimpleImmutableEntry<>(LocalRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new AbstractMap.SimpleImmutableEntry<>(MMR.class, SupportedVersion.underConstruction(TransportVersion.zero())),
         new AbstractMap.SimpleImmutableEntry<>(MvExpand.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(NamedSubquery.class, SupportedVersion.underConstruction(TransportVersion.zero())),
         new AbstractMap.SimpleImmutableEntry<>(OrderBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new AbstractMap.SimpleImmutableEntry<>(Project.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new AbstractMap.SimpleImmutableEntry<>(RegexExtract.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
@@ -142,7 +140,9 @@ public class ApproximationVerifier {
         new AbstractMap.SimpleImmutableEntry<>(UriParts.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new AbstractMap.SimpleImmutableEntry<>(UnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new AbstractMap.SimpleImmutableEntry<>(UserAgent.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new AbstractMap.SimpleImmutableEntry<>(ViewUnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
+        // A View is a transparent boundary that InlineView folds into its body before physical planning, so it does
+        // not constrain approximation — classified like the UnionAll/ViewUnionAll wrapper it succeeds.
+        new AbstractMap.SimpleImmutableEntry<>(View.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
     );
 
     /**

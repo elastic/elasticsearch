@@ -116,7 +116,6 @@ import org.elasticsearch.xpack.esql.session.schema.SchemaService;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
-import org.elasticsearch.xpack.esql.view.ViewCompaction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.time.Clock;
@@ -390,12 +389,11 @@ public class EsqlSession {
             viewResolution.viewQueries()
         );
 
-        // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
-        // Subquery/UnionAll structures into ViewUnionAll. ViewShadowRelation siblings and nested
-        // ViewUnionAlls are intentionally preserved here — they are stripped/flattened in
-        // ViewCompaction.postIndexResolution(), which runs as an analyzer rule after ResolveTable so
-        // lenient field-caps can pair each shadow with its strict sibling.
-        LogicalPlan plan = ViewCompaction.preIndexResolution(viewResolution.plan());
+        // The view-resolved plan goes straight into pre-analysis. Each view is a first-class View node
+        // wrapping its resolved body; the View survives analysis and is folded only by the optimizer's
+        // InlineView rule. CPS linked relations (a local view name that may also be a remote index) are
+        // ordinary flagged UnresolvedRelations, resolved leniently during analysis.
+        LogicalPlan plan = viewResolution.plan();
         // Run structural checks that don't need analysis or index resolution. Doing this here
         // (after view resolution, before pre-analysis) lets a malformed query fail-fast without
         // paying for field-caps round trips.

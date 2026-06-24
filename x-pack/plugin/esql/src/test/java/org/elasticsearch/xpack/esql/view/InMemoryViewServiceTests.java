@@ -38,12 +38,9 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -72,18 +69,12 @@ import java.util.function.BiPredicate;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class InMemoryViewServiceTests extends AbstractStatementParserTests {
@@ -256,12 +247,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * it must not leak to the outer {@code view-0-l} and cause {@code view-1-r-b} to be excluded.
      * <p>
      * The single-level case is covered by {@link #testViewBodyExclusionNotLeakedToOuter}. In the
-     * nested case the view-flattening path in {@code ViewResolver.tryFlattenViewUnionAll} would
-     * lift the inner ViewUnionAll's entries (ViewUnionAll extends UnionAll extends Fork, which
-     * triggers the fork-flattening branch) and then merge their bare {@link UnresolvedRelation}s
-     * with sibling outer {@link UnresolvedRelation}s, re-widening the exclusion's scope. The fix
-     * wraps exclusion-bearing {@link UnresolvedRelation}s in a NamedSubquery before lifting so the
-     * subsequent merge step leaves them alone.
+     * nested case the exclusion-bearing view bodies must each stay behind their own {@code View}
+     * boundary so a later merge cannot re-widen the exclusion's scope across sibling relations.
      */
     public void testViewBodyExclusionNotLeakedThroughNestedViews() {
         addIndex("index-1-a");
@@ -277,8 +264,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view-0-l", "FROM view-1-*");
         LogicalPlan plan = query("FROM view-0-l");
         // The inner -*b exclusion must stay scoped to view-1-l's body, not widen to view-0-l's
-        // sibling view-1-r-* indices. Each scope-carrying UnresolvedRelation stays in its own branch.
-        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM view-1-*),(FROM index-2-*,-*a),(FROM view-2-*,index-1-*,-*b)")));
+        // sibling view-1-r-* indices. The resolver keeps the nested per-view UnionAll behind View
+        // boundaries (no flattening at this stage), so each scope-carrying relation stays separate.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view-1-*, (FROM (FROM index-2-*,-*a),(FROM view-2-*,index-1-*,-*b))")));
     }
 
     /**
@@ -286,8 +274,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * composed with sibling outer patterns, the subquery's exclusion must not widen to the outer
      * patterns.
      * <p>
-     * Without the fix in {@code tryFlattenViewUnionAll}'s fork-child branch, the inner subquery's
-     * {@code -*b} would merge with the outer {@code inner-b} pattern and wrongly exclude it.
+     * The inner subquery's {@code -*b} must not merge with the outer {@code inner-b} pattern and
+     * wrongly exclude it — the view boundary keeps each scope separate.
      */
     public void testUserSubqueryExclusionInViewBodyDoesNotLeakToOuter() {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
@@ -298,8 +286,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("my_view", "FROM outer-*, (FROM inner-*,-*b)");
         LogicalPlan plan = query("FROM my_view, inner-b");
         // The -*b in the inner subquery must only exclude -*b from matches of inner-*, not from the
-        // outer inner-b pattern. Each scope-carrying UnresolvedRelation stays in its own branch.
-        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM inner-b,outer-*),(FROM inner-*,-*b)")));
+        // outer inner-b pattern. The view body keeps its nested UnionAll behind the View boundary
+        // (the resolver no longer flattens), so the exclusion-bearing relation stays scoped.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM inner-b, (FROM (FROM inner-*,-*b),(FROM outer-*))")));
     }
 
     public void testExclusionMultipleViews() {
@@ -468,18 +457,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         List<LogicalPlan> children = fork.children();
         assertThat(children.size(), equalTo(3));
 
-        assertThat(
-            as(children.get(0), Eval.class).child(),
-            equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | WHERE emp.age < 50"))
-        );
-        assertThat(
-            as(children.get(1), Eval.class).child(),
-            equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | WHERE emp.age > 35"))
-        );
-        assertThat(
-            as(children.get(2), Eval.class).child(),
-            equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | STATS count = COUNT(*)"))
-        );
+        // The view body is wrapped in a View node between the fork's per-branch Filter and the view's
+        // own body; the View-peering matcher folds it the way the optimizer's InlineView later will.
+        assertThat(as(children.get(0), Eval.class).child(), matchesPlan(query("FROM emp | WHERE emp.age > 25 | WHERE emp.age < 50")));
+        assertThat(as(children.get(1), Eval.class).child(), matchesPlan(query("FROM emp | WHERE emp.age > 25 | WHERE emp.age > 35")));
+        assertThat(as(children.get(2), Eval.class).child(), matchesPlan(query("FROM emp | WHERE emp.age > 25 | STATS count = COUNT(*)")));
     }
 
     public void testReplaceViewsWildcard() {
@@ -510,7 +492,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM *");
         LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan using subqueries because they only accept FROM commands, so we check its structure instead
-        assertThat(rewritten, instanceOf(ViewUnionAll.class));
+        assertThat(rewritten, instanceOf(UnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(4));
         assertThat(
@@ -726,19 +708,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
         LogicalPlan rewritten = replaceViews(plan);
-        // Nested ViewUnionAlls are flattened into the parent, so all branches appear at the top level
-        assertThat(rewritten, instanceOf(ViewUnionAll.class));
-        List<LogicalPlan> subqueries = rewritten.children();
-        assertThat(subqueries.size(), equalTo(4));
-        assertThat(
-            subqueries,
-            containsInAnyOrder(
-                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
-                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
-                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
-                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000"))
-            )
-        );
+        // Each matched multi-source view becomes a View node wrapping a UnionAll of its sources; the
+        // resolver no longer flattens (that is the optimizer's FlattenUnionAll job), so the outer
+        // UnionAll keeps its nested per-view structure. The View-peering matcher checks the outcome.
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, matchesPlan(query("""
+            FROM
+            (FROM (FROM emp1 | WHERE emp.age > 30), (FROM emp2 | WHERE emp.age < 40)),
+            (FROM (FROM emp1 | WHERE emp.age > 30), (FROM emp3 | WHERE emp.salary > 50000))""")));
     }
 
     public void testReplaceViewsNestedPlansWildcardWithIndex() {
@@ -750,20 +727,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
         LogicalPlan rewritten = replaceViews(plan);
-        // Nested ViewUnionAlls are flattened into the parent, so all branches appear at the top level
-        assertThat(rewritten, instanceOf(ViewUnionAll.class));
-        List<LogicalPlan> subqueries = rewritten.children();
-        assertThat(subqueries.size(), equalTo(5));
-        assertThat(
-            subqueries,
-            containsInAnyOrder(
-                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
-                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
-                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
-                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000")),
-                matchesPlan(query("FROM view_1_*"))
-            )
-        );
+        // The view_1_X index keeps the wildcard pattern as a sibling branch; each matched multi-source
+        // view stays nested under its own View node (resolver no longer flattens).
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, matchesPlan(query("""
+            FROM
+            (FROM view_1_*),
+            (FROM (FROM emp1 | WHERE emp.age > 30), (FROM emp2 | WHERE emp.age < 40)),
+            (FROM (FROM emp1 | WHERE emp.age > 30), (FROM emp3 | WHERE emp.salary > 50000))""")));
     }
 
     public void testReplaceViewsNestedPlansWildcards() {
@@ -778,13 +749,15 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_3_2", "FROM view_3, view_2");
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
         LogicalPlan rewritten = replaceViews(plan);
-        // We cannot express the expected plan easily, so we check its structure instead
-        assertThat(rewritten, instanceOf(ViewUnionAll.class));
+        // We cannot express the expected plan easily, so we check its structure instead. Each matched
+        // multi-source view is a View node wrapping a UnionAll of two emp-view bodies (no flattening
+        // at the resolver level any more).
+        assertThat(rewritten, instanceOf(UnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(6));
         for (LogicalPlan child : subqueries) {
-            child = (child instanceof Subquery subquery) ? subquery.child() : child;
-            assertThat(child, instanceOf(ViewUnionAll.class));
+            child = unwrapView(child);
+            assertThat(child, instanceOf(UnionAll.class));
             List<LogicalPlan> subchildren = child.children();
             assertThat(subchildren.size(), equalTo(2));
             assertThat(
@@ -797,6 +770,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                 )
             );
         }
+    }
+
+    /** Peer through a first-class {@code View} (and any user-written {@code Subquery}) wrapper to expose its body. */
+    private static LogicalPlan unwrapView(LogicalPlan plan) {
+        if (plan instanceof Subquery subquery) {
+            plan = subquery.child();
+        }
+        if (plan instanceof org.elasticsearch.xpack.esql.plan.logical.View view) {
+            plan = view.body();
+        }
+        return plan;
     }
 
     public void testViewDepthExceeded() {
@@ -1040,10 +1024,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // incident_dashboard composes both views — no circular reference exists
         addView("incident_dashboard", "FROM error_triage, suspicious_ips");
 
-        // This should NOT throw a circular view reference error
+        // This should NOT throw a circular view reference error. (The resolver leaves the user-written
+        // nested subqueries in error_triage as nested UnionAlls; the optimizer's FlattenUnionAll handles
+        // them later, so we only assert resolution completes without a circular-reference exception here.)
         LogicalPlan result = replaceViews(query("FROM incident_dashboard"));
         assertNotNull("incident_dashboard should resolve without circular reference errors", result);
-        assertNoPlanConsistencyFailures(result, "incident_dashboard");
     }
 
     /**
@@ -1128,10 +1113,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // Compose both views
         addView("view_xy", "FROM view_x, view_y");
 
-        // Before the fix this threw: "circular view reference 'view_y': view_xy -> view_x -> view_y"
+        // Before the fix this threw: "circular view reference 'view_y': view_xy -> view_x -> view_y".
+        // view_x's user-written subqueries stay as nested UnionAlls (flattened later by the optimizer),
+        // so we only assert resolution completes without a circular-reference exception.
         LogicalPlan result = replaceViews(query("FROM view_xy"));
         assertNotNull("view_xy should resolve without circular reference errors", result);
-        assertNoPlanConsistencyFailures(result, "view_xy");
     }
 
     public void testModifiedViewDepth() {
@@ -1157,8 +1143,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
                 customViewResolver.replaceViews(query("FROM view1"), null, this::parse, future);
-                // Run the same compaction (and ViewShadowRelation strip) the production pipeline does.
-                LogicalPlan rewritten = COMPACTION.apply(future.actionGet().plan());
+                LogicalPlan rewritten = future.actionGet().plan();
                 assertThat(rewritten, matchesPlan(query("FROM emp")));
             }
         } catch (Exception e) {
@@ -1366,14 +1351,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // Parser produces a plain UnionAll for "FROM index, (FROM subquery)" syntax
         LogicalPlan plan = query("FROM emp2, (FROM my_view)");
         assertThat(plan, instanceOf(UnionAll.class));
-        assertThat("Parser should produce plain UnionAll, not ViewUnionAll", plan, not(instanceOf(ViewUnionAll.class)));
 
-        // ViewResolver should recurse into the plain UnionAll and resolve my_view
+        // ViewResolver recurses into the plain UnionAll and resolves my_view into a first-class View node.
         LogicalPlan rewritten = replaceViews(plan);
-        // The top-level UnionAll should be replaced by ViewUnionAll because it contains a named subquery from the resolved view
-        assertThat("Top-level UnionAll should be re-written to ViewUnionAll with view name", rewritten, instanceOf(ViewUnionAll.class));
-        // After resolution, the subquery's UnresolvedRelation[my_view] should become
-        // the view definition: FROM emp | WHERE emp.age > 30
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        // After resolution, the subquery's UnresolvedRelation[my_view] becomes View[my_view] wrapping
+        // the view definition: FROM emp | WHERE emp.age > 30. The View-peering matcher checks the outcome.
         List<LogicalPlan> children = rewritten.children();
         assertThat(children.size(), equalTo(2));
         // One child should match the resolved view definition, the other should be emp2
@@ -1386,15 +1369,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // Parser produces a plain UnionAll for "FROM index, (FROM subquery)" syntax
         LogicalPlan plan = query("FROM emp2, (FROM my_view)");
         assertThat(plan, instanceOf(UnionAll.class));
-        assertThat("Parser should produce plain UnionAll, not ViewUnionAll", plan, not(instanceOf(ViewUnionAll.class)));
 
-        // ViewResolver should recurse into the plain UnionAll and resolve my_view
+        // ViewResolver recurses into the plain UnionAll and resolves my_view into a View node whose body
+        // still carries the user-written subquery inside it.
         LogicalPlan rewritten = replaceViews(plan);
-        // The top-level UnionAll is replaced by a ViewUnionAll as a result of compacting the nested subqueries
         assertThat(rewritten, instanceOf(UnionAll.class));
-        assertThat("Top-level UnionAll should be re-written to ViewUnionAll with view name", rewritten, instanceOf(ViewUnionAll.class));
-        // After resolution, the subquery's UnresolvedRelation[my_view] should become
-        // the view definition: FROM emp1 | WHERE emp.age > 30
+        // After resolution, the subquery's UnresolvedRelation[my_view] becomes the resolved view body.
         List<LogicalPlan> children = rewritten.children();
         assertThat(children.size(), equalTo(2));
         // One child should match the resolved view definition, the other should be emp2
@@ -1414,30 +1394,18 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // Parser produces a plain UnionAll for "FROM index, (FROM subquery)" syntax
         LogicalPlan plan = query("FROM (FROM my_view1), (FROM my_view2)");
         assertThat(plan, instanceOf(UnionAll.class));
-        assertThat("Parser should produce plain UnionAll, not ViewUnionAll", plan, not(instanceOf(ViewUnionAll.class)));
 
-        // ViewResolver should recurse into the plain UnionAll and resolve my_view
+        // ViewResolver recurses into the plain UnionAll and resolves each view into a named View node.
         LogicalPlan rewritten = replaceViews(plan);
-        // The top-level UnionAll is replaced by a ViewUnionAll as a result of compacting the nested subqueries
-        assertThat(
-            "Top-level UnionAll should changed to include view names after view resolution",
-            rewritten,
-            instanceOf(ViewUnionAll.class)
-        );
-        // The names should match the correct sub-plans
-        ViewUnionAll namedUnionAll = (ViewUnionAll) rewritten;
-        for (Map.Entry<String, LogicalPlan> entry : namedUnionAll.namedSubqueries().entrySet()) {
-            if (entry.getKey().equals("my_view1")) {
-                assertThat(entry.getValue(), matchesPlan(query("FROM emp1 | WHERE emp.age > 30")));
-            } else if (entry.getKey().equals("my_view2")) {
-                assertThat(entry.getValue(), matchesPlan(query("FROM emp2 | WHERE emp.age > 30")));
-            } else {
-                fail("Unexpected named sub-plan: " + entry);
-            }
-        }
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        // Each resolved view is a first-class View node carrying its name; the body matches the definition.
+        Map<String, org.elasticsearch.xpack.esql.plan.logical.View> views = collectViews(rewritten);
+        assertThat(views.keySet(), containsInAnyOrder("my_view1", "my_view2"));
+        assertThat(views.get("my_view1").body(), matchesPlan(query("FROM emp1 | WHERE emp.age > 30")));
+        assertThat(views.get("my_view2").body(), matchesPlan(query("FROM emp2 | WHERE emp.age > 30")));
     }
 
-    public void testIndexCompactionWithNestedNamedSubqueries() {
+    public void testIndexCompactionWithNestedViews() {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         addView("my_view1", "FROM emp1 | WHERE emp.age > 30");
         addView("my_view2", "FROM emp2, my_view1");
@@ -1446,25 +1414,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM emp5, my_view4");
         assertThat(plan, instanceOf(UnresolvedRelation.class));
 
-        // ViewResolver should recurse into the plain UnionAll and resolve my_view
+        // ViewResolver resolves the chain into a nested tree of UnionAlls. Each intermediate view whose
+        // parsed body is a bare comma-pattern UnresolvedRelation (FROM <idx>, <view>) compacts without a
+        // View wrapper; only the leaf pipe-bodied my_view1 keeps a View boundary around its Filter body.
+        // The index siblings at each level stay distinct (no cross-view merge) and the resolver does not
+        // flatten — that is the optimizer's job.
         LogicalPlan rewritten = replaceViews(plan);
-        // The top-level UnionAll is replaced by a ViewUnionAll as a result of compacting the nested subqueries
-        assertThat(
-            "Top-level UnionAll should changed to include view names after view resolution",
-            rewritten,
-            instanceOf(ViewUnionAll.class)
-        );
-        // The names should match the correct sub-plans
-        ViewUnionAll namedUnionAll = (ViewUnionAll) rewritten;
-        for (Map.Entry<String, LogicalPlan> entry : namedUnionAll.namedSubqueries().entrySet()) {
-            if (entry.getKey() == null || entry.getKey().equals("main")) {
-                assertThat(entry.getValue(), matchesPlan(query("FROM emp5, emp4, emp3, emp2")));
-            } else if (entry.getKey().equals("my_view1")) {
-                assertThat(entry.getValue(), matchesPlan(query("FROM emp1 | WHERE emp.age > 30")));
-            } else {
-                fail("Unexpected named sub-plan: " + entry);
-            }
-        }
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        // Only the pipe-bodied innermost view keeps a named View boundary.
+        assertThat(collectViews(rewritten).keySet(), containsInAnyOrder("my_view1"));
+        // The View-peering matcher checks the full nested resolution outcome.
+        assertThat(rewritten, matchesPlan(query("FROM emp5, (FROM emp4, (FROM emp3, (FROM emp2, (FROM emp1 | WHERE emp.age > 30))))")));
     }
 
     /**
@@ -1479,7 +1439,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // Without CPS: wildcard is fully replaced (no unresolved pattern)
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3")));
         // With CPS: wildcard is preserved alongside the resolved views
-        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1, emp2, emp3, view*")));
+        assertThat(replaceViewsCps(plan), matchesPlan(query("FROM emp1, emp2, emp3, view*")));
     }
 
     /**
@@ -1490,13 +1450,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_2", "FROM emp2 | WHERE emp.age < 40");
         addView("view_3", "FROM emp3 | WHERE emp.salary > 50000");
         LogicalPlan plan = query("FROM view*");
-        // Without CPS: 3 subqueries (just the views)
+        // Without CPS: 3 branches (just the views)
         LogicalPlan withoutCPS = replaceViews(plan);
-        assertThat(withoutCPS, instanceOf(ViewUnionAll.class));
+        assertThat(withoutCPS, instanceOf(UnionAll.class));
         assertThat(withoutCPS.children().size(), equalTo(3));
-        // With CPS: 4 subqueries (3 views + the preserved wildcard)
-        LogicalPlan withCPS = replaceViewsWithCPS(plan);
-        assertThat(withCPS, instanceOf(ViewUnionAll.class));
+        // With CPS: 4 branches (3 views + the preserved wildcard)
+        LogicalPlan withCPS = replaceViewsCps(plan);
+        assertThat(withCPS, instanceOf(UnionAll.class));
         assertThat(withCPS.children().size(), equalTo(4));
         assertThat(
             withCPS.children(),
@@ -1521,18 +1481,23 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM view*");
         // Both should preserve the wildcard since there's a matching local index
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
-        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
+        assertThat(replaceViewsCps(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
     }
 
     /**
-     * CPS does not affect concrete (non-wildcard) view references — they are still fully replaced.
-     * This is because we separately report the view names to the index resolution layer for CPS anyway.
+     * Non-CPS: a concrete (non-wildcard) view reference is fully replaced by its body. Under CPS the
+     * strict resolution is still the view body, but a linked relation for the view name is emitted
+     * alongside it (the lenient cross-project lookup, successor to the old view shadow).
      */
     public void testCPSConcreteViewFullyReplaced() {
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM view1");
+        // Non-CPS: fully replaced to the bare view body.
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
-        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1")));
+        // CPS: strict resolution emp1 kept, plus a view1 linked relation for the cross-project lookup.
+        LogicalPlan cps = replaceViewsCps(plan);
+        assertThat(strictPatterns(cps), hasItems("emp1"));
+        assertThat(collectLinkedPatternsByView(cps).get("view1"), equalTo("view1"));
     }
 
     /**
@@ -1545,10 +1510,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_2", "FROM view_1, view_2");
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
-        // Without CPS: wildcard fully replaced
-        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1,emp2),emp1,emp3")));
-        // With CPS: wildcard preserved
-        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM (FROM emp1,emp2),emp1,emp3,view_1_*")));
+        // Without CPS: each matched multi-source view (of single-index views) compacts to a bare merged
+        // UnresolvedRelation; the two stay as separate UnionAll branches.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1,emp3),(FROM emp1,emp2)")));
+        // With CPS: the wildcard view_1_* is preserved as a strict UnresolvedRelation pattern alongside
+        // the resolved views, so the cross-project lookup can still match remote indices.
+        LogicalPlan cps = replaceViewsCps(plan);
+        assertThat(strictPatterns(cps), hasItems("view_1_*"));
     }
 
     /**
@@ -1562,10 +1530,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_x1", "FROM view_1, view_2");
         addView("view_x2", "FROM view_3, view_4");
         LogicalPlan plan = query("FROM view_x*");
-        // Without CPS: wildcard fully replaced
+        // Without CPS: both matched multi-source views (of single-index aliases) compact to bare merged
+        // UnresolvedRelations that share no index, so they merge into one flat UnresolvedRelation.
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,emp4")));
-        // With CPS: wildcard preserved
-        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1,emp2,emp3,emp4,view_x*")));
+        // With CPS: the wildcard view_x* is preserved as a strict UnresolvedRelation pattern.
+        LogicalPlan cps = replaceViewsCps(plan);
+        assertThat(strictPatterns(cps), hasItems("view_x*"));
     }
 
     /*
@@ -1649,63 +1619,16 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             replaceViews(query("FROM employees_extra | STATS count=COUNT()")),
             matchesPlan(query("FROM employees, (FROM employees) | STATS count=COUNT()"))
         );
-        // Nested ViewUnionAlls that only contain UnresolvedRelations are flattened into the parent,
-        // so the nested structure is eliminated and each UnresolvedRelation becomes a separate branch.
+        // employees_extra is a multi-source view, so it stays behind a View boundary and its nested
+        // UnionAll is preserved by the resolver (flattening is now the optimizer's job). Each copy of
+        // the employees index stays a distinct branch so IndexResolution does not deduplicate them.
         assertThat(
             replaceViews(query("FROM employees, employees_extra | STATS count=COUNT()")),
-            matchesPlan(query("FROM employees, (FROM employees), (FROM employees) | STATS count=COUNT()"))
+            matchesPlan(query("FROM employees, (FROM (FROM employees), (FROM employees)) | STATS count=COUNT()"))
         );
         assertThat(
             replaceViews(query("FROM employees_extra | STATS count=COUNT()")),
             matchesPlan(query("FROM employees, (FROM employees) | STATS count=COUNT()"))
-        );
-    }
-
-    /**
-     * Reproduces a bug in {@code mergeUnresolvedRelationEntries} where {@code hasPatternDuplicates}
-     * only checks whole-pattern equality, not individual index name overlap. Two inner VUAs can each
-     * contribute a bare {@link UnresolvedRelation} with different whole patterns (e.g. "emp1,emp2"
-     * vs "emp1,emp3") that share an individual index ("emp1"). After flattening,
-     * {@code mergeUnresolvedRelationEntries} merges them into "emp1,emp2,emp1,emp3" because the
-     * whole patterns differ — but IndexResolution would then deduplicate "emp1", losing data.
-     */
-    public void testFlattenedViewUnionAllWithOverlappingIndices() {
-        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        // Non-compactable views (have WHERE) that force NamedSubquery branches
-        addView("view_x", "FROM emp1 | WHERE emp.age > 30");
-        addView("view_y", "FROM emp1 | WHERE emp.salary > 50000");
-        // Each of these resolves to a VUA with a bare UnresolvedRelation("emp1,emp2") or
-        // UnresolvedRelation("emp1,emp3") plus a NamedSubquery for the non-compactable view
-        addView("view_a", "FROM emp2, emp1, view_x");
-        addView("view_b", "FROM emp3, emp1, view_y");
-        addIndex("emp1");
-        addIndex("emp2");
-        addIndex("emp3");
-
-        // Query FROM view_a, view_b produces a VUA with two inner VUAs.
-        // tryFlattenViewUnionAll lifts the entries. The bare UnresolvedRelations "emp1,emp2" and
-        // "emp1,emp3" share "emp1" — merging them would lose data.
-        LogicalPlan result = replaceViews(query("FROM view_a, view_b"));
-        assertThat(result, instanceOf(ViewUnionAll.class));
-        ViewUnionAll vua = (ViewUnionAll) result;
-
-        // Count how many branches resolve to a bare UnresolvedRelation containing "emp1"
-        // If the bug is present, the UnresolvedRelations get merged into one, losing the second copy of emp1
-        long urBranchesWithEmp1 = vua.namedSubqueries()
-            .values()
-            .stream()
-            .filter(p -> p instanceof UnresolvedRelation)
-            .map(p -> ((UnresolvedRelation) p).indexPattern().indexPattern())
-            .filter(pattern -> Arrays.asList(pattern.split(",")).contains("emp1"))
-            .count();
-
-        assertThat(
-            "emp1 should appear in at least 2 separate UnresolvedRelation branches to preserve view semantics, "
-                + "but mergeUnresolvedRelationEntries merged them because hasPatternDuplicates only checks whole patterns. "
-                + "VUA entries: "
-                + vua.namedSubqueries(),
-            urBranchesWithEmp1,
-            greaterThanOrEqualTo(2L)
         );
     }
 
@@ -1751,70 +1674,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     /**
-     * Tests a 12x10 matrix with non-compactable views only on the diagonal (where depth == branch).
-     * Wrapper views (branch 1 at depth &ge; 2) are always compactable, so the ViewResolver can flatten
-     * nested ViewUnionAlls through them. The result is a single-level ViewUnionAll that accumulates
-     * one branch per diagonal view. The effective FORK branch count grows with min(N, B), hitting the
-     * FORK limit when the total (diagonal count + query-level diagonal + 1 for compactable
-     * UnresolvedRelation) exceeds 8.
-     * No nested FORK errors occur because flattening eliminates all nesting.
-     */
-    public void testDiagonalNonCompactableViewNestingBranchingMatrix() {
-        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        int maxViewDepth = ViewResolver.MAX_VIEW_DEPTH_SETTING.getDefault(Settings.EMPTY);
-        try (var matrixService = matrixViewService()) {
-            var matrixResolver = matrixService.getViewResolver();
-            for (int nesting = 1; nesting <= 12; nesting++) {
-                for (int branching = 1; branching <= 10; branching++) {
-                    matrixService.clearAllViewsAndIndices();
-                    buildNestingBranchingViewTree(nesting, branching, (d, b) -> d == b, matrixService);
-                    final String queryStr = buildNestingBranchingQuery(nesting, branching, true);
-
-                    if (nesting > maxViewDepth) {
-                        var e = expectThrows(VerificationException.class, () -> replaceViews(query(queryStr), matrixResolver));
-                        assertThat(
-                            "nesting=" + nesting + ", branching=" + branching,
-                            e.getMessage(),
-                            startsWith("The maximum allowed view depth of " + maxViewDepth + " has been exceeded")
-                        );
-                    } else {
-                        LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
-                        assertNotNull("Diagonal resolution should succeed for nesting=" + nesting + ", branching=" + branching, result);
-                        // When flattening stays within MAX_BRANCHES, nesting is eliminated and no nested FORK errors occur.
-                        // When flattening would exceed MAX_BRANCHES, it is skipped, keeping nested ViewUnionAlls.
-                        if (branching >= 2 && effectiveDiagonalBranches(nesting, branching) <= Fork.MAX_BRANCHES) {
-                            Failures failures = new Failures();
-                            Failures depFailures = new Failures();
-                            LogicalVerifier.INSTANCE.checkPlanConsistency(result, failures, depFailures);
-                            assertFalse(
-                                "No nested FORK errors expected for nesting="
-                                    + nesting
-                                    + ", branching="
-                                    + branching
-                                    + " but got: "
-                                    + failures,
-                                failures.hasFailures()
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Computes the effective FORK branch count for the diagonal non-compaction pattern.
-     * Each diagonal view (depth == branch) becomes a non-compactable branch. Compactable views merge
-     * into a single {@link UnresolvedRelation} entry. The total is: diagonal count from tree +
-     * query-level diagonal + 1 ({@link UnresolvedRelation}).
-     */
-    private static int effectiveDiagonalBranches(int nesting, int branching) {
-        int diagonal = Math.min(nesting, branching); // v_1_1, v_2_2, ..., v_min(N,B)_min(N,B)
-        int queryDiagonal = (nesting + 1 <= branching) ? 1 : 0; // v_(N+1)_(N+1) if it exists
-        return diagonal + queryDiagonal + 1; // +1 for the merged compactable UnresolvedRelation
-    }
-
-    /**
      * Tests a 12x10 matrix of nesting depth x branching width with non-compactable views.
      * Non-compactable views have a LIMIT command (e.g., {@code FROM idx | LIMIT 1000}) that prevents
      * compaction, forcing each view reference to become a separate branch in a FORK.
@@ -1831,14 +1690,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * <ul>
      *   <li>nesting &gt; max view depth (10): view depth exceeded error (takes priority)</li>
      *   <li>branching &gt; {@link Fork#MAX_BRANCHES}: FORK branching error at the first level with too many branches</li>
-     *   <li>branching &le; {@link Fork#MAX_BRANCHES}: resolution succeeds, producing nested {@link ViewUnionAll}
-     *       structures for nesting &ge; 2 with branching &ge; 2</li>
+     *   <li>branching &le; {@link Fork#MAX_BRANCHES}: resolution succeeds</li>
      * </ul>
      */
     public void testNonCompactableViewNestingBranchingMatrix() {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         int maxViewDepth = ViewResolver.MAX_VIEW_DEPTH_SETTING.getDefault(Settings.EMPTY);
-        LogicalVerifier verifier = LogicalVerifier.INSTANCE;
         try (var matrixService = matrixViewService()) {
             var matrixResolver = matrixService.getViewResolver();
             for (int nesting = 1; nesting <= 12; nesting++) {
@@ -1875,38 +1732,15 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                             containsString("FORK supports up to " + Fork.MAX_BRANCHES + " branches")
                         );
                     } else {
+                        // Within the depth and FORK-branch limits, view resolution succeeds. The nested
+                        // structure (and any "nested subqueries" verification) is now a property of the
+                        // optimizer's FlattenUnionAll/InlineView rules, not the resolver, so this matrix
+                        // only checks that resolution at scale completes without error.
                         LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
                         assertNotNull(
                             "Non-compactable resolution should succeed for nesting=" + nesting + ", branching=" + branching,
                             result
                         );
-                        if (branching >= 2) {
-                            Failures failures = new Failures();
-                            Failures depFailures = new Failures();
-                            verifier.checkPlanConsistency(result, failures, depFailures);
-                            if (nesting >= 2) {
-                                assertTrue(
-                                    "Expected nested ViewUnionAll for nesting=" + nesting + ", branching=" + branching,
-                                    containsNestedViewUnionAll(result)
-                                );
-                                assertThat("Expect failure count", failures.failures().size(), equalTo(nesting - 1));
-                                // Each nested ViewUnionAll failure should reference the view that created it.
-                                // The ViewUnionAlls at depths 2..N have view names v_2_1..v_N_1.
-                                for (Failure failure : failures.failures()) {
-                                    assertThat(failure.failMessage(), containsString("Nested subqueries are not supported"));
-                                    assertThat(failure.failMessage(), containsString("(in view [v_"));
-                                }
-                            } else {
-                                assertFalse(
-                                    "No nested ViewUnionAll expected for nesting=" + nesting + ", branching=" + branching,
-                                    containsNestedViewUnionAll(result)
-                                );
-                                assertFalse(
-                                    "No failures expected for nesting=" + nesting + ", branching=" + branching,
-                                    failures.hasFailures()
-                                );
-                            }
-                        }
                     }
                 }
             }
@@ -2004,21 +1838,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     /**
-     * Checks whether the plan contains nested {@link ViewUnionAll} nodes,
-     * i.e., a ViewUnionAll whose subtree contains another ViewUnionAll.
-     */
-    private static boolean containsNestedViewUnionAll(LogicalPlan plan) {
-        boolean[] found = { false };
-        plan.forEachDown(ViewUnionAll.class, outer -> {
-            if (found[0]) return;
-            for (LogicalPlan child : outer.children()) {
-                child.forEachDown(ViewUnionAll.class, inner -> found[0] = true);
-            }
-        });
-        return found[0];
-    }
-
-    /**
      * Creates a view service with increased max views count for the nesting/branching matrix tests.
      */
     private InMemoryViewService matrixViewService() {
@@ -2026,214 +1845,85 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     /**
-     * Walk the plan tree and collect the {@code viewName} of every {@link ViewShadowRelation}.
-     * Used by uncompacted-shape tests that want to assert which CPS shadows the resolver emitted
-     * without depending on their precise structural position.
+     * Walk the plan tree and collect every first-class {@link org.elasticsearch.xpack.esql.plan.logical.View}
+     * node keyed by its view name.
      */
-    private static List<String> collectShadowNames(LogicalPlan plan) {
-        List<String> names = new ArrayList<>();
-        plan.forEachDown(ViewShadowRelation.class, sh -> names.add(sh.viewName()));
-        return names;
+    private static Map<String, org.elasticsearch.xpack.esql.plan.logical.View> collectViews(LogicalPlan plan) {
+        Map<String, org.elasticsearch.xpack.esql.plan.logical.View> views = new LinkedHashMap<>();
+        plan.forEachDown(org.elasticsearch.xpack.esql.plan.logical.View.class, v -> views.put(v.viewName(), v));
+        return views;
+    }
+
+    /** Collect the index pattern of every strict (non-linked) {@link UnresolvedRelation} in the plan. */
+    private static List<String> strictPatterns(LogicalPlan plan) {
+        List<String> patterns = new ArrayList<>();
+        plan.forEachDown(UnresolvedRelation.class, ur -> {
+            if (ur.linkedIndexPattern() == null) {
+                patterns.add(ur.indexPattern().indexPattern());
+            }
+        });
+        return patterns;
     }
 
     /**
-     * Walk the plan tree and collect each {@link ViewShadowRelation}'s applicable exclusions,
-     * keyed by view name.
+     * Map each CPS linked relation by its view name (the first comma-segment of the linked pattern) to
+     * the full linked index pattern string, so exclusion-propagation tests can assert the per-view
+     * lenient-lookup target the resolver attached.
      */
-    private static Map<String, ViewShadowRelation> collectViewShadowRelations(LogicalPlan plan) {
-        Map<String, ViewShadowRelation> vsrs = new LinkedHashMap<>();
-        plan.forEachDown(ViewShadowRelation.class, vsr -> vsrs.put(vsr.viewName(), vsr));
-        return vsrs;
-    }
-
-    private static void assertNoPlanConsistencyFailures(LogicalPlan plan, String context) {
-        Failures failures = new Failures();
-        Failures depFailures = new Failures();
-        LogicalVerifier.INSTANCE.checkPlanConsistency(plan, failures, depFailures);
-        assertFalse("Plan consistency failures for " + context + ": " + failures, failures.hasFailures());
+    private static Map<String, String> collectLinkedPatternsByView(LogicalPlan plan) {
+        Map<String, String> byView = new LinkedHashMap<>();
+        plan.forEachDown(UnresolvedRelation.class, ur -> {
+            if (ur.linkedIndexPattern() != null) {
+                String pattern = ur.linkedIndexPattern().pattern().indexPattern();
+                String viewName = pattern.split(",", 2)[0];
+                byView.put(viewName, pattern);
+            }
+        });
+        return byView;
     }
 
     // -------------------------------------------------------------------------------------------
-    // Uncompacted ViewResolver output contract tests.
+    // CPS linked-relation contract tests.
     //
-    // These assert on the raw output of ViewResolver.replaceViews(), before {@link ViewCompaction}
-    // runs. They lock in the new ViewResolver contract so the upcoming CPS work
-    // (esql-planning #543) can rely on a known, stable nested shape per resolution level. The bulk
-    // of this file's coverage is on the post-compaction shape (what users observe via
-    // {@link #replaceViews(LogicalPlan)}).
+    // Under CPS the resolver emits, alongside each resolved view, a "linked" UnresolvedRelation — an
+    // ordinary lenient remote-index lookup flagged with a LinkedIndexPattern (the successor to the old
+    // ViewShadowRelation). These tests assert the per-view linked pattern the resolver attaches,
+    // including position-aware exclusion propagation, which the CPS lenient field-caps work relies on.
     // -------------------------------------------------------------------------------------------
 
     /**
-     * Single-view query: the resolver returns a {@link ViewUnionAll} with the view's resolved body
-     * alongside its CPS shadow. The strip in {@link ViewCompaction} drops the shadow before
-     * downstream consumers see it (Phase A); Phase B will replace the strip with a real
-     * lenient-resolution rule.
+     * Single view under CPS: the resolver emits a linked relation for the view, keyed by the view name,
+     * with the view name as its lenient lookup pattern.
      */
-    public void testUncompactedSingleView() {
+    public void testCpsLinkedRelationForSingleView() {
         addView("v", "FROM emp");
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll vua = (ViewUnionAll) resolved;
-        assertThat(vua.namedSubqueries().keySet(), containsInAnyOrder("v", "v#shadow"));
-        assertThat(vua.namedSubqueries().get("v"), instanceOf(UnresolvedRelation.class));
-        assertThat(vua.namedSubqueries().get("v#shadow"), instanceOf(ViewShadowRelation.class));
-        assertThat(((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).viewName(), equalTo("v"));
-        assertThat(
-            ((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).linkedIndexPattern().pattern().indexPattern(),
-            equalTo("v")
-        );
+        LogicalPlan resolved = replaceViewsCps(query("FROM v"));
+        Map<String, String> linked = collectLinkedPatternsByView(resolved);
+        assertThat(linked.keySet(), containsInAnyOrder("v"));
+        assertThat(linked.get("v"), equalTo("v"));
     }
 
     /**
-     * Two-view query: per-level merge in {@code buildPlanFromBranches} collapses the two strict
-     * UnresolvedRelations into one merged entry; both views still get their own
-     * {@link ViewShadowRelation} sibling.
-     */
-    public void testUncompactedTwoSiblingViews() {
-        addView("v_a", "FROM emp1");
-        addView("v_b", "FROM emp2");
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_a, v_b"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll vua = (ViewUnionAll) resolved;
-        // Strict siblings collapsed into one bare UnresolvedRelation by the per-level merge.
-        long strictCount = vua.namedSubqueries().values().stream().filter(p -> p instanceof UnresolvedRelation).count();
-        assertThat("expected exactly one merged strict UR in: " + vua.namedSubqueries(), strictCount, equalTo(1L));
-        // Both views have their own shadow.
-        assertThat(vua.namedSubqueries().keySet(), hasItems("v_a#shadow", "v_b#shadow"));
-    }
-
-    /**
-     * Nested views: every level emits its own {@link ViewShadowRelation} alongside the strict
-     * resolution. The outer level wraps the inner level as a {@link NamedSubquery} since the
-     * inner's plan is no longer a bare {@link UnresolvedRelation} once a shadow sibling is
-     * attached.
-     */
-    public void testUncompactedNestedViews() {
-        addView("inner", "FROM emp1, emp2");
-        addView("outer", "FROM inner");
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM outer"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll outerVua = (ViewUnionAll) resolved;
-        assertThat(outerVua.namedSubqueries().keySet(), hasItems("outer", "outer#shadow"));
-        // Inner level should also surface its own shadow inside the outer's NamedSubquery wrapper.
-        assertThat(
-            "outer-level plan tree should contain shadows for both 'outer' and 'inner'",
-            collectShadowNames(resolved),
-            containsInAnyOrder("outer", "inner")
-        );
-    }
-
-    /**
-     * View body containing an exclusion is wrapped in a {@link NamedSubquery} by the resolver to
-     * defeat sibling-merge — this is the scoping mechanism that prevents the exclusion from
-     * leaking onto sibling {@link UnresolvedRelation}s. {@link ViewCompaction} unwraps the
-     * NamedSubquery only at the very end (after all merging passes have decided to leave it alone).
-     */
-    public void testUncompactedViewBodyWithExclusionStaysWrapped() {
-        addIndex("idx-a1");
-        addIndex("idx-a2");
-        addIndex("idx-b1");
-        addIndex("idx-b2");
-        addView("data-view", "FROM idx-b*,-*2");
-        // The outer query has two sibling UnresolvedRelations. The view body's exclusion-bearing
-        // UnresolvedRelation must stay scoped — represented as a NamedSubquery in the uncompacted output.
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM idx-a*, data-view"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll vua = (ViewUnionAll) resolved;
-        // One entry is the bare outer UnresolvedRelation; another is the data-view body wrapped in
-        // a NamedSubquery; another is the data-view shadow.
-        assertThat(
-            "Expected one entry to be a NamedSubquery wrapping the exclusion-bearing view body. Found: " + vua.namedSubqueries(),
-            vua.namedSubqueries().values().stream().anyMatch(p -> p instanceof NamedSubquery),
-            equalTo(true)
-        );
-        assertThat(collectShadowNames(resolved), contains("data-view"));
-    }
-
-    /**
-     * Non-CPS wildcard-matched siblings of the same view body shape are merged at the resolver
-     * level (per the per-level merge), then collapse to a single {@link UnresolvedRelation}. The
-     * order in the merged pattern follows the order returned by the view metadata service, which
-     * is not guaranteed to be alphabetical — we just check the final set of patterns matches.
-     * <p>
-     * Under CPS this collapse does not happen — the wildcard is preserved as a CPS lookup pattern
-     * alongside the per-view strict resolutions and shadows. See
-     * {@link #testUncompactedWildcardMatchedSiblingsMergeCps} for the CPS shape.
-     */
-    public void testUncompactedWildcardMatchedSiblingsMerge() {
-        addView("v_a", "FROM emp1");
-        addView("v_b", "FROM emp2");
-        LogicalPlan resolved = replaceViewsWithoutCompactionNonCps(query("FROM v_*"));
-        // Non-CPS: the wildcard fully resolves into the matched view bodies; per-level merge folds
-        // them into one bare UnresolvedRelation. No shadows.
-        assertThat(resolved, instanceOf(UnresolvedRelation.class));
-        UnresolvedRelation strict = (UnresolvedRelation) resolved;
-        assertThat(List.of(strict.indexPattern().indexPattern().split(",")), containsInAnyOrder("emp1", "emp2"));
-        assertThat(collectShadowNames(resolved), empty());
-    }
-
-    /**
-     * CPS variant of {@link #testUncompactedWildcardMatchedSiblingsMerge}: the wildcard pattern
-     * is preserved as a strict {@link UnresolvedRelation} for the CPS lookup against linked
-     * projects, alongside per-view strict resolutions and a {@link ViewShadowRelation} sibling
-     * per matched view.
-     */
-    public void testUncompactedWildcardMatchedSiblingsMergeCps() {
-        addView("v_a", "FROM emp1");
-        addView("v_b", "FROM emp2");
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_*"));
-        // in cps resolved pattern should contain coalesced views patterns (emp1 and emp2)
-        // as well as v_* pattern in case it could be resolved on linked projects
-        assertThat(resolved, instanceOf(UnresolvedRelation.class));
-        UnresolvedRelation strict = (UnresolvedRelation) resolved;
-        assertThat(List.of(strict.indexPattern().indexPattern().split(",")), containsInAnyOrder("emp1", "emp2", "v_*"));
-        assertThat(collectShadowNames(resolved), empty());
-    }
-
-    /**
-     * Subquery inside a view body produces a nested {@link ViewUnionAll}/Fork structure that the
-     * resolver does <em>not</em> flatten — that's the analyzer's job. This verifies the nested
-     * structure survives the resolver, which is the property #543's lenient-call work depends on.
-     * The outer view body shows up as a {@link NamedSubquery} wrapping a {@link UnionAll}, since
-     * the user-written subquery prevents collapsing to a bare {@link UnresolvedRelation}.
-     */
-    public void testUncompactedSubqueryInViewBodyKeepsNestedStructure() {
-        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        addView("inner_a", "FROM emp1");
-        addView("inner_b", "FROM emp2 | WHERE emp.age > 30");
-        addView("outer", "FROM inner_a, (FROM inner_b)");
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM outer"));
-        // Now there's an outer ViewUnionAll containing the resolved 'outer' view body alongside its
-        // shadow. The view body itself still carries the user-written subquery as a nested
-        // UnionAll/ViewUnionAll.
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll vua = (ViewUnionAll) resolved;
-        assertThat(vua.namedSubqueries().keySet(), hasItems("outer", "outer#shadow"));
-        // Shadows should be present for outer plus the inner views referenced through the body.
-        assertThat(collectShadowNames(resolved), hasItems("outer", "inner_a", "inner_b"));
-    }
-
-    /**
-     * Per-shadow exclusion lists carry the position-aware exclusions from each view's referencing
+     * Per-view exclusion lists carry the position-aware exclusions from each view's referencing
      * UnresolvedRelation. Reproduces the example from esql-planning #543 where {@code v1}'s body
-     * has {@code FROM v2,metrics*,-*2025} so the {@code v2} shadow gets {@code [-*2025]}.
+     * has {@code FROM v2,metrics*,-*2025} so the {@code v2} linked relation gets {@code [-*2025]}.
      */
-    public void testViewShadowRelationCarriesPositionAwareExclusions() {
+    public void testLinkedRelationCarriesPositionAwareExclusions() {
         addIndex("logs-001");
         addIndex("metrics-001");
         addView("v2", "FROM logs*,-*2026");
         addView("v1", "FROM v2,metrics*,-*2025");
         addView("v0", "FROM v1");
 
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v0"));
-        Map<String, ViewShadowRelation> vsrs = collectViewShadowRelations(resolved);
+        LogicalPlan resolved = replaceViewsCps(query("FROM v0"));
+        Map<String, String> linked = collectLinkedPatternsByView(resolved);
 
         // v0 referenced from outer "FROM v0" — no later exclusions.
-        assertThat(vsrs.get("v0").linkedIndexPattern().pattern().indexPattern(), equalTo("v0"));
+        assertThat(linked.get("v0"), equalTo("v0"));
         // v1 referenced from v0's body "FROM v1" — no later exclusions.
-        assertThat(vsrs.get("v1").linkedIndexPattern().pattern().indexPattern(), equalTo("v1"));
+        assertThat(linked.get("v1"), equalTo("v1"));
         // v2 referenced from v1's body "FROM v2,metrics*,-*2025" — -*2025 follows v2 → applies.
-        assertThat(vsrs.get("v2").linkedIndexPattern().pattern().indexPattern(), equalTo("v2,-*2025"));
+        assertThat(linked.get("v2"), equalTo("v2,-*2025"));
     }
 
     /**
@@ -2241,348 +1931,82 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * {@code FROM v_a,-staleA-*,v_b,-staleB-*} case: v_a sees both exclusions; v_b sees only the
      * one that comes after it.
      */
-    public void testViewShadowRelationExclusionsRespectPosition() {
+    public void testLinkedRelationExclusionsRespectPosition() {
         addView("v_a", "FROM emp");
         addView("v_b", "FROM emp");
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_a,-staleA-*,v_b,-staleB-*"));
-        Map<String, ViewShadowRelation> vsrs = collectViewShadowRelations(resolved);
-        assertThat(vsrs.get("v_a").linkedIndexPattern().pattern().indexPattern(), equalTo("v_a,-staleA-*,-staleB-*"));
-        assertThat(vsrs.get("v_b").linkedIndexPattern().pattern().indexPattern(), equalTo("v_b,-staleB-*"));
+        LogicalPlan resolved = replaceViewsCps(query("FROM v_a,-staleA-*,v_b,-staleB-*"));
+        Map<String, String> linked = collectLinkedPatternsByView(resolved);
+        assertThat(linked.get("v_a"), equalTo("v_a,-staleA-*,-staleB-*"));
+        assertThat(linked.get("v_b"), equalTo("v_b,-staleB-*"));
     }
 
     /**
      * Cluster-prefixed exclusions ({@code cluster:-name}, {@code *:-name}) and cluster-level
-     * exclusions ({@code -cluster:*}) must travel with the shadow's exclusions list, just like
-     * the bare {@code -name} form. Reproduces a serverless integration scenario:
+     * exclusions ({@code -cluster:*}) must travel with the linked relation's exclusions list, just
+     * like the bare {@code -name} form. Reproduces a serverless integration scenario:
      * {@code FROM my-data, my_linked_project:-my-data} where {@code my-data} is a local view
      * and a remote index on {@code my_linked_project} — the cluster-scoped exclusion has to reach
      * the lenient field-caps target as {@code my-data,my_linked_project:-my-data}, otherwise the
-     * lenient lookup matches the remote index and the shadow erroneously resolves to a remote
-     * {@code EsRelation}.
+     * lenient lookup matches the remote index and the linked relation erroneously resolves to a
+     * remote {@code EsRelation}.
      */
-    public void testViewShadowRelationCarriesClusterPrefixedExclusions() {
+    public void testLinkedRelationCarriesClusterPrefixedExclusions() {
+        addIndex("source-index");
         addView("my-data", "FROM source-index");
         addView("v_a", "FROM emp");
         addView("v_b", "FROM emp");
 
-        // Cluster-prefixed exclusion (cluster:-name): attaches to shadows positioned before it.
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM my-data,my_linked_project:-my-data"));
-        Map<String, ViewShadowRelation> vsrs = collectViewShadowRelations(resolved);
-        assertThat(vsrs.get("my-data").linkedIndexPattern().pattern().indexPattern(), equalTo("my-data,my_linked_project:-my-data"));
+        // Cluster-prefixed exclusion (cluster:-name): attaches to linked relations positioned before it.
+        LogicalPlan resolved = replaceViewsCps(query("FROM my-data,my_linked_project:-my-data"));
+        Map<String, String> linked = collectLinkedPatternsByView(resolved);
+        assertThat(linked.get("my-data"), equalTo("my-data,my_linked_project:-my-data"));
 
         // *:-name form (exclusion across all remotes): same handling.
-        resolved = replaceViewsWithoutCompaction(query("FROM v_a,*:-stale,v_b"));
-        vsrs = collectViewShadowRelations(resolved);
-        assertThat(vsrs.get("v_a").linkedIndexPattern().pattern().indexPattern(), equalTo("v_a,*:-stale"));
-        assertThat(vsrs.get("v_b").linkedIndexPattern().pattern().indexPattern(), equalTo("v_b"));
+        resolved = replaceViewsCps(query("FROM v_a,*:-stale,v_b"));
+        linked = collectLinkedPatternsByView(resolved);
+        assertThat(linked.get("v_a"), equalTo("v_a,*:-stale"));
+        assertThat(linked.get("v_b"), equalTo("v_b"));
 
         // Cluster-level exclusion (-cluster:*): also propagates.
-        resolved = replaceViewsWithoutCompaction(query("FROM v_a,-stale_cluster:*,v_b"));
-        vsrs = collectViewShadowRelations(resolved);
-        assertThat(vsrs.get("v_a").linkedIndexPattern().pattern().indexPattern(), equalTo("v_a,-stale_cluster:*"));
-        assertThat(vsrs.get("v_b").linkedIndexPattern().pattern().indexPattern(), equalTo("v_b"));
-    }
-
-    // -------------------------------------------------------------------------------------------
-    // Staged transformation tests.
-    //
-    // The pipeline runs three observable phases:
-    // 1. View resolution (ViewResolver.replaceViews) — produces a tree with ViewShadowRelation
-    // siblings inside per-level ViewUnionAlls.
-    // 2. ViewCompaction.preIndexResolution — runs from EsqlSession before PreAnalyzer. Just reshapes
-    // user-written Subquery/UnionAll into ViewUnionAll where appropriate. Shadows survive.
-    // 3. ViewCompaction.postIndexResolution — runs as an analyzer rule after ResolveTable. Strips
-    // shadows, re-runs the rewrite (strip can collapse a single-shadow ViewUnionAll to a
-    // sole NamedSubquery, exposing structure rewrite needs), flattens nested ViewUnionAlls,
-    // unwraps remaining NamedSubquery wrappers.
-    //
-    // These tests assert on the tree after each phase to lock in the contract between phases —
-    // critical for the CPS index resolution which needs the strict/lenient pairing intact at the
-    // analyzer-rule boundary.
-    // -------------------------------------------------------------------------------------------
-
-    /**
-     * CPS variant: view referenced from inside a user-written {@code (FROM v)} subquery. The
-     * interesting case is that {@link ViewCompaction#postIndexResolution} has to re-run
-     * {@code rewriteUnionAllsWithNamedSubqueries} <em>after</em> the strip — the strip collapses
-     * {@code ViewUnionAll[NamedSubquery, ViewShadowRelation]} to its sole {@link NamedSubquery}
-     * child, which is what the rewrite needs to see in order to unwrap the surrounding
-     * {@link Subquery} and convert the outer {@link UnionAll} to {@link ViewUnionAll}. Compare
-     * with {@link #testStagedSimpleViewInSubqueryNonCps} where the rewrite chain runs in
-     * preIndexResolution because no shadow-bearing ViewUnionAll gets in the way.
-     */
-    public void testStagedSimpleViewInSubqueryCps() {
-        addView("my_view", "FROM emp | WHERE emp.age > 30");
-
-        // Stage 1: view resolution only. The Subquery wraps a ViewUnionAll because the inner
-        // resolution path emits the (NamedSubquery, ViewShadowRelation) pair as a per-level VUA.
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM emp2, (FROM my_view)"));
-        assertThat(resolved, instanceOf(UnionAll.class));
-        assertThat(resolved, not(instanceOf(ViewUnionAll.class)));
-        assertThat(collectShadowNames(resolved), contains("my_view"));
-        Subquery innerSubquery = resolved.children()
-            .stream()
-            .filter(c -> c instanceof Subquery)
-            .map(c -> (Subquery) c)
-            .findFirst()
-            .orElseThrow();
-        assertThat(innerSubquery.child(), instanceOf(ViewUnionAll.class));
-
-        // Stage 2: preIndexResolution. The Subquery's child is a ViewUnionAll (not a NamedSubquery)
-        // so rewrite has nothing to unwrap; the outer UnionAll has [UR, Subquery] children with no
-        // direct NamedSubquery sibling, so it stays as a plain UnionAll. Shadows untouched.
-        LogicalPlan preIndicesResolved = ViewCompaction.preIndexResolution(resolved);
-        assertThat(preIndicesResolved, instanceOf(UnionAll.class));
-        assertThat(preIndicesResolved, not(instanceOf(ViewUnionAll.class)));
-        assertThat(collectShadowNames(preIndicesResolved), contains("my_view"));
-
-        // Stage 3: postIndexResolution. Strip removes the shadow, collapsing the inner ViewUnionAll
-        // to its NamedSubquery child; the re-run rewrite then unwraps Subquery(NamedSubquery) and
-        // converts the outer UnionAll to ViewUnionAll; the unwrap step at the end strips the
-        // remaining NamedSubquery wrapper, leaving the bare view body alongside the sibling.
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
-        assertThat(postIndicesResolved, instanceOf(ViewUnionAll.class));
-        assertThat(collectShadowNames(postIndicesResolved), empty());
-        assertThat(
-            postIndicesResolved.children(),
-            containsInAnyOrder(matchesPlan(query("FROM emp | WHERE emp.age > 30")), matchesPlan(query("FROM emp2")))
-        );
-    }
-
-    /**
-     * Non-CPS variant: same query as {@link #testStagedSimpleViewInSubqueryCps}, but with shadows
-     * disabled. Without a shadow sibling the inner resolution returns the resolved view body
-     * wrapped in a single {@link NamedSubquery} (no enclosing ViewUnionAll), so preIndexResolution's
-     * rewrite chain immediately unwraps {@code Subquery(NamedSubquery)} and converts the outer
-     * UnionAll to ViewUnionAll. postIndexResolution then has nothing left to do.
-     */
-    public void testStagedSimpleViewInSubqueryNonCps() {
-        addView("my_view", "FROM emp | WHERE emp.age > 30");
-
-        // Stage 1: view resolution only. No CPS, no shadow. The user-written Subquery wrapper is
-        // unwrapped during resolution (replaceViewsFork's Subquery(NamedSubquery) → NamedSubquery
-        // step) — without a shadow sibling forcing a per-level ViewUnionAll, the inner branch
-        // simplifies straight to the resolved view body wrapped in a NamedSubquery. The outer
-        // UnionAll's children are now [UR, NamedSubquery].
-        LogicalPlan resolved = replaceViewsWithoutCompactionNonCps(query("FROM emp2, (FROM my_view)"));
-        assertThat(resolved, instanceOf(UnionAll.class));
-        assertThat(resolved, not(instanceOf(ViewUnionAll.class)));
-        assertThat(collectShadowNames(resolved), empty());
-        // The Subquery wrapper is gone — the inner branch is a NamedSubquery sibling of the outer UR.
-        // (NamedSubquery extends Subquery, so we filter narrowly: bare-Subquery only.)
-        boolean hasBareSubquery = resolved.children()
-            .stream()
-            .anyMatch(c -> c instanceof Subquery && (c instanceof NamedSubquery) == false);
-        assertFalse("Did not expect a bare Subquery wrapper in the outer UnionAll's children", hasBareSubquery);
-        long namedSubqueryCount = resolved.children().stream().filter(c -> c instanceof NamedSubquery).count();
-        assertThat("Expected one NamedSubquery sibling carrying the resolved view body", namedSubqueryCount, equalTo(1L));
-
-        // Stage 2: preIndexResolution. The outer UnionAll has a NamedSubquery child, so the rewrite
-        // converts it to ViewUnionAll. This is more compaction than the CPS variant achieves at
-        // this stage: there, the inner level is a shadow-bearing ViewUnionAll wrapped in a Subquery,
-        // which the rewrite cannot collapse until postIndexResolution strips the shadow.
-        LogicalPlan preIndicesResolved = ViewCompaction.preIndexResolution(resolved);
-        assertThat(preIndicesResolved, instanceOf(ViewUnionAll.class));
-        assertThat(collectShadowNames(preIndicesResolved), empty());
-
-        // Stage 3: postIndexResolution. Strip is a no-op (no shadows). The final NamedSubquery
-        // unwrap leaves a clean ViewUnionAll over the resolved bodies.
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
-        assertThat(postIndicesResolved, instanceOf(ViewUnionAll.class));
-        assertThat(collectShadowNames(postIndicesResolved), empty());
-        assertThat(
-            postIndicesResolved.children(),
-            containsInAnyOrder(matchesPlan(query("FROM emp | WHERE emp.age > 30")), matchesPlan(query("FROM emp2")))
-        );
-    }
-
-    /**
-     * CPS variant: two sibling views {@code FROM v_a, v_b}. The per-level merge inside
-     * {@code ViewResolver.buildPlanFromBranches} collapses the two strict UnresolvedRelations
-     * into one merged entry, but each view still gets its own {@link ViewShadowRelation} sibling.
-     * Tracking those shadows from view resolution through
-     * {@link ViewCompaction#postIndexResolution} is what proves the strict/lenient pairing
-     * survives intact at the analyzer-rule boundary — the CPS lenient-FC rule will read those
-     * shadows there.
-     */
-    public void testStagedTwoSiblingViewsCps() {
-        addView("v_a", "FROM emp1");
-        addView("v_b", "FROM emp2");
-
-        // Stage 1: view resolution only. Per-level merge folds the two strict URs into one,
-        // shadows attached as siblings.
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_a, v_b"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll resolvedVua = (ViewUnionAll) resolved;
-        long strictCount = resolvedVua.namedSubqueries().values().stream().filter(p -> p instanceof UnresolvedRelation).count();
-        assertThat("expected one merged strict UR", strictCount, equalTo(1L));
-        assertThat(collectShadowNames(resolved), containsInAnyOrder("v_a", "v_b"));
-
-        // Stage 2: preIndexResolution is the rewrite step. Already a ViewUnionAll, so no-op.
-        LogicalPlan preIndicesResolved = ViewCompaction.preIndexResolution(resolved);
-        assertThat(preIndicesResolved, instanceOf(ViewUnionAll.class));
-        assertThat(collectShadowNames(preIndicesResolved), containsInAnyOrder("v_a", "v_b"));
-
-        // Stage 3: postIndexResolution strips both shadows; the merged strict UR is the sole survivor.
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
-        assertThat(collectShadowNames(postIndicesResolved), empty());
-        assertThat(postIndicesResolved, matchesPlan(query("FROM emp1,emp2")));
-    }
-
-    /**
-     * Non-CPS variant: same query as {@link #testStagedTwoSiblingViewsCps}. Without shadows the
-     * resolver doesn't need a {@link ViewUnionAll} at this level at all — the per-level merge
-     * collapses the two view bodies to a single bare {@link UnresolvedRelation}, which is
-     * returned directly. Both compaction phases then have nothing to do.
-     */
-    public void testStagedTwoSiblingViewsNonCps() {
-        addView("v_a", "FROM emp1");
-        addView("v_b", "FROM emp2");
-
-        // Stage 1: view resolution only. With no shadows to keep alongside, the resolver collapses
-        // the merged UR all the way down to a bare UnresolvedRelation rather than wrapping it in
-        // a ViewUnionAll.
-        LogicalPlan resolved = replaceViewsWithoutCompactionNonCps(query("FROM v_a, v_b"));
-        assertThat(resolved, instanceOf(UnresolvedRelation.class));
-        assertThat(collectShadowNames(resolved), empty());
-        assertThat(((UnresolvedRelation) resolved).indexPattern().indexPattern(), equalTo("emp1,emp2"));
-
-        // Stage 2 + 3: both compaction phases see only a bare UR — nothing to compact.
-        LogicalPlan preIndicesResolved = ViewCompaction.preIndexResolution(resolved);
-        assertThat(preIndicesResolved, sameInstance(resolved));
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
-        assertThat(postIndicesResolved, sameInstance(preIndicesResolved));
-        assertThat(postIndicesResolved, matchesPlan(query("FROM emp1,emp2")));
-    }
-
-    /**
-     * CPS variant: nested non-compactable views. The inner view's body has a {@code | LIMIT} so
-     * it cannot be folded into a sibling UnresolvedRelation — the resolver keeps the inner level
-     * as a {@link NamedSubquery}-wrapped {@link ViewUnionAll}. Each level emits its own shadow,
-     * so the tree carries shadows for both inner and outer at the time it reaches PreAnalyzer.
-     * postIndexResolution strips both and then flattens the nested {@link ViewUnionAll} structure
-     * into a single level (Strategy A — sibling resolutions stay separate, no merging).
-     */
-    public void testStagedNestedNonCompactableViewsCps() {
-        addView("inner_v", "FROM emp1 | LIMIT 100");
-        addView("outer_v", "FROM inner_v, emp2 | LIMIT 200");
-
-        // Stage 1: view resolution. Outer ViewUnionAll wraps a NamedSubquery whose body contains
-        // an inner ViewUnionAll (carrying inner_v's shadow). The outer level has its own shadow.
-        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM outer_v"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        assertThat(collectShadowNames(resolved), containsInAnyOrder("inner_v", "outer_v"));
-
-        // Stage 2: preIndexResolution is a no-op (already a ViewUnionAll, no plain Subquery
-        // wrapping a NamedSubquery to unwrap). Shadows still present at both levels.
-        LogicalPlan preIndicesResolved = ViewCompaction.preIndexResolution(resolved);
-        assertThat(preIndicesResolved, instanceOf(ViewUnionAll.class));
-        assertThat(collectShadowNames(preIndicesResolved), containsInAnyOrder("inner_v", "outer_v"));
-
-        // Stage 3: postIndexResolution strips both shadows and flattens the nested structure. The
-        // non-compactable Limits prevent UR-merging, so we end up with a single ViewUnionAll
-        // whose children are the resolved view bodies.
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
-        assertThat(collectShadowNames(postIndicesResolved), empty());
-        assertFalse(
-            "Expected no nested ViewUnionAll after postIndexResolution, got: " + postIndicesResolved,
-            containsNestedViewUnionAll(postIndicesResolved)
-        );
-    }
-
-    /**
-     * Non-CPS variant of {@link #testStagedNestedNonCompactableViewsCps}: with no shadows to keep
-     * alongside, the resolver still produces a nested {@link ViewUnionAll} (the {@code | LIMIT}
-     * prevents UR-merging across levels), but the structure is leaner — for {@code FROM outer_v}
-     * with a single view ref, the result is the resolved outer_v body wrapped in a NamedSubquery,
-     * containing a single inner ViewUnionAll. postIndexResolution flattens the nested
-     * ViewUnionAll just like in the CPS case, leaving a single-level ViewUnionAll.
-     */
-    public void testStagedNestedNonCompactableViewsNonCps() {
-        addView("inner_v", "FROM emp1 | LIMIT 100");
-        addView("outer_v", "FROM inner_v, emp2 | LIMIT 200");
-
-        // Stage 1: view resolution. With a single outer view ref and no shadow, the resolver
-        // returns the resolved view body directly — wrapped in a NamedSubquery (because the body
-        // has a Limit, so it's not a bare UnresolvedRelation).
-        LogicalPlan resolved = replaceViewsWithoutCompactionNonCps(query("FROM outer_v"));
-        assertThat(resolved, instanceOf(NamedSubquery.class));
-        assertThat(collectShadowNames(resolved), empty());
-        assertTrue(
-            "Expected a nested ViewUnionAll inside the resolved outer body before compaction",
-            containsNestedViewUnionAll(resolved) || hasViewUnionAllUnderUnary(resolved)
-        );
-
-        // Stage 2: preIndexResolution is a no-op here — there's no plain UnionAll-with-NamedSubquery
-        // to convert; the structure is already shadow-free, just nested.
-        LogicalPlan preIndicesResolved = ViewCompaction.preIndexResolution(resolved);
-        assertThat(collectShadowNames(preIndicesResolved), empty());
-
-        // Stage 3: postIndexResolution unwraps the outer NamedSubquery and flattens the nested
-        // ViewUnionAll. Strip is a no-op (no shadows). Final plan has no nested ViewUnionAlls.
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
-        assertThat(collectShadowNames(postIndicesResolved), empty());
-        assertFalse(
-            "Expected no nested ViewUnionAll after postIndexResolution, got: " + postIndicesResolved,
-            containsNestedViewUnionAll(postIndicesResolved)
-        );
-    }
-
-    private static boolean hasViewUnionAllUnderUnary(LogicalPlan plan) {
-        boolean[] found = { false };
-        plan.forEachDown(ViewUnionAll.class, vua -> found[0] = true);
-        return found[0];
+        resolved = replaceViewsCps(query("FROM v_a,-stale_cluster:*,v_b"));
+        linked = collectLinkedPatternsByView(resolved);
+        assertThat(linked.get("v_a"), equalTo("v_a,-stale_cluster:*"));
+        assertThat(linked.get("v_b"), equalTo("v_b"));
     }
 
     /**
      * Replace views and apply the compaction step that the analyzer runs in production. Most of
      * this file's assertions are on the compacted shape, since that's what users observe; tests
      * that need to assert on the raw uncompacted resolver output should use
-     * {@link #replaceViewsWithoutCompaction(LogicalPlan)}.
+     * {@link #replaceViewsCps(LogicalPlan)}.
+     */
+    /**
+     * Resolve views the way the production pipeline does now: each view becomes a first-class {@code View}
+     * node and a multi-source {@code FROM} a plain {@code UnionAll}. There is no separate compaction step —
+     * view folding happens later, in the optimizer — so this is just the resolver output.
      */
     private LogicalPlan replaceViews(LogicalPlan plan) {
         return replaceViews(plan, viewResolver);
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan, ViewResolver resolver) {
-        return COMPACTION.apply(replaceViewsWithoutCompaction(plan, resolver));
-    }
-
-    /**
-     * Run view resolution under CPS so {@link ViewShadowRelation} siblings are emitted alongside
-     * the strict resolution. Default for the uncompacted-shape tests because most of them assert
-     * on the strict/lenient pairing — that contract only exists in CPS mode.
-     */
-    private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan) {
-        return replaceViewsWithoutCompaction(plan, cpsViewResolver());
-    }
-
-    /**
-     * Run view resolution without CPS — no {@link ViewShadowRelation}s in the output. Use this
-     * when the test wants to demonstrate the non-CPS contract (no shadow emission, more
-     * aggressive pre-index-resolution compaction since shadow-bearing {@link ViewUnionAll}s
-     * don't get in the way of the outer rewrite chain).
-     */
-    private LogicalPlan replaceViewsWithoutCompactionNonCps(LogicalPlan plan) {
-        return replaceViewsWithoutCompaction(plan, viewResolver);
-    }
-
-    private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
         resolver.replaceViews(plan, null, this::parse, future);
         return future.actionGet().plan();
+    }
+
+    /**
+     * Resolve views under CPS so the linked relations (a local view name that may also be a remote index)
+     * are emitted alongside the strict resolution.
+     */
+    private LogicalPlan replaceViewsCps(LogicalPlan plan) {
+        return replaceViews(plan, cpsViewResolver());
     }
 
     private InMemoryViewResolver cpsViewResolver() {
         var cpsDecider = new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build());
         return viewService.getViewResolver(cpsDecider);
     }
-
-    private LogicalPlan replaceViewsWithCPS(LogicalPlan plan) {
-        return COMPACTION.apply(replaceViewsWithoutCompaction(plan, cpsViewResolver()));
-    }
-
-    private static final ViewCompaction COMPACTION = new ViewCompaction();
 
     private void addIndex(String name) {
         viewService.addIndex(projectId, name);
@@ -2624,8 +2048,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     /**
      * Matcher that finds equivalence between views-based plans and sub-query based plans.
-     * It currently ignores superfluous Subquery nodes and matches ViewUnionAll and UnionAll based
-     * on sorting children.
+     * It currently ignores superfluous Subquery nodes, peers through first-class View nodes, and
+     * matches UnionAll based on sorting children.
      * If we fixed subquery parsing we could skip the sorting of children, and assert on child order too.
      */
     private static Matcher<LogicalPlan> matchesPlan(LogicalPlan plan) {
@@ -2650,9 +2074,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         private static LogicalPlan normalize(LogicalPlan plan) {
             // Transform up, to remove Subquery from children before sorting them
             return plan.transformUp(LogicalPlan.class, p -> switch (p) {
-                // UnionAll here covers also ViewUnionAll, because we need to sort children of both
                 case UnionAll v -> new UnionAll(v.source(), sortedChildren(v.children()), v.output());
                 case Subquery s -> s.child(); // TODO: Remove Subquery node from subquery parsing
+                // Peer through first-class View nodes the resolver now emits, mirroring the optimizer's
+                // InlineView fold: the view body is the observable resolution outcome, so a View[name]
+                // wrapper around a body matches the equivalent inlined (subquery-based) plan.
+                case org.elasticsearch.xpack.esql.plan.logical.View view -> view.body();
                 default -> p.transformExpressionsDown(Alias.class, a -> a.withId(new NameId(0)));
             });
         }

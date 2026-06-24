@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
@@ -55,6 +56,19 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
      */
     private final String commandName;
 
+    /**
+     * Non-null only for a CPS "linked" relation: a {@code FROM <view>} reference on a cross-project
+     * query, where {@code <view>} is a local view name that may <em>also</em> exist as an index on a
+     * linked project. The pattern (view name + applicable exclusions, and whether the linked index is
+     * {@code OPTIONAL} or {@code REQUIRED}) drives a lenient remote-index field-caps lookup: it is
+     * collected by {@code PreAnalyzer} into {@code PreAnalysis#linkedIndices} and resolved by the
+     * {@code ResolveLinkedRelations} analyzer rule via {@code AnalyzerContext#linkedResolution} (keyed
+     * by this pattern) into an {@code EsRelation} sibling branch, or pruned if no remote index matches.
+     * This is an ordinary lenient remote-index resolution, not a view concept.
+     */
+    @Nullable
+    private final LinkedIndexPattern linkedIndexPattern;
+
     public UnresolvedRelation(
         Source source,
         IndexPattern indexPattern,
@@ -75,6 +89,19 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
         String unresolvedMessage,
         @Nullable String commandName
     ) {
+        this(source, indexPattern, frozen, metadataFields, indexMode, unresolvedMessage, commandName, null);
+    }
+
+    public UnresolvedRelation(
+        Source source,
+        IndexPattern indexPattern,
+        boolean frozen,
+        List<NamedExpression> metadataFields,
+        IndexMode indexMode,
+        String unresolvedMessage,
+        @Nullable String commandName,
+        @Nullable LinkedIndexPattern linkedIndexPattern
+    ) {
         super(source);
         this.indexPattern = indexPattern;
         this.frozen = frozen;
@@ -82,6 +109,7 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
         this.indexMode = indexMode;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + indexPattern.indexPattern() + "]" : unresolvedMessage;
         this.commandName = commandName;
+        this.linkedIndexPattern = linkedIndexPattern;
     }
 
     public UnresolvedRelation(
@@ -107,11 +135,30 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
 
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(this, UnresolvedRelation::new, indexPattern, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
+        return NodeInfo.create(
+            this,
+            UnresolvedRelation::new,
+            indexPattern,
+            frozen,
+            metadataFields,
+            indexMode,
+            unresolvedMsg,
+            commandName,
+            linkedIndexPattern
+        );
     }
 
     public IndexPattern indexPattern() {
         return indexPattern;
+    }
+
+    /**
+     * The CPS linked-index pattern this relation carries, or {@code null} for an ordinary index
+     * relation. See {@link #linkedIndexPattern}.
+     */
+    @Nullable
+    public LinkedIndexPattern linkedIndexPattern() {
+        return linkedIndexPattern;
     }
 
     public boolean frozen() {
@@ -154,7 +201,7 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
     public UnresolvedRelation addMetadataField(MetadataAttribute newField) {
         ArrayList<NamedExpression> newFields = new ArrayList<>(metadataFields);
         newFields.add(newField);
-        return new UnresolvedRelation(source(), indexPattern, frozen, newFields, indexMode, unresolvedMsg, commandName);
+        return new UnresolvedRelation(source(), indexPattern, frozen, newFields, indexMode, unresolvedMsg, commandName, linkedIndexPattern);
     }
 
     public IndexMode indexMode() {
@@ -168,7 +215,7 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), indexPattern, metadataFields, indexMode, unresolvedMsg);
+        return Objects.hash(source(), indexPattern, metadataFields, indexMode, unresolvedMsg, linkedIndexPattern);
     }
 
     @Override
@@ -186,7 +233,8 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
             && Objects.equals(frozen, other.frozen)
             && Objects.equals(metadataFields, other.metadataFields)
             && indexMode == other.indexMode
-            && Objects.equals(unresolvedMsg, other.unresolvedMsg);
+            && Objects.equals(unresolvedMsg, other.unresolvedMsg)
+            && Objects.equals(linkedIndexPattern, other.linkedIndexPattern);
     }
 
     @Override

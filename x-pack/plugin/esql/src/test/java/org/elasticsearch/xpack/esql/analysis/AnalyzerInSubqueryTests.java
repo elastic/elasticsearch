@@ -2296,8 +2296,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         FieldAttribute salary = as(gt.left(), FieldAttribute.class);
         assertEquals("salary", salary.name());
 
-        // Below the filter: SemiJoin from the view's IN subquery
-        Project viewProject = as(filter.child(), Project.class);
+        // Below the filter: the view body survives as a View node wrapping Project -> SemiJoin (the view's IN subquery).
+        Project viewProject = as(viewBody(filter.child(), "filtered_emps"), Project.class);
         SemiJoin semiJoin = as(viewProject.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
@@ -2331,8 +2331,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
         assertEquals("test", leftRelation.indexPattern());
 
-        // Right side: the view was expanded to Project -> Filter[salary > 70000] -> EsRelation[employees]
-        Project rightProject = as(semiJoin.right(), Project.class);
+        // Right side: the view survives analysis as a View node wrapping Project -> Filter -> EsRelation.
+        Project rightProject = as(viewBody(semiJoin.right(), "high_earners"), Project.class);
         Filter rightFilter = as(rightProject.child(), Filter.class);
         GreaterThan gt = as(rightFilter.condition(), GreaterThan.class);
         FieldAttribute salary = as(gt.left(), FieldAttribute.class);
@@ -2365,7 +2365,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
         assertEquals("test", leftRelation.indexPattern());
 
-        Project rightProject = as(antiJoin.right(), Project.class);
+        Project rightProject = as(viewBody(antiJoin.right(), "high_earners"), Project.class);
         Filter rightFilter = as(rightProject.child(), Filter.class);
         EsRelation rightRelation = as(rightFilter.child(), EsRelation.class);
         assertEquals("employees", rightRelation.indexPattern());
@@ -2408,7 +2408,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         FieldAttribute salary = as(gt.left(), FieldAttribute.class);
         assertEquals("salary", salary.name());
 
-        Project viewProject = as(rightFilter.child(), Project.class);
+        Project viewProject = as(viewBody(rightFilter.child(), "top3_emps"), Project.class);
         SemiJoin innerSemiJoin = as(viewProject.child(), SemiJoin.class);
         assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
@@ -2448,8 +2448,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation leftRelation = as(outerAntiJoin.left(), EsRelation.class);
         assertEquals("test", leftRelation.indexPattern());
 
-        // Right side: the view was expanded, containing an inner SemiJoin from the view's IN subquery
-        Project rightProject = as(outerAntiJoin.right(), Project.class);
+        // Right side: the view survives as a View node wrapping Project -> inner SemiJoin (the view's IN subquery).
+        Project rightProject = as(viewBody(outerAntiJoin.right(), "filtered_emps"), Project.class);
         SemiJoin innerSemiJoin = as(rightProject.child(), SemiJoin.class);
         assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
@@ -2490,8 +2490,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation leftRelation = as(leftFilter.child(), EsRelation.class);
         assertEquals("test", leftRelation.indexPattern());
 
-        // Right side: view expanded with inner SemiJoin from the view's salary IN subquery
-        Project rightProject = as(semiJoin.right(), Project.class);
+        // Right side: view survives as a View node wrapping Project -> inner SemiJoin (the view's salary IN subquery).
+        Project rightProject = as(viewBody(semiJoin.right(), "in_sub_view"), Project.class);
         SemiJoin innerSemiJoin = as(rightProject.child(), SemiJoin.class);
         assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
@@ -2546,8 +2546,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation leftRelation = as(innerSemiJoin.left(), EsRelation.class);
         assertEquals("test", leftRelation.indexPattern());
 
-        // Inner right: the view expanded to Project -> Filter[salary > 70000] -> EsRelation[employees]
-        Project innerRight = as(innerSemiJoin.right(), Project.class);
+        // Inner right: the view survives as a View node wrapping Project -> Filter[salary > 70000] -> EsRelation[employees].
+        Project innerRight = as(viewBody(innerSemiJoin.right(), "high_earners"), Project.class);
         Filter viewFilter = as(innerRight.child(), Filter.class);
         GreaterThan gt = as(viewFilter.condition(), GreaterThan.class);
         FieldAttribute salary = as(gt.left(), FieldAttribute.class);
@@ -2603,8 +2603,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
         assertEquals("test", leftRelation.indexPattern());
 
-        // SemiJoin right: view expanded
-        Project viewProject = as(semiJoin.right(), Project.class);
+        // SemiJoin right: the view survives as a View node wrapping the body.
+        Project viewProject = as(viewBody(semiJoin.right(), "high_earners"), Project.class);
         Filter viewFilter = as(viewProject.child(), Filter.class);
         EsRelation viewRelation = as(viewFilter.child(), EsRelation.class);
         assertEquals("employees", viewRelation.indexPattern());
@@ -2649,15 +2649,15 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation leftRelation = as(innerSemiJoin.left(), EsRelation.class);
         assertEquals("test", leftRelation.indexPattern());
 
-        // Inner right: view_a expanded, containing a SemiJoin from the view's IN subquery
-        Project viewAProject = as(innerSemiJoin.right(), Project.class);
+        // Inner right: view_a survives as a View node wrapping Project -> SemiJoin (the view's IN subquery).
+        Project viewAProject = as(viewBody(innerSemiJoin.right(), "view_a"), Project.class);
         SemiJoin viewASemiJoin = as(viewAProject.child(), SemiJoin.class);
         assertThat(viewASemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         EsRelation viewALeft = as(viewASemiJoin.left(), EsRelation.class);
         assertEquals("employees", viewALeft.indexPattern());
 
-        // Outer right: view_b expanded, containing a SemiJoin from the view's IN subquery
-        Project viewBProject = as(outerSemiJoin.right(), Project.class);
+        // Outer right: view_b survives as a View node wrapping Project -> SemiJoin (the view's IN subquery).
+        Project viewBProject = as(viewBody(outerSemiJoin.right(), "view_b"), Project.class);
         SemiJoin viewBSemiJoin = as(viewBProject.child(), SemiJoin.class);
         assertThat(viewBSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
         EsRelation viewBLeft = as(viewBSemiJoin.left(), EsRelation.class);
@@ -3158,8 +3158,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
 
-        // AntiJoin right: view high_earners expanded
-        Project antiRight = as(antiJoin.right(), Project.class);
+        // AntiJoin right: view high_earners survives as a View node wrapping the body.
+        Project antiRight = as(viewBody(antiJoin.right(), "high_earners"), Project.class);
         Filter antiRightFilter = as(antiRight.child(), Filter.class);
         GreaterThan gt = as(antiRightFilter.condition(), GreaterThan.class);
         FieldAttribute salary = as(gt.left(), FieldAttribute.class);
@@ -4212,7 +4212,9 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     private static LogicalPlan unwrapProjects(LogicalPlan plan) {
         LogicalPlan p = plan;
-        while (p instanceof Project) {
+        // Skip analyzer-inserted Project wrappers and the transparent View boundary (a view body survives analysis
+        // wrapped in a View, folded only by the optimizer) to reach the underlying logical node.
+        while (p instanceof Project || p instanceof org.elasticsearch.xpack.esql.plan.logical.View) {
             p = p.children().get(0);
         }
         return p;
@@ -4259,7 +4261,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         for (Alias nullPad : eval.fields()) {
             assertNull(as(nullPad.child(), Literal.class).value());
         }
-        Project keepEmpNo = as(eval.child(), Project.class);
+        Project keepEmpNo = as(viewBody(eval.child()), Project.class);
         assertEquals(1, keepEmpNo.output().size());
         assertEquals("emp_no", keepEmpNo.output().get(0).name());
         assertEquals(DataType.INTEGER, keepEmpNo.output().get(0).dataType());
@@ -4289,7 +4291,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Project viewBranch = as(unionAll.children().get(0), Project.class);
         assertUnionAllBranchMatchesUnionOutput(unionAll, viewBranch);
         assertEquals(1, viewBranch.projections().size());
-        Filter salaryFilter = as(viewBranch.child(), Filter.class);
+        Filter salaryFilter = as(unwrapProjects(viewBranch.child()), Filter.class);
         GreaterThan gt = as(salaryFilter.condition(), GreaterThan.class);
         assertEquals("salary", as(gt.left(), FieldAttribute.class).name());
         assertEquals(viewMinSalary, as(gt.right(), Literal.class).value());
@@ -4314,7 +4316,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Project viewBranch = as(unionAll.children().get(0), Project.class);
         assertUnionAllBranchMatchesUnionOutput(unionAll, viewBranch);
         assertEquals(1, viewBranch.projections().size());
-        EsRelation viewEmployees = as(viewBranch.child(), EsRelation.class);
+        EsRelation viewEmployees = as(unwrapProjects(viewBranch.child()), EsRelation.class);
         assertEquals("employees", viewEmployees.indexPattern());
 
         Project subBranch = as(unionAll.children().get(1), Project.class);
@@ -4335,7 +4337,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Project viewBranch = as(unionAll.children().get(0), Project.class);
         assertUnionAllBranchMatchesUnionOutput(unionAll, viewBranch);
         assertEquals(1, viewBranch.projections().size());
-        EsRelation viewEmployees = as(viewBranch.child(), EsRelation.class);
+        EsRelation viewEmployees = as(unwrapProjects(viewBranch.child()), EsRelation.class);
         assertEquals("employees", viewEmployees.indexPattern());
 
         Project subBranch = as(unionAll.children().get(1), Project.class);
@@ -4389,6 +4391,21 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assertEquals(1, unionAll.output().size());
         assertEquals(columnName, unionAll.output().get(0).name());
         assertEquals(DataType.INTEGER, unionAll.output().get(0).dataType());
+    }
+
+    /**
+     * Asserts {@code plan} is a {@link org.elasticsearch.xpack.esql.plan.logical.View} for {@code viewName} (the boundary
+     * that survives analysis and is folded only by the optimizer) and returns its body for further assertions.
+     */
+    private static LogicalPlan viewBody(LogicalPlan plan, String viewName) {
+        var view = as(plan, org.elasticsearch.xpack.esql.plan.logical.View.class);
+        assertEquals(viewName, view.viewName());
+        return view.body();
+    }
+
+    /** Asserts {@code plan} is a {@link org.elasticsearch.xpack.esql.plan.logical.View} and returns its body. */
+    private static LogicalPlan viewBody(LogicalPlan plan) {
+        return as(plan, org.elasticsearch.xpack.esql.plan.logical.View.class).body();
     }
 
 }

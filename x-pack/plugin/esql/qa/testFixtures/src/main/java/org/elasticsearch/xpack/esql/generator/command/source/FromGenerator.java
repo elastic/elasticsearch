@@ -128,7 +128,7 @@ public class FromGenerator implements CommandGenerator {
                 String pattern = EsqlQueryGenerator.indexPattern(idxName);
                 if (pattern.endsWith("*")) {
                     String prefix = pattern.substring(0, pattern.length() - 1);
-                    // A wildcard hitting both a view and regular indices creates a ViewUnionAll nested
+                    // A wildcard hitting both a view and regular indices creates a UnionAll nested
                     // inside any outer UnionAll, which the planner rejects (see issue #149396).
                     boolean hitsView = schema.viewNames().stream().anyMatch(v -> v.startsWith(prefix) && v.equals(idxName) == false);
                     if (hitsView) {

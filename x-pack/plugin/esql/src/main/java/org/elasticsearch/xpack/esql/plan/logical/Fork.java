@@ -117,8 +117,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     /**
      * Drop branches whose root the {@code isEmpty} predicate considers empty. Each
      * {@link Fork} subclass with structural invariants beyond the positional children list
-     * (notably {@link ViewUnionAll}, which carries a named-subqueries map) overrides this method
-     * to preserve those invariants.
+     * overrides this method to preserve those invariants.
      * <p>
      * Behaviour:
      * <ul>
@@ -130,10 +129,9 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
      *       a {@code LocalRelation} when every branch reduces to empty) or to let the
      *       analyzer's verifier surface the empty-Fork state via {@link #checkBranchCount}.</li>
      * </ul>
-     * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
-     * branch left is equivalent to that branch — are not part of this primitive; callers that
-     * want that collapse do it explicitly (see {@code ViewCompaction.stripViewShadowRelations}).
-     * A {@link Fork} with a single branch is still a {@link Fork} per FORK syntax.
+     * Single-survivor collapse semantics — a {@link UnionAll} with one branch left is equivalent
+     * to that branch — are not part of this primitive; callers that want that collapse do it
+     * explicitly. A {@link Fork} with a single branch is still a {@link Fork} per FORK syntax.
      */
     public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
         List<LogicalPlan> kept = new ArrayList<>(children().size());
@@ -233,19 +231,18 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     /**
-     * Branch-count bounds shared by all {@link Fork} subclasses (Fork, UnionAll, ViewUnionAll).
-     * Lives at post-analysis verification rather than the Fork constructor so that compaction
-     * passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both
-     * {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass dispatches
-     * to its own {@link #postAnalysisPlanVerification()} override.
+     * Branch-count bounds shared by all {@link Fork} subclasses (Fork, UnionAll).
+     * Lives at post-analysis verification rather than the Fork constructor so that earlier passes
+     * get a chance to reduce the count first (view folding happens later, in the optimizer). Called
+     * from both {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass
+     * dispatches to its own {@link #postAnalysisPlanVerification()} override.
      * <p>
      * The lower bound (≥ 1 branch) catches invalid plans where {@link #pruneEmptyBranches}
      * removed every branch — e.g. a CCS subquery whose {@code IndexResolution} came back
      * {@code EMPTY_SUBQUERY} for every sibling. The {@code PruneEmptyForkBranches} optimizer
-     * rule short-circuits this case to a {@code LocalRelation}; rules that don't (the analyzer's
-     * {@code PruneEmptyUnionAllBranch}, {@code ViewCompaction.stripViewShadowRelations}) rely on
-     * this check to surface the bad state with a clear message rather than letting an empty
-     * {@code Fork}/{@code UnionAll} propagate silently.
+     * rule short-circuits this case to a {@code LocalRelation}; the analyzer's
+     * {@code PruneEmptyUnionAllBranch} relies on this check to surface the bad state with a clear
+     * message rather than letting an empty {@code Fork}/{@code UnionAll} propagate silently.
      */
     static void checkBranchCount(LogicalPlan plan, Failures failures) {
         if (plan instanceof Fork fork) {

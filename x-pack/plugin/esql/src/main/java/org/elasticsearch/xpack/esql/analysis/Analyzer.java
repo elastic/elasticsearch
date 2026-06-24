@@ -164,7 +164,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -189,7 +188,6 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.view.ViewCompaction;
 
 import java.time.Duration;
 import java.time.temporal.TemporalAmount;
@@ -257,8 +255,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveConfigurationAware(),
             new ResolveTable(),
-            new ResolveViewShadow(),
-            new ViewCompactionPostIndexResolution(),
+            new ResolveLinkedRelations(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
@@ -340,6 +337,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
+            if (plan.linkedIndexPattern() != null) {
+                // A CPS linked relation is resolved leniently by ResolveLinkedRelations, not via the
+                // strict main-index resolution map.
+                return plan;
+            }
             IndexResolution indexResolution = plan.indexMode().equals(IndexMode.LOOKUP)
                 ? context.lookupResolution().get(plan.indexPattern().indexPattern())
                 : context.indexResolution().get(plan.indexPattern());
@@ -505,39 +507,43 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Resolves {@link ViewShadowRelation} nodes against {@link AnalyzerContext#linkedResolution()}.
+     * Resolves a CPS "linked" {@link UnresolvedRelation} — one carrying a
+     * {@link UnresolvedRelation#linkedIndexPattern()} — against {@link AnalyzerContext#linkedResolution()}.
      * <p>
-     * Each {@code ViewShadowRelation} represents a "if a remote project has an index with this
-     * view's name, treat it as if the user wrote a remote index reference at this position"
-     * lookup. The lenient field-caps integration (deferred to a follow-up PR) populates
-     * {@code linkedResolution}, keyed by the shadow's {@link ViewShadowRelation#linkedIndexPattern()}
-     * (view name + applicable exclusions). The full pattern is the lookup key — different
-     * exclusion lists at the same view name produce distinct {@code ViewShadowRelation}
-     * instances and may resolve differently (e.g. one comes back empty because of the
+     * A linked relation is a {@code FROM <view>} reference on a cross-project query, where the local
+     * view name may also exist as an <em>index</em> on a linked project. The lenient field-caps
+     * integration (deferred to a follow-up PR) populates {@code linkedResolution}, keyed by the
+     * relation's {@link UnresolvedRelation#linkedIndexPattern()} (view name + applicable exclusions).
+     * The full pattern is the lookup key — different exclusion lists at the same view name produce
+     * distinct linked relations and may resolve differently (e.g. one comes back empty because of the
      * exclusions, the other resolves to a remote index). This rule:
      * <ul>
-     *   <li>If a valid {@link IndexResolution} is present for the shadow's
-     *       {@link ViewShadowRelation#linkedIndexPattern()}, replaces the shadow with an
-     *       {@link EsRelation} built from the resolved {@link EsIndex} (same shape as
-     *       {@link ResolveTable}'s {@code resolveIndex} for a strict UR).</li>
-     *   <li>Otherwise leaves the shadow unresolved. {@link ViewCompactionPostIndexResolution}
-     *       (which runs immediately after this rule) strips any unresolved shadow.</li>
+     *   <li>If a valid {@link IndexResolution} is present for the relation's
+     *       {@link UnresolvedRelation#linkedIndexPattern()}, replaces it with an {@link EsRelation}
+     *       built from the resolved {@link EsIndex} (same shape as {@link ResolveTable}'s
+     *       {@code resolveIndex} for a strict UR).</li>
+     *   <li>Otherwise leaves it unresolved. {@link PruneEmptyUnionAllBranch} (which runs immediately
+     *       after this rule) prunes any linked relation that still didn't resolve to a remote index.</li>
      * </ul>
      */
-    private static class ResolveViewShadow extends ParameterizedAnalyzerRule<ViewShadowRelation, AnalyzerContext> {
+    private static class ResolveLinkedRelations extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
 
         @Override
-        protected LogicalPlan rule(ViewShadowRelation shadow, AnalyzerContext context) {
-            IndexResolution resolution = context.linkedResolution().get(shadow.linkedIndexPattern());
+        protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
+            if (plan.linkedIndexPattern() == null) {
+                // Not a linked relation — ResolveTable handles ordinary index relations.
+                return plan;
+            }
+            IndexResolution resolution = context.linkedResolution().get(plan.linkedIndexPattern());
             if (resolution == null || resolution.isValid() == false) {
-                // No remote index found (or lookup didn't run yet) — leave the shadow alone for
-                // ViewCompactionPostIndexResolution to strip.
-                return shadow;
+                // No remote index found (or lookup didn't run yet) — leave it unresolved for
+                // PruneEmptyUnionAllBranch to drop.
+                return plan;
             }
             EsIndex esIndex = resolution.get();
-            var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
+            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             return new EsRelation(
-                shadow.source(),
+                plan.source(),
                 esIndex.name(),
                 IndexMode.STANDARD,
                 esIndex.originalIndices(),
@@ -545,22 +551,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
-        }
-    }
-
-    /**
-     * Phase 2 of view compaction. Runs in the Initialize batch right after {@link ResolveTable},
-     * once all reachable {@link UnresolvedRelation}s have been replaced with {@code EsRelation}s
-     * (and once CPS's lenient field-caps rule has rewritten any matched {@code ViewShadowRelation}s).
-     * Strips remaining unresolved shadows, flattens nested {@code ViewUnionAll} structures, and
-     * unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale
-     * behind splitting compaction across the analyzer boundary.
-     */
-    private static class ViewCompactionPostIndexResolution extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return ViewCompaction.postIndexResolution(plan);
         }
     }
 
@@ -3924,11 +3914,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnionAll unionAll, AnalyzerContext context) {
-            // Delegate to UnionAll#pruneEmptyBranches — ViewUnionAll overrides it to preserve
-            // its named-subqueries map so this rule works correctly when an EMPTY_SUBQUERY
-            // branch lives next to a CPS shadow inside a ViewUnionAll.
+            // Prune branches that resolved to an empty subquery, plus CPS linked branches that
+            // ResolveLinkedRelations did not match to a remote index (they remain a linked
+            // UnresolvedRelation, which has no consumer and would otherwise leak as unresolved).
             Map<IndexPattern, IndexResolution> indexResolutions = context.indexResolution();
-            return unionAll.pruneEmptyBranches(child -> resolvesToEmptySubquery(child, indexResolutions));
+            LogicalPlan pruned = unionAll.pruneEmptyBranches(
+                child -> resolvesToEmptySubquery(child, indexResolutions) || isUnresolvedLinked(child)
+            );
+            // Once pruning leaves a single branch the union is no longer a branching choice — collapse to
+            // that lone child so the downstream rules and verifier see a plain relation, not a 1-arm union.
+            if (pruned != unionAll && pruned instanceof UnionAll prunedUnion && prunedUnion.children().size() == 1) {
+                return prunedUnion.children().getFirst();
+            }
+            return pruned;
         }
 
         private static boolean resolvesToEmptySubquery(LogicalPlan branch, Map<IndexPattern, IndexResolution> indexResolutions) {
@@ -3940,6 +3938,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             });
             return isEmpty.get();
+        }
+
+        private static boolean isUnresolvedLinked(LogicalPlan branch) {
+            return branch instanceof UnresolvedRelation ur && ur.linkedIndexPattern() != null;
         }
     }
 

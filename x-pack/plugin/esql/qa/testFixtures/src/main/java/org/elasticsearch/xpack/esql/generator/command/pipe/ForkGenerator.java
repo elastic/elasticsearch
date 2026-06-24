@@ -39,7 +39,7 @@ public class ForkGenerator implements CommandGenerator {
         // ESQL also forbids FORK inside a subquery body ("FORK inside subquery is not supported").
         // FORK also fails with "FORK after subquery is not supported" whenever a UnionAll node appears
         // as a descendant in the plan. This covers both an embedded subquery in FROM and a wildcard
-        // that matches both a view and regular indices (creating a ViewUnionAll). Both cases are
+        // that matches both a view and regular indices (creating a UnionAll). Both cases are
         // captured by the HAS_UNION_ALL flag set on the FROM command.
         if (context.isWithinASubquery()) {
             return EMPTY_DESCRIPTION;

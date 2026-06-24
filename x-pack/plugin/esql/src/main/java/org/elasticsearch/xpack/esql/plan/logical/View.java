@@ -83,7 +83,9 @@ public class View extends UnaryPlan {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        sb.append(nodeName()).append('[').append(name).append(']');
+        // Route the view name through the mapper so anonymization can mask it — a view name can be
+        // as sensitive as an index name. A raw append here would leak it into the plan string.
+        sb.append(nodeName()).append('[').append(mapper.index(name)).append(']');
     }
 
     @Override

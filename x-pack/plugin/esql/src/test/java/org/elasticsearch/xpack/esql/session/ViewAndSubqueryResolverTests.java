@@ -23,11 +23,9 @@ import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -102,7 +100,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * SemiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_NamedSubquery[dept_view]
+     *   \_View[dept_view]
      *     \_Keep[[?dept_id]]
      *       \_UnresolvedRelation[departments]
      */
@@ -117,8 +115,9 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertInSubqueryJoinKey(semiJoin, "dept_id");
         assertUnresolvedRelation(semiJoin.left(), "employees");
         Keep keep = as(semiJoin.right(), Keep.class);
-        NamedSubquery namedSubquery = as(keep.child(), NamedSubquery.class);
-        keep = as(namedSubquery.child(), Keep.class);
+        var view = as(keep.child(), org.elasticsearch.xpack.esql.plan.logical.View.class);
+        assertEquals("dept_view", view.viewName());
+        keep = as(view.body(), Keep.class);
         assertUnresolvedRelation(keep.child(), "departments");
     }
 
@@ -126,7 +125,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * AntiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_NamedSubquery[dept_view]
+     *   \_View[dept_view]
      *     \_Keep[[?dept_id]]
      *       \_UnresolvedRelation[departments]
      */
@@ -141,13 +140,14 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertInSubqueryJoinKey(antiJoin, "dept_id");
         assertUnresolvedRelation(antiJoin.left(), "employees");
         Keep keep = as(antiJoin.right(), Keep.class);
-        NamedSubquery namedSubquery = as(keep.child(), NamedSubquery.class);
-        keep = as(namedSubquery.child(), Keep.class);
+        var view = as(keep.child(), org.elasticsearch.xpack.esql.plan.logical.View.class);
+        assertEquals("dept_view", view.viewName());
+        keep = as(view.body(), Keep.class);
         assertUnresolvedRelation(keep.child(), "departments");
     }
 
     /*
-     * NamedSubquery[v_with_in]
+     * View[v_with_in]
      * \_SemiJoin[[?emp_no],[]]
      *   |_UnresolvedRelation[employees]
      *   \_Keep[[?emp_no]]
@@ -160,8 +160,9 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertTrue(result.hasInSubquery());
         assertEquals(Set.of("v_with_in"), result.viewQueries().keySet());
 
-        NamedSubquery namedSubquery = as(result.plan(), NamedSubquery.class);
-        SemiJoin semiJoin = as(namedSubquery.child(), SemiJoin.class);
+        var view = as(result.plan(), org.elasticsearch.xpack.esql.plan.logical.View.class);
+        assertEquals("v_with_in", view.viewName());
+        SemiJoin semiJoin = as(view.body(), SemiJoin.class);
         assertInSubqueryJoinKey(semiJoin, "emp_no");
         assertUnresolvedRelation(semiJoin.left(), "employees");
         Keep keep = as(semiJoin.right(), Keep.class);
@@ -172,17 +173,17 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * SemiJoin[[?emp_no],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?emp_no]]
-     *   \_NamedSubquery[in_layer_3]
+     *   \_View[in_layer_3]
      *     \_Keep[[?emp_no]]
      *       \_SemiJoin[[?emp_no],[]]
      *         |_UnresolvedRelation[employees]
      *         \_Keep[[?emp_no]]
-     *           \_NamedSubquery[in_layer_2]
+     *           \_View[in_layer_2]
      *             \_Keep[[?emp_no]]
      *               \_SemiJoin[[?emp_no],[]]
      *                 |_UnresolvedRelation[employees]
      *                 \_Keep[[?emp_no]]
-     *                   \_NamedSubquery[in_layer_1]
+     *                   \_View[in_layer_1]
      *                     \_Keep[[?emp_no]]
      *                       \_SemiJoin[[?emp_no],[]]
      *                         |_UnresolvedRelation[employees]
@@ -198,15 +199,15 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertTrue(result.hasInSubquery());
         assertEquals(Set.of("in_layer_1", "in_layer_2", "in_layer_3"), result.viewQueries().keySet());
 
-        // Each nested layer expands to SemiJoin(left=employees, right=Keep -> NamedSubquery[layer] -> Keep -> next SemiJoin).
+        // Each nested layer expands to SemiJoin(left=employees, right=Keep -> View[layer] -> Keep -> next SemiJoin).
         SemiJoin semiJoin = as(result.plan(), SemiJoin.class);
         for (String layer : List.of("in_layer_3", "in_layer_2", "in_layer_1")) {
             assertInSubqueryJoinKey(semiJoin, "emp_no");
             assertUnresolvedRelation(semiJoin.left(), "employees");
             Keep keep = as(semiJoin.right(), Keep.class);
-            NamedSubquery namedSubquery = as(keep.child(), NamedSubquery.class);
-            assertEquals(layer, namedSubquery.name());
-            Keep viewBody = as(namedSubquery.child(), Keep.class);
+            var view = as(keep.child(), org.elasticsearch.xpack.esql.plan.logical.View.class);
+            assertEquals(layer, view.viewName());
+            Keep viewBody = as(view.body(), Keep.class);
             semiJoin = as(viewBody.child(), SemiJoin.class);
         }
         // Innermost layer (in_layer_1's body) reads the concrete `employees` index, so its right side is a plain subquery.
@@ -222,11 +223,11 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * SemiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_ViewUnionAll[[dept_view_a, dept_view_b]]
-     *     |_NamedSubquery[dept_view_a]
+     *   \_UnionAll[[]]
+     *     |_View[dept_view_a]
      *     | \_Keep[[?dept_id]]
      *     |   \_UnresolvedRelation[departments]
-     *     \_NamedSubquery[dept_view_b]
+     *     \_View[dept_view_b]
      *       \_Keep[[?dept_id]]
      *         \_UnresolvedRelation[teams]
      */
@@ -245,27 +246,23 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(semiJoin.left(), "employees");
 
         Keep keep = as(semiJoin.right(), Keep.class);
-        ViewUnionAll union = as(keep.child(), ViewUnionAll.class);
-        assertEquals(List.of("dept_view_a", "dept_view_b"), List.copyOf(union.namedSubqueries().keySet()));
+        UnionAll union = as(keep.child(), UnionAll.class);
+        assertEquals(UnionAll.class, union.getClass());
+        assertEquals(2, union.children().size());
 
-        NamedSubquery viewA = as(union.children().get(0), NamedSubquery.class);
-        assertEquals("dept_view_a", viewA.name());
-        assertUnresolvedRelation(as(viewA.child(), Keep.class).child(), "departments");
-
-        NamedSubquery viewB = as(union.children().get(1), NamedSubquery.class);
-        assertEquals("dept_view_b", viewB.name());
-        assertUnresolvedRelation(as(viewB.child(), Keep.class).child(), "teams");
+        assertViewBranch(union.children().get(0), "dept_view_a", "departments");
+        assertViewBranch(union.children().get(1), "dept_view_b", "teams");
     }
 
     /*
      * AntiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_ViewUnionAll[[dept_view_a, dept_view_b]]
-     *     |_NamedSubquery[dept_view_a]
+     *   \_UnionAll[[]]
+     *     |_View[dept_view_a]
      *     | \_Keep[[?dept_id]]
      *     |   \_UnresolvedRelation[departments]
-     *     \_NamedSubquery[dept_view_b]
+     *     \_View[dept_view_b]
      *       \_Keep[[?dept_id]]
      *         \_UnresolvedRelation[teams]
      */
@@ -284,16 +281,12 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(antiJoin.left(), "employees");
 
         Keep keep = as(antiJoin.right(), Keep.class);
-        ViewUnionAll union = as(keep.child(), ViewUnionAll.class);
-        assertEquals(List.of("dept_view_a", "dept_view_b"), List.copyOf(union.namedSubqueries().keySet()));
+        UnionAll union = as(keep.child(), UnionAll.class);
+        assertEquals(UnionAll.class, union.getClass());
+        assertEquals(2, union.children().size());
 
-        NamedSubquery viewA = as(union.children().get(0), NamedSubquery.class);
-        assertEquals("dept_view_a", viewA.name());
-        assertUnresolvedRelation(as(viewA.child(), Keep.class).child(), "departments");
-
-        NamedSubquery viewB = as(union.children().get(1), NamedSubquery.class);
-        assertEquals("dept_view_b", viewB.name());
-        assertUnresolvedRelation(as(viewB.child(), Keep.class).child(), "teams");
+        assertViewBranch(union.children().get(0), "dept_view_a", "departments");
+        assertViewBranch(union.children().get(1), "dept_view_b", "teams");
     }
 
     /*
@@ -303,12 +296,12 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      *   \_UnionAll[[]]
      *     |_Subquery[]
      *     | \_Keep[[?dept_id]]
-     *     |   \_NamedSubquery[dept_view_a]
+     *     |   \_View[dept_view_a]
      *     |     \_Keep[[?dept_id]]
      *     |       \_UnresolvedRelation[departments]
      *     \_Subquery[]
      *       \_Keep[[?dept_id]]
-     *         \_NamedSubquery[dept_view_b]
+     *         \_View[dept_view_b]
      *           \_Keep[[?dept_id]]
      *             \_UnresolvedRelation[teams]
      */
@@ -333,17 +326,8 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertEquals(UnionAll.class, union.getClass());
         assertEquals(2, union.children().size());
 
-        Subquery branchA = as(union.children().get(0), Subquery.class);
-        assertEquals(Subquery.class, branchA.getClass());
-        NamedSubquery viewA = as(as(branchA.child(), Keep.class).child(), NamedSubquery.class);
-        assertEquals("dept_view_a", viewA.name());
-        assertUnresolvedRelation(as(viewA.child(), Keep.class).child(), "departments");
-
-        Subquery branchB = as(union.children().get(1), Subquery.class);
-        assertEquals(Subquery.class, branchB.getClass());
-        NamedSubquery viewB = as(as(branchB.child(), Keep.class).child(), NamedSubquery.class);
-        assertEquals("dept_view_b", viewB.name());
-        assertUnresolvedRelation(as(viewB.child(), Keep.class).child(), "teams");
+        assertViewSubqueryBranch(union.children().get(0), "dept_view_a", "departments");
+        assertViewSubqueryBranch(union.children().get(1), "dept_view_b", "teams");
     }
 
     /*
@@ -354,7 +338,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      *     |_UnresolvedRelation[departments]
      *     \_Subquery[]
      *       \_Keep[[?dept_id]]
-     *         \_NamedSubquery[dept_view_b]
+     *         \_View[dept_view_b]
      *           \_Keep[[?dept_id]]
      *             \_UnresolvedRelation[teams]
      */
@@ -379,11 +363,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         // The concrete index stays a bare UnresolvedRelation; only the view-referencing subquery is wrapped.
         assertUnresolvedRelation(union.children().get(0), "departments");
 
-        Subquery branchB = as(union.children().get(1), Subquery.class);
-        assertEquals(Subquery.class, branchB.getClass());
-        NamedSubquery viewB = as(as(branchB.child(), Keep.class).child(), NamedSubquery.class);
-        assertEquals("dept_view_b", viewB.name());
-        assertUnresolvedRelation(as(viewB.child(), Keep.class).child(), "teams");
+        assertViewSubqueryBranch(union.children().get(1), "dept_view_b", "teams");
     }
 
     // ---- IN subquery referencing multiple views, each view containing its own IN subquery ----
@@ -392,14 +372,14 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * SemiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_ViewUnionAll[[dept_view_a, dept_view_b]]
-     *     |_NamedSubquery[dept_view_a]
+     *   \_UnionAll[[]]
+     *     |_View[dept_view_a]
      *     | \_Keep[[?dept_id]]
      *     |   \_SemiJoin[[?dept_id],[]]
      *     |     |_UnresolvedRelation[departments]
      *     |     \_Keep[[?dept_id]]
      *     |       \_UnresolvedRelation[departments]
-     *     \_NamedSubquery[dept_view_b]
+     *     \_View[dept_view_b]
      *       \_Keep[[?dept_id]]
      *         \_SemiJoin[[?dept_id],[]]
      *           |_UnresolvedRelation[teams]
@@ -421,22 +401,12 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(semiJoin.left(), "employees");
 
         Keep keep = as(semiJoin.right(), Keep.class);
-        ViewUnionAll union = as(keep.child(), ViewUnionAll.class);
-        assertEquals(List.of("dept_view_a", "dept_view_b"), List.copyOf(union.namedSubqueries().keySet()));
+        UnionAll union = as(keep.child(), UnionAll.class);
+        assertEquals(UnionAll.class, union.getClass());
+        assertEquals(2, union.children().size());
 
-        NamedSubquery viewA = as(union.children().get(0), NamedSubquery.class);
-        assertEquals("dept_view_a", viewA.name());
-        SemiJoin viewASemiJoin = as(as(viewA.child(), Keep.class).child(), SemiJoin.class);
-        assertInSubqueryJoinKey(viewASemiJoin, "dept_id");
-        assertUnresolvedRelation(viewASemiJoin.left(), "departments");
-        assertUnresolvedRelation(as(viewASemiJoin.right(), Keep.class).child(), "departments");
-
-        NamedSubquery viewB = as(union.children().get(1), NamedSubquery.class);
-        assertEquals("dept_view_b", viewB.name());
-        SemiJoin viewBSemiJoin = as(as(viewB.child(), Keep.class).child(), SemiJoin.class);
-        assertInSubqueryJoinKey(viewBSemiJoin, "dept_id");
-        assertUnresolvedRelation(viewBSemiJoin.left(), "teams");
-        assertUnresolvedRelation(as(viewBSemiJoin.right(), Keep.class).child(), "teams");
+        assertViewWithInnerInSubquery(union.children().get(0), "dept_view_a", "departments");
+        assertViewWithInnerInSubquery(union.children().get(1), "dept_view_b", "teams");
     }
 
     /*
@@ -446,7 +416,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      *   \_UnionAll[[]]
      *     |_Subquery[]
      *     | \_Keep[[?dept_id]]
-     *     |   \_NamedSubquery[dept_view_a]
+     *     |   \_View[dept_view_a]
      *     |     \_Keep[[?dept_id]]
      *     |       \_SemiJoin[[?dept_id],[]]
      *     |         |_UnresolvedRelation[departments]
@@ -454,7 +424,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      *     |           \_UnresolvedRelation[departments]
      *     \_Subquery[]
      *       \_Keep[[?dept_id]]
-     *         \_NamedSubquery[dept_view_b]
+     *         \_View[dept_view_b]
      *           \_Keep[[?dept_id]]
      *             \_SemiJoin[[?dept_id],[]]
      *               |_UnresolvedRelation[teams]
@@ -481,23 +451,8 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertEquals(UnionAll.class, union.getClass());
         assertEquals(2, union.children().size());
 
-        Subquery branchA = as(union.children().get(0), Subquery.class);
-        assertEquals(Subquery.class, branchA.getClass());
-        NamedSubquery viewA = as(as(branchA.child(), Keep.class).child(), NamedSubquery.class);
-        assertEquals("dept_view_a", viewA.name());
-        SemiJoin viewASemiJoin = as(as(viewA.child(), Keep.class).child(), SemiJoin.class);
-        assertInSubqueryJoinKey(viewASemiJoin, "dept_id");
-        assertUnresolvedRelation(viewASemiJoin.left(), "departments");
-        assertUnresolvedRelation(as(viewASemiJoin.right(), Keep.class).child(), "departments");
-
-        Subquery branchB = as(union.children().get(1), Subquery.class);
-        assertEquals(Subquery.class, branchB.getClass());
-        NamedSubquery viewB = as(as(branchB.child(), Keep.class).child(), NamedSubquery.class);
-        assertEquals("dept_view_b", viewB.name());
-        SemiJoin viewBSemiJoin = as(as(viewB.child(), Keep.class).child(), SemiJoin.class);
-        assertInSubqueryJoinKey(viewBSemiJoin, "dept_id");
-        assertUnresolvedRelation(viewBSemiJoin.left(), "teams");
-        assertUnresolvedRelation(as(viewBSemiJoin.right(), Keep.class).child(), "teams");
+        assertViewSubqueryBranchWithInnerInSubquery(union.children().get(0), "dept_view_a", "departments");
+        assertViewSubqueryBranchWithInnerInSubquery(union.children().get(1), "dept_view_b", "teams");
     }
 
     // ---- main FROM and IN subquery both reference multiple view subqueries ----
@@ -507,24 +462,24 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * |_UnionAll[[]]
      * | |_Subquery[]
      * | | \_Keep[[?dept_id]]
-     * | |   \_NamedSubquery[main_view_a]
+     * | |   \_View[main_view_a]
      * | |     \_Keep[[?dept_id]]
      * | |       \_UnresolvedRelation[departments]
      * | \_Subquery[]
      * |   \_Keep[[?dept_id]]
-     * |     \_NamedSubquery[main_view_b]
+     * |     \_View[main_view_b]
      * |       \_Keep[[?dept_id]]
      * |         \_UnresolvedRelation[teams]
      * \_Keep[[?dept_id]]
      *   \_UnionAll[[]]
      *     |_Subquery[]
      *     | \_Keep[[?dept_id]]
-     *     |   \_NamedSubquery[in_view_a]
+     *     |   \_View[in_view_a]
      *     |     \_Keep[[?dept_id]]
      *     |       \_UnresolvedRelation[departments]
      *     \_Subquery[]
      *       \_Keep[[?dept_id]]
-     *         \_NamedSubquery[in_view_b]
+     *         \_View[in_view_b]
      *           \_Keep[[?dept_id]]
      *             \_UnresolvedRelation[teams]
      */
@@ -610,18 +565,47 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertEquals(indexPattern, relation.indexPattern().indexPattern());
     }
 
+    /** Asserts {@code plan} is a {@code View[viewName] -> Keep -> UnresolvedRelation[index]} branch (a resolved view source). */
+    private static void assertViewBranch(LogicalPlan plan, String viewName, String index) {
+        var view = as(plan, org.elasticsearch.xpack.esql.plan.logical.View.class);
+        assertEquals(viewName, view.viewName());
+        assertUnresolvedRelation(as(view.body(), Keep.class).child(), index);
+    }
+
+    /** Like {@link #assertViewBranch} but the view body wraps a SemiJoin (the view itself contained an IN subquery). */
+    private static void assertViewWithInnerInSubquery(LogicalPlan plan, String viewName, String index) {
+        var view = as(plan, org.elasticsearch.xpack.esql.plan.logical.View.class);
+        assertEquals(viewName, view.viewName());
+        SemiJoin semiJoin = as(as(view.body(), Keep.class).child(), SemiJoin.class);
+        assertInSubqueryJoinKey(semiJoin, "dept_id");
+        assertUnresolvedRelation(semiJoin.left(), index);
+        assertUnresolvedRelation(as(semiJoin.right(), Keep.class).child(), index);
+    }
+
     /**
      * Asserts {@code plan} is a user-written FROM subquery branch of shape
-     * {@code Subquery -> Keep -> NamedSubquery[viewName] -> Keep -> UnresolvedRelation[index]} — the shape a FROM subquery such as
-     * {@code (FROM <view> | KEEP <field>)} expands to once {@code <view>} is resolved. The branch is a plain {@link Subquery}, not a
-     * view-produced {@link NamedSubquery}, because it was written by the user.
+     * {@code Subquery -> Keep -> View[viewName] -> Keep -> UnresolvedRelation[index]} — the shape a FROM subquery such as
+     * {@code (FROM <view> | KEEP <field>)} expands to once {@code <view>} is resolved. The branch is a plain {@link Subquery}
+     * because it was written by the user, wrapping the resolved {@link org.elasticsearch.xpack.esql.plan.logical.View}.
      */
     private static void assertViewSubqueryBranch(LogicalPlan plan, String viewName, String index) {
         Subquery branch = as(plan, Subquery.class);
         assertEquals(Subquery.class, branch.getClass());
-        NamedSubquery view = as(as(branch.child(), Keep.class).child(), NamedSubquery.class);
-        assertEquals(viewName, view.name());
-        assertUnresolvedRelation(as(view.child(), Keep.class).child(), index);
+        var view = as(as(branch.child(), Keep.class).child(), org.elasticsearch.xpack.esql.plan.logical.View.class);
+        assertEquals(viewName, view.viewName());
+        assertUnresolvedRelation(as(view.body(), Keep.class).child(), index);
+    }
+
+    /** Like {@link #assertViewSubqueryBranch} but the view body wraps a SemiJoin (the view itself contained an IN subquery). */
+    private static void assertViewSubqueryBranchWithInnerInSubquery(LogicalPlan plan, String viewName, String index) {
+        Subquery branch = as(plan, Subquery.class);
+        assertEquals(Subquery.class, branch.getClass());
+        var view = as(as(branch.child(), Keep.class).child(), org.elasticsearch.xpack.esql.plan.logical.View.class);
+        assertEquals(viewName, view.viewName());
+        SemiJoin semiJoin = as(as(view.body(), Keep.class).child(), SemiJoin.class);
+        assertInSubqueryJoinKey(semiJoin, "dept_id");
+        assertUnresolvedRelation(semiJoin.left(), index);
+        assertUnresolvedRelation(as(semiJoin.right(), Keep.class).child(), index);
     }
 
     private ViewResolver.ViewResolutionResult resolve(String query) {

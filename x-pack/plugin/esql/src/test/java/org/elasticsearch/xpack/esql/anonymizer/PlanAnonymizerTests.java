@@ -140,10 +140,10 @@ public class PlanAnonymizerTests extends ESTestCase {
     }
 
     /**
-     * NamedSubquery carries the view name a sub-plan was resolved from; its nodeString surfaces
-     * the name as {@code NamedSubquery[<view>]}. Verifies the rule anonymizes it.
+     * A {@link org.elasticsearch.xpack.esql.plan.logical.View} carries the view name it was resolved
+     * from; its nodeString surfaces the name as {@code View[<view>]}. Verifies the rule anonymizes it.
      */
-    public void testNamedSubqueryNameAnonymized() {
+    public void testViewNameAnonymized() {
         String sensitiveView = "internal_users_v2_2026q1";
         EsField field = new EsField(F_EMAIL, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
         FieldAttribute attr = new FieldAttribute(Source.EMPTY, null, null, F_EMAIL, field);
@@ -156,51 +156,12 @@ public class PlanAnonymizerTests extends ESTestCase {
             Map.of(INDEX, IndexMode.STANDARD),
             List.<Attribute>of(attr)
         );
-        org.elasticsearch.xpack.esql.plan.logical.NamedSubquery ns = new org.elasticsearch.xpack.esql.plan.logical.NamedSubquery(
-            Source.EMPTY,
-            inner,
-            sensitiveView
-        );
-        LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), ns);
+        var view = new org.elasticsearch.xpack.esql.plan.logical.View(Source.EMPTY, sensitiveView, inner);
+        LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), view);
 
         var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(plan, null, null, null);
 
         assertFalse("view name leaked into parsed plan:\n" + out.parsed(), out.parsed().contains(sensitiveView));
-    }
-
-    /**
-     * ViewUnionAll holds a {@code LinkedHashMap<viewName, subPlan>} that surfaces in its nodeString
-     * as {@code ViewUnionAll[[view1, view2]]}. Verifies every key in the map is anonymized.
-     */
-    public void testViewUnionAllNamesAnonymized() {
-        List<String> sensitiveViews = List.of("payments_v1", "tenant_pii_eu", "billing_secrets_v3");
-        EsField field = new EsField(F_EMAIL, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
-        FieldAttribute attr = new FieldAttribute(Source.EMPTY, null, null, F_EMAIL, field);
-        EsRelation inner = new EsRelation(
-            Source.EMPTY,
-            INDEX,
-            IndexMode.STANDARD,
-            Map.of(),
-            Map.of(),
-            Map.of(INDEX, IndexMode.STANDARD),
-            List.<Attribute>of(attr)
-        );
-        java.util.LinkedHashMap<String, LogicalPlan> namedSubqueries = new java.util.LinkedHashMap<>();
-        for (String v : sensitiveViews) {
-            namedSubqueries.put(v, inner);
-        }
-        org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll vua = new org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll(
-            Source.EMPTY,
-            namedSubqueries,
-            List.<Attribute>of(attr)
-        );
-        LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), vua);
-
-        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(plan, null, null, null);
-
-        for (String v : sensitiveViews) {
-            assertFalse("view name '" + v + "' leaked into parsed plan:\n" + out.parsed(), out.parsed().contains(v));
-        }
     }
 
     /**

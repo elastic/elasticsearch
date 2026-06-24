@@ -167,9 +167,9 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
             );
         } else {
             // Strict pass first: resolves the user-typed UnresolvedRelation patterns and initialises
-            // cross-cluster state. After it completes we run the lenient pass over any
-            // ViewShadowRelation patterns (CPS-only) so their results land in
-            // result.optionalLinkedResolution() — empty iterator → no-op when there are no shadows.
+            // cross-cluster state. After it completes we run the lenient pass over any linked-index
+            // patterns (CPS-only: a local view name that may also be a remote index) so their results
+            // land in result.linkedResolution() — empty iterator → no-op when there are none.
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,

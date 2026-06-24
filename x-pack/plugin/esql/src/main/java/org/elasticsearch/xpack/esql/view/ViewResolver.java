@@ -12,7 +12,6 @@ import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,11 +33,9 @@ import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.View;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.util.ArrayList;
@@ -47,7 +44,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -68,15 +64,15 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  * Resolution (see {@link #replaceViews}) is a depth-first, top-down (pre-order) traversal of the plan tree. During traversal it
  * intercepts specific node types:
  * <ul>
- *   <li>{@link UnresolvedRelation}: Resolves views and replaces them with their query plans, then recursively processes those
- *       plans</li>
+ *   <li>{@link UnresolvedRelation}: Resolves views and replaces them with their query plans (each kept view body wrapped in a
+ *       {@link View} node), then recursively processes those plans</li>
  *   <li>{@link Fork}: Recursively processes each child branch</li>
- *   <li>{@code UnionAll}: Skipped (assumes rewriting is already complete)</li>
  *   <li>{@link AbstractSubqueryJoin}: Recursively processes the left and right sides</li>
  *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
  *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
- *   <li>{@link ViewUnionAll}: Skipped (already the result of view resolution)</li>
  * </ul>
+ * Subtrees the resolver has already fully resolved are tracked by identity and skipped on re-visit, so a {@code UnionAll} it
+ * emitted for a multi-source {@code FROM} is not re-processed.
  * <p>
  * View resolution may introduce new nodes that need further processing, so explicit recursive calls are made on newly resolved view
  * plans. The traversal tracks circular references and enforces the maximum view depth ({@link #MAX_VIEW_DEPTH_SETTING}).
@@ -225,11 +221,6 @@ public class ViewResolver {
                 return;
             }
             switch (p) {
-                case ViewUnionAll viewUnion ->
-                    // ViewUnionAll is the result of view resolution, so we skip it.
-                    // Plain UnionAll (from user-written subqueries) matches the Fork case below
-                    // and its children are recursed into with proper seen-set scoping.
-                    planListener.onResponse(viewUnion);
                 case Fork fork -> replaceViewsFork(
                     fork,
                     projectRouting,
@@ -328,9 +319,6 @@ public class ViewResolver {
                     hasInSubquery,
                     depth + 1,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
-                        if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
-                            newPlan = named;
-                        }
                         if (newPlan.equals(subplan) == false) {
                             var updatedSubplansInner = updatedSubplans;
                             if (updatedSubplansInner == null) {
@@ -374,12 +362,7 @@ public class ViewResolver {
                 viewQueries,
                 hasInSubquery,
                 depth + 1,
-                l.delegateFailureAndWrap((sl, newLeft) -> {
-                    if (newLeft instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
-                        newLeft = named;
-                    }
-                    sl.onResponse(newLeft);
-                })
+                l.delegateFailureAndWrap((sl, newLeft) -> sl.onResponse(newLeft))
             )
         );
         leftChain.<LogicalPlan>andThen(
@@ -392,9 +375,6 @@ public class ViewResolver {
                 hasInSubquery,
                 depth + 1,
                 l.delegateFailureAndWrap((sl, newRight) -> {
-                    if (newRight instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
-                        newRight = named;
-                    }
                     if (newLeft.equals(origLeft) == false || newRight.equals(origRight) == false) {
                         sl.onResponse(subqueryJoin.replaceChildren(newLeft, newRight));
                     } else {
@@ -434,10 +414,10 @@ public class ViewResolver {
             }
         }
 
-        // ViewShadowRelation siblings are only emitted in CPS mode — they exist solely to drive a
-        // per-level lenient field-caps lookup against linked projects (esql-planning #543). In
-        // non-CPS mode the shadow has no consumer, so we skip the bookkeeping entirely; the rest of
-        // the resolver behaves as if shadows are simply not part of the tree.
+        // Linked relations (a local view name that may also be a remote index on a linked project)
+        // are only emitted in CPS mode — they drive a per-level lenient field-caps lookup against
+        // linked projects (esql-planning #543). In non-CPS mode there is no linked lookup, so we skip
+        // the bookkeeping entirely; the rest of the resolver behaves as if they are not part of the tree.
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
         String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
 
@@ -456,7 +436,7 @@ public class ViewResolver {
             }
 
             final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();
-            final HashMap<String, ViewShadowRelation> viewShadows = new HashMap<>();
+            final HashMap<String, UnresolvedRelation> linkedRelations = new HashMap<>();
             final LinkedHashSet<String> ancestorViews = new LinkedHashSet<>(seenViews);
             SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
             for (var view : response.views()) {
@@ -479,28 +459,18 @@ public class ViewResolver {
                                 var pattern = new ArrayList<String>();
                                 pattern.add(view.name());
                                 pattern.addAll(collectExclusionsAfterPosition(patternPosition, urPatterns));
-                                viewShadows.putIfAbsent(
+                                linkedRelations.putIfAbsent(
                                     view.name(),
-                                    new ViewShadowRelation(
-                                        unresolvedRelation.source(),
-                                        view.name(),
-                                        LinkedIndexPattern.Kind.OPTIONAL,
-                                        String.join(",", pattern)
-                                    )
+                                    linkedRelation(unresolvedRelation, LinkedIndexPattern.Kind.OPTIONAL, String.join(",", pattern))
                                 );
                             } else if (isRequiredOnEveryProject) {
                                 var pattern = new ArrayList<String>();
                                 pattern.add(urPatterns[patternPosition]);
                                 pattern.add("-_origin:*");
                                 pattern.addAll(collectExclusionsAfterPosition(patternPosition, urPatterns));
-                                viewShadows.putIfAbsent(
+                                linkedRelations.putIfAbsent(
                                     view.name(),
-                                    new ViewShadowRelation(
-                                        unresolvedRelation.source(),
-                                        view.name(),
-                                        LinkedIndexPattern.Kind.REQUIRED,
-                                        String.join(",", pattern)
-                                    )
+                                    linkedRelation(unresolvedRelation, LinkedIndexPattern.Kind.REQUIRED, String.join(",", pattern))
                                 );
                             }
                         }
@@ -524,13 +494,13 @@ public class ViewResolver {
             chain.andThenApply(ignored -> {
                 List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns);
                 if (cpsEnabled) {
-                    // Append the per-resolved-view ViewShadowRelations as additional siblings at
-                    // this same level. They live under suffixed names so they don't collide with
-                    // the strict ViewPlan keys when the LinkedHashMap is built downstream.
+                    // Append the per-resolved-view linked relations as additional siblings at this same
+                    // level. They live under suffixed names so they don't collide with the strict
+                    // ViewPlan keys when branches are assembled downstream.
                     for (var view : response.views()) {
-                        ViewShadowRelation shadow = viewShadows.get(view.name());
-                        if (shadow != null) {
-                            subqueries.add(new ViewPlan(view.name() + "#shadow", shadow));
+                        UnresolvedRelation linked = linkedRelations.get(view.name());
+                        if (linked != null) {
+                            subqueries.add(new ViewPlan(view.name() + "#linked", linked));
                         }
                     }
                 }
@@ -763,115 +733,127 @@ public class ViewResolver {
     record ViewPlan(String name, LogicalPlan plan) {}
 
     private LogicalPlan buildPlanFromBranches(UnresolvedRelation ur, List<ViewPlan> subqueries, int depth) {
-        // Pass 1: Build all branches as named entries.
-        LinkedHashMap<String, LogicalPlan> plans = new LinkedHashMap<>();
+        // Each branch node carries its own identity: a View (for a kept view body), an EsRelation-to-be
+        // (a bare UnresolvedRelation for an index or a compactable single-pattern view), or a linked
+        // UnresolvedRelation (CPS shadow). The View boundary is what prevents a view body from being
+        // merged with a sibling index relation, so the only compaction we do here is merging bare,
+        // mergeable index UnresolvedRelations — which keeps a wide branching level (e.g.
+        // {@code FROM v1, v2, ... v9} of compactable single-pattern views) under {@link Fork#MAX_BRANCHES}.
+        List<LogicalPlan> branches = new ArrayList<>();
         for (ViewPlan vp : subqueries) {
-            String key = makeUniqueKey(plans, vp.name);
-            if (vp.plan instanceof NamedSubquery ns) {
-                assertNamesMatch("Unexpected subquery name mismatch", ns.name(), vp.name);
-                plans.put(key, ns);
-            } else if (vp.plan instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
-                plans.put(key, urp);
-            } else if (vp.plan instanceof ViewShadowRelation) {
-                // Leave ViewShadowRelation bare — Phase A's ViewCompaction strip recognises it by
-                // type and removes it directly. Wrapping in NamedSubquery would hide it from the
-                // strip and keep its name out of the dropped-entries' keyspace.
-                plans.put(key, vp.plan);
-            } else {
-                plans.put(key, new NamedSubquery(ur.source(), vp.plan, key));
-            }
+            branches.add(vp.plan);
         }
+        mergeCompatibleUnresolvedRelations(branches);
 
-        // Pass 2: Try to merge bare UnresolvedRelations that don't share index patterns. Most of the
-        // compaction work has moved to the {@link ViewCompaction} analyzer rule, but a per-level merge
-        // here keeps the resolved plan compact: a wide branching level (e.g. {@code FROM v1, v2, ... v9}
-        // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
-        // ViewUnionAll that would later trip {@link Fork#MAX_BRANCHES} at post-analysis verification.
-        mergeCompatibleUnresolvedRelations(plans);
-
-        if (plans.size() == 1) {
-            return plans.values().iterator().next();
+        if (branches.size() == 1) {
+            return branches.getFirst();
         }
-        traceUnionAllBranches(depth, plans);
-        return new ViewUnionAll(ur.source(), plans, List.of());
+        traceUnionAllBranches(depth, branches);
+        return new UnionAll(ur.source(), branches, List.of());
     }
 
     /**
-     * Merges bare UnresolvedRelation entries that don't share index patterns into a single entry.
-     * Those that cannot be merged are wrapped in NamedSubquery nodes to preserve data duplication
-     * semantics. The full broader-scope compaction lives in {@link ViewCompaction}; this is the
-     * per-level merge that keeps the resolved tree small enough to pass {@link Fork#MAX_BRANCHES}
-     * at post-analysis verification.
+     * Merges bare standard-index {@link UnresolvedRelation} branches that don't share index patterns
+     * into a single branch, in place. Linked relations and {@link View} nodes are left untouched —
+     * the View boundary keeps a view body from being merged into a sibling index relation. This keeps
+     * the resolved tree small enough to pass {@link Fork#MAX_BRANCHES} at post-analysis verification.
      */
-    private static void mergeCompatibleUnresolvedRelations(LinkedHashMap<String, LogicalPlan> plans) {
-        List<String> urKeys = new ArrayList<>();
-        for (Map.Entry<String, LogicalPlan> entry : plans.entrySet()) {
-            if (entry.getValue() instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.STANDARD) {
-                urKeys.add(entry.getKey());
+    private static void mergeCompatibleUnresolvedRelations(List<LogicalPlan> branches) {
+        List<Integer> urIndexes = new ArrayList<>();
+        for (int i = 0; i < branches.size(); i++) {
+            if (branches.get(i) instanceof UnresolvedRelation ur
+                && ur.linkedIndexPattern() == null
+                && ur.indexMode() == IndexMode.STANDARD) {
+                urIndexes.add(i);
             }
         }
-        if (urKeys.size() <= 1) {
+        if (urIndexes.size() <= 1) {
             return;
         }
 
-        String firstKey = urKeys.getFirst();
-        UnresolvedRelation merged = (UnresolvedRelation) plans.get(firstKey);
-
-        for (int i = 1; i < urKeys.size(); i++) {
-            String key = urKeys.get(i);
-            UnresolvedRelation ur = (UnresolvedRelation) plans.get(key);
-            UnresolvedRelation result = mergeIfPossible(merged, ur);
+        int firstIndex = urIndexes.getFirst();
+        UnresolvedRelation merged = (UnresolvedRelation) branches.get(firstIndex);
+        List<Integer> toRemove = new ArrayList<>();
+        for (int i = 1; i < urIndexes.size(); i++) {
+            int idx = urIndexes.get(i);
+            UnresolvedRelation other = (UnresolvedRelation) branches.get(idx);
+            UnresolvedRelation result = mergeIfPossible(merged, other);
             if (result != null) {
                 merged = result;
-                plans.remove(key);
-            } else {
-                // Cannot merge — wrap in NamedSubquery to preserve independence
-                plans.put(key, new NamedSubquery(ur.source(), ur, key));
+                toRemove.add(idx);
+            }
+            // If it cannot be merged it stays as its own branch.
+        }
+        branches.set(firstIndex, merged);
+        // Remove merged-away branches from the end so earlier indexes stay valid.
+        toRemove.sort((a, b) -> Integer.compare(b, a));
+        for (int idx : toRemove) {
+            branches.remove(idx);
+        }
+    }
+
+    /** Merge the unresolved relation unless the index patterns contain matching index names. */
+    private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
+        for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
+            for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
+                if (mainPattern.equals(otherPattern)) {
+                    // A duplicate index name was found, fail this attempt to merge.
+                    return null;
+                }
+                // Prevent merging when a wildcard in one pattern matches a concrete name in the other.
+                // Merging would produce a single UnresolvedRelation that deduplicates the overlapping index
+                // during resolution, collapsing what should be two independent data copies into one.
+                if (Regex.isSimpleMatchPattern(otherPattern) == false && Regex.simpleMatch(mainPattern, otherPattern)) {
+                    return null;
+                }
+                if (Regex.isSimpleMatchPattern(otherPattern)
+                    && Regex.isSimpleMatchPattern(mainPattern) == false
+                    && Regex.simpleMatch(otherPattern, mainPattern)) {
+                    return null;
+                }
             }
         }
-        plans.put(firstKey, merged);
+        return new UnresolvedRelation(
+            main.source(),
+            new IndexPattern(main.indexPattern().source(), main.indexPattern().indexPattern() + "," + other.indexPattern().indexPattern()),
+            main.frozen(),
+            main.metadataFields(),
+            main.indexMode(),
+            main.unresolvedMessage()
+        );
     }
 
-    private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
-        return ViewCompaction.mergeIfPossible(main, other);
-    }
-
-    private static void assertNamesMatch(String message, String left, String right) {
-        if (left.equals(right) == false) {
-            throw new IllegalStateException(message + ": " + left + " != " + right);
-        }
-    }
-
-    /**
-     * Generate a unique key for the plans map, avoiding collisions with existing entries.
-     */
-    private static String makeUniqueKey(LinkedHashMap<String, LogicalPlan> plans, String key) {
-        if (key == null) {
-            key = "main";
-        }
-        String original = key;
-        int counter = 2;
-        while (plans.containsKey(key)) {
-            key = original + "#" + counter++;
-        }
-        return key;
-    }
-
-    private void traceUnionAllBranches(int depth, Map<String, LogicalPlan> plans) {
+    private void traceUnionAllBranches(int depth, List<LogicalPlan> branches) {
         if (log.isTraceEnabled() == false) {
             return;
         }
         String tab = "    ".repeat(depth);
-        log.trace("{}  creating UnionAll with {} branches:", tab, plans.size());
+        log.trace("{}  creating UnionAll with {} branches:", tab, branches.size());
         String branchPrefix = "      " + tab;
-        for (Map.Entry<String, LogicalPlan> entry : plans.entrySet()) {
-            String name = entry.getKey();
-            LogicalPlan p = entry.getValue();
-            log.trace("{}    branch plan[{}]=\n{}{}", tab, branchPrefix, name, p.toString().replace("\n", "\n" + branchPrefix));
+        for (int i = 0; i < branches.size(); i++) {
+            LogicalPlan p = branches.get(i);
+            log.trace("{}    branch plan[{}]=\n{}{}", tab, branchPrefix, i, p.toString().replace("\n", "\n" + branchPrefix));
         }
     }
 
-    private LogicalPlan resolve(View view, BiFunction<String, String, LogicalPlan> parser, Map<String, String> viewQueries) {
+    private static UnresolvedRelation linkedRelation(UnresolvedRelation source, LinkedIndexPattern.Kind kind, String pattern) {
+        return new UnresolvedRelation(
+            source.source(),
+            new IndexPattern(source.source(), pattern),
+            source.frozen(),
+            source.metadataFields(),
+            IndexMode.STANDARD,
+            source.unresolvedMessage(),
+            source.telemetryLabel(),
+            new LinkedIndexPattern(kind, new IndexPattern(source.source(), pattern))
+        );
+    }
+
+    private LogicalPlan resolve(
+        org.elasticsearch.cluster.metadata.View view,
+        BiFunction<String, String, LogicalPlan> parser,
+        Map<String, String> viewQueries
+    ) {
         log.debug("Resolving view '{}'", view.name());
         // Store the view query so it can be used during Source deserialization
         viewQueries.put(view.name(), view.query());
@@ -880,18 +862,18 @@ public class ViewResolver {
         // to be tagged with the view name during parsing
         LogicalPlan subquery = parser.apply(view.query(), view.name());
         if (subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
-            // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
-            // together and avoid branched plans. But exclusion patterns must stay scoped to the
-            // view body — a bare UnresolvedRelation with an exclusion that gets merged with sibling
-            // or outer UnresolvedRelations would have its exclusion's scope widened across the
-            // merged pattern list (see #146XXX), so those are wrapped in a NamedSubquery via the
-            // else branch to prevent merging.
+            // A view whose body is a single plain index pattern with no exclusion can be compacted
+            // with sibling/outer index relations and avoid branched plans. But exclusion patterns
+            // must stay scoped to the view body — a bare UnresolvedRelation with an exclusion merged
+            // with sibling or outer UnresolvedRelations would have its exclusion's scope widened
+            // across the merged pattern list (see #146XXX), so those go through the View branch below
+            // to keep the view boundary intact.
             return ur;
-        } else {
-            // More complex subqueries (or simple UnresolvedRelations containing exclusions) are
-            // maintained with the view name for branch identification.
-            return new NamedSubquery(subquery.source(), subquery, view.name());
         }
+        // Every other view body is wrapped in a first-class View node — the boundary that survives
+        // analysis (folded only by the optimizer's InlineView) and that prevents cross-view sibling
+        // merge. The body becomes the View's child after recursive resolution by the caller.
+        return new View(subquery.source(), view.name(), subquery);
     }
 
     private static boolean containsExclusion(UnresolvedRelation ur) {

@@ -311,15 +311,15 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     private class BooleanSyntheticSourceSupport implements SyntheticSourceSupport {
         Boolean nullValue = usually() ? null : randomBoolean();
         private boolean ignoreMalformed;
-        private final boolean enforceSingleValue = false;
+        private final boolean enforceSingleValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
 
         BooleanSyntheticSourceSupport(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
         }
 
         @Override
-        public boolean enforcesSingleValue() {
-            return enforceSingleValue;
+        public IndexMode indexMode() {
+            return enforceSingleValue ? IndexMode.COLUMNAR : IndexMode.STANDARD;
         }
 
         @Override

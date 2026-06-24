@@ -557,9 +557,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testRelocateHollowShards
   issue: https://github.com/elastic/elasticsearch/issues/151410
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/160_union_types/load four indices with single conversion function TO_IP}
-  issue: https://github.com/elastic/elasticsearch/issues/151413
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681

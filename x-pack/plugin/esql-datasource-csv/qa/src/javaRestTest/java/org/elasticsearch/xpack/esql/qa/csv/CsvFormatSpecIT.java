@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Parameterized integration tests for standalone CSV files.
@@ -44,6 +45,14 @@ public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    // Pilot the FROM <dataset> path on S3 only: the cluster's anonymous-capable S3 fixture (auth=none)
+    // backs a dataset without needing a cluster encryption key. Migrated csv-spec tests therefore run via
+    // FROM on S3 and via the rebuilt EXTERNAL query on HTTP/GCS/AZURE/LOCAL, so none are skipped.
+    @Override
+    protected Set<StorageBackend> datasetModeBackends() {
+        return Set.of(StorageBackend.S3);
     }
 
     // CSV reads only the csv-*.csv-spec files. The shared external-*.csv-spec files read the

@@ -58,29 +58,33 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(false));
+            assertThat(cap1.isInference(), equalTo(false));
             assertThat(cap1.isDimension(), equalTo(false));
             assertNull(cap1.getMetricType());
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
+            assertNull(cap1.nonInferenceIndices());
             assertNull(cap1.nonDimensionIndices());
             assertEquals(Collections.emptyMap(), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(false));
+            assertThat(cap2.isInference(), equalTo(false));
             assertThat(cap2.isDimension(), equalTo(false));
             assertNull(cap2.getMetricType());
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
+            assertNull(cap2.nonInferenceIndices());
             assertNull(cap2.nonDimensionIndices());
             assertEquals(Collections.emptyMap(), cap2.meta());
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, false, true, false, true, null, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, false, true, true, true, null, Collections.emptyMap());
         builder.add(
             new String[] { "index2" },
             false,
@@ -96,81 +100,93 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(false));
             assertThat(cap1.isAggregatable(), equalTo(false));
+            assertThat(cap1.isInference(), equalTo(false));
             assertThat(cap1.isDimension(), equalTo(false));
             assertNull(cap1.getMetricType());
             assertNull(cap1.indices());
             assertThat(cap1.nonSearchableIndices(), equalTo(new String[] { "index1", "index3" }));
             assertThat(cap1.nonAggregatableIndices(), equalTo(new String[] { "index2", "index3" }));
+            assertThat(cap1.nonInferenceIndices(), equalTo(new String[] { "index2", "index3" }));
             assertThat(cap1.nonDimensionIndices(), equalTo(new String[] { "index2", "index3" }));
             assertEquals(Collections.emptyMap(), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(false));
             assertThat(cap2.isAggregatable(), equalTo(false));
+            assertThat(cap2.isInference(), equalTo(false));
             assertThat(cap2.isDimension(), equalTo(false));
             assertNull(cap2.getMetricType());
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertThat(cap2.nonSearchableIndices(), equalTo(new String[] { "index1", "index3" }));
             assertThat(cap2.nonAggregatableIndices(), equalTo(new String[] { "index2", "index3" }));
+            assertThat(cap2.nonInferenceIndices(), equalTo(new String[] { "index2", "index3" }));
             assertThat(cap2.nonDimensionIndices(), equalTo(new String[] { "index2", "index3" }));
             assertEquals(Collections.emptyMap(), cap2.meta());
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, false, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, false, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, false, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(true));
+            assertThat(cap1.isInference(), equalTo(true));
             assertThat(cap1.isDimension(), equalTo(true));
             assertThat(cap1.getMetricType(), equalTo(TimeSeriesParams.MetricType.COUNTER));
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
+            assertNull(cap1.nonInferenceIndices());
             assertNull(cap1.nonDimensionIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(true));
+            assertThat(cap2.isInference(), equalTo(true));
             assertThat(cap2.isDimension(), equalTo(true));
             assertThat(cap2.getMetricType(), equalTo(TimeSeriesParams.MetricType.COUNTER));
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
+            assertNull(cap2.nonInferenceIndices());
             assertNull(cap2.nonDimensionIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap2.meta());
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, false, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, false, true, TimeSeriesParams.MetricType.GAUGE, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, false, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, true, true, TimeSeriesParams.MetricType.GAUGE, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(true));
+            assertThat(cap1.isInference(), equalTo(true));
             assertThat(cap1.isDimension(), equalTo(true));
             assertNull(cap1.getMetricType());
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
+            assertNull(cap1.nonInferenceIndices());
             assertNull(cap1.nonDimensionIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(true));
+            assertThat(cap2.isInference(), equalTo(true));
             assertThat(cap2.isDimension(), equalTo(true));
             assertNull(cap2.getMetricType());
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
+            assertNull(cap2.nonInferenceIndices());
             assertNull(cap2.nonDimensionIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap2.meta());
         }

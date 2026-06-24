@@ -194,7 +194,9 @@ final class ParquetColumnDecoding {
 
     private static Block readListLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory, long multiplier) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendLong(cr.getLong() * multiplier);
+            Runnable appender = multiplier == 1
+                ? () -> builder.appendLong(cr.getLong())
+                : () -> builder.appendLong(cr.getLong() * multiplier);
             for (int row = 0; row < rows; row++) {
                 readListRow(cr, maxDef, builder, appender);
             }

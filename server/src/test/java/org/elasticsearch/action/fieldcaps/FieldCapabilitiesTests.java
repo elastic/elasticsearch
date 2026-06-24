@@ -178,7 +178,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
     public void testRandomBuilder() {
         for (int round = 0; round < 100; round++) {
-            String[] indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> Strings.format("index_%2d", n)).toArray(String[]::new);
+            String[] indices = IntStream.range(0, randomIntBetween(1, 50))
+                .mapToObj(n -> Strings.format("index_%2d", n))
+                .toArray(String[]::new);
 
             List<String> nonSearchableIndices = new ArrayList<>();
             List<String> nonAggregatableIndices = new ArrayList<>();
@@ -186,7 +188,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             List<String> nonDimensionIndices = new ArrayList<>();
 
             FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-            for (int i = 0; i < indices.length; ) {
+            for (int i = 0; i < indices.length;) {
                 int bulkSize = randomIntBetween(1, indices.length - i);
                 String[] groupIndices = ArrayUtil.copyOfSubArray(indices, i, i + bulkSize);
 

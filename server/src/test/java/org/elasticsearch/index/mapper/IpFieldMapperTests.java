@@ -351,7 +351,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         // Decided once per instance so that the generated mapping is stable across the throwaway and per-document examples.
         private final boolean extendedDocValues = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
         private final String cardinality = ESTestCase.randomFrom("low", "high");
-        private final boolean enforceSingleValue = extendedDocValues && randomBoolean();
+        private final boolean enforceSingleValue = false;
 
         private IpSyntheticSourceSupport(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
@@ -483,7 +483,7 @@ public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
-        return DocValuesType.SORTED_SET;
+        return DocValuesType.BINARY;
     }
 
     /**
@@ -533,7 +533,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseAcceptsSingleIgnoreMalformedValue() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -546,7 +546,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -562,7 +562,7 @@ public class IpFieldMapperTests extends MapperTestCase {
 
     public void testMultiValueFalseRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -583,7 +583,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));

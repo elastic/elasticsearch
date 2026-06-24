@@ -67,18 +67,9 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
         }
 
-        // multi_value: false enforces single-value semantics and is only meaningful when doc_values is enabled.
         return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(
-                true,
-                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                randomBoolean()
-            );
-            case 1 -> new FieldMapper.DocValuesParameter.Values(
-                true,
-                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                randomBoolean()
-            );
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true);
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };

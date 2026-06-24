@@ -54,16 +54,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         }
 
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(
-                true,
-                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                ESTestCase.randomBoolean()
-            );
-            case 1 -> new FieldMapper.DocValuesParameter.Values(
-                true,
-                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                ESTestCase.randomBoolean()
-            );
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true);
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };

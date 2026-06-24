@@ -2928,7 +2928,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testSingleFallbackValueIsAcceptedWhenMultiValueFalse() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
         );
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
@@ -2943,7 +2943,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      */
     public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
         );
         String shortValue = randomAlphanumericOfLength(5);
@@ -2963,7 +2963,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      */
     public void testSecondValueInRegularFieldIsRejectedWhenMultiValueFalseAndFirstValueInFallbackField() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
         );
         String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
@@ -2983,7 +2983,7 @@ public class TextFieldMapperTests extends MapperTestCase {
      */
     public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalse() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
         );
         String longValue1 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);

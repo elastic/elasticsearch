@@ -1636,7 +1636,17 @@ public abstract class FieldMapper extends Mapper {
             if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
                 cardinalityParameter.ifPresent(p -> p.parse(field, context, valueMap.get(p.name)));
                 if (valueMap.containsKey(multiValueParameter.name)) {
-                    multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
+                    Object multiValueObj = valueMap.get(multiValueParameter.name);
+                    boolean multiValue = XContentMapValues.nodeBooleanValue(multiValueObj, multiValueParameter.name);
+                    if (multiValue == false && context.getIndexSettings().getMode().isStrictColumnar() == false) {
+                        throw new MapperParsingException(
+                            "field ["
+                                + field
+                                + "] cannot configure [doc_values.multi_value]: "
+                                + "this parameter is only available in columnar index modes (columnar, logsdb_columnar)"
+                        );
+                    }
+                    multiValueParameter.parse(field, context, multiValueObj);
                 }
 
                 setValue(

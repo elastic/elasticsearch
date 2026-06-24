@@ -397,7 +397,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
         private final boolean docValues = randomBoolean();
-        private final boolean enforceSingleValue = docValues && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        private final boolean enforceSingleValue = false;
 
         private final Function<Number, Number> round;
         private final boolean ignoreMalformed;
@@ -531,7 +531,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -552,7 +552,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsRegularPlusMalformed() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -573,7 +573,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsMalformedPlusRegular() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();

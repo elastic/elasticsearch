@@ -2222,7 +2222,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public void testMultiValueFalseAcceptsSingleValue() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -2233,7 +2233,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public void testMultiValueFalseRejectsArray() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -2250,7 +2250,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public void testMultiValueFalseDocValuesType() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -2289,10 +2289,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         // getSampleValueForDocument() is deterministic for most types, so a single call is enough.
         Object sample = getSampleValueForDocument();
 
-        MapperService mvFalse = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
-        }));
+        MapperService mvFalse = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.startObject("doc_values").field("multi_value", false).endObject();
+            })
+        );
         MapperService defaults = createMapperService(fieldMapping(this::minimalMapping));
 
         Object[] mvFalseBlock = loadThreeDocs(mvFalse, sample);

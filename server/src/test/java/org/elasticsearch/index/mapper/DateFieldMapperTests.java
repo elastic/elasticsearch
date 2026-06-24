@@ -629,8 +629,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             private final DateFormatter formatter = resolution == DateFieldMapper.Resolution.MILLISECONDS
                 ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
                 : DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER;
-            // date fields have doc_values enabled by default, so multi_value: false can always be requested when the feature is on.
-            private final boolean enforceSingleValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+            private final boolean enforceSingleValue = false;
 
             @Override
             public boolean enforcesSingleValue() {

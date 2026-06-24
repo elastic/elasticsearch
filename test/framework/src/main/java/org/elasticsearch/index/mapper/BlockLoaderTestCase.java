@@ -114,7 +114,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customDataSourceHandlers, Params params) {
         this.fieldType = fieldType;
         this.params = params;
-        this.customDataSourceHandlers = withSingleValueDocValues(fieldType, customDataSourceHandlers);
+        this.customDataSourceHandlers = withSingleValueDocValues(fieldType, customDataSourceHandlers, params.indexMode());
         this.runner = new BlockLoaderTestRunner(params);
         if (randomBoolean()) {
             runner.allowDummyDocs();
@@ -146,11 +146,17 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     );
 
     /**
-     * On a random subset of runs (feature-flag permitting), prepend a handler that forces {@code doc_values.multi_value: false} on the
-     * target field while keeping generated documents single-valued, so the enforced mapping is exercised without rejecting documents.
+     * On a random subset of runs (feature-flag permitting, columnar mode only), prepend a handler that forces
+     * {@code doc_values.multi_value: false} on the target field while keeping generated documents single-valued, so the enforced mapping
+     * is exercised without rejecting documents.
      */
-    private static Collection<DataSourceHandler> withSingleValueDocValues(String fieldType, Collection<DataSourceHandler> customHandlers) {
+    private static Collection<DataSourceHandler> withSingleValueDocValues(
+        String fieldType,
+        Collection<DataSourceHandler> customHandlers,
+        IndexMode indexMode
+    ) {
         boolean singleValueRun = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
+            && indexMode.isStrictColumnar()
             && SINGLE_VALUE_ENFORCING_TYPES.contains(fieldType)
             && ESTestCase.randomBoolean();
         if (singleValueRun == false) {

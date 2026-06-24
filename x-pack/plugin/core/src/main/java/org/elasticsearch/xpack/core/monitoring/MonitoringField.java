@@ -34,7 +34,7 @@ public final class MonitoringField {
         HISTORY_DURATION_MINIMUM,         // minimum value
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        Setting.Property.DeprecatedWarning
+        Setting.Property.Deprecated
     );
 
     private MonitoringField() {}

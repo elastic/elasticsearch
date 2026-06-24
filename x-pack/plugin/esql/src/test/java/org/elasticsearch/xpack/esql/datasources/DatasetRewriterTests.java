@@ -157,9 +157,11 @@ public class DatasetRewriterTests extends ESTestCase {
         }
     }
 
-    public void testMetadataFieldsRejectedOnDataset() {
-        // METADATA fields on a dataset are rejected at the rewriter rather than silently dropped.
-        // Mirrors the TS / LOOKUP rejection style. _index synthesis is tracked separately.
+    public void testMetadataFieldsThreadedToUnresolvedExternalRelation() {
+        // METADATA fields on FROM <dataset> are no longer rejected; the rewriter carries them
+        // verbatim into UnresolvedExternalRelation so the analyzer's ResolveExternalRelations can
+        // bind each one to an ExternalMetadataAttribute. The registered dataset name also flows
+        // through (drives the per-file _index synthesizer).
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
@@ -168,13 +170,18 @@ public class DatasetRewriterTests extends ESTestCase {
             Source.EMPTY,
             new IndexPattern(Source.EMPTY, "logs"),
             false,
-            List.of(MetadataAttribute.create(Source.EMPTY, MetadataAttribute.INDEX)),
+            List.of(MetadataAttribute.create(Source.EMPTY, MetadataAttribute.INDEX), MetadataAttribute.create(Source.EMPTY, "_id")),
             IndexMode.STANDARD,
             null
         );
-        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relation, project));
-        assertThat(ex.getMessage(), containsString("METADATA fields are not supported on datasets"));
-        assertThat(ex.getMessage(), containsString("logs"));
+        LogicalPlan rewritten = rewrite(relation, project);
+
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat("metadata fields preserved verbatim", out.metadataFields(), hasSize(2));
+        assertThat(out.metadataFields().get(0).name(), equalTo(MetadataAttribute.INDEX));
+        assertThat(out.metadataFields().get(1).name(), equalTo("_id"));
+        assertThat("dataset name threaded", out.datasetName(), equalTo("logs"));
     }
 
     public void testDatasetReferencingUnknownDataSourceFailsWithExplicitMessage() {

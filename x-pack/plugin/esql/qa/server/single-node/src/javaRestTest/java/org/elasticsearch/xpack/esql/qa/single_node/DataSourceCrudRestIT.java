@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.hasSize;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class DataSourceCrudRestIT extends ESRestTestCase {
 
-    /** Mirrors {@code org.elasticsearch.cluster.metadata.DataSourceSetting.MASK_SENTINEL}. */
+    /** Mirrors {@code org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting.MASK_SENTINEL}. */
     private static final String MASK_SENTINEL = "::es_redacted::";
 
     @ClassRule

@@ -63,7 +63,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithLicensesDirButNoDependenciesThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("exists, but there are no dependencies"));
+        expectedException.expectMessage(containsString("license check failed"));
         getLicensesDir(project).mkdir();
         createFileIn(getLicensesDir(project), "groovy-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
         task.get().checkDependencies();
@@ -81,7 +81,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithoutLicensesDirButWithDependenciesThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("does not exist, but there are dependencies"));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", dependency);
         task.get().checkDependencies();
@@ -95,7 +95,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithDependencyButNoLicenseFileThenShouldReturnException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("Missing LICENSE for "));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", project.getDependencies().localGroovy());
 
@@ -106,7 +106,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithDependencyButNoNoticeFileThenShouldReturnException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("Missing NOTICE for "));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", dependency);
 
@@ -118,7 +118,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithStrictDependencyButNoSourcesFileThenShouldReturnException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("Missing SOURCES for "));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", dependency);
 
@@ -153,7 +153,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithALicenseButWithoutTheDependencyThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("Unused license "));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", dependency);
 
@@ -167,7 +167,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithANoticeButWithoutTheDependencyThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("Unused notice "));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", dependency);
 

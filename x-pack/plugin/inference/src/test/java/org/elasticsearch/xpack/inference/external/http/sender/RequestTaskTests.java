@@ -256,7 +256,7 @@ public class RequestTaskTests extends ESTestCase {
         assertThat(trackingCircuitBreaker.getUsed(), equalTo(-estimatedRamBytesUsed));
     }
 
-    public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnTimedListenerFailure(){
+    public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnTimedListenerFailure() {
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
         var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");

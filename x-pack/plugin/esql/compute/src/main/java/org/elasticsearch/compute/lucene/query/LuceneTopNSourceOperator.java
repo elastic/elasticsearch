@@ -20,6 +20,7 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -42,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -96,7 +98,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             this.estimatedPerRowSortSize = estimatedPerRowSortSize;
 
             // Create provider once - will be shared across all operators
-            this.perShardCollectorProvider = new PerShardCollectorProvider(limit, needsScore, sorts);
+            this.perShardCollectorProvider = new PerShardCollectorProvider(limit, needsScore, sorts, contexts);
         }
 
         @Override
@@ -407,9 +409,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore) {
         return ctx -> {
             try {
-                // we create a collector with a limit of 1 to determine the appropriate score mode to use.
-                PerShardCollectorProvider tempProvider = new PerShardCollectorProvider(1, needsScore, sorts);
-                return tempProvider.newPerShardCollector(ctx).collector.scoreMode();
+                Sort sort = PerShardCollectorProvider.getShardContextSort(ctx, sorts);
+                return PerShardCollectorProvider.scoreModeForSort(sort, needsScore);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -434,68 +435,104 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         final Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers;
         private final List<SortBuilder<?>> sorts;
 
-        PerShardCollectorProvider(int limit, boolean needsScore, List<SortBuilder<?>> sorts) {
+        PerShardCollectorProvider(
+            int limit,
+            boolean needsScore,
+            List<SortBuilder<?>> sorts,
+            IndexedByShardId<? extends ShardContext> contexts
+        ) {
             this.limit = limit;
             this.needsScore = needsScore;
             this.sorts = sorts;
             this.topFieldCollectorManagers = new ConcurrentHashMap<>();
-        }
-
-        /**
-         * Gets or creates a TopScoreDocCollectorManager.
-         * Uses double-checked locking for thread-safe lazy initialization.
-         */
-        TopScoreDocCollectorManager getTopScoreDocCollectorManager() {
-            if (topScoreDocCollectorManager == null) {
-                synchronized (this) {
-                    if (topScoreDocCollectorManager == null) {
-                        topScoreDocCollectorManager = new TopScoreDocCollectorManager(limit, null, 0);
-                    }
+            for (ShardContext shardContext : contexts.iterable()) {
+                try {
+                    buildCollectors(getShardContextSort(shardContext, sorts));
+                } catch (IOException e) {
+                    throw new ElasticsearchException("Error building collector for sort", e);
                 }
             }
+        }
+
+        TopScoreDocCollectorManager getTopScoreDocCollectorManager() {
             return topScoreDocCollectorManager;
         }
 
-        /**
-         * Gets or creates a TopFieldCollectorManager for the given Sort.
-         * Uses ConcurrentHashMap.computeIfAbsent for thread-safe lazy creation.
-         */
-        TopFieldCollectorManager getTopFieldCollectorManager(Sort sort) {
-            return topFieldCollectorManagers.computeIfAbsent(sort, s -> new TopFieldCollectorManager(s, limit, null, 0));
+        void buildCollectors(Sort sort) {
+            if (needsScore) {
+                if (Sort.RELEVANCE.equals(sort)) {
+                    topScoreDocCollectorManager = Objects.requireNonNullElseGet(
+                        topScoreDocCollectorManager,
+                        () -> new TopScoreDocCollectorManager(limit, null, 0)
+                    );
+                    return;
+                } else {
+                    sort = getSortForScore(sort);
+                }
+            }
+
+            topFieldCollectorManagers.computeIfAbsent(sort, s -> new TopFieldCollectorManager(s, limit, null, 0));
         }
 
-        TopDocsCollector<?> newTopDocsCollector(Sort sort) {
+        private static Sort getSortForScore(Sort sort) {
+            // Add doc and score to sort
+            var l = new ArrayList<>(Arrays.asList(sort.getSort()));
+            l.add(SortField.FIELD_DOC);
+            l.add(SortField.FIELD_SCORE);
+            sort = new Sort(l.toArray(SortField[]::new));
+            return sort;
+        }
+
+        TopDocsCollector<?> getTopDocsCollectorForSort(Sort sort) {
             if (needsScore) {
                 if (Sort.RELEVANCE.equals(sort)) {
                     // SORT _score DESC, use top score collector
-                    TopScoreDocCollectorManager manager = getTopScoreDocCollectorManager();
-                    return manager.newCollector();
+                    Objects.requireNonNull(
+                        topScoreDocCollectorManager,
+                        "TopScoreDocCollectorManager should have been built for relevance sort"
+                    );
+                    return topScoreDocCollectorManager.newCollector();
                 } else {
                     // Add doc and score to sort
-                    var l = new ArrayList<>(Arrays.asList(sort.getSort()));
-                    l.add(SortField.FIELD_DOC);
-                    l.add(SortField.FIELD_SCORE);
-                    sort = new Sort(l.toArray(SortField[]::new));
+                    sort = getSortForScore(sort);
                 }
             }
 
             TopFieldCollectorManager topFieldCollectorManager = getTopFieldCollectorManager(sort);
             synchronized (topFieldCollectorManager) {
-                // Need to synchronize on the manager to ensure that only one collector is created at a time for a given Sort,
-                // since TopFieldCollectorManager is not thread-safe.
                 return topFieldCollectorManager.newCollector();
             }
+        }
 
+        TopFieldCollectorManager getTopFieldCollectorManager(Sort sort) {
+            // XFieldComparatorSource subclasses (e.g. BytesRefFieldComparatorSource) do not override
+            // equals(), so Sort equality is identity-based for custom sort fields. computeIfAbsent
+            // uses the pre-built manager when Sort.equals() works (standard sorts), and lazily creates
+            // a new one as a fallback for custom sorts where the pre-built key never matches.
+            return topFieldCollectorManagers.computeIfAbsent(sort, s -> new TopFieldCollectorManager(s, limit, null, 0));
         }
 
         PerShardCollector newPerShardCollector(ShardContext context) throws IOException {
-            Optional<SortAndFormats> sortAndFormats = context.buildSort(this.sorts);
+            Sort sort = getShardContextSort(context, sorts);
+            return new PerShardCollector(context, getTopDocsCollectorForSort(sort));
+        }
+
+        static ScoreMode scoreModeForSort(Sort sort, boolean needsScore) {
+            if (needsScore && Sort.RELEVANCE.equals(sort)) {
+                return new TopScoreDocCollectorManager(1, null, 0).newCollector().scoreMode();
+            } else {
+                Sort effectiveSort = needsScore ? getSortForScore(sort) : sort;
+                return new TopFieldCollectorManager(effectiveSort, 1, null, 0).newCollector().scoreMode();
+            }
+        }
+
+        static Sort getShardContextSort(ShardContext context, List<SortBuilder<?>> sorts) throws IOException {
+            Optional<SortAndFormats> sortAndFormats = context.buildSort(sorts);
             if (sortAndFormats.isEmpty()) {
                 throw new IllegalStateException("sorts must not be disabled in TopN");
             }
 
-            Sort sort = sortAndFormats.get().sort;
-            return new PerShardCollector(context, newTopDocsCollector(sort));
+            return sortAndFormats.get().sort;
         }
     }
 }

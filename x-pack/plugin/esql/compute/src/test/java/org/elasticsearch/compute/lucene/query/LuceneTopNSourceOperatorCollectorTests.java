@@ -14,8 +14,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.TopFieldCollectorManager;
-import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -28,19 +26,28 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortMode;
+import org.elasticsearch.search.sort.SortOrder;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
@@ -53,229 +60,66 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         IOUtils.close(reader, directory);
     }
 
-    public void testTopScoreDocCollectorManagerIsReused() throws IOException {
-        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        var manager1 = provider.getTopScoreDocCollectorManager();
-        assertThat(manager1, notNullValue());
-
-        var manager2 = provider.getTopScoreDocCollectorManager();
-        assertThat(manager1, sameInstance(manager2));
-        manager1.newCollector();
-        manager1.newCollector();
-        var manager3 = provider.getTopScoreDocCollectorManager();
-        assertThat(manager1, sameInstance(manager3));
-    }
-
-    public void testTopFieldCollectorManagerReuseForSameSort() throws IOException {
-        List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
-        var factory = createFactory(randomBoolean(), sorts, DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        Sort fieldSort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
-
-        var manager1 = provider.getTopFieldCollectorManager(fieldSort);
-        assertThat(manager1, notNullValue());
-        var manager2 = provider.getTopFieldCollectorManager(fieldSort);
-        assertThat(manager1, sameInstance(manager2));
-        manager1.newCollector();
-        var manager3 = provider.getTopFieldCollectorManager(fieldSort);
-        assertThat(manager1, sameInstance(manager3));
-    }
-
-    public void testDifferentSortsGetDifferentManagers() throws IOException {
-        var factory = createFactory(randomBoolean(), List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-
-        Sort sort1 = new Sort(SortField.FIELD_SCORE);
-        Sort sort2 = new Sort(SortField.FIELD_DOC);
-
-        var manager1 = provider.getTopFieldCollectorManager(sort1);
-        var manager2 = provider.getTopFieldCollectorManager(sort2);
-
-        assertThat(manager1, not(sameInstance(manager2)));
-        var manager1Again = provider.getTopFieldCollectorManager(sort1);
-        assertThat(manager1, sameInstance(manager1Again));
-    }
-
-    public void testLazyInitializationOfTopScoreDocCollectorManager() throws IOException {
+    public void testRelevanceSortCreatesTopScoreDocCollectorManager() throws IOException {
         var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
-        assertThat(provider.topScoreDocCollectorManager, nullValue());
-
-        var manager = provider.getTopScoreDocCollectorManager();
+        // TopScoreDocCollectorManager should be created during construction when needsScore=true and sorts are empty
         assertThat(provider.topScoreDocCollectorManager, notNullValue());
-        assertThat(provider.topScoreDocCollectorManager, sameInstance(manager));
+
+        // Get a collector from the provider - should work without errors
+        var ctx = createMockShardContext(0, true);
+        var perShardCollector = provider.newPerShardCollector(ctx);
+        assertThat(perShardCollector.collector, notNullValue());
     }
 
-    public void testLazyInitializationOfTopFieldCollectorManager() throws IOException {
-        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+    public void testFieldSortCreatesTopFieldCollectorManager() throws IOException {
+        List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
+        var factory = createFactory(false, sorts, DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
-        assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
-        Sort sort = new Sort(SortField.FIELD_DOC);
 
-        var manager = provider.getTopFieldCollectorManager(sort);
+        // TopFieldCollectorManagers should be created during construction
+        assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(false));
 
-        assertThat(provider.topFieldCollectorManagers.size(), equalTo(1));
-        assertThat(provider.topFieldCollectorManagers.get(sort), sameInstance(manager));
+        // Get a collector from the provider - should work without errors
+        var ctx = createMockShardContext(0);
+        var perShardCollector = provider.newPerShardCollector(ctx);
+        assertThat(perShardCollector.collector, notNullValue());
     }
 
-    public void testConcurrentAccessToTopScoreDocCollectorManager() throws Exception {
+    public void testFieldSortWithScoreCreatesTopFieldCollectorManager() throws IOException {
+        List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
+        var factory = createFactory(true, sorts, DataPartitioning.SHARD);
+        var provider = factory.perShardCollectorProvider;
+
+        // TopFieldCollectorManagers should be created during construction
+        assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(false));
+
+        // Get a collector from the provider - should work without errors
+        var ctx = createMockShardContext(0);
+        var perShardCollector = provider.newPerShardCollector(ctx);
+        assertThat(perShardCollector.collector, notNullValue());
+    }
+
+    public void testNewPerShardCollectorCreatesNewInstancesEachTime() throws IOException {
         var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
+        // Use relevance sort mock to match factory creation
+        var ctx = createMockShardContext(0, true);
 
-        int numThreads = 20;
-        var barrier = new CyclicBarrier(numThreads);
-        var managers = new ArrayList<TopScoreDocCollectorManager>();
-        var errors = new ArrayList<Throwable>();
+        var perShardCollector1 = provider.newPerShardCollector(ctx);
+        var perShardCollector2 = provider.newPerShardCollector(ctx);
+        var perShardCollector3 = provider.newPerShardCollector(ctx);
 
-        Thread[] threads = new Thread[numThreads];
-        for (int i = 0; i < numThreads; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    barrier.await(); // Synchronize all threads to start at the same time
-                    var manager = provider.getTopScoreDocCollectorManager();
-                    synchronized (managers) {
-                        managers.add(manager);
-                    }
-                } catch (Exception e) {
-                    synchronized (errors) {
-                        errors.add(e);
-                    }
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread thread : threads) {
-            thread.join();
-        }
-
-        // Check for errors
-        if (errors.isEmpty() == false) {
-            fail(errors.getFirst(), "Concurrent access failed");
-        }
-
-        // All threads should have gotten the SAME manager instance
-        assertThat(managers.size(), equalTo(numThreads));
-        TopScoreDocCollectorManager firstManager = managers.getFirst();
-        for (TopScoreDocCollectorManager manager : managers) {
-            assertThat(manager, sameInstance(firstManager));
-        }
-    }
-
-    public void testConcurrentAccessToCollectors() throws Exception {
-        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-
-        int numThreads = 100;
-        var barrier = new CyclicBarrier(numThreads);
-        var errors = new ArrayList<Throwable>();
-
-        Sort sort = switch (randomInt(2)) {
-            case 0 -> Sort.RELEVANCE;
-            case 1 -> new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE);
-            case 2 -> new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
-            default -> throw new IllegalStateException("Unexpected value");
-        };
-        Thread[] threads = new Thread[numThreads];
-        for (int i = 0; i < numThreads; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    barrier.await();
-                    for (int j = 0; j < randomIntBetween(500, 1000); j++) {
-                        provider.newTopDocsCollector(sort);
-                    }
-                } catch (Exception e) {
-                    synchronized (errors) {
-                        errors.add(e);
-                    }
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread thread : threads) {
-            thread.join();
-        }
-
-        // Check for errors
-        if (errors.isEmpty() == false) {
-            fail(errors.getFirst(), "Concurrent access failed");
-        }
-    }
-
-    public void testConcurrentAccessToTopFieldCollectorManager() throws Exception {
-        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-
-        Sort sort = new Sort(SortField.FIELD_DOC);
-        int numThreads = 20;
-        var barrier = new CyclicBarrier(numThreads);
-        var managers = new ArrayList<TopFieldCollectorManager>();
-        var errors = new ArrayList<Throwable>();
-
-        Thread[] threads = new Thread[numThreads];
-        for (int i = 0; i < numThreads; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    barrier.await();
-                    var manager = provider.getTopFieldCollectorManager(sort);
-                    synchronized (managers) {
-                        managers.add(manager);
-                    }
-                } catch (Exception e) {
-                    synchronized (errors) {
-                        errors.add(e);
-                    }
-                }
-            });
-            threads[i].start();
-        }
-
-        for (Thread thread : threads) {
-            thread.join();
-        }
-
-        // Check for errors
-        if (errors.isEmpty() == false) {
-            fail(errors.getFirst(), "Concurrent access failed");
-        }
-
-        // All threads should have gotten the SAME manager instance
-        assertThat(managers.size(), equalTo(numThreads));
-        TopFieldCollectorManager firstManager = managers.getFirst();
-        for (TopFieldCollectorManager manager : managers) {
-            assertThat(manager, sameInstance(firstManager));
-        }
-    }
-
-    public void testDifferentFactoriesHaveDifferentProviders() throws IOException {
-        var provider1 = new LuceneTopNSourceOperator.PerShardCollectorProvider(100, true, List.of());
-        var provider2 = new LuceneTopNSourceOperator.PerShardCollectorProvider(100, true, List.of());
-
-        assertThat(provider1, not(sameInstance(provider2)));
-
-        var manager1 = provider1.getTopScoreDocCollectorManager();
-        var manager2 = provider2.getTopScoreDocCollectorManager();
-        assertThat(manager1, not(sameInstance(manager2)));
-    }
-
-    public void testProviderWithoutScoreDoesNotCreateTopScoreDocCollectorManagerEagerly() throws IOException {
-        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-
-        assertThat(provider.topScoreDocCollectorManager, nullValue());
-
-        var manager = provider.getTopScoreDocCollectorManager();
-        assertThat(manager, notNullValue());
-        assertThat(provider.topScoreDocCollectorManager, sameInstance(manager));
+        assertThat(perShardCollector1.collector, not(sameInstance(perShardCollector2.collector)));
+        assertThat(perShardCollector2.collector, not(sameInstance(perShardCollector3.collector)));
     }
 
     public void testNewPerShardCollectorCreatesDifferentCollectorInstances() throws IOException {
         var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
-        var ctx = createMockShardContext(0);
+        // Use relevance sort mock to match factory creation
+        var ctx = createMockShardContext(0, true);
 
         var collector1 = provider.newPerShardCollector(ctx);
         var collector2 = provider.newPerShardCollector(ctx);
@@ -284,26 +128,10 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         assertThat(collector1.collector, not(sameInstance(collector2.collector)));
     }
 
-    public void testNewTopDocsCollectorReusesManagersButCreatesNewCollectors() throws IOException {
-        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
-        var provider = factory.perShardCollectorProvider;
-        Sort relevanceSort = Sort.RELEVANCE;
+    public void testMultipleOperatorsShareProviderWithJustScore() throws Exception {
+        var factory = createFactory(true, List.of(SortBuilders.scoreSort()), DataPartitioning.SHARD);
 
-        var collector1 = provider.newTopDocsCollector(relevanceSort);
-        var collector2 = provider.newTopDocsCollector(relevanceSort);
-        var collector3 = provider.newTopDocsCollector(relevanceSort);
-
-        assertThat(collector1, not(sameInstance(collector2)));
-        assertThat(collector2, not(sameInstance(collector3)));
-        var manager1 = provider.getTopScoreDocCollectorManager();
-        var manager2 = provider.getTopScoreDocCollectorManager();
-        assertThat(manager1, sameInstance(manager2));
-    }
-
-    public void testMultipleOperatorsShareProvider() throws Exception {
-        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
-
-        int numOperators = 4;
+        int numOperators = randomIntBetween(4, 10);
         var operators = new ArrayList<LuceneTopNSourceOperator>();
 
         try {
@@ -318,10 +146,107 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
             assertThat(sharedProvider, notNullValue());
 
-            var sort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
-            var manager1 = sharedProvider.getTopFieldCollectorManager(sort);
-            var manager2 = sharedProvider.getTopFieldCollectorManager(sort);
+            var manager1 = sharedProvider.getTopScoreDocCollectorManager();
+            var manager2 = sharedProvider.getTopScoreDocCollectorManager();
             assertThat(manager1, sameInstance(manager2));
+
+            // Concurrent section: multiple threads call newPerShardCollector simultaneously
+            var ctx = createMockShardContext(0, true);
+            int numThreads = randomIntBetween(4, 8);
+            int callsPerThread = randomIntBetween(5, 15);
+            CyclicBarrier barrier = new CyclicBarrier(numThreads);
+            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+            var allCollectors = new CopyOnWriteArrayList<>();
+
+            try {
+                List<Future<?>> futures = new ArrayList<>();
+                for (int t = 0; t < numThreads; t++) {
+                    futures.add(executor.submit(() -> {
+                        barrier.await();
+                        for (int i = 0; i < callsPerThread; i++) {
+                            allCollectors.add(sharedProvider.newPerShardCollector(ctx).collector);
+                        }
+                        return null;
+                    }));
+                }
+                for (var f : futures) {
+                    f.get();
+                }
+            } finally {
+                executor.shutdownNow();
+            }
+
+            Set<Object> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+            distinct.addAll(allCollectors);
+            assertThat(distinct.size(), equalTo(numThreads * callsPerThread));
+        } finally {
+            IOUtils.close(operators);
+        }
+    }
+
+    public void testMultipleOperatorsShareProviderWithScoreNotNeeded() throws Exception {
+        testMultipleOperatorsShareProviderWithoutScore(true);
+    }
+
+    public void testMultipleOperatorsShareProviderWithScoreNeeded() throws Exception {
+        testMultipleOperatorsShareProviderWithoutScore(false);
+    }
+
+    private void testMultipleOperatorsShareProviderWithoutScore(boolean needsScore) throws Exception {
+        Sort sort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
+        var factory = createFactory(
+            needsScore,
+            List.of(SortBuilders.fieldSort("s").order(SortOrder.ASC).sortMode(SortMode.MIN)),
+            DataPartitioning.SHARD
+        );
+
+        int numOperators = randomIntBetween(4, 10);
+        var operators = new ArrayList<LuceneTopNSourceOperator>();
+
+        try {
+            for (int i = 0; i < numOperators; i++) {
+                operators.add((LuceneTopNSourceOperator) factory.get(createDriverContext()));
+            }
+
+            var sharedProvider = operators.get(0).perShardCollectorProvider;
+            for (var op : operators) {
+                assertThat(op.perShardCollectorProvider, sameInstance(sharedProvider));
+            }
+
+            assertThat(sharedProvider, notNullValue());
+
+            var manager1 = sharedProvider.getTopDocsCollectorForSort(sort);
+            var manager2 = sharedProvider.getTopDocsCollectorForSort(sort);
+            assertNotSame(manager1, manager2);
+
+            // Concurrent section: multiple threads call getTopDocsCollectorForSort simultaneously
+            int numThreads = randomIntBetween(4, 8);
+            int callsPerThread = randomIntBetween(5, 15);
+            CyclicBarrier barrier = new CyclicBarrier(numThreads);
+            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+            var allCollectors = new CopyOnWriteArrayList<>();
+
+            try {
+                List<Future<?>> futures = new ArrayList<>();
+                for (int t = 0; t < numThreads; t++) {
+                    futures.add(executor.submit(() -> {
+                        barrier.await();
+                        for (int i = 0; i < callsPerThread; i++) {
+                            allCollectors.add(sharedProvider.getTopDocsCollectorForSort(sort));
+                        }
+                        return null;
+                    }));
+                }
+                for (var f : futures) {
+                    f.get();
+                }
+            } finally {
+                executor.shutdownNow();
+            }
+
+            Set<Object> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+            distinct.addAll(allCollectors);
+            assertThat(distinct.size(), equalTo(numThreads * callsPerThread));
         } finally {
             IOUtils.close(operators);
         }
@@ -339,11 +264,18 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     private ShardContext createMockShardContext(int shardId) {
+        return createMockShardContext(shardId, false);
+    }
+
+    private ShardContext createMockShardContext(int shardId, boolean returnRelevanceSort) {
         return new LuceneSourceOperatorTests.MockShardContext(reader, shardId) {
             @Override
             public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {
-                // Always return a simple field sort for testing purposes
-                // This matches the pattern from LuceneTopNSourceOperatorTests
+                if (returnRelevanceSort && sorts.isEmpty()) {
+                    // Relevance sort has one sort field (FIELD_SCORE)
+                    return Optional.of(new SortAndFormats(Sort.RELEVANCE, new DocValueFormat[] { DocValueFormat.RAW }));
+                }
+                // Return a simple field sort for testing purposes
                 SortField field = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);
                 return Optional.of(new SortAndFormats(new Sort(field), new DocValueFormat[] { DocValueFormat.RAW }));
             }
@@ -353,7 +285,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     private LuceneTopNSourceOperator.Factory createFactory(boolean needsScore, List<SortBuilder<?>> sorts, DataPartitioning partitioning)
         throws IOException {
         setupIndex(100);
-        ShardContext ctx = createMockShardContext(0);
+        // Use relevance sort mock when needsScore=true and sorts are empty
+        boolean useRelevanceSort = needsScore && sorts.isEmpty();
+        ShardContext ctx = createMockShardContext(0, useRelevanceSort);
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(
             new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())
         );

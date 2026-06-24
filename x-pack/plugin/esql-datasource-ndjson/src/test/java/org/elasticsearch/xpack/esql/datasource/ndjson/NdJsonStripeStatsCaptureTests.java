@@ -218,7 +218,9 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         assertTrue("oversized records must create at least one empty stripe", emptyCount > 0);
         for (Frag f : frags) {
             if (f.rows == 0) {
-                assertEquals("an empty stripe is zero-length", f.start, f.end);
+                // Byte-range cover: an empty stripe (an oversized record spans it, no record starts in it)
+                // still owns and covers its grid extent so the cover stays contiguous — it is not zero-length.
+                assertTrue("an empty stripe still covers its grid extent", f.end > f.start);
             }
         }
     }

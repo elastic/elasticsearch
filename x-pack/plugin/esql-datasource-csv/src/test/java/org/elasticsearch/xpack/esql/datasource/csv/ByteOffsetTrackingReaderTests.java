@@ -58,7 +58,8 @@ public class ByteOffsetTrackingReaderTests extends ESTestCase {
     public void testNonDecreasingQueryContractEnforced() throws Exception {
         ByteOffsetTrackingReader reader = new ByteOffsetTrackingReader(new StringReader("abcd"), 0L);
         char[] buf = new char[8];
-        while (reader.read(buf, 0, buf.length) >= 0) {}
+        while (reader.read(buf, 0, buf.length) >= 0) {
+        }
         reader.byteOffsetAtChar(3);
         expectThrows(IllegalArgumentException.class, () -> reader.byteOffsetAtChar(2));
     }

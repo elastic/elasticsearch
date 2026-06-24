@@ -110,8 +110,6 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      * coordinator's interval-cover needs.
      */
     private final TreeMap<Long, StripeAccum> stripeAccums = new TreeMap<>();
-    /** Ordinal of the last page folded; drives empty-stripe emission when an oversized record skips a grid line. */
-    private long prevPageOrdinal = -1;
 
     /**
      * One stripe's running aggregate for the orthogonal per-stripe stats path. Folds whole pages (the
@@ -122,8 +120,6 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     private static final class StripeAccum {
         ColumnStatsAccumulator cols;
         long rows;
-        long startOffset = Long.MAX_VALUE;
-        long endOffset = Long.MIN_VALUE;
     }
 
     NdJsonPageIterator(
@@ -397,28 +393,14 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      * at the first record whose own start crosses a stripe line, so a page never straddles a stripe and
      * {@code floor(pageStart / B)} identifies the whole page's stripe.
      *
-     * <p>This only accumulates rows / column stats / byte sub-range and records which ordinals the chunk
-     * touched; the cover anchors ({@code atStart}/{@code atEnd}) are derived at emission from the chunk's
-     * min/max ordinal (see {@link #emitPerStripe}), which is robust to how pages happened to break — a
-     * stripe's last page can end on a batchSize boundary rather than a stripe cap, so per-page cap flags are
-     * not a reliable completeness signal.
-     *
-     * <p>An oversized record (a single record larger than B) skips one or more grid lines: the next page's
-     * ordinal jumps past {@code prevPageOrdinal + 1}, and we materialize explicit empty (zero-row) stripe
-     * accumulators for the skipped ordinals so the cover stays dense.
+     * <p>This only sums rows + column stats per stripe and records which ordinals carry records; cover
+     * anchors and byte ranges (including empty stripes the chunk's byte range overlaps, e.g. when an
+     * oversized record skips grid lines or a stripe's grid line falls inside a lower stripe's record) are
+     * derived from the chunk's byte geometry in {@link #emitPerStripe}.
      */
     private void captureStripeStats(Page page) {
         long pageStart = pageDecoder.lastPageStartOffset();
-        long pageEnd = pageDecoder.lastPageEndOffset();
         long ordinal = pageStart / statsStripeSize;
-        // Oversized record skipped one or more whole stripes — materialize empties so ordinals stay dense.
-        if (prevPageOrdinal >= 0 && ordinal > prevPageOrdinal + 1) {
-            for (long k = prevPageOrdinal + 1; k < ordinal; k++) {
-                StripeAccum empty = stripeAccums.computeIfAbsent(k, x -> new StripeAccum());
-                empty.startOffset = pageStart;
-                empty.endOffset = pageStart;
-            }
-        }
         StripeAccum acc = stripeAccums.computeIfAbsent(ordinal, k -> new StripeAccum());
         if (acc.cols == null) {
             List<Attribute> projected = pageDecoder.projectedAttributes();
@@ -433,9 +415,6 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             }
         }
         acc.rows += page.getPositionCount();
-        acc.startOffset = Math.min(acc.startOffset, pageStart);
-        acc.endOffset = Math.max(acc.endOffset, pageEnd);
-        prevPageOrdinal = ordinal;
     }
 
     @Override
@@ -499,50 +478,38 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     }
 
     /**
-     * Orthogonal per-stripe emission: one stripe-addressed fragment per {@code (chunk, stripe)} this chunk
-     * touched. Each carries the stripe ordinal, the record-canonical byte sub-range {@code [start, end)}
-     * this chunk observed, and the {@code atStart}/{@code atEnd}/{@code eof} cover anchors. The coordinator
-     * folds fragments per ordinal by interval-cover — misaligned tilings from sibling scans collapse to the
-     * same per-stripe answer because attribution is record-canonical, not scan-geometry-dependent.
+     * Orthogonal per-stripe emission: one stripe-addressed fragment for every stripe this chunk's byte range
+     * {@code [statsBaseOffset, chunkAbsEnd)} overlaps — including stripes with no records (a stripe whose grid
+     * line falls inside a lower stripe's record, so its first record lands in the next chunk; this chunk still
+     * owns that stripe's left edge and must anchor it, and an oversized record likewise leaves empty stripes
+     * the byte range still covers). Cover anchors are pure byte-range-overlap predicates: anchored-at-start
+     * iff this chunk covers the stripe's left grid line ({@code statsBaseOffset <= ordinal*B}), complete-on-
+     * the-right iff it covers the right grid line ({@code chunkAbsEnd >= (ordinal+1)*B}) or this is the
+     * file-final chunk. Record attribution is by each record's own start, so per-stripe row counts are
+     * scan-invariant; the coordinator folds fragments per ordinal by interval-cover and misaligned sibling
+     * tilings collapse to one answer.
      */
     private void emitPerStripe(List<Attribute> fullSchema) {
-        if (stripeAccums.isEmpty()) {
-            return;
-        }
-        long minOrdinal = stripeAccums.firstKey();
-        long maxOrdinal = stripeAccums.lastKey();
-        // The chunk's last stripe must tile to the chunk's true byte boundary, not the parser's offset after
-        // the last record. Jackson's getByteOffset() stops after the final record's closing token and does
-        // NOT count the trailing record terminator (newline), so the parser-derived end falls a terminator
-        // short of the chunk boundary. The next chunk's first record starts at exactly the chunk boundary
-        // (statsBaseOffset + chunkBytes), so closing the last stripe to that boundary keeps sibling chunks'
-        // fragments for a split stripe contiguous (no one-terminator gap that would defeat the cover).
         long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : byteArrayBytesRead;
-        long chunkAbsEnd = statsBaseOffset + chunkBytes;
-        if (chunkBytes >= 0) {
-            StripeAccum last = stripeAccums.get(maxOrdinal);
-            last.endOffset = Math.max(last.endOffset, chunkAbsEnd);
+        if (chunkBytes <= 0) {
+            return; // unknown / empty byte range — safe miss
         }
+        long chunkAbsEnd = statsBaseOffset + chunkBytes;
+        long firstOrdinal = Math.floorDiv(statsBaseOffset, statsStripeSize);
+        long lastOrdinal = Math.floorDiv(chunkAbsEnd - 1, statsStripeSize);
         String fingerprint = fingerprinter.apply(fullSchema);
-        for (Map.Entry<Long, StripeAccum> e : stripeAccums.entrySet()) {
-            long ordinal = e.getKey();
-            StripeAccum acc = e.getValue();
-            // Cover anchors derived from the chunk's ordinal span — robust to page-break geometry:
-            // - atStart: any stripe above the chunk's first ordinal opened inside this chunk (we crossed
-            // into it from a lower stripe), so its first record IS the stripe's first record. The chunk's
-            // first stripe anchors only if the chunk itself began on a stripe line (offset 0 included);
-            // otherwise that stripe's true start lives in the previous chunk, which supplies the anchor.
-            // - atEnd: any stripe below the chunk's last ordinal is complete-on-the-right (the chunk read
-            // on into a higher stripe). The chunk's last stripe is complete only if the chunk ends on a
-            // stripe line, or this is the file-final chunk (ends at true EOF).
-            // - eof: only the file-final chunk's last stripe is the file's terminal stripe.
-            boolean atStart = ordinal > minOrdinal || (statsBaseOffset % statsStripeSize == 0);
-            boolean atEnd = ordinal < maxOrdinal || (chunkAbsEnd % statsStripeSize == 0) || statsFileFinal;
-            boolean eof = ordinal == maxOrdinal && statsFileFinal;
-            long start = acc.startOffset == Long.MAX_VALUE ? acc.endOffset : acc.startOffset;
-            long end = acc.endOffset == Long.MIN_VALUE ? start : acc.endOffset;
-            Map<String, ExternalStats.ColumnStats> cols = acc.cols == null ? Map.of() : acc.cols.snapshot();
-            ExternalStats.Stats statsRecord = new ExternalStats.Stats(acc.rows, OptionalLong.empty(), cols);
+        for (long ordinal = firstOrdinal; ordinal <= lastOrdinal; ordinal++) {
+            long gridStart = ordinal * statsStripeSize;
+            long gridEnd = gridStart + statsStripeSize;
+            long start = Math.max(statsBaseOffset, gridStart);
+            long end = Math.min(chunkAbsEnd, gridEnd);
+            boolean atStart = statsBaseOffset <= gridStart;
+            boolean atEnd = chunkAbsEnd >= gridEnd || statsFileFinal;
+            boolean eof = statsFileFinal && ordinal == lastOrdinal;
+            StripeAccum acc = stripeAccums.get(ordinal);
+            long rows = acc == null ? 0L : acc.rows;
+            Map<String, ExternalStats.ColumnStats> cols = (acc == null || acc.cols == null) ? Map.of() : acc.cols.snapshot();
+            ExternalStats.Stats statsRecord = new ExternalStats.Stats(rows, OptionalLong.empty(), cols);
             SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), fullSchema);
             Map<String, Object> base = new HashMap<>();
             base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);

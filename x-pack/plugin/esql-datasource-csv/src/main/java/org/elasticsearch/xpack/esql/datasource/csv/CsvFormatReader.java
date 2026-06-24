@@ -1367,7 +1367,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             pinnedMtimeMillis,
             chunkMode,
             counters,
-            context.splitStartByte()
+            context.splitStartByte(),
+            chunkMode ? context.statsStripeSize() : -1L,
+            context.statsFileFinal()
         );
     }
 
@@ -1966,6 +1968,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private final long splitStartByte;
 
+        /** Canonical-stripe grid in bytes for per-stripe stats capture; {@code <= 0} disables it. */
+        private final long statsStripeSize;
+        /** Whether this read reaches the file's true end — only then may its last stripe be terminal. */
+        private final boolean statsFileFinal;
+        /** Per-stripe accumulators keyed by ordinal; non-empty only when stripe capture is active. */
+        private final java.util.TreeMap<Long, StripeAccum> stripeAccums = new java.util.TreeMap<>();
+        /** Set when per-stripe capture must safe-miss (row/page misalignment); suppresses emission. */
+        private boolean stripeCaptureDisabled = false;
+        /**
+         * Maps the Jackson bulk path's per-row char offset to a file-global byte offset without
+         * re-decoding. {@code null} on the per-record reader path (already byte-exact) and when stripe
+         * capture is off or the encoding is not UTF-8 (then stripe capture safe-misses).
+         */
+        private ByteOffsetTrackingReader bulkByteTracker;
+        /** The Jackson bulk mapping iterator, retained to read each row's start char offset. */
+        private com.fasterxml.jackson.databind.MappingIterator<List<?>> bulkRows;
+
+        /** One stripe's running stats: row count + per-column min/max/null. Byte ranges and cover anchors
+         *  are derived from the chunk's byte geometry at emit, not accumulated. */
+        private static final class StripeAccum {
+            ColumnStatsAccumulator cols;
+            long rows;
+        }
+
         CsvBatchIterator(
             BufferedReader reader,
             CsvLogicalRecordReader recordReader,
@@ -1980,7 +2006,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             long pinnedMtimeMillis,
             boolean chunkMode,
             CsvReaderCounters counters,
-            long splitStartByte
+            long splitStartByte,
+            long statsStripeSize,
+            boolean statsFileFinal
         ) {
             this.reader = reader;
             this.recordReader = recordReader;
@@ -2003,6 +2031,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.chunkMode = chunkMode;
             this.counters = counters;
             this.splitStartByte = splitStartByte;
+            this.statsStripeSize = statsStripeSize;
+            this.statsFileFinal = statsFileFinal;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -2058,12 +2088,126 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (cacheableObject == null || columnCount == 0 || projectedAttrs == null) {
                 return;
             }
+            if (statsStripeSize > 0 && rowStartBytes != null && stripeCaptureDisabled == false) {
+                accumulateStripes(page);
+                return;
+            }
             if (columnStats == null) {
                 columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
             }
             for (int i = 0; i < columnCount; i++) {
                 columnStats.acceptBlockAt(i, page.getBlock(i));
             }
+        }
+
+        /**
+         * Per-stripe accumulation: attribute each row in {@code page} to its canonical stripe by its own
+         * file-global byte start ({@link #rowStartBytes}), summing rows + per-column min/max/null per stripe.
+         * A page that stays within one stripe (the common case) is folded whole with no per-position
+         * filtering. If the page's positions don't line up with the captured offsets, capture safe-misses
+         * for the whole file rather than risk misattribution. Byte ranges / cover anchors are NOT tracked
+         * here — they are derived from the chunk's byte geometry in {@link #emitPerStripe}.
+         */
+        private void accumulateStripes(Page page) {
+            int n = page.getPositionCount();
+            if (rowStartBytes.length != n) {
+                stripeCaptureDisabled = true; // alignment lost — safe miss
+                return;
+            }
+            int i = 0;
+            while (i < n) {
+                long ordinal = Math.floorDiv(rowStartBytes[i], statsStripeSize);
+                int j = i + 1;
+                while (j < n && Math.floorDiv(rowStartBytes[j], statsStripeSize) == ordinal) {
+                    j++;
+                }
+                StripeAccum acc = stripeAccums.computeIfAbsent(ordinal, k -> new StripeAccum());
+                if (acc.cols == null && projectedAttrs.length > 0) {
+                    acc.cols = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
+                }
+                if (acc.cols != null) {
+                    if (i == 0 && j == n) {
+                        for (int b = 0; b < columnCount; b++) {
+                            acc.cols.acceptBlockAt(b, page.getBlock(b));
+                        }
+                    } else {
+                        int[] positions = new int[j - i];
+                        for (int p = 0; p < positions.length; p++) {
+                            positions[p] = i + p;
+                        }
+                        for (int b = 0; b < columnCount; b++) {
+                            var filtered = page.getBlock(b).filter(false, positions);
+                            try {
+                                acc.cols.acceptBlockAt(b, filtered);
+                            } finally {
+                                filtered.close();
+                            }
+                        }
+                    }
+                }
+                acc.rows += (j - i);
+                i = j;
+            }
+        }
+
+        /**
+         * Emits one stripe-addressed fragment for every stripe this chunk's byte range
+         * {@code [splitStartByte, chunkAbsEnd)} overlaps — including stripes with no records (a stripe whose
+         * grid line falls inside a record of the lower stripe, so its first record lands in the next chunk;
+         * this chunk still owns that stripe's left edge and must anchor it). Cover anchors are pure
+         * byte-range-overlap predicates: anchored-at-start iff this chunk covers the stripe's left grid line
+         * ({@code splitStartByte <= ordinal*B}), complete-on-the-right iff it covers the right grid line
+         * ({@code chunkAbsEnd >= (ordinal+1)*B}) or this is the file-final chunk. Record attribution is by
+         * each record's own start, so per-stripe row counts are scan-invariant; the coordinator folds
+         * fragments per ordinal by interval-cover, and misaligned sibling tilings collapse to one answer.
+         */
+        private void emitPerStripe() {
+            long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : -1L;
+            if (chunkBytes <= 0) {
+                return; // unknown / empty byte range — safe miss
+            }
+            long chunkAbsEnd = splitStartByte + chunkBytes;
+            long firstOrdinal = Math.floorDiv(splitStartByte, statsStripeSize);
+            long lastOrdinal = Math.floorDiv(chunkAbsEnd - 1, statsStripeSize);
+            String fingerprint = computeConfigFingerprint();
+            for (long ordinal = firstOrdinal; ordinal <= lastOrdinal; ordinal++) {
+                long gridStart = ordinal * statsStripeSize;
+                long gridEnd = gridStart + statsStripeSize;
+                long start = Math.max(splitStartByte, gridStart);
+                long end = Math.min(chunkAbsEnd, gridEnd);
+                boolean atStart = splitStartByte <= gridStart;
+                boolean atEnd = chunkAbsEnd >= gridEnd || statsFileFinal;
+                boolean eof = statsFileFinal && ordinal == lastOrdinal;
+                StripeAccum acc = stripeAccums.get(ordinal);
+                long rows = acc == null ? 0L : acc.rows;
+                Map<String, ExternalStats.ColumnStats> cols = (acc == null || acc.cols == null) ? Map.of() : acc.cols.snapshot();
+                ExternalStats.Stats statsRecord = new ExternalStats.Stats(rows, OptionalLong.empty(), cols);
+                SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), schema);
+                Map<String, Object> base = new HashMap<>();
+                base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+                base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+                base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+                base.put(ExternalStats.STRIPE_SIZE_KEY, statsStripeSize);
+                base.put(ExternalStats.STRIPE_ORDINAL_KEY, ordinal);
+                base.put(ExternalStats.COVERAGE_START_KEY, start);
+                base.put(ExternalStats.COVERAGE_END_KEY, end);
+                base.put(ExternalStats.STRIPE_AT_START_KEY, atStart);
+                base.put(ExternalStats.STRIPE_AT_END_KEY, atEnd);
+                base.put(ExternalStats.COVERAGE_IS_LAST_KEY, eof);
+                Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
+                ExternalStatsCapture.record(sourceLocation, flat);
+            }
+        }
+
+        /**
+         * Bulk Jackson iterator that also tracks per-record byte offsets via {@link ByteOffsetTrackingReader},
+         * so canonical-stripe attribution works on the fast path without dropping onto the per-record reader.
+         */
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        private Iterator<List<?>> newTrackedJacksonBulkIterator() throws IOException {
+            bulkByteTracker = new ByteOffsetTrackingReader(reader, splitStartByte);
+            bulkRows = sharedCsvMapper.readerFor(List.class).with(newCsvSchema()).readValues(bulkByteTracker);
+            return (Iterator) bulkRows;
         }
 
         @Override
@@ -2092,14 +2236,29 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // before EOF, so naturallyExhausted already gates it out.)
                 if (cacheableObject != null && naturallyExhausted && pinnedMtimeMillis >= 0 && schema != null) {
                     if (rowsSkipped == 0) {
-                        Map<String, ExternalStats.ColumnStats> cols = columnStats == null ? Map.of() : columnStats.snapshot();
-                        OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
-                        String fingerprint = computeConfigFingerprint();
-                        ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmittedForCache, bytesRead, cols);
-                        // Whole-file publishes carry no partial marker; per-chunk publishes carry one, and
-                        // the ParallelParsingCoordinator publishes a finalize marker at clean whole-file
-                        // completion so the coordinator's reconciler only commits the merge then.
-                        publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
+                        if (statsStripeSize > 0 && stripeCaptureDisabled == false && stripeAccums.isEmpty() == false) {
+                            // Chunk-parallel read with per-stripe stats: emit one stripe-addressed fragment per
+                            // stripe this chunk touched; the coordinator interval-covers and folds them.
+                            emitPerStripe();
+                        } else {
+                            Map<String, ExternalStats.ColumnStats> cols = columnStats == null ? Map.of() : columnStats.snapshot();
+                            OptionalLong bytesRead = byteCounter == null
+                                ? OptionalLong.empty()
+                                : OptionalLong.of(byteCounter.getBytesRead());
+                            String fingerprint = computeConfigFingerprint();
+                            ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmittedForCache, bytesRead, cols);
+                            // Whole-file publishes carry no partial marker; per-chunk publishes carry one, and
+                            // the ParallelParsingCoordinator publishes a finalize marker at clean whole-file
+                            // completion so the coordinator's reconciler only commits the merge then.
+                            publishToCaptureSink(
+                                sourceLocation,
+                                pinnedMtimeMillis,
+                                fingerprint,
+                                statsRecord,
+                                schema,
+                                sizeInBytesFromLength()
+                            );
+                        }
                     } else if (chunkMode) {
                         // rowsSkipped > 0 here: a parallel chunk dropped rows mid-scan, so its partial
                         // would under-count. Poison the file — the reconciler discards every contribution.
@@ -2191,13 +2350,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // (splitStartByte + bytesRead - lastRecordBytes) stays exact. The Jackson bulk path
                     // bypasses recordReader and would pin every data row at the header boundary. read()
                     // suppresses the byte-level cap wrap on this path to match (see useRecordReaderPath).
-                    csvIterator = rowPositionSlot >= 0 ? newCsvIterator(recordReader) : newJacksonBulkIterator(reader);
+                    if (rowPositionSlot >= 0) {
+                        csvIterator = newCsvIterator(recordReader);
+                    } else if (statsStripeSize > 0 && java.nio.charset.StandardCharsets.UTF_8.equals(options.encoding())) {
+                        // Stripe capture on the bulk path: wrap the reader so each row's char offset maps to a
+                        // file-global byte offset (record-canonical stripe attribution) without leaving the fast
+                        // Jackson path or re-decoding. Non-UTF-8 falls through and stripe capture safe-misses.
+                        csvIterator = newTrackedJacksonBulkIterator();
+                    } else {
+                        csvIterator = newJacksonBulkIterator(reader);
+                    }
                 }
             }
             boolean useFusedBracketPath = csvIterator == null && bracketMultiValues && options.delimiter() == ',';
-            // When `_rowPosition` is not projected, every per-row offset capture is dead work — skip
-            // the parallel List<Long> + long[] allocations and the autoboxing for the inner loop.
-            final boolean trackOffsets = rowPositionSlot >= 0;
+            // Capture per-row offsets when _rowPosition is projected (record-reader path) or when the bulk
+            // path is tracking byte offsets for stripe capture; otherwise it is dead work.
+            final boolean trackOffsets = rowPositionSlot >= 0 || bulkByteTracker != null;
             while (true) {
                 if (useFusedBracketPath && prefetchedRows == null && columnCount > 0) {
                     List<String> lines = new ArrayList<>();
@@ -2235,13 +2403,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 if (csvIterator.hasNext() == false) {
                                     break;
                                 }
+                                // Bulk path: read the row's start byte from the parser's char offset BEFORE
+                                // next() advances it. Record-reader path: capture AFTER next(), when bytesRead /
+                                // lastRecordBytes reflect the just-returned record (cumulative across any
+                                // blank/comment lines this next() consumed on the way to it).
+                                long rowStartByte = 0L;
+                                if (bulkByteTracker != null) {
+                                    rowStartByte = bulkByteTracker.byteOffsetAtChar(bulkRows.getCurrentLocation().getCharOffset());
+                                }
                                 List<?> rowList = csvIterator.next();
-                                // Anchored to the just-returned record; recordReader.bytesRead is
-                                // cumulative across any skipped blank/comment lines this next()
-                                // call consumed on the way to the returned row.
-                                long rowStartByte = trackOffsets
-                                    ? splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes()
-                                    : 0L;
+                                if (bulkByteTracker == null && trackOffsets) {
+                                    rowStartByte = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
+                                }
                                 String[] row = new String[rowList.size()];
                                 for (int i = 0; i < rowList.size(); i++) {
                                     Object val = rowList.get(i);

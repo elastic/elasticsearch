@@ -117,9 +117,7 @@ final class ByteOffsetTrackingReader extends Reader {
             );
         }
         if (charOffset > charsProduced) {
-            throw new IllegalArgumentException(
-                "byteOffsetAtChar(" + charOffset + ") exceeds characters produced (" + charsProduced + ")"
-            );
+            throw new IllegalArgumentException("byteOffsetAtChar(" + charOffset + ") exceeds characters produced (" + charsProduced + ")");
         }
         int advance = Math.toIntExact(charOffset - cursorCharOffset);
         for (int i = 0; i < advance; i++) {

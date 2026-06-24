@@ -189,7 +189,7 @@ public class IndexAbstractionResolver {
                     if (indicesOptions.allowNoIndices() == false) {
                         throw new IndexNotFoundException(indexAbstraction);
                     }
-                    resolvedExpressionsBuilder.addExpressions(originalIndexExpression, new HashSet<>(), SUCCESS, remoteExpressions);
+                    resolvedExpressionsBuilder.addExpressions(originalIndexExpression, Set.of(), SUCCESS, remoteExpressions);
                 } else {
                     maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
                 }
@@ -228,7 +228,7 @@ public class IndexAbstractionResolver {
                     // so we map this expression to an empty list,
                     resolvedExpressionsBuilder.addExpressions(
                         originalIndexExpression,
-                        new HashSet<>(),
+                        Set.of(),
                         CONCRETE_RESOURCE_UNAUTHORIZED,
                         remoteExpressions
                     );

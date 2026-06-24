@@ -48,9 +48,12 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         );
 
         Set<DataType> taggedTypes = new HashSet<>();
+        List<DataType> extraBoth = List.of(DataType.VERSION);
+        searchFieldTypes.addAll(extraBoth);
+        taggedTypes.addAll(extraBoth);
+
         if (isFirst) {
             List<DataType> extra = List.of(
-                DataType.VERSION,
                 DataType.DENSE_VECTOR,
                 DataType.EXPONENTIAL_HISTOGRAM,
                 DataType.CARTESIAN_POINT,

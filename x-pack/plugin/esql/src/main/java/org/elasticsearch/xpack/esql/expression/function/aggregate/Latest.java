@@ -38,7 +38,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
+        returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos", "version" },
         briefSummary = "Returns the latest value of a field sorted by timestamp.",
         description = """
             An alias for [`LAST`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md) where
@@ -50,7 +50,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
         Source source,
         @Param(
             name = "field",
-            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos" },
+            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos", "version" },
             description = "The search field"
         ) Expression field,
         Expression timestamp
@@ -96,7 +96,8 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
                 || dt == DataType.DATE_NANOS
                 || DataType.isString(dt)
                 || dt == DataType.IP
-                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG)
+                || dt == DataType.VERSION,
             sourceText(),
             DEFAULT,
             "boolean",

@@ -707,3 +707,21 @@ FROM flattened_many
 first_flat:flattened
 "{""k"":""v1""}"
 ;
+
+Test last aggregation on version type
+required_capability: last_agg_extended_types
+
+ROW rows = [
+"1.0.0 | 1",
+"2.0.0 | 2",
+"3.0.0 | 3"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{ver} | %{n}"""
+| EVAL v = TO_VERSION(ver), sort = TO_LONG(n)
+| STATS last_v = LAST(v, sort)
+; 
+
+last_v:version
+3.0.0
+;

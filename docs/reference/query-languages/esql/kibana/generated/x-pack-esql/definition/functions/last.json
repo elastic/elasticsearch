@@ -651,6 +651,78 @@
       ],
       "variadic" : false,
       "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "version"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "version"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "version"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "version"
     }
   ],
   "examples" : [

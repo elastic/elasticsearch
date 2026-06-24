@@ -436,3 +436,22 @@ FROM flattened_otel_logs
 earliest_attrs:flattened
 "{""host.name"":""equal-host""}"
 ;
+
+Test latest aggregation on version type
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+
+ROW rows = [
+"2025-01-01T00:00:01.000Z | 1.0.0",
+"2025-01-01T00:00:02.000Z | 2.0.0",
+"2025-01-01T00:00:03.000Z | 3.0.0"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{@timestamp} | %{ver}"""
+| EVAL @timestamp = TO_DATETIME(@timestamp), v = TO_VERSION(ver)
+| STATS last_v = LATEST(v)
+; 
+
+last_v:version
+3.0.0
+;

@@ -40,4 +40,8 @@
 | text | date_nanos | keyword |
 | text | integer | keyword |
 | text | long | keyword |
+| version {applies_to}`stack: ga 9.5.0` | date | version |
+| version {applies_to}`stack: ga 9.5.0` | date_nanos | version |
+| version {applies_to}`stack: ga 9.5.0` | integer | version |
+| version {applies_to}`stack: ga 9.5.0` | long | version |
 

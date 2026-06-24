@@ -111,6 +111,18 @@
       ],
       "variadic" : false,
       "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "The search field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "version"
     }
   ],
   "examples" : [

@@ -82,7 +82,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     static final int VECTOR_BITSIZE = PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE;
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
-    private static final boolean IS_AARCH64 = Constants.OS_ARCH.equals("aarch64");
 
     private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
     private static final VectorSpecies<Byte> BYTE_SPECIES = PanamaVectorConstants.PREFERRED_BYTE_SPECIES;
@@ -99,14 +98,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     private static final VectorSpecies<Integer> INT_SPECIES_512 = IntVector.SPECIES_512;
     private static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;
     private static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
-
-    private static boolean hasFastMasks(VectorSpecies<?> species) {
-        /*
-         * 512-bit is always AVX512, which has masks
-         * SVE also has predicates, but is tricky to detect...
-         */
-        return species.vectorBitSize() == 512;
-    }
 
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {
@@ -854,9 +845,9 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
      * A byte species with the same number of elements as the preferred 4-byte species (float and int).
      * Normally the size of the int species /4.
      *
-     * For 128-bit, there isn't a byte species small enough (panama only goes down to 64-bits),
-     * in which case we're over-reading the bytes and throwing away the second half each iteration,
-     * due to only using the 0th part when converting to ints.
+     * For 128-bits, there isn't a byte species small enough (panama only goes down to 64-bits),
+     * so we're over-reading the bytes and throwing away the second half each iteration,
+     * due to only using the 0th part when converting to 4-byte values.
      *
      * For real hot paths, it's worth creating separate 128-bit methods that don't do this,
      * but for other methods it's fine to not quite SIMD all of it and scalar process
@@ -868,8 +859,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         int byteBitsForInt = INTEGER_SPECIES.vectorBitSize() / Float.BYTES;
 
         VectorSpecies<Byte> byteSpecies = BYTE_SPECIES; // just specify *something* to fallback on
-        // this may be too small - double size until we get to one we can use
-        while (byteBitsForInt < 1024) { // sanity bounds check to prevent infinite loop if this isn't working as it should
+        // int species / 4 may be too small - double the size until we get to one we can use
+        while (byteBitsForInt <= 1024) { // sanity bounds check to prevent infinite loop if this isn't working as it should
             try {
                 byteSpecies = VectorSpecies.of(byte.class, VectorShape.forBitSize(byteBitsForInt));
                 break;

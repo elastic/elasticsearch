@@ -15,7 +15,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 class RequestTask implements RejectableTask {
@@ -37,7 +36,8 @@ class RequestTask implements RejectableTask {
         this.requestCreator = Objects.requireNonNull(requestCreator);
         this.timedListener = new TimedListener<>(
             timeout,
-            releaseInflightBytesOnceListener(listener, circuitBreaker, estimatedRamBytesUsed),
+            // runAfter makes sure that this is only executed once (uses assertOnce internally)
+            ActionListener.runAfter(listener, () -> getCircuitBreaker().addWithoutBreaking(-estimatedRamBytesUsed)),
             threadPool,
             requestCreator.inferenceEntityId()
         );
@@ -78,20 +78,5 @@ class RequestTask implements RejectableTask {
     // visible for testing
     CircuitBreaker getCircuitBreaker() {
         return circuitBreaker;
-    }
-
-    // TODO: test release
-    private static ActionListener<InferenceServiceResults> releaseInflightBytesOnceListener(
-        ActionListener<InferenceServiceResults> listener,
-        CircuitBreaker circuitBreaker,
-        long estimatedRamBytesUsed
-    ) {
-        // This makes sure that the estimated RAM byte usage is only "released" once
-        var ramBytesReleased = new AtomicBoolean();
-        return ActionListener.runAfter(listener, () -> {
-            if (ramBytesReleased.compareAndSet(false, true)) {
-                circuitBreaker.addWithoutBreaking(estimatedRamBytesUsed);
-            }
-        });
     }
 }

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -30,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -74,7 +77,7 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             mockThreadPool,
             listener,
-            null,
+            new TestCircuitBreaker(),
             0L
         );
 
@@ -96,7 +99,7 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             threadPool,
             listener,
-            null,
+            new TestCircuitBreaker(),
             0L
         );
 
@@ -122,7 +125,7 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             threadPool,
             listener,
-            null,
+            new TestCircuitBreaker(),
             0L
         );
 
@@ -153,7 +156,7 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             threadPool,
             listener,
-            null,
+            new TestCircuitBreaker(),
             0L
         );
 
@@ -182,7 +185,7 @@ public class RequestTaskTests extends ESTestCase {
             ONE_MILLISECOND,
             mockThreadPool,
             listener,
-            null,
+            new TestCircuitBreaker(),
             0L
         );
 
@@ -194,6 +197,43 @@ public class RequestTaskTests extends ESTestCase {
         onTimeout.get().run();
         verifyNoMoreInteractions(listener);
     }
+
+    public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnListenerTimeout() throws InterruptedException {
+        @SuppressWarnings("unchecked")
+        ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
+        var calledOnFailureLatch = new CountDownLatch(1);
+        var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
+        var estimatedRamBytesUsed = 100L;
+
+        doAnswer(invocation -> {
+            calledOnFailureLatch.countDown();
+            return Void.TYPE;
+        }
+        ).when(listener).onFailure(any());
+
+        // Times out after 1 ms
+        var requestTask = new RequestTask(
+        OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
+            ONE_MILLISECOND,
+            threadPool,
+            listener,
+            trackingCircuitBreaker,
+            estimatedRamBytesUsed
+        );
+
+        calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        verify(listener, times(1)).onFailure(any());
+        assertTrue(requestTask.hasCompleted());
+
+        // TrackingCircuitBreaker's used bytes is initialized to 0
+        // When it releases 100 bytes we should see -100 used
+        assertThat(trackingCircuitBreaker.getUsed(), equalTo(-estimatedRamBytesUsed));
+    }
+
+    // TODO: test circuit breaker releases bytes on successful completion of timed listener
+
+    // TODO: test circuit breaker releases bytes onRejection
 
     private ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable) {
         var mockThreadPool = mock(ThreadPool.class);
@@ -207,5 +247,24 @@ public class RequestTaskTests extends ESTestCase {
         }).when(mockThreadPool).schedule(any(Runnable.class), any(), any());
 
         return mockThreadPool;
+    }
+
+    private static class TrackingCircuitBreaker extends NoopCircuitBreaker {
+        private long currentBytes;
+
+        TrackingCircuitBreaker(String name) {
+            super(name);
+            this.currentBytes = 0L;
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            this.currentBytes += bytes;
+        }
+
+        @Override
+        public long getUsed() {
+            return currentBytes;
+        }
     }
 }

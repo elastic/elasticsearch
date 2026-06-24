@@ -20,22 +20,46 @@ final class CsvLogicalRecordReader {
     private final Reader reader;
     private final char quoteChar;
     private final char delimiter;
+    private final char escapeChar;
     private final int maxRecordBytes;
     private final Charset charset;
     private final boolean utf8;
     /**
      * Whether {@link #quoteChar} opens a quoted field at field start. {@code false} for the no-quote
      * modes ({@code plain}/{@code escaped}), where a quote byte is ordinary data and a raw line
-     * terminator always ends the record — the property that keeps no-quote records from ever gluing
-     * across lines on a stray quote.
+     * terminator always ends the record. This keeps no-quote records from ever gluing across lines
+     * on a stray quote.
      */
     private final boolean quoteAware;
+    /**
+     * Whether {@link #escapeChar} is consulted so an escaped character is carried into the record
+     * verbatim (the escape and the char it escapes) rather than being interpreted structurally. This
+     * matters for the direct-to-block quoted path (RFC&nbsp;4180 + backslash escapes), where Jackson
+     * treats {@code \}+terminator and {@code \}+quote as in-field content: without this flag an
+     * escaped newline would split the record and an escaped quote would toggle quote state, both of
+     * which would diverge from Jackson. {@code false} for every other caller, leaving their behavior
+     * untouched.
+     */
+    private final boolean escapeAware;
 
     CsvLogicalRecordReader(Reader reader, char quoteChar, char delimiter, int maxRecordBytes, Charset charset) {
         this(reader, quoteChar, delimiter, maxRecordBytes, charset, true);
     }
 
     CsvLogicalRecordReader(Reader reader, char quoteChar, char delimiter, int maxRecordBytes, Charset charset, boolean quoteAware) {
+        this(reader, quoteChar, delimiter, CsvFormatOptions.DEFAULT_ESCAPE, maxRecordBytes, charset, quoteAware, false);
+    }
+
+    CsvLogicalRecordReader(
+        Reader reader,
+        char quoteChar,
+        char delimiter,
+        char escapeChar,
+        int maxRecordBytes,
+        Charset charset,
+        boolean quoteAware,
+        boolean escapeAware
+    ) {
         if (reader.markSupported() == false) {
             throw new IllegalArgumentException("Reader must support mark/reset");
         }
@@ -45,10 +69,12 @@ final class CsvLogicalRecordReader {
         this.reader = reader;
         this.quoteChar = quoteChar;
         this.delimiter = delimiter;
+        this.escapeChar = escapeChar;
         this.maxRecordBytes = maxRecordBytes;
         this.charset = charset;
         this.utf8 = StandardCharsets.UTF_8.equals(charset);
         this.quoteAware = quoteAware;
+        this.escapeAware = escapeAware;
     }
 
     String readRecord(boolean bracketAware) throws IOException {
@@ -66,6 +92,17 @@ final class CsvLogicalRecordReader {
             recordBytes = addBytes(recordBytes, ch);
 
             if (inQuotes) {
+                if (escapeAware && ch == escapeChar) {
+                    // Carry the escape and the char it escapes verbatim so an escaped quote does not
+                    // close the field; the field-level walker performs the actual C-style decode.
+                    sb.append((char) ch);
+                    int next = reader.read();
+                    if (next != -1) {
+                        recordBytes = addBytes(recordBytes, next);
+                        sb.append((char) next);
+                    }
+                    continue;
+                }
                 if (ch == quoteChar) {
                     reader.mark(1);
                     int next = reader.read();
@@ -101,6 +138,18 @@ final class CsvLogicalRecordReader {
                 continue;
             }
 
+            if (escapeAware && ch == escapeChar) {
+                // Outside quotes, an escaped terminator is in-field content (Jackson treats \\+\n as a
+                // literal newline), so consume the escaped char verbatim instead of ending the record.
+                sb.append((char) ch);
+                int next = reader.read();
+                if (next != -1) {
+                    recordBytes = addBytes(recordBytes, next);
+                    sb.append((char) next);
+                }
+                fieldHasNonWhitespace = true;
+                continue;
+            }
             if (ch == '\n') {
                 return sb.toString();
             }

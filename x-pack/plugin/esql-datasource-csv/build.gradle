@@ -24,6 +24,13 @@ base {
   archivesName = 'esql-datasource-csv'
 }
 
+// Pin a newer Jackson than the repo-wide versions.jackson (2.15.0) for this module only, mirroring
+// libs/x-content/impl. The direct-to-block reader parses doubles straight from char ranges via
+// NumberInput.parseDouble(char[], off, len, fastParser), an overload that only exists in jackson-core
+// 2.18+; staying on 2.15.0 would force a String allocation per double. Scoped to this module to avoid
+// a repo-wide upgrade.
+String jacksonVersion = "2.19.2"
+
 dependencies {
   // SPI interfaces from ESQL core
   compileOnly project(path: xpackModule('esql'))
@@ -33,7 +40,7 @@ dependencies {
   compileOnly project(xpackModule('esql:compute'))
 
   // Jackson CSV for CSV format reader
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-csv:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-csv:${jacksonVersion}"
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))

@@ -68,6 +68,13 @@ public class CsvReadBenchmark {
     @Param({ "all", "projectedSubset" })
     public String projection;
 
+    /**
+     * Toggles the direct-to-block read path (default) against the byte-equivalent Jackson tokenizer
+     * baseline, so a single run reports both side by side and quantifies the direct path's win.
+     */
+    @Param({ "true", "false" })
+    public boolean directBlock;
+
     private BlockFactory blockFactory;
     private StorageObject storageObject;
     private long fixtureBytes;
@@ -108,7 +115,7 @@ public class CsvReadBenchmark {
 
     @Benchmark
     public int readAll(ReadMetrics metrics) throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory, options, formatName, extensions);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory, options, formatName, extensions).withDirectBlockEnabled(directBlock);
         FormatReadContext ctx = FormatReadContext.builder().projectedColumns(projectedColumns).batchSize(1000).build();
         int totalRows = 0;
         try (CloseableIterator<Page> iter = reader.read(storageObject, ctx)) {
@@ -125,20 +132,24 @@ public class CsvReadBenchmark {
     static void selfTest() {
         for (String delimiter : Utils.possibleValues(CsvReadBenchmark.class, "delimiter")) {
             for (String projection : Utils.possibleValues(CsvReadBenchmark.class, "projection")) {
-                CsvReadBenchmark bench = new CsvReadBenchmark();
-                bench.rowCount = DatasourceBenchmarks.SELF_TEST_ROW_COUNT;
-                bench.delimiter = delimiter;
-                bench.projection = projection;
-                try {
-                    bench.setup();
-                    int actual = bench.readAll(new ReadMetrics());
-                    if (actual != bench.rowCount) {
-                        throw new AssertionError(
-                            "CsvReadBenchmark[" + delimiter + "/" + projection + "] read " + actual + " rows, expected " + bench.rowCount
-                        );
+                for (String directBlock : Utils.possibleValues(CsvReadBenchmark.class, "directBlock")) {
+                    CsvReadBenchmark bench = new CsvReadBenchmark();
+                    bench.rowCount = DatasourceBenchmarks.SELF_TEST_ROW_COUNT;
+                    bench.delimiter = delimiter;
+                    bench.projection = projection;
+                    bench.directBlock = Boolean.parseBoolean(directBlock);
+                    String variant = delimiter + "/" + projection + "/directBlock=" + directBlock;
+                    try {
+                        bench.setup();
+                        int actual = bench.readAll(new ReadMetrics());
+                        if (actual != bench.rowCount) {
+                            throw new AssertionError(
+                                "CsvReadBenchmark[" + variant + "] read " + actual + " rows, expected " + bench.rowCount
+                            );
+                        }
+                    } catch (IOException e) {
+                        throw new AssertionError("CsvReadBenchmark[" + variant + "] failed", e);
                     }
-                } catch (IOException e) {
-                    throw new AssertionError("CsvReadBenchmark[" + delimiter + "/" + projection + "] failed", e);
                 }
             }
         }

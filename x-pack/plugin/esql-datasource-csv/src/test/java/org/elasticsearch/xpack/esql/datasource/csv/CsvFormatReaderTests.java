@@ -6349,7 +6349,10 @@ public class CsvFormatReaderTests extends ESTestCase {
         int maxRecordBytes = 32;
         String csv = "id:long,text:keyword\n1,ok\n100," + "x".repeat(maxRecordBytes) + "\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        // Pin the Jackson bulk path: the direct-to-block paths intentionally treat the per-record
+        // cap as recoverable (matching the bracket-aware path), so default CSV would otherwise
+        // recover under a lenient policy instead of aborting. See read() for the rationale.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(false);
 
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(10)

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -27,8 +28,9 @@ import java.util.Set;
  *   <li>{@code tsv} — tab-delimited ({@code .tsv} files)</li>
  * </ul>
  *
- * <p>Both readers use Jackson's CSV parser for robust parsing with
- * proper quote and escape handling. They support:
+ * <p>Eligible reads parse logical records straight into typed {@code Block} builders (the
+ * direct-to-block path, gated by {@link #CSV_DIRECT_BLOCK_ENABLED}); all other reads fall back to
+ * Jackson's CSV parser. Both paths produce equivalent output and support:
  * <ul>
  *   <li>Schema discovery from file headers (column_name:type_name format)</li>
  *   <li>Column projection for efficient reads</li>
@@ -52,6 +54,19 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * {@code RECOGNIZED_KEYS}. At CRUD time, the base-field validation path handles it
      * (with range checking); it is not passed through as a raw format option.
      */
+    /**
+     * Node-level toggle for the direct-to-block CSV/TSV read path. When enabled (default), eligible
+     * plain (unquoted, unescaped) reads parse logical records straight into typed {@code Block}
+     * builders, skipping the Jackson tokenizer and its per-cell {@code String} allocation. Disabling
+     * it forces every read back onto the Jackson bulk path, which is byte-for-byte equivalent: a
+     * safety valve if the direct path is ever suspected of a parity regression.
+     */
+    public static final Setting<Boolean> CSV_DIRECT_BLOCK_ENABLED = Setting.boolSetting(
+        "esql.csv.direct_block.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     static final Set<String> FORMAT_CONFIG_KEYS = Set.of(
         "delimiter",
         "mode",
@@ -74,12 +89,21 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(CSV_DIRECT_BLOCK_ENABLED);
+    }
+
+    @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
         return Map.of(
             "csv",
-            (s, blockFactory) -> new CsvFormatReader(blockFactory, "csv", List.of(".csv")),
+            (s, blockFactory) -> new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withDirectBlockEnabled(
+                CSV_DIRECT_BLOCK_ENABLED.get(s)
+            ),
             "tsv",
-            (s, blockFactory) -> new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))
+            (s, blockFactory) -> new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv")).withDirectBlockEnabled(
+                CSV_DIRECT_BLOCK_ENABLED.get(s)
+            )
         );
     }
 

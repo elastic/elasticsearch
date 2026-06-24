@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.core.io.NumberInput;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvParser;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
@@ -394,6 +396,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private final String canonicalConfig;
 
+    /**
+     * When {@code true} (default), eligible plain (unquoted, unescaped, non-bracket) reads use the
+     * direct-to-block path that parses logical records straight into typed {@code Block} builders.
+     * Controlled by the node setting {@code esql.csv.direct_block.enabled} via
+     * {@link #withDirectBlockEnabled(boolean)}; turning it off forces the byte-equivalent Jackson
+     * bulk path everywhere.
+     */
+    private final boolean directBlockEnabled;
+
     public CsvFormatReader(BlockFactory blockFactory) {
         this(
             blockFactory,
@@ -403,7 +414,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             null,
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
             ErrorPolicy.STRICT,
-            ""
+            "",
+            true
         );
     }
 
@@ -416,12 +428,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             null,
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
             ErrorPolicy.STRICT,
-            ""
+            "",
+            true
         );
     }
 
     public CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options, String format, List<String> extensions) {
-        this(blockFactory, options, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT, "");
+        this(blockFactory, options, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT, "", true);
     }
 
     private CsvFormatReader(
@@ -432,7 +445,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<Attribute> resolvedSchema,
         int schemaSampleSize,
         ErrorPolicy effectivePolicy,
-        String canonicalConfig
+        String canonicalConfig,
+        boolean directBlockEnabled
     ) {
         this.blockFactory = blockFactory;
         this.options = options;
@@ -442,8 +456,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.schemaSampleSize = schemaSampleSize;
         this.effectivePolicy = effectivePolicy;
         this.canonicalConfig = canonicalConfig;
+        this.directBlockEnabled = directBlockEnabled;
         this.counters = new CsvReaderCounters(format);
         this.sharedCsvMapper = createMapper(options);
+    }
+
+    /**
+     * Returns a copy of this reader with the direct-to-block read path toggled. Threaded from the
+     * {@code esql.csv.direct_block.enabled} node setting at reader-construction time.
+     */
+    public CsvFormatReader withDirectBlockEnabled(boolean enabled) {
+        if (enabled == directBlockEnabled) {
+            return this;
+        }
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            effectivePolicy,
+            canonicalConfig,
+            enabled
+        );
     }
 
     private static CsvMapper createMapper(CsvFormatOptions opts) {
@@ -693,13 +729,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
             resolvedSchema,
             schemaSampleSize,
             effectivePolicy,
-            canonicalConfig
+            canonicalConfig,
+            directBlockEnabled
         );
     }
 
     @Override
     public CsvFormatReader withSchema(List<Attribute> schema) {
-        return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy, canonicalConfig);
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            schema,
+            schemaSampleSize,
+            effectivePolicy,
+            canonicalConfig,
+            directBlockEnabled
+        );
     }
 
     @Override
@@ -724,7 +771,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.resolvedSchema,
             newSampleSize,
             resolvedPolicy,
-            canon
+            canon,
+            result.directBlockEnabled
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
@@ -1204,16 +1252,45 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // mode is enabled the data path goes through CsvLogicalRecordReader and never reaches the
         // Jackson bulk iterator, so the wrap brings no defense-in-depth there either.
         boolean useBracketAware = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ',';
-        InputStream capped = useBracketAware ? stream : new CsvRecordCappingInputStream(stream, context.maxRecordBytes());
+        // Direct-to-block path: non-bracket, non-escaped-mode reads parse logical records straight into
+        // typed Block builders, skipping the Jackson tokenizer. PLAIN (unquoted) takes the simplest
+        // walk; QUOTED (RFC 4180, with or without backslash escapes) takes the quote/escape-aware walk.
+        // Like the bracket-aware path both rely on CsvLogicalRecordReader.addBytes for a recoverable
+        // per-record cap, so the byte-level cap wrap is skipped here too (wrapping the underlying stream
+        // would let the cap fire mid-fill, leaving the reader at an undefined offset).
+        boolean directEligible = directBlockEnabled
+            && useBracketAware == false
+            && options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.NONE
+            && options.decodesEscapes() == false;
+        boolean useDirectBlockPlain = directEligible && options.quoting() == false;
+        boolean useDirectBlockQuoted = directEligible && options.quoting();
+        boolean useDirectBlock = useDirectBlockPlain || useDirectBlockQuoted;
+        // The quoted walk performs C-style escape decoding, so the record reader must carry escaped
+        // terminators/quotes verbatim to match Jackson's record boundaries (see CsvLogicalRecordReader).
+        boolean recordEscapeAware = useDirectBlockQuoted && options.escaping();
+        InputStream capped = (useBracketAware || useDirectBlock)
+            ? stream
+            : new CsvRecordCappingInputStream(stream, context.maxRecordBytes());
         BufferedReader reader = new BufferedReader(new InputStreamReader(capped, options.encoding()), READER_BUFFER_SIZE);
-        CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
-            reader,
-            options.quoteChar(),
-            options.delimiter(),
-            context.maxRecordBytes(),
-            options.encoding(),
-            options.quoting()
-        );
+        CsvLogicalRecordReader recordReader = recordEscapeAware
+            ? new CsvLogicalRecordReader(
+                reader,
+                options.quoteChar(),
+                options.delimiter(),
+                options.escapeChar(),
+                context.maxRecordBytes(),
+                options.encoding(),
+                options.quoting(),
+                true
+            )
+            : new CsvLogicalRecordReader(
+                reader,
+                options.quoteChar(),
+                options.delimiter(),
+                context.maxRecordBytes(),
+                options.encoding(),
+                options.quoting()
+            );
         // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
         // request like WITH {"error_mode": "skip_row"} also applies to the data path when no
         // upstream caller has built a FormatReadContext with an explicit policy. The planner
@@ -1308,7 +1385,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cacheable ? stream : null,
             pinnedMtimeMillis,
             chunkMode,
-            counters
+            counters,
+            useDirectBlockPlain,
+            useDirectBlockQuoted
         );
     }
 
@@ -1471,6 +1550,37 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return commentPrefix != null
             && commentPrefix.isEmpty() == false
             && firstNonWs + commentPrefix.length() <= len
+            && line.regionMatches(firstNonWs, commentPrefix, 0, commentPrefix.length());
+    }
+
+    /**
+     * Blank/comment classification for the direct-to-block path. A line is blank when it is empty or
+     * all whitespace. A line is a comment when its first cell, as Jackson would parse it, trimmed,
+     * starts with {@code commentPrefix}. Jackson decides on the first parsed cell, so unlike
+     * {@link #isBlankOrComment} the prefix match is bounded to the region before the first delimiter:
+     * a leading delimiter (for example a TAB in TSV) yields an empty first cell, which is not a comment.
+     *
+     * <p>One rare case is intentionally not matched: a quoted or escaped first cell whose decoded
+     * content begins with the prefix (for example {@code "//x",a}). Detecting that needs full field
+     * decoding, so it is left as a known follow-up; it is only reachable with a quoted or escaped
+     * leading field whose value starts with the comment prefix.
+     */
+    static boolean isBlankOrCommentFirstCell(String line, String commentPrefix, char delim) {
+        int len = line.length();
+        int firstNonWs = 0;
+        while (firstNonWs < len && line.charAt(firstNonWs) <= ' ') {
+            firstNonWs++;
+        }
+        if (firstNonWs == len) {
+            return true;
+        }
+        if (commentPrefix == null || commentPrefix.isEmpty()) {
+            return false;
+        }
+        int firstDelim = line.indexOf(delim);
+        int cellEnd = firstDelim < 0 ? len : firstDelim;
+        return firstNonWs < cellEnd
+            && firstNonWs + commentPrefix.length() <= cellEnd
             && line.regionMatches(firstNonWs, commentPrefix, 0, commentPrefix.length());
     }
 
@@ -1865,6 +1975,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // Reader-level counters shared across this iterator and any sibling segments.
         private final CsvReaderCounters counters;
 
+        /** True when the direct-to-block plain (unquoted) path is eligible (decided once in {@link #read}). */
+        private final boolean directBlockPlain;
+        /** True when the direct-to-block quoted (RFC 4180) path is eligible (decided once in {@link #read}). */
+        private final boolean directBlockQuoted;
+        /** Per-projected-column reusable UTF-8 scratch for keyword/text fields; null until first use. */
+        private BytesRef[] keywordScratch;
+        /** Reusable accumulator for quoted/escaped field content on the direct quoted path. */
+        private StringBuilder quotedBuf;
+        /** Reusable char buffer for parsing doubles straight from a line range without a substring. */
+        private char[] doubleScratch;
+        /**
+         * Effective per-field value-length cap for the direct-to-block path, in characters. Mirrors
+         * Jackson's {@code StreamReadConstraints.maxStringLength} (which {@link #read} wires from
+         * {@code maxFieldSize}). {@code maxFieldSize == 0} means "no limit", normalised here to
+         * {@link Integer#MAX_VALUE} so the hot-path comparison never fires.
+         */
+        private final int maxFieldChars;
+
         CsvBatchIterator(
             BufferedReader reader,
             CsvLogicalRecordReader recordReader,
@@ -1878,7 +2006,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             CountingInputStream byteCounter,
             long pinnedMtimeMillis,
             boolean chunkMode,
-            CsvReaderCounters counters
+            CsvReaderCounters counters,
+            boolean directBlockPlain,
+            boolean directBlockQuoted
         ) {
             this.reader = reader;
             this.recordReader = recordReader;
@@ -1900,6 +2030,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.pinnedMtimeMillis = pinnedMtimeMillis;
             this.chunkMode = chunkMode;
             this.counters = counters;
+            this.directBlockPlain = directBlockPlain;
+            this.directBlockQuoted = directBlockQuoted;
+            this.maxFieldChars = options.maxFieldSize() > 0 ? options.maxFieldSize() : Integer.MAX_VALUE;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -2077,11 +2210,40 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 initProjection();
 
                 boolean useBracketAwareParsing = bracketMultiValues && options.delimiter() == ',';
-                if (useBracketAwareParsing == false && csvIterator == null) {
+                boolean useDirectBlock = directBlockPlain || directBlockQuoted;
+                if (useBracketAwareParsing == false && useDirectBlock == false && csvIterator == null) {
                     // Hot data path: Jackson reads directly from the BufferedReader and tokenizes records in its
                     // own bulk char buffer. The per-record byte cap is enforced upstream by the wrapping
                     // CsvRecordCappingInputStream, so we don't need CsvLogicalRecordReader's per-char loop here.
                     csvIterator = newJacksonBulkIterator(reader);
+                }
+            }
+            boolean useDirectBlock = directBlockPlain || directBlockQuoted;
+            // Schema sampling leaves prefetched rows that were tokenized by Jackson; drain them through the
+            // shared String[] conversion path before switching to the direct-block loop so the row sequence
+            // (and therefore parity) is identical regardless of which path produced each row.
+            if (useDirectBlock && prefetchedRows != null) {
+                List<String[]> rows = new ArrayList<>(prefetchedRows);
+                prefetchedRows = null;
+                blockFactory.breaker().addWithoutBreaking(-prefetchedRowsBytes);
+                prefetchedRowsBytes = 0;
+                Page page = convertRowsToPage(rows);
+                if (page != null) {
+                    return page;
+                }
+                // No accepted rows in the sample under a lenient policy: fall through to the direct loop.
+            }
+            if (useDirectBlock) {
+                while (true) {
+                    List<String> lines = new ArrayList<>();
+                    readLogicalLinesPlain(lines, batchSize);
+                    if (lines.isEmpty()) {
+                        return null;
+                    }
+                    Page page = convertDirectLinesToPage(lines);
+                    if (page != null || modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
+                        return page;
+                    }
                 }
             }
             boolean useFusedBracketPath = csvIterator == null && bracketMultiValues && options.delimiter() == ',';
@@ -2283,6 +2445,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 projectedFieldSet.set(projectedIdx[i]);
                 sourceToBufferIndex[projectedIdx[i]] = i;
             }
+            if ((directBlockPlain || directBlockQuoted) && columnCount > 0) {
+                keywordScratch = new BytesRef[columnCount];
+            }
         }
 
         private Page convertRowsToPage(List<String[]> rows) {
@@ -2427,6 +2592,614 @@ public class CsvFormatReader implements SegmentableFormatReader {
             } finally {
                 Releasables.closeExpectNoException(builders);
             }
+        }
+
+        /**
+         * Reads direct-to-block logical records into {@code lines}, skipping blank and comment lines.
+         * Used by both the plain and quoted direct paths; the configured {@link #recordReader} handles
+         * quote/escape-aware record boundaries, so a quoted record may span physical lines. Comment
+         * detection is bounded to the first cell to match Jackson (see {@link #isBlankOrCommentFirstCell}).
+         */
+        private void readLogicalLinesPlain(List<String> lines, int batchSize) throws IOException {
+            String record;
+            while (lines.size() < batchSize && (record = readPlainRecord()) != null) {
+                if (isBlankOrCommentFirstCell(record, options.commentPrefix(), options.delimiter())) {
+                    continue;
+                }
+                lines.add(record);
+            }
+        }
+
+        /**
+         * Reads one plain logical record, routing a per-record size-cap violation through the error
+         * policy (returning an empty placeholder record that the caller skips) instead of aborting
+         * the whole stream, matching the recovery contract of {@link #readBracketAwareRecord()}.
+         */
+        private String readPlainRecord() throws IOException {
+            try {
+                return recordReader.readRecord(false);
+            } catch (CsvRecordTooLargeException e) {
+                totalRowCount++;
+                onRowError(e.getMessage(), e, EMPTY_ROW, true);
+                return "";
+            }
+        }
+
+        /**
+         * Converts direct-block logical lines into a {@link Page}: the per-line walker
+         * ({@link #splitAndConvertPlain} or {@link #splitAndConvertQuoted}) writes typed values
+         * straight into {@link #rowBuffer}. COUNT(*) (no projected columns) takes the row-count-only
+         * fast path, mirroring {@link #convertRowsToPage}.
+         */
+        private Page convertDirectLinesToPage(List<String> lines) {
+            if (columnCount == 0) {
+                int acceptedRows = 0;
+                for (String line : lines) {
+                    totalRowCount++;
+                    if (splitAndConvertDirect(line)) {
+                        acceptedRows++;
+                    }
+                }
+                return acceptedRows == 0 ? null : new Page(acceptedRows);
+            }
+            BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[columnCount];
+            try {
+                for (int i = 0; i < columnCount; i++) {
+                    builders[i] = BlockUtils.wrapperFor(
+                        blockFactory,
+                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
+                        lines.size()
+                    );
+                }
+                int acceptedRows = 0;
+                for (String line : lines) {
+                    totalRowCount++;
+                    if (splitAndConvertDirect(line)) {
+                        for (int i = 0; i < columnCount; i++) {
+                            builders[i].append().accept(rowBuffer[i]);
+                        }
+                        acceptedRows++;
+                    }
+                }
+                if (acceptedRows == 0) {
+                    return null;
+                }
+                Block[] blocks = new Block[columnCount];
+                for (int i = 0; i < columnCount; i++) {
+                    blocks[i] = builders[i].builder().build();
+                }
+                return new Page(acceptedRows, blocks);
+            } finally {
+                Releasables.closeExpectNoException(builders);
+            }
+        }
+
+        /**
+         * Routes an over-long field through the error policy with byte-for-byte the same message Jackson's
+         * {@code StreamReadConstraints.maxStringLength} violation produces (see {@link #read}, which wires
+         * {@code maxFieldSize} into that constraint). The fault is structural and unparsed, so it carries
+         * the {@code EMPTY_ROW} excerpt ({@code <unparsed>}) exactly as the Jackson bulk path does.
+         *
+         * @param valueLen the field's value length in characters (trimmed for unquoted fields, decoded for
+         *                 quoted fields), matching the length Jackson reports
+         * @return always {@code false}, so callers can {@code return rejectFieldTooLarge(len)} to drop the row
+         */
+        private boolean rejectFieldTooLarge(int valueLen) {
+            onRowError(
+                "CSV parse error: String value length ("
+                    + valueLen
+                    + ") exceeds the maximum allowed ("
+                    + maxFieldChars
+                    + ", from `StreamReadConstraints.getMaxStringLength()`)",
+                null,
+                EMPTY_ROW,
+                true
+            );
+            return false;
+        }
+
+        /** Dispatches to the plain or quoted walker, routing an unclosed-quote fault through the policy. */
+        private boolean splitAndConvertDirect(String line) {
+            if (directBlockQuoted) {
+                try {
+                    return splitAndConvertQuoted(line);
+                } catch (MalformedRowException e) {
+                    onRowError(e.getMessage(), e, line, true);
+                    return false;
+                }
+            }
+            return splitAndConvertPlain(line);
+        }
+
+        /**
+         * Direct-to-block field splitting and typed conversion for the plain (unquoted, unescaped,
+         * non-bracket) path. Walks the line once, splitting on the delimiter, and converts each
+         * projected field straight from its character range into {@link #rowBuffer}, with no per-cell
+         * {@link String} for integers, longs, doubles, or keyword/text values.
+         *
+         * @return {@code true} if the row was accepted, {@code false} if rejected by the error policy
+         */
+        private boolean splitAndConvertPlain(String line) {
+            final char delim = options.delimiter();
+            final int len = line.length();
+            int fieldIndex = 0;
+            int fieldStart = 0;
+            for (int i = 0; i <= len; i++) {
+                if (i == len || line.charAt(i) == delim) {
+                    if (fieldIndex < schemaColumnCount && projectedFieldSet.get(fieldIndex)) {
+                        int bufIdx = sourceToBufferIndex[fieldIndex];
+                        if (emitPlainField(line, fieldStart, i, bufIdx, projectedTypes[bufIdx]) == false) {
+                            return false;
+                        }
+                    } else if (checkUnprojectedFieldCap(line, fieldStart, i) == false) {
+                        // Jackson tokenizes every field, so a too-long non-projected (or beyond-schema)
+                        // field trips maxStringLength even though we never materialize its value.
+                        return false;
+                    }
+                    fieldIndex++;
+                    fieldStart = i + 1;
+                }
+            }
+            int totalFields = fieldIndex;
+            if (totalFields > schemaColumnCount) {
+                onRowError(
+                    "CSV row has [" + totalFields + "] columns but schema defines [" + schemaColumnCount + "] columns",
+                    null,
+                    line,
+                    true
+                );
+                return false;
+            }
+            // Null-fill projected columns whose source index falls past the row's trailing edge.
+            for (int c = 0; c < columnCount; c++) {
+                if (projectedIdx[c] >= totalFields) {
+                    rowBuffer[c] = null;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * Converts the character range {@code [start, end)} of {@code line} for the given target type
+         * and stores the result in {@code rowBuffer[bufIdx]}. The hot numeric, double, and keyword
+         * types are parsed directly from the character range; the remaining types fall back to the
+         * shared {@link #emitConvertedStringField} path on a (cold) substring so error handling and
+         * value semantics stay identical to the Jackson path.
+         *
+         * @return {@code true} if the field was accepted, {@code false} if a row-level error was
+         *         raised (SKIP_ROW / FAIL_FAST)
+         */
+        private boolean emitPlainField(String line, int start, int end, int bufIdx, DataType dt) {
+            // Trim leading/trailing whitespace (chars <= ' '), matching Jackson TRIM_SPACES / emitField.
+            while (start < end && line.charAt(start) <= ' ') {
+                start++;
+            }
+            while (end > start && line.charAt(end - 1) <= ' ') {
+                end--;
+            }
+            int len = end - start;
+            // Jackson enforces maxStringLength on the trimmed value during tokenization, before any
+            // null/type interpretation, so the cap check precedes the null classification below.
+            if (len > maxFieldChars) {
+                return rejectFieldTooLarge(len);
+            }
+            // Null classification mirrors tryConvertValue: empty, the literal "null" (any case), or the
+            // configured null marker all become null.
+            if (len == 0) {
+                rowBuffer[bufIdx] = null;
+                return true;
+            }
+            if (len == 4 && line.regionMatches(true, start, "null", 0, 4)) {
+                rowBuffer[bufIdx] = null;
+                return true;
+            }
+            if (hasCustomNullValue && len == nullValueStr.length() && line.regionMatches(start, nullValueStr, 0, len)) {
+                rowBuffer[bufIdx] = null;
+                return true;
+            }
+            switch (dt) {
+                case LONG -> {
+                    long acc = 0;
+                    boolean neg = false;
+                    boolean ok = true;
+                    int p = start;
+                    if (line.charAt(p) == '-') {
+                        neg = true;
+                        p++;
+                    }
+                    if (p == end) {
+                        ok = false;
+                    }
+                    for (; p < end; p++) {
+                        char c = line.charAt(p);
+                        if (c < '0' || c > '9') {
+                            ok = false;
+                            break;
+                        }
+                        long nv = acc * 10 + (c - '0');
+                        if (acc != 0 && nv / 10 != acc) {
+                            ok = false;
+                            break;
+                        }
+                        acc = nv;
+                    }
+                    if (ok) {
+                        rowBuffer[bufIdx] = neg ? -acc : acc;
+                        return true;
+                    }
+                    return emitConvertedStringField(line.substring(start, end), bufIdx, dt, line);
+                }
+                case INTEGER -> {
+                    long acc = 0;
+                    boolean neg = false;
+                    boolean ok = true;
+                    int p = start;
+                    if (line.charAt(p) == '-') {
+                        neg = true;
+                        p++;
+                    }
+                    if (p == end) {
+                        ok = false;
+                    }
+                    for (; p < end; p++) {
+                        char c = line.charAt(p);
+                        if (c < '0' || c > '9') {
+                            ok = false;
+                            break;
+                        }
+                        long nv = acc * 10 + (c - '0');
+                        if (acc != 0 && nv / 10 != acc) {
+                            ok = false;
+                            break;
+                        }
+                        acc = nv;
+                    }
+                    if (ok) {
+                        long val = neg ? -acc : acc;
+                        if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
+                            rowBuffer[bufIdx] = (int) val;
+                            return true;
+                        }
+                    }
+                    return emitConvertedStringField(line.substring(start, end), bufIdx, dt, line);
+                }
+                case KEYWORD, TEXT -> {
+                    rowBuffer[bufIdx] = keywordRef(bufIdx, line, start, len);
+                    return true;
+                }
+                case DOUBLE -> {
+                    // Parse the double straight from the line's char range, skipping the substring.
+                    // jackson-core's fast parser is bit-identical to Double.parseDouble on accepted
+                    // inputs; on rejection we fall back to the shared conversion path, which itself
+                    // uses Double.parseDouble, so the accepted/rejected boundary matches the baseline.
+                    if (doubleScratch == null || doubleScratch.length < len) {
+                        doubleScratch = new char[Math.max(len, 32)];
+                    }
+                    line.getChars(start, end, doubleScratch, 0);
+                    try {
+                        rowBuffer[bufIdx] = NumberInput.parseDouble(doubleScratch, 0, len, true);
+                        return true;
+                    } catch (NumberFormatException e) {
+                        return emitConvertedStringField(line.substring(start, end), bufIdx, dt, line);
+                    }
+                }
+                case DATETIME, DATE_NANOS, BOOLEAN, IP, VERSION, NULL -> {
+                    return emitConvertedStringField(line.substring(start, end), bufIdx, dt, line);
+                }
+                default -> throw new IllegalArgumentException("Unsupported data type: " + dt);
+            }
+        }
+
+        /**
+         * Enforces the per-field length cap for a non-projected unquoted field {@code line[start, end)}.
+         * The raw span is an upper bound on the trimmed value length Jackson counts, so the trim work is
+         * only paid when the span itself already exceeds the cap.
+         *
+         * @return {@code true} if within the cap, {@code false} if it was rejected (and the row dropped)
+         */
+        private boolean checkUnprojectedFieldCap(String line, int start, int end) {
+            if (end - start <= maxFieldChars) {
+                return true;
+            }
+            while (start < end && line.charAt(start) <= ' ') {
+                start++;
+            }
+            while (end > start && line.charAt(end - 1) <= ' ') {
+                end--;
+            }
+            if (end - start > maxFieldChars) {
+                return rejectFieldTooLarge(end - start);
+            }
+            return true;
+        }
+
+        /**
+         * Encodes {@code line[start, start+len)} as UTF-8 into the reusable per-column scratch
+         * {@link BytesRef} and returns it. The caller stages the reference in {@link #rowBuffer} and
+         * the page builder copies the bytes synchronously on append, so reusing one scratch per column
+         * across rows is safe (a distinct scratch per column avoids in-row aliasing between two
+         * keyword columns).
+         */
+        private BytesRef keywordRef(int bufIdx, String line, int start, int len) {
+            BytesRef ref = keywordScratch[bufIdx];
+            if (ref == null) {
+                ref = new BytesRef();
+                keywordScratch[bufIdx] = ref;
+            }
+            int maxBytes = UnicodeUtil.maxUTF8Length(len);
+            if (ref.bytes.length < maxBytes) {
+                ref.bytes = new byte[maxBytes];
+            }
+            ref.offset = 0;
+            ref.length = UnicodeUtil.UTF16toUTF8(line, start, len, ref.bytes);
+            return ref;
+        }
+
+        /**
+         * Direct-to-block field splitting and typed conversion for the quoted (RFC 4180) path,
+         * including optional backslash escapes. Matches Jackson's tokenization: a field-leading quote
+         * (after optional outer whitespace) opens a quoted region where {@code ""} is a literal quote
+         * and, when escaping is on, {@code \}+char is C-style decoded; quoted content (including inner
+         * whitespace and embedded newlines) is preserved verbatim, while unquoted fields are trimmed.
+         * Non-whitespace after a closing quote is a row error, and an empty quoted field ({@code ""})
+         * is null. Simple unquoted fields (no escape) take the same char-range fast path as
+         * {@link #splitAndConvertPlain}; quoted or escaped fields are assembled into a reused buffer.
+         *
+         * @return {@code true} if the row was accepted, {@code false} if rejected by the error policy
+         * @throws MalformedRowException if a quoted field is never closed before end of record
+         */
+        private boolean splitAndConvertQuoted(String line) {
+            final char delim = options.delimiter();
+            final char quote = options.quoteChar();
+            final char esc = options.escapeChar();
+            final boolean escapeAware = options.escaping();
+            final int len = line.length();
+
+            int fieldIndex = 0;
+            int i = 0;
+            while (true) {
+                boolean projected = fieldIndex < schemaColumnCount && projectedFieldSet.get(fieldIndex);
+                int bufIdx = projected ? sourceToBufferIndex[fieldIndex] : -1;
+                DataType dt = projected ? projectedTypes[bufIdx] : null;
+
+                // Skip leading outer whitespace to decide quoted vs unquoted. The delimiter is never
+                // skipped even when it is itself a whitespace byte (e.g. a TAB in TSV), so an empty
+                // field before a quoted field is not mistaken for the quoted field.
+                int p = i;
+                while (p < len && line.charAt(p) <= ' ' && line.charAt(p) != delim) {
+                    p++;
+                }
+
+                int next;
+                boolean lastField;
+                if (p < len && line.charAt(p) == quote) {
+                    StringBuilder buf = projected ? resetQuotedBuf() : null;
+                    // Decoded value length, tracked even when unprojected (buf == null) so the field-size
+                    // cap is enforced on every field exactly as Jackson does during tokenization.
+                    int decodedLen = 0;
+                    int q = p + 1;
+                    boolean closed = false;
+                    while (q < len) {
+                        char c = line.charAt(q);
+                        if (c == quote) {
+                            if (q + 1 < len && line.charAt(q + 1) == quote) {
+                                if (buf != null) {
+                                    buf.append(quote);
+                                }
+                                decodedLen++;
+                                q += 2;
+                                continue;
+                            }
+                            closed = true;
+                            q++;
+                            break;
+                        }
+                        if (escapeAware && c == esc) {
+                            if (q + 1 < len) {
+                                if (buf != null) {
+                                    buf.append(decodeEscapeChar(line.charAt(q + 1)));
+                                }
+                                decodedLen++;
+                                q += 2;
+                            } else {
+                                q++; // trailing lone escape: dropped
+                            }
+                            continue;
+                        }
+                        if (buf != null) {
+                            buf.append(c);
+                        }
+                        decodedLen++;
+                        q++;
+                    }
+                    if (closed == false) {
+                        throw MalformedRowException.unclosedQuotedField(line, p);
+                    }
+                    // Jackson checks maxStringLength on the aggregated value right after the closing quote,
+                    // before inspecting any trailing content, so the cap precedes the content-after-quote check.
+                    if (decodedLen > maxFieldChars) {
+                        return rejectFieldTooLarge(decodedLen);
+                    }
+                    // After the closing quote only trailing whitespace may precede the delimiter.
+                    // The delimiter itself is never consumed here even when it is a whitespace byte
+                    // (e.g. a TAB in TSV), otherwise the field boundary would be lost.
+                    int r = q;
+                    while (r < len && line.charAt(r) <= ' ' && line.charAt(r) != delim) {
+                        r++;
+                    }
+                    if (r < len && line.charAt(r) != delim) {
+                        onRowError("CSV row has unexpected content after a closing quote", null, line, true);
+                        return false;
+                    }
+                    if (projected) {
+                        if (buf.length() == 0) {
+                            rowBuffer[bufIdx] = null; // empty quoted field is null
+                        } else if (emitConvertedStringField(buf.toString(), bufIdx, dt, line) == false) {
+                            return false;
+                        }
+                    }
+                    lastField = r >= len;
+                    next = r + 1;
+                } else {
+                    // Unquoted field: scan to the next unescaped delimiter, noting whether it has an escape.
+                    int j = i;
+                    boolean hasEsc = false;
+                    while (j < len) {
+                        char c = line.charAt(j);
+                        if (escapeAware && c == esc) {
+                            hasEsc = true;
+                            j += 2; // skip the escaped char (even if it is a delimiter)
+                            continue;
+                        }
+                        if (c == delim) {
+                            break;
+                        }
+                        j++;
+                    }
+                    int fieldEnd = Math.min(j, len);
+                    if (projected) {
+                        if (hasEsc) {
+                            if (emitUnquotedEscapedField(line, i, fieldEnd, bufIdx, dt) == false) {
+                                return false;
+                            }
+                        } else if (emitPlainField(line, i, fieldEnd, bufIdx, dt) == false) {
+                            return false;
+                        }
+                    } else {
+                        // Non-projected field is still tokenized by Jackson, so it counts against the cap.
+                        boolean within = hasEsc
+                            ? checkUnprojectedEscapedFieldCap(line, i, fieldEnd)
+                            : checkUnprojectedFieldCap(line, i, fieldEnd);
+                        if (within == false) {
+                            return false;
+                        }
+                    }
+                    lastField = j >= len;
+                    next = fieldEnd + 1;
+                }
+
+                fieldIndex++;
+                if (lastField) {
+                    break;
+                }
+                i = next;
+            }
+
+            int totalFields = fieldIndex;
+            if (totalFields > schemaColumnCount) {
+                onRowError(
+                    "CSV row has [" + totalFields + "] columns but schema defines [" + schemaColumnCount + "] columns",
+                    null,
+                    line,
+                    true
+                );
+                return false;
+            }
+            for (int c = 0; c < columnCount; c++) {
+                if (projectedIdx[c] >= totalFields) {
+                    rowBuffer[c] = null;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * Converts an unquoted field that contains the escape character: trims outer whitespace, applies
+         * C-style escape decoding into the reused buffer, then routes through the shared string
+         * conversion path. A trailing lone escape (no following char) is dropped, matching Jackson.
+         */
+        private boolean emitUnquotedEscapedField(String line, int start, int end, int bufIdx, DataType dt) {
+            while (start < end && line.charAt(start) <= ' ') {
+                start++;
+            }
+            while (end > start && line.charAt(end - 1) <= ' ') {
+                end--;
+            }
+            if (start == end) {
+                rowBuffer[bufIdx] = null;
+                return true;
+            }
+            final char esc = options.escapeChar();
+            StringBuilder buf = resetQuotedBuf();
+            for (int k = start; k < end; k++) {
+                char c = line.charAt(k);
+                if (c == esc) {
+                    if (k + 1 < end) {
+                        buf.append(decodeEscapeChar(line.charAt(++k)));
+                    }
+                    // else: trailing lone escape, dropped
+                } else {
+                    buf.append(c);
+                }
+            }
+            if (buf.length() > maxFieldChars) {
+                return rejectFieldTooLarge(buf.length());
+            }
+            if (buf.length() == 0) {
+                rowBuffer[bufIdx] = null;
+                return true;
+            }
+            return emitConvertedStringField(buf.toString(), bufIdx, dt, line);
+        }
+
+        /**
+         * Enforces the field-size cap for a non-projected unquoted field that contains escapes. Escapes
+         * only shrink the value, so the raw span bounds the decoded length and the decode walk is paid
+         * only when that span already exceeds the cap. Mirrors {@link #emitUnquotedEscapedField}'s
+         * trim-then-decode order so the counted length matches the value Jackson would have produced.
+         *
+         * @return {@code true} if within the cap, {@code false} if it was rejected (and the row dropped)
+         */
+        private boolean checkUnprojectedEscapedFieldCap(String line, int start, int end) {
+            if (end - start <= maxFieldChars) {
+                return true;
+            }
+            while (start < end && line.charAt(start) <= ' ') {
+                start++;
+            }
+            while (end > start && line.charAt(end - 1) <= ' ') {
+                end--;
+            }
+            final char esc = options.escapeChar();
+            int decodedLen = 0;
+            for (int k = start; k < end; k++) {
+                if (line.charAt(k) == esc) {
+                    if (k + 1 < end) {
+                        k++; // escape consumes the next char, yielding one decoded char
+                        decodedLen++;
+                    }
+                    // trailing lone escape: dropped, contributes nothing
+                } else {
+                    decodedLen++;
+                }
+            }
+            if (decodedLen > maxFieldChars) {
+                return rejectFieldTooLarge(decodedLen);
+            }
+            return true;
+        }
+
+        private StringBuilder resetQuotedBuf() {
+            if (quotedBuf == null) {
+                quotedBuf = new StringBuilder(64);
+            } else {
+                quotedBuf.setLength(0);
+            }
+            return quotedBuf;
+        }
+
+        /** C-style escape decode matching {@link CsvFormatReader#decodeFieldValue}: {@code \}+c yields c. */
+        private static char decodeEscapeChar(char next) {
+            return switch (next) {
+                case 't' -> '\t';
+                case 'n' -> '\n';
+                case 'r' -> '\r';
+                case '0' -> '\0';
+                case 'b' -> '\b';
+                case 'f' -> '\f';
+                // Any other \c is c, including \\ and \', matching the C-style parse rule in decodeFieldValue.
+                default -> next;
+            };
         }
 
         /**

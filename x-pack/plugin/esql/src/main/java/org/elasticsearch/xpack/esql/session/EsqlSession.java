@@ -1398,7 +1398,10 @@ public class EsqlSession {
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
         executionInfo.queryProfile().incFieldCapsCalls();
-        var lookupIndexScope = EsqlCCSUtils.onlyRunning(executionInfo, computeLookupJoinIndexScope(plan, localPattern, result));
+        var lookupIndexScope = EsqlCCSUtils.onlyRunning(
+            executionInfo,
+            computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
+        );
         indexResolver.resolveLookupIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
@@ -1418,7 +1421,11 @@ public class EsqlSession {
      * For example for a query like `FROM (FROM cluster-1:index-1 | LOOKUP JOIN dictionary-1),(FROM cluster-2:index-2)`
      * `dictionary-1` must be found only on `cluster-1` as joining is not performed on `cluster-2`.
      */
-    private static Set<String> computeLookupJoinIndexScope(LogicalPlan plan, String lookupPattern, PreAnalysisResult result) {
+    static Set<String> computeLookupJoinIndexScope(
+        LogicalPlan plan,
+        String lookupPattern,
+        Map<IndexPattern, IndexResolution> indexResolution
+    ) {
         Set<String> scope = new LinkedHashSet<>();
         plan.forEachUp(LookupJoin.class, lj -> {
             if (lj.right() instanceof UnresolvedRelation ur && ur.indexPattern().indexPattern().equals(lookupPattern)) {
@@ -1427,7 +1434,7 @@ public class EsqlSession {
                     current = nested.left();
                 }
                 current.forEachDown(UnresolvedRelation.class, source -> {
-                    IndexResolution resolution = result.indexResolution.get(source.indexPattern());
+                    IndexResolution resolution = indexResolution.get(source.indexPattern());
                     if (resolution != null && resolution.isValid()) {
                         scope.addAll(resolution.get().originalIndices().keySet());
                     }

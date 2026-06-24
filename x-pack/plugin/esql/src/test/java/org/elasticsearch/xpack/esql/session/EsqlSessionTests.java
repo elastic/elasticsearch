@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -21,13 +22,17 @@ import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -104,6 +109,75 @@ public class EsqlSessionTests extends ESTestCase {
 
         Map<String, Map<String, Object>> result = EsqlSession.extractExternalConfigs(relation);
         assertThat(result, equalTo(Map.of("s3://bucket/table", config)));
+    }
+
+    public void testComputeLookupJoinIndexScope() {
+        {
+            // joining to on a local cluster
+            var plan = TEST_PARSER.parseQuery("FROM index | LOOKUP JOIN lookup ON key | KEEP f1,f2,f3");
+            var resolution = createIndexResolution("index");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            // joining on a remote cluster
+            var plan = TEST_PARSER.parseQuery("FROM remote:index | LOOKUP JOIN lookup ON key | KEEP f1,f2,f3");
+            var resolution = createIndexResolution("remote:index");
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote")));
+        }
+        {
+            // joining to a row
+            var plan = TEST_PARSER.parseQuery("ROW key=1 | LOOKUP JOIN lookup ON key");
+            var resolution = createIndexResolution();
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), empty());
+        }
+        {
+            // multiple joins
+            var plan = TEST_PARSER.parseQuery("""
+                FROM index
+                | LOOKUP JOIN lookup-1 ON key
+                | LOOKUP JOIN lookup-2 ON key""");
+            var resolution = createIndexResolution("index");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup-1", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup-2", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            // joining in subqueries
+            var plan = TEST_PARSER.parseQuery("""
+                FROM (FROM data | LOOKUP JOIN lookup-0 ON key),
+                     (FROM remote-1:data | LOOKUP JOIN lookup-1 ON key),
+                     (FROM remote-2:data | LOOKUP JOIN lookup-2 ON key)
+                | LOOKUP JOIN lookup-3 ON key
+                | KEEP key, cluster, location
+                | SORT key
+                """);
+            var resolution = createIndexResolution("data", "remote-1:data", "remote-2:data");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup-0", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup-1", resolution), equalTo(Set.of("remote-1")));
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup-2", resolution), equalTo(Set.of("remote-2")));
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup-3", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote-1", "remote-2"))
+            );
+        }
+    }
+
+    private static Map<IndexPattern, IndexResolution> createIndexResolution(String... indices) {
+        return Arrays.stream(indices).collect(toMap(index -> new IndexPattern(EMPTY, index), index -> {
+            var resolved = Map.of(RemoteClusterAware.splitIndexName(index).getClusterGroupingKey(), List.of(index));
+            return IndexResolution.valid(new EsIndex(index, Map.of(), Map.of(), resolved, resolved));
+        }));
     }
 
     private static IndexResolution resolvedIndex(String indexName) {

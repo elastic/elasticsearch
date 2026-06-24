@@ -54,7 +54,7 @@ PromQL functions operate on float samples; series stored as native histograms ar
 ## Metric metadata `help` (HTTP API) [promql-limitations-metadata-help]
 
 On [`/api/v1/metadata`](promql-http-api.md#promql-http-api-metadata-endpoint), each metric includes a `help` string shaped like Prometheus `HELP` lines.
-Currently, the `help` field is always an empty string. Help text from metric definitions is not surfaced yet.
+Metric definition help text is not surfaced yet, so the `help` field remains an empty string.
 
 ## Exemplar queries (HTTP API) [promql-limitations-exemplars]
 

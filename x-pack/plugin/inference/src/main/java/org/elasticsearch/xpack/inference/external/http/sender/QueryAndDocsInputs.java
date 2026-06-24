@@ -80,7 +80,7 @@ public class QueryAndDocsInputs extends InferenceInputs {
 
     @Override
     public long ramBytesUsed() {
-        long docsRamBytesUsed = docs.stream().mapToLong(RamUsageEstimator::sizeOf).sum();
+        long docsRamBytesUsed = docs.stream().mapToLong(InferenceString::ramBytesUsed).sum();
         long queryRamBytesUsed = query.ramBytesUsed();
 
         return SHALLOW_SIZE + docsRamBytesUsed + queryRamBytesUsed;

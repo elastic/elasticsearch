@@ -12,6 +12,7 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import nmcp.NmcpAggregationExtension
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
@@ -66,8 +67,13 @@ version = VersionProperties.elasticsearch
  * indicating the artifact is meant for beeing published to maven central.
  * */
 nmcpAggregation {
-  // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
-  publishAllProjectsProbablyBreakingProjectIsolation()
+}
+
+def nmcpConsumerConfiguration = extensions.getByType(NmcpAggregationExtension).'getConsumerConfiguration$nmcp'()
+allprojects { publishedProject ->
+  publishedProject.pluginManager.withPlugin('maven-publish') {
+    rootProject.dependencies.add(nmcpConsumerConfiguration.name, rootProject.dependencies.project(path: publishedProject.path))
+  }
 }
 
 tasks.named('zipAggregation').configure {
@@ -93,11 +99,7 @@ tasks.named('zipAggregation').configure {
  * }
  *
  * */
-ext.testArtifact = { p, String name = "test" ->
-  p.capabilities {
-    requireCapabilities("${p.group}:${p.name}-${name}-artifacts")
-  };
-}
+
 
 class StepExpansion {
   String templatePath
@@ -303,8 +305,8 @@ allprojects {
 
   plugins.withType(BaseInternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {
-      compileOnly project(":server")
-      testImplementation project(":test:framework")
+      compileOnly project(path: ":server")
+      testImplementation project(path: ":test:framework")
     }
   }
 

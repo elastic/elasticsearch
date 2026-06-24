@@ -86,6 +86,7 @@ public abstract class DockerBuildTask extends DefaultTask {
     }
 
     @InputDirectory
+    @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
     public DirectoryProperty getDockerContext() {
         return dockerContext;

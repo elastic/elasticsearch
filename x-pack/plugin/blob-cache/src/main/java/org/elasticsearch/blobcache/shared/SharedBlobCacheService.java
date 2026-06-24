@@ -2378,18 +2378,18 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (matchingEntries.isEmpty() == false) {
                 synchronized (SharedBlobCacheService.this) {
                     for (LFUCacheEntry entry : matchingEntries) {
-                        if (entry.chunk.isEvicted() || entry.freq == 0 || entry.chunk.volatileIO() == null) {
+                        if (entry.freq == 0 || entry.chunk.isEvicted() || entry.chunk.volatileIO() == null) {
                             continue;
                         }
                         unlink(entry);
                         entry.freq = 0;
-                        pushEntryToBack(entry);
+                        pushEntryToFront(entry);
                         resetCount++;
                     }
                 }
             }
-            if (resetCount > 0) {
-                logger.debug("reset access counts for [{}] cache regions of shard [{}]", resetCount, shard);
+            if (logger.isDebugEnabled() && resetCount > 0) {
+                logger.debug("{} reset access counts for [{}] cache regions", shard, resetCount);
             }
             return resetCount;
         }
@@ -2479,6 +2479,33 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert entry.prev != null;
             assert entry.prev.next == null || entry.prev.next == entry;
             assert entry.next == null;
+            assert invariant(entry, true);
+        }
+
+        private void pushEntryToFront(final LFUCacheEntry entry) {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            assert invariant(entry, false);
+            assert entry.prev == null;
+            assert entry.next == null;
+            final FreqLevel level = freqs[entry.freq];
+            assert level != null : entry.freq;
+            final LFUCacheEntry currFront = level.head;
+            if (currFront == null) {
+                level.head = entry;
+                entry.prev = entry;
+                entry.next = null;
+            } else {
+                assert currFront.freq == entry.freq;
+                entry.next = currFront;
+                entry.prev = currFront.prev;
+                currFront.prev = entry;
+                level.head = entry;
+            }
+            level.count++;
+            assert freqs[entry.freq].head == entry;
+            assert freqs[entry.freq].head.prev != null;
+            assert entry.prev != null;
+            assert entry.prev.next == null || entry.prev.next == entry;
             assert invariant(entry, true);
         }
 

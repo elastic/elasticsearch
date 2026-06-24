@@ -376,9 +376,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         createRealEmployees();
         registerEmployees();
 
-        try (
-            var response = run(syncEsqlQueryRequest("FROM (FROM real_employees, employees) | SORT emp_no, first_name"), TIMEOUT)
-        ) {
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM real_employees, employees) | SORT emp_no, first_name"), TIMEOUT)) {
             List<? extends ColumnInfo> columns = response.columns();
             assertThat(columns, hasSize(5));
 

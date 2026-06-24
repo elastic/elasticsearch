@@ -143,7 +143,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
             // • aggregate function aliases → Alias(partialName, resolvedAggFn, partialId)
             // • grouping passthroughs → the Alias already created above (looked up by ID)
             // • groupings absent from aggs (pruned by PruneColumns) → appended so the branch
-            //   still produces the shared grouping ID that the combiner groups by
+            // still produces the shared grouping ID that the combiner groups by
             List<NamedExpression> branchAggs = new ArrayList<>(aggs.size());
             for (NamedExpression ne : aggs) {
                 if (ne instanceof Attribute attr && groupingAttrIds.contains(attr.id())) {

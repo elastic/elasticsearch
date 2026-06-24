@@ -107,7 +107,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
-import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE;
+import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
@@ -1222,7 +1222,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         assertThat(failure.getMessage(), containsString("Input for field [semantic_field] from source field [semantic_field]"));
         assertThat(failure.getMessage(), containsString("decoded base64 size of [" + ByteSizeValue.ofBytes(6) + "]"));
         assertThat(failure.getMessage(), containsString("exceeds the maximum allowed size of [" + maxSize + "]"));
-        assertThat(failure.getMessage(), containsString(INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE.getKey()));
+        assertThat(failure.getMessage(), containsString(INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getKey()));
     }
 
     /**
@@ -1314,7 +1314,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             indexingPressure,
             useLegacyFormat,
             inferenceStats,
-            INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE.getDefault(Settings.EMPTY)
+            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY)
         );
     }
 
@@ -1346,7 +1346,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             useLegacyFormat,
             licenseState,
             inferenceStats,
-            INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE.getDefault(Settings.EMPTY)
+            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY)
         );
     }
 
@@ -1502,7 +1502,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     private static ClusterService createClusterService(boolean useLegacyFormat) {
-        return createClusterService(useLegacyFormat, INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE.getDefault(Settings.EMPTY));
+        return createClusterService(useLegacyFormat, INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY));
     }
 
     private static ClusterService createClusterService(boolean useLegacyFormat, ByteSizeValue maxBase64InputSize) {
@@ -1525,11 +1525,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
         Settings settings = Settings.builder()
             .put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes))
-            .put(INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE.getKey(), maxBase64InputSize)
+            .put(INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getKey(), maxBase64InputSize)
             .build();
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE, INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE))
+            new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE, INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE))
         );
         return clusterService;
     }

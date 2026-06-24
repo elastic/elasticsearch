@@ -121,15 +121,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         Setting.Property.OperatorDynamic
     );
 
-    private static final ByteSizeValue DEFAULT_MAX_BASE64_INPUT_SIZE = ByteSizeValue.ofMb(1);
+    private static final ByteSizeValue DEFAULT_MAX_BINARY_INPUT_SIZE = ByteSizeValue.ofMb(1);
 
     /**
      * Defines the maximum allowed size, in decoded bytes, of a single base64-encoded input value sent to a semantic field.
      * Inputs exceeding this limit are rejected with a {@code 400 Bad Request}.
      */
-    public static Setting<ByteSizeValue> INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE = Setting.byteSizeSetting(
-        "indices.inference.max_base64_input_size",
-        DEFAULT_MAX_BASE64_INPUT_SIZE,
+    public static Setting<ByteSizeValue> INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE = Setting.byteSizeSetting(
+        "indices.inference.max_binary_input_size",
+        DEFAULT_MAX_BINARY_INPUT_SIZE,
         ByteSizeValue.ONE,
         ByteSizeValue.ofMb(20),
         Setting.Property.NodeScope,
@@ -164,8 +164,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         this.inferenceStats = inferenceStats;
         this.batchSizeInBytes = INDICES_INFERENCE_BATCH_SIZE.get(clusterService.getSettings()).getBytes();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_BATCH_SIZE, this::setBatchSize);
-        this.maxBase64InputSizeInBytes = INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE.get(clusterService.getSettings()).getBytes();
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE, this::setMaxBase64InputSize);
+        this.maxBase64InputSizeInBytes = INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.get(clusterService.getSettings()).getBytes();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE, this::setMaxBase64InputSize);
     }
 
     private void setBatchSize(ByteSizeValue newBatchSize) {
@@ -864,7 +864,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             int sourceFieldInputIndex
         ) {
             if (input.dataFormat() == DataFormat.BASE64) {
-                long decodedSize = base64DecodedSize(input.value());
+                long decodedSize = base64BinarySize(input.value());
                 if (decodedSize > maxBase64InputSizeInBytes) {
                     setInferenceResponseFailure(
                         itemIndex,
@@ -876,7 +876,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             sourceField,
                             ByteSizeValue.ofBytes(decodedSize),
                             ByteSizeValue.ofBytes(maxBase64InputSizeInBytes),
-                            INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE.getKey()
+                            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getKey()
                         )
                     );
                     return -1;
@@ -892,7 +892,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * {@link InferenceString}. The decoded size is derived from the length of the base64 payload and its padding so that
          * oversized inputs can be rejected before any decoding takes place.
          */
-        private static long base64DecodedSize(String value) {
+        private static long base64BinarySize(String value) {
             int dataStart = value.indexOf(',') + 1;
             int base64Length = value.length() - dataStart;
             if (base64Length <= 0) {

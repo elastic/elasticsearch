@@ -784,8 +784,8 @@ fork2         | null                 | Disconnected from 10.1.0.1
 # LOAD mode + subqueries/views #
 ##############################
 
-// Subqueries read from independent sources, so an unmapped field is loaded from _source only in the branch that references it
-// (Decision A in #142033). Both branches read the same physical index, but unmapped_message is referenced only in the first branch:
+// Subqueries read from independent sources, so an unmapped field is loaded from _source only in the branch that references it.
+// Both branches read the same physical index, but unmapped_message is referenced only in the first branch:
 // it is loaded there ("43"), while the sibling branch null-fills it even though the value exists in that branch's _source.
 loadUnmappedFieldInOneSubqueryBranch
 required_capability: optional_fields_load_with_fork_subqueries_and_views
@@ -804,7 +804,7 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp
 ;
 
 // An unmapped field referenced only in the outer query (above the union) and unmapped in every branch source is null-filled
-// everywhere for union-type consistency (Decision B in #142033), even though it exists in each branch's _source. The branches do not
+// everywhere for union-type consistency, even though it exists in each branch's _source. The branches do not
 // project their output, so the null-filled column flows up to the union for the outer reference to resolve against.
 loadUnmappedFieldReferencedOnlyAboveSubqueries
 required_capability: optional_fields_load_with_fork_subqueries_and_views
@@ -820,4 +820,255 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
 @timestamp:date          | message:keyword        | unmapped_message:null
 2024-10-23T13:33:34.937Z | 42                     | null
 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | null
+;
+
+// Subquery load is per-branch: unmapped_message loads only in the branch that references it; the sibling
+// (no KEEP) null-fills it and contributes the index's mapped columns.
+loadUnmappedFieldInOneSubqueryBranchNoOuterKeep
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp, unmapped_message), (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| SORT @timestamp
+;
+
+@timestamp:date          | unmapped_message:keyword | client_ip:ip | event_duration:long | message:keyword
+2024-10-23T13:33:34.937Z | 43                       | null         | null                | null
+2024-10-23T13:55:01.543Z | null                     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1!
+;
+
+// A field cast to different numeric types in sibling subqueries resolves to UNSUPPORTED (cross-branch
+// autocast is not done), but the query still runs and INLINE STATS counts every unioned row.
+loadUnmappedFieldTypeConflictAcrossSubqueriesIsUnsupported
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+required_capability: inline_stats
+
+SET unmapped_fields="load"\;
+FROM (FROM languages | EVAL does_not_exist1 = does_not_exist1::LONG), (FROM sample_data | EVAL does_not_exist1 = does_not_exist1::DOUBLE)
+| KEEP does_not_exist1
+| INLINE STATS c = COUNT(*)
+;
+
+does_not_exist1:unsupported | c:long
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+;
+
+// An unmapped field referenced in one FORK branch can be renamed and grouped on after the FORK; it is
+// null everywhere (absent from _source), so the cast filter eliminates that branch.
+loadUnmappedFieldRenamedAndGroupedAcrossForkBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM employees
+| FORK (WHERE does_not_exist::LONG > 0) (WHERE emp_no > 0)
+| DROP *a*
+| RENAME does_not_exist AS foo
+| STATS c = COUNT(*) BY _fork, foo
+;
+
+c:long | _fork:keyword | foo:keyword
+100    | fork2         | null
+;
+
+// Unmapped fields used as a STATS grouping key in one FORK branch and absent from the other; the grouping
+// key is null and the sibling aggregate is null-filled in the merged output.
+loadUnmappedFieldGroupingAndAggAcrossForkBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM employees
+| WHERE does_not_exist1 IS NULL
+| FORK (STATS c = COUNT(*) BY does_not_exist2) (STATS d = AVG(salary))
+| SORT _fork, does_not_exist2
+;
+
+c:long | does_not_exist2:keyword | _fork:keyword | d:double
+100    | null                    | fork1         | null
+null   | null                    | fork2         | 48248.55
+;
+
+// Mirror of the previous test with the unmapped grouping key in the second FORK branch and an outer SORT
+// on the unmapped column.
+loadUnmappedFieldGroupingInSecondForkBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM employees
+| WHERE does_not_exist1 IS NULL
+| FORK (STATS c = COUNT(*)) (STATS d = AVG(salary) BY does_not_exist2)
+| SORT does_not_exist2 NULLS LAST, c DESC NULLS FIRST
+;
+
+c:long | _fork:keyword | d:double | does_not_exist2:keyword
+null   | fork2         | 48248.55 | null
+100    | fork1         | null     | null
+;
+
+// A pre-FORK filter on an unmapped cast eliminates all rows, so only the STATS branch produces a row; the
+// per-row "IS NULL" column is null-filled for that aggregated row in the merged FORK output.
+loadUnmappedFieldsPreForkFilterLeavesOnlyStatsBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM employees
+| WHERE first_name == "Chris" AND does_not_exist1::LONG > 5
+| EVAL does_not_exist2 IS NULL
+| FORK (WHERE emp_no > 3 | SORT does_not_exist3 | LIMIT 7 ) (WHERE emp_no > 2 | EVAL xyz = does_not_exist4::KEYWORD ) (DISSECT first_name "%{d} %{e} %{f}" | STATS x = MIN(d::DOUBLE), y = MAX(e::DOUBLE) WHERE d::DOUBLE > 1000 + does_not_exist5::DOUBLE | EVAL xyz = "abc")
+| DROP *a*
+;
+
+emp_no:integer | gender:keyword | height:double | is_rehired:boolean | job_positions:keyword | still_hired:boolean | does_not_exist1:keyword | does_not_exist2:keyword | does_not_exist3:keyword | does_not_exist2 IS NULL:boolean | _fork:keyword | does_not_exist4:keyword | xyz:keyword | x:double | y:double
+null           | null           | null          | null               | null                  | null                | null                    | null                    | null                    | null                            | fork3         | null                    | abc         | null     | null
+;
+
+// A field that is text in one index and unmapped in another (single-type partially-unmapped) keeps its text
+// type through FORK branches and multi-index grouping.
+loadPartiallyUnmappedTextFieldAcrossForkBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM employees_gender_text, employees_no_gender METADATA _index
+| KEEP gender, _index
+| FORK (WHERE true) (WHERE true)
+| KEEP _fork, gender, _index
+| SORT _fork
+| STATS c=COUNT(*) BY _fork, gender, _index
+| SORT c DESC, _fork, gender, _index
+;
+
+c:long | _fork:keyword | gender:text | _index:keyword
+100    | fork1         | null        | employees_no_gender
+100    | fork2         | null        | employees_no_gender
+57     | fork1         | M           | employees_gender_text
+57     | fork2         | M           | employees_gender_text
+33     | fork1         | F           | employees_gender_text
+33     | fork2         | F           | employees_gender_text
+10     | fork1         | null        | employees_gender_text
+10     | fork2         | null        | employees_gender_text
+;
+
+// Three-branch FORK mixing a LOOKUP JOIN, an unmapped-field filter (no matches) and a STATS branch; the
+// unmapped does_not_exist column is surfaced as null across all branches.
+loadUnmappedFieldAcrossForkBranchesWithLookupJoinAndStats
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+required_capability: join_lookup_v12
+
+SET unmapped_fields="load"\;
+FROM employees
+| EVAL language_code = languages
+| WHERE emp_no < 10005
+| FORK (LOOKUP JOIN languages_lookup ON language_code) (WHERE does_not_exist::KEYWORD == "x") (STATS c = COUNT(*) BY emp_no)
+| KEEP _fork, emp_no, language_name, does_not_exist, c, languages
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_name:keyword | does_not_exist:keyword | c:long | languages:integer
+fork1         | 10001          | French                | null                   | null   | 2
+fork1         | 10002          | null                  | null                   | null   | 5
+fork1         | 10003          | German                | null                   | null   | 4
+fork1         | 10004          | null                  | null                   | null   | 5
+fork3         | 10001          | null                  | null                   | 1      | null
+fork3         | 10002          | null                  | null                   | 1      | null
+fork3         | 10003          | null                  | null                   | 1      | null
+fork3         | 10004          | null                  | null                   | 1      | null
+;
+
+// An unmapped field projected via KEEP in one FORK branch is loaded from _source and surfaced in the other
+// branch too (shared root), so unmapped_message has real values in both branches.
+loadUnmappedFieldWithKeepInForkBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (KEEP message, unmapped_message) (WHERE message == "42")
+| KEEP _fork, message, unmapped_message
+| SORT _fork, message
+;
+
+_fork:keyword | message:keyword        | unmapped_message:keyword
+fork1         | 42                     | 43
+fork1         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+fork1         | Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+fork1         | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+fork1         | Connection error?      | Disconnection error
+fork1         | Connection error?      | Disconnection error
+fork1         | Connection error?      | Disconnection error
+fork2         | 42                     | 43
+;
+
+// Multi-index FORK with MV_EXPAND on an unmapped field in one branch; the unmapped field is null everywhere
+// so COUNT over it is zero.
+loadUnmappedFieldsMultiIndexForkWithMvExpand
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM employees, languages METADATA _index
+| WHERE does_not_exist1::LONG > 5 OR language_code > 1
+| FORK (WHERE emp_no > 3 | MV_EXPAND does_not_exist2) (WHERE emp_no > 2 | EVAL xyz = oes_not_exist3::KEYWORD)
+| KEEP emp_no, *language*, does*, _index
+| STATS c = COUNT(does_not_exist2)
+;
+
+c:long
+0
+;
+
+// An index combined with a subquery that filters on an unmapped cast; the unmapped predicate is null (false)
+// so only the language_code filter selects the subquery rows.
+loadUnmappedFieldInSubqueryBranchWithIndex
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM employees, (FROM languages | WHERE does_not_exist::LONG > 0 OR language_code < 3) METADATA _index
+| KEEP emp_no, language_code, languages, _index
+| WHERE emp_no < 10005 OR emp_no IS NULL
+| SORT emp_no, language_code
+;
+
+emp_no:integer | language_code:integer | languages:integer | _index:keyword
+10001          | null                  | 2                 | employees
+10002          | null                  | 5                 | employees
+10003          | null                  | 4                 | employees
+10004          | null                  | 5                 | employees
+null           | 1                     | null              | null
+null           | 2                     | null              | null
+;
+
+// A single subquery that EVALs an arithmetic expression over an unmapped cast; the unmapped field is null so
+// the derived column is null, and wildcard KEEP surfaces both.
+loadUnmappedFieldCastInSubquery
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM employees | EVAL emp_no_plus = emp_no_foo::LONG + 1 | WHERE emp_no < 10003)
+| DROP *_name
+| SORT emp_no, emp_no_plus
+| KEEP emp_no*
+;
+
+emp_no:integer | emp_no_foo:keyword | emp_no_plus:long
+10001          | null               | null
+10002          | null               | null
 ;

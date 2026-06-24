@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
  * Vector implementation that stores an array of double values.
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class DoubleArrayVector extends AbstractVector implements DoubleVector {
+public final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.

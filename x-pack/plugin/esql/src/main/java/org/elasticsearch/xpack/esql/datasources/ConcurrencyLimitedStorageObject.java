@@ -22,7 +22,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Decorates a {@link StorageObject} with concurrency limiting. Each I/O operation
@@ -224,9 +223,9 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
 
     private void acquirePermit() {
         try {
+            // Blocks until a permit frees (the guardrail queues rather than failing); interruptible so
+            // query cancellation unblocks the waiter.
             limiter.acquire();
-        } catch (TimeoutException e) {
-            throw new EsRejectedExecutionException("Failed to acquire concurrency permit for cloud API call: " + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new EsRejectedExecutionException("Interrupted while waiting for concurrency permit: " + e);

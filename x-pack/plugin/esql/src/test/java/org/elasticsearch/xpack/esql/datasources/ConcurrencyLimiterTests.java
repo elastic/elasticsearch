@@ -11,8 +11,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ConcurrencyLimiterTests extends ESTestCase {
 
@@ -26,7 +26,7 @@ public class ConcurrencyLimiterTests extends ESTestCase {
     }
 
     public void testBlocksWhenExhausted() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1, 60_000L);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1);
         limiter.acquire();
         assertEquals(0, limiter.availablePermits());
 
@@ -52,13 +52,32 @@ public class ConcurrencyLimiterTests extends ESTestCase {
         assertTrue(acquired.get());
     }
 
-    public void testTimeoutThrows() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1, 50L);
+    public void testWaiterDoesNotTimeOutAndIsInterruptible() throws Exception {
+        // The guardrail blocks rather than failing on a deadline: a waiter on an exhausted limiter keeps
+        // waiting (no TimeoutException), but stays interruptible so query cancellation unblocks it.
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1);
         limiter.acquire();
 
-        expectThrows(TimeoutException.class, limiter::acquire);
+        AtomicReference<Throwable> caught = new AtomicReference<>();
+        CountDownLatch started = new CountDownLatch(1);
+        Thread waiter = new Thread(() -> {
+            started.countDown();
+            try {
+                limiter.acquire();
+            } catch (InterruptedException e) {
+                caught.set(e);
+            }
+        });
+        waiter.start();
+        started.await(5, TimeUnit.SECONDS);
 
-        limiter.release();
+        // Well past the old 50ms deadline: still waiting, not failed.
+        Thread.sleep(200);
+        assertNull("waiter must not fail on a deadline", caught.get());
+
+        waiter.interrupt();
+        waiter.join(5000);
+        assertTrue("interrupt must unblock the waiter", caught.get() instanceof InterruptedException);
     }
 
     public void testDisabledWithZeroPermits() throws Exception {

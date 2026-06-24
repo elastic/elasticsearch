@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Decorates a {@link StorageProvider} with concurrency limiting. Each cloud API call
@@ -86,9 +85,9 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
 
     private void acquirePermit() throws IOException {
         try {
+            // Blocks until a permit frees (the guardrail queues rather than failing); interruptible so
+            // query cancellation unblocks the waiter.
             limiter.acquire();
-        } catch (TimeoutException e) {
-            throw new IOException("Failed to acquire concurrency permit for cloud API call", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while waiting for concurrency permit", e);

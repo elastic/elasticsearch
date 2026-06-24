@@ -1989,15 +1989,17 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE emp_no > 10000
             """);
 
-        Project outerProject = as(plan, Project.class);
-        Limit limit = as(outerProject.child(), Limit.class);
+        // No top-level Project: the dataset is read via FROM with no METADATA, so it carries no
+        // _file.* columns and the union output has nothing to strip from default output.
+        Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
         // branch 1 — FROM test: the outer emp_no filter is pushed down onto the EsRelation.
         Project testProject = as(unionAll.children().get(0), Project.class);
-        Eval testEval = as(testProject.child(), Eval.class);
-        Filter testFilter = as(testEval.child(), Filter.class);
+        // No Eval on this branch: the union carries no _file.* (the dataset is FROM with no
+        // METADATA), so the index branch already has every union column — nothing to null-fill.
+        Filter testFilter = as(testProject.child(), Filter.class);
         GreaterThan testGt = as(testFilter.condition(), GreaterThan.class);
         assertEquals("emp_no", as(testGt.left(), FieldAttribute.class).name());
         assertEquals(10000, as(testGt.right(), Literal.class).value());
@@ -2046,15 +2048,17 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE emp_no > 10000
             """);
 
-        Project outerProject = as(plan, Project.class);
-        Limit limit = as(outerProject.child(), Limit.class);
+        // No top-level Project: the dataset is read via FROM with no METADATA, so it carries no
+        // _file.* columns and the union output has nothing to strip from default output.
+        Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
         // branch 1 — FROM test: the outer emp_no filter is pushed down onto the EsRelation.
         Project testProject = as(unionAll.children().get(0), Project.class);
-        Eval testEval = as(testProject.child(), Eval.class);
-        Filter testFilter = as(testEval.child(), Filter.class);
+        // No Eval on this branch: the union carries no _file.* (the dataset is FROM with no
+        // METADATA), so the index branch already has every union column — nothing to null-fill.
+        Filter testFilter = as(testProject.child(), Filter.class);
         GreaterThan testGt = as(testFilter.condition(), GreaterThan.class);
         assertEquals("emp_no", as(testGt.left(), FieldAttribute.class).name());
         assertEquals(10000, as(testGt.right(), Literal.class).value());

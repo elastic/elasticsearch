@@ -13,7 +13,7 @@ import org.elasticsearch.cli.Command;
 
 import java.io.IOException;
 
-public class WindowsServiceRemoveCommandTests extends WindowsServiceCliTestCase {
+public class WindowsServiceRemoveCommandTests extends ScCommandTestCase {
 
     public WindowsServiceRemoveCommandTests(boolean spaceInPath) {
         super(spaceInPath);
@@ -30,8 +30,8 @@ public class WindowsServiceRemoveCommandTests extends WindowsServiceCliTestCase 
     }
 
     @Override
-    protected String getCommand() {
-        return "DS";
+    protected String getScVerb() {
+        return "delete";
     }
 
     @Override

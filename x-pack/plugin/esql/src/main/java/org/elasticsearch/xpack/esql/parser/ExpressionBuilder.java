@@ -409,6 +409,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                             unqualifiedCtx.getText(),
                             lit
                         );
+                    } else if (lit != Literal.NULL) {
+                        // Defined-but-null param (e.g. from an empty list): distinct from the missing-param sentinel
+                        // (Literal.NULL), which already produces a parsing error from paramByNameOrPosition.
+                        throw new ParsingException(
+                            src,
+                            "Query parameter [{}] is null or undefined, cannot be used as an identifier or pattern",
+                            unqualifiedCtx.getText()
+                        );
                     }
                 } else if (exp instanceof UnresolvedNamePattern up) {
                     if (up.name() != null && up.name().equals(WILDCARD)) {
@@ -444,9 +452,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 ParseTree doubleParamsCtx = pattern.doubleParameter();
                 Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
                 if (exp instanceof Literal lit) {
-                    // only Literal.NULL can happen with missing params, params for constants are not allowed
+                    // Literal.NULL (the singleton) means a missing param: a "Unknown query parameter" error has
+                    // already been recorded in QueryParams.parsingErrors. Anything else is rejected here.
                     if (lit.value() != null) {
                         throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", pattern, unqualifiedCtx.getText());
+                    } else if (lit != Literal.NULL) {
+                        throw new ParsingException(
+                            src,
+                            "Query parameter [{}] is null or undefined, cannot be used as an identifier or pattern",
+                            unqualifiedCtx.getText()
+                        );
                     }
                 } else if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
                     String unquotedIdentifier = ua.name();

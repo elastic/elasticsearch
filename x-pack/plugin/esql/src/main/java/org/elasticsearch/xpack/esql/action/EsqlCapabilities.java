@@ -2654,6 +2654,14 @@ public class EsqlCapabilities {
         EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * An empty list passed as a query parameter (named or positional) is treated as null
+         * instead of producing an NPE. A defined-but-null param used in an identifier or pattern
+         * position produces a clean parsing error instead of silently yielding an empty column name.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
+         */
+        EMPTY_LIST_PARAM_AS_NULL,
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
          */

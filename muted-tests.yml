@@ -488,9 +488,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotDisabled
   issue: https://github.com/elastic/elasticsearch/issues/150884
-- class: org.elasticsearch.xpack.stateless.StatelessMergeIT
-  method: testOnlyForceMergesAreAllowedDuringRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/150925
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testInferenceFailure
   issue: https://github.com/elastic/elasticsearch/issues/150976
@@ -623,9 +620,6 @@ tests:
 - class: org.elasticsearch.search.msearch.MultiSearchIT
   method: testBreakerAccountingEndToEnd
   issue: https://github.com/elastic/elasticsearch/issues/151786
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileTests
-  method: "testAggregateIntermediate {TestCase=<exponential_histogram>, <long> #3}"
-  issue: https://github.com/elastic/elasticsearch/issues/151787
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:stats.minOfKeyword}
   issue: https://github.com/elastic/elasticsearch/issues/151790
@@ -713,3 +707,15 @@ tests:
 - class: org.elasticsearch.search.simple.SimpleSearchIT
   method: testIpCidrHighCardinality
   issue: https://github.com/elastic/elasticsearch/issues/152049
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
+  method: testDownsampling
+  issue: https://github.com/elastic/elasticsearch/issues/152060
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
+  method: testDownsamplingTriggersOnlyUpToMaxIndices
+  issue: https://github.com/elastic/elasticsearch/issues/152061
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
+  method: testDownsamplingOnlyExecutesTheLastMatchingRound
+  issue: https://github.com/elastic/elasticsearch/issues/152062
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
+  method: testUpdateDownsampleRound
+  issue: https://github.com/elastic/elasticsearch/issues/152063

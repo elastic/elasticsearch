@@ -135,6 +135,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private volatile boolean closed = false;
     private final AtomicBoolean rotating = new AtomicBoolean(false);
     private final AtomicBoolean installInFlight = new AtomicBoolean(false);
+    private final AtomicBoolean beginRotationInFlight = new AtomicBoolean(false);
     private final AtomicBoolean passwordIdRotateInFlight = new AtomicBoolean(false);
 
     static KeyRotationCoordinator create(
@@ -428,10 +429,14 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     }
 
     private void submitBeginRotation() {
+        if (beginRotationInFlight.compareAndSet(false, true) == false) {
+            return;
+        }
         // Guard: abort rotation when no active password is configured; nodes must be able to persist the new key to disk.
         try {
             pekEncryption.activePasswordId();
         } catch (Exception e) {
+            beginRotationInFlight.set(false);
             logger.warn("project encryption key rotation skipped: no active password configured", e);
             return;
         }
@@ -439,7 +444,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         String newKeyId = ProjectEncryptionKeyMetadata.generateKeyId();
         taskQueue.submitTask(
             "begin-project-encryption-key-rotation",
-            new BeginRotationTask(newKeyId, plaintextPek, threadPool.absoluteTimeInMillis()),
+            new BeginRotationTask(newKeyId, plaintextPek, threadPool.absoluteTimeInMillis(), beginRotationInFlight),
             null
         );
     }
@@ -517,10 +522,16 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
     }
 
-    record BeginRotationTask(String newKeyId, byte[] pekBytes, long generatedAt) implements KeyRotationTask {
+    record BeginRotationTask(String newKeyId, byte[] pekBytes, long generatedAt, AtomicBoolean inFlight) implements KeyRotationTask {
         @Override
         public String description() {
             return "project encryption key rotation begin";
+        }
+
+        @Override
+        public void onFailure(@Nullable Exception e) {
+            inFlight.set(false);
+            KeyRotationTask.super.onFailure(e);
         }
     }
 
@@ -740,6 +751,9 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             logger.debug("[{}] succeeded", task.description());
             if (task instanceof ReEncryptApplyTask reEncrypt) {
                 reEncrypt.completionListener().onResponse(null);
+            }
+            if (task instanceof BeginRotationTask begin) {
+                begin.inFlight().set(false);
             }
         }
 

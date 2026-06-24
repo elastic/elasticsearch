@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class KeyRotationExecutorTests extends ESTestCase {
 
@@ -97,7 +98,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         String newKeyId = ProjectEncryptionKeyMetadata.generateKeyId();
         long newGeneratedAt = activeBornAt + 1000L;
         Tuple<ClusterState, Void> result = executor.executeTask(
-            new KeyRotationCoordinator.BeginRotationTask(newKeyId, randomKey(), newGeneratedAt),
+            new KeyRotationCoordinator.BeginRotationTask(newKeyId, randomKey(), newGeneratedAt, new AtomicBoolean()),
             state
         );
 
@@ -113,7 +114,12 @@ public class KeyRotationExecutorTests extends ESTestCase {
     public void testBeginRotationIsNoopWhenNoMetadata() {
         ClusterState state = stateWith(null);
         Tuple<ClusterState, Void> result = executor.executeTask(
-            new KeyRotationCoordinator.BeginRotationTask(ProjectEncryptionKeyMetadata.generateKeyId(), randomKey(), 0L),
+            new KeyRotationCoordinator.BeginRotationTask(
+                ProjectEncryptionKeyMetadata.generateKeyId(),
+                randomKey(),
+                0L,
+                new AtomicBoolean()
+            ),
             state
         );
         assertSame(state, result.v1());

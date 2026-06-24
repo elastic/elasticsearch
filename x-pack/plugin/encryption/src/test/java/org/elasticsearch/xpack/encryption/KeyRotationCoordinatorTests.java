@@ -417,6 +417,28 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         );
     }
 
+    public void testTickDoesNotBeginRotationWhenOneIsAlreadyInFlight() {
+        long generatedAt = 1_000_000_000L;
+        long now = generatedAt + TimeValue.timeValueDays(30).millis() + 1;
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(generatedAt)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        setup(clusterStateWith(metadata, true), now, TimeValue.timeValueDays(30));
+
+        coordinator.tick();
+        coordinator.tick();
+
+        verify(taskQueue).submitTask(
+            eq("begin-project-encryption-key-rotation"),
+            isA(KeyRotationCoordinator.BeginRotationTask.class),
+            any()
+        );
+    }
+
     public void testTickDoesNotBeginRotationWhenActiveKeyIsYoung() {
         long generatedAt = 1_000_000_000L;
         long now = generatedAt + 1;

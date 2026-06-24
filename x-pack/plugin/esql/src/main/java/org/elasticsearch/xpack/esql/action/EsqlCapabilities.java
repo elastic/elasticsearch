@@ -3165,6 +3165,11 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MV_FUNCTIONS,
 
         /**
+         * Support for PromQL {@code histogram_count()}, {@code histogram_sum()} and {@code histogram_avg()} on native histograms.
+         */
+        PROMQL_HISTOGRAM_SUM_COUNT_AVG,
+
+        /**
          * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
          * throws "not implemented yet". Snapshot-only.
          */

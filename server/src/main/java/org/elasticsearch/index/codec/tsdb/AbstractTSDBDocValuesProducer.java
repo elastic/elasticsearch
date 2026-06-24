@@ -81,9 +81,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     final int version;
     private final int primarySortFieldNumber;
     private final boolean merging;
-    private final int numericBlockShift;
-    protected final int numericBlockSize;
-    private final int numericBlockMask;
     private final long[] skipIndexJumpLengthPerLevel;
     private static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
     private final TSDBDocValuesFormatConfig formatConfig;
@@ -151,10 +148,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 CodecUtil.checkFooter(in, priorE);
             }
         }
-
-        this.numericBlockShift = blockShift;
-        this.numericBlockSize = 1 << blockShift;
-        this.numericBlockMask = numericBlockSize - 1;
 
         String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
         this.data = state.directory.openInput(dataName, state.context);
@@ -230,9 +223,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         this.version = original.version;
         this.primarySortFieldNumber = original.primarySortFieldNumber;
         this.merging = true;
-        this.numericBlockShift = original.numericBlockShift;
-        this.numericBlockSize = original.numericBlockSize;
-        this.numericBlockMask = original.numericBlockMask;
         this.skipIndexJumpLengthPerLevel = original.skipIndexJumpLengthPerLevel;
         this.formatConfig = original.formatConfig;
     }
@@ -1223,7 +1213,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         return block;
                     }
                     try (var builder = factory.singletonOrdinalsBuilder(this, docs.count() - offset, true)) {
-                        BlockLoader.SingletonLongBuilder delegate = new SingletonLongToSingletonOrdinalDelegate(builder, numericBlockSize);
+                        BlockLoader.SingletonLongBuilder delegate = new SingletonLongToSingletonOrdinalDelegate(
+                            builder,
+                            entry.ordsEntry.blockSize
+                        );
                         var result = denseOrds.tryRead(delegate, docs, offset);
                         if (result != null) {
                             return result;
@@ -2201,7 +2194,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         } else {
             var numericFieldReader = numericCodec.createReader(readContext);
             final NumericFieldReader.Decoder decoder = numericFieldReader.decoder(entry.pipelineDescriptor);
-            return (input, values) -> decoder.decodeBlock(input, values, numericBlockSize);
+            final int blockSize = entry.blockSize;
+            return (input, values) -> decoder.decodeBlock(input, values, blockSize);
         }
     }
 
@@ -2293,6 +2287,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
         final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice, merging);
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
+
+        final int numericBlockSize = entry.blockSize;
+        final int numericBlockShift = Integer.numberOfTrailingZeros(numericBlockSize);
+        final int numericBlockMask = numericBlockSize - 1;
 
         if (entry.docsWithFieldOffset == -1) {
             // dense
@@ -2800,6 +2798,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
 
+        final int numericBlockSize = entry.blockSize;
+        final int numericBlockShift = Integer.numberOfTrailingZeros(numericBlockSize);
+        final int numericBlockMask = numericBlockSize - 1;
         final long[] currentBlockIndex = { -1 };
         final long[] currentBlock = new long[numericBlockSize];
         final BlockDecoder decoder = blockDecoder(entry, maxOrd);
@@ -2996,6 +2997,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public long valuesLength;
         public DirectMonotonicReader.Meta sortedOrdinals;
         public PipelineDescriptor pipelineDescriptor;
+        // NOTE: per-field block size. Equals pipelineDescriptor.blockSize() when present
+        // (ES95 pipeline-encoded entries); otherwise the format-level default read from
+        // the numeric block shift header byte, used by ES819 entries and ordinal-stream
+        // entries that have no pipeline descriptor.
+        public int blockSize;
     }
 
     static class BinaryEntry {

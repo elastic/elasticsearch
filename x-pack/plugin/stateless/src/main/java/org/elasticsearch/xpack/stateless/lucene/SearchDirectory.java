@@ -204,6 +204,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 assert updated.keySet().containsAll(filesToRetain)
                     : "missing files [" + Sets.difference(filesToRetain, updated.keySet()) + "]";
                 currentMetadata = Map.copyOf(updated);
+                assert filesRemoved;
 
                 if (filesRemoved && cacheService.isCacheBoostEnabled()) {
                     maybeScheduleObsoleteRegionsEviction();
@@ -232,17 +233,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             final Map<String, BlobFileRanges> metadata = currentMetadata;
 
             final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
-            final Map<Long, Integer> maxKnownRegionByBccGen = new HashMap<>();
-            long maxBccGeneration = 0L;
+            long maxBccGeneration = -1L;
 
-            // TODO consider using a NavigableMap ordered by (BCC gen, offset) so we can skip ahead by region size
-            // instead of iterating over every small file within the same 16MiB region
             for (var file : metadata.values()) {
                 long bccGen = file.getBatchedCompoundCommitTermAndGeneration().generation();
                 int startRegion = cacheService.getRegion(file.fileOffset());
                 int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
                 activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet()).set(startRegion, endRegion + 1);
-                maxKnownRegionByBccGen.merge(bccGen, endRegion, Math::max);
                 maxBccGeneration = Math.max(maxBccGeneration, bccGen);
 
                 if (file.hasReplicatedRanges()) {
@@ -265,27 +262,26 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
                 if (bccGeneration < maxBccGen) {
                     logger.debug(
-                        "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}] < max [{}]) for [{}]",
+                        "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}] < max [{}])",
                         shardId,
                         region,
                         blobName,
                         bccGeneration,
-                        maxBccGen,
-                        shardId
+                        maxBccGen
                     );
                     return true; // BCC is older and region is not active, evict
                 }
                 if (bccGeneration == maxBccGen) {
-                    int maxKnownRegion = maxKnownRegionByBccGen.getOrDefault(bccGeneration, -1);
+                    assert activeRegions != null : "activeRegions should not be null for maxBccGen";
+                    int maxKnownRegion = activeRegions.length() - 1;
                     if (region <= maxKnownRegion) {
                         logger.debug(
-                            "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}], max known region [{}]) for [{}]",
+                            "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}], max known region [{}])",
                             shardId,
                             region,
                             blobName,
                             bccGeneration,
-                            maxKnownRegion,
-                            shardId
+                            maxKnownRegion
                         );
                         return true;
                     }

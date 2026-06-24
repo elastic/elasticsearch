@@ -12,35 +12,56 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.ClusterChangedEventUtils.indicesCreated;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
     public static final int DOC_COUNT = 50_000;
+    private final DownsamplingOperationsMonitor monitor = new DownsamplingOperationsMonitor();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
+        settings.put(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING.getKey(), "1");
         return settings.build();
     }
 
@@ -364,6 +385,108 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         assertDownsamplingMethod(updatedSamplingMethod, downsampledPrefix + secondBackingIndex);
     }
 
+    public void testDownsamplingTriggersOnlyUpToMaxIndices() throws Exception {
+        DataStreamLifecycleService dlm = internalCluster().getAnyMasterNodeInstance(DataStreamLifecycleService.class);
+        DataStreamLifecycleErrorStore dlmErrorStore = dlm.getErrorStore();
+        String dataStreamName = "metrics-foo";
+
+        DownsampleConfig.SamplingMethod downsamplingMethod = randomSamplingMethod();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .downsamplingMethod(downsamplingMethod)
+            .downsamplingRounds(
+                List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")))
+            )
+            .build();
+
+        // The template has start and end time, so we do not have to wait for lookahead to pass.
+        setupTSDBDataStreamAndIngestDocs(
+            dataStreamName,
+            "1990-01-08T23:40:53.384Z",
+            "2022-01-08T23:40:53.384Z",
+            null,
+            DOC_COUNT,
+            "1990-09-09T18:00:00"
+        );
+
+        // We change the template to ensure we will get another backing index with a rollover
+        putTSDBIndexTemplate(dataStreamName, "2022-01-08T23:40:53.384Z", "2023-01-08T23:40:53.384Z", null);
+        assertAcked(client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)));
+
+        // finally, we create one last write index
+        putTSDBIndexTemplate(dataStreamName, null, null, null);
+        assertAcked(client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)));
+
+        // We have 2 backing indices that are eligible for downsampling.
+        List<Index> backingIndices = getBackingIndices(dataStreamName);
+        assertThat(backingIndices.size(), is(3));
+
+        // Marking nodes for shutdown will stop the downsampling task from being assigned and will give us time to assert correctness
+        markNodesForShutdown();
+
+        // Set the lifecycle
+        assertAcked(
+            client().execute(
+                PutDataStreamLifecycleAction.INSTANCE,
+                new PutDataStreamLifecycleAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new String[] { dataStreamName },
+                    lifecycle
+                )
+            )
+        );
+        AtomicReference<ProjectId> projectId = new AtomicReference<>();
+        AtomicReference<Index> downsampledIndex = new AtomicReference<>();
+        // Check there is a single downsampling task each time.
+        awaitClusterState(clusterState -> {
+            ProjectMetadata projectMetadata = clusterState.metadata().getProject();
+            projectId.set(projectMetadata.id());
+            Set<Index> activelyDownsampledIndexNames = monitor.getActivelyDownsampledIndexNames(projectMetadata);
+            assertThat(activelyDownsampledIndexNames.size(), lessThanOrEqualTo(1));
+            if (activelyDownsampledIndexNames.size() == 1) {
+                downsampledIndex.set(activelyDownsampledIndexNames.iterator().next());
+                return true;
+            }
+            return false;
+        });
+        assertThat(downsampledIndex.get(), notNullValue());
+        Index throttledIndex = backingIndices.getFirst().equals(downsampledIndex.get()) ? backingIndices.get(1) : backingIndices.getFirst();
+        assertBusy(() -> {
+            ErrorEntry error = dlmErrorStore.getError(projectId.get(), throttledIndex.getName());
+            assertThat(error, notNullValue());
+            assertThat(error.error(), containsString("has reached the maximum number of downsampling operations"));
+        });
+
+        unmarkNodesForShutdown();
+        awaitClusterState(clusterState -> {
+            ProjectMetadata projectMetadata = clusterState.projectState(projectId.get()).metadata();
+            Set<Index> activelyDownsampledIndexNames = monitor.getActivelyDownsampledIndexNames(projectMetadata);
+            assertThat(activelyDownsampledIndexNames.size(), lessThanOrEqualTo(1));
+            return activelyDownsampledIndexNames.contains(throttledIndex)
+                || projectMetadata.hasIndex("downsample-5m-" + throttledIndex.getName());
+        });
+        assertThat(dlmErrorStore.getError(projectId.get(), throttledIndex.getName()), nullValue());
+        // Verify both tasks are finished and cleared
+        awaitClusterState(clusterState -> {
+            ProjectMetadata projectMetadata = clusterState.metadata().getProject();
+            Set<Index> activelyDownsampledIndexNames = monitor.getActivelyDownsampledIndexNames(projectMetadata);
+            return activelyDownsampledIndexNames.isEmpty();
+        });
+    }
+
+    private List<Index> getBackingIndices(String dataStreamName) {
+        GetDataStreamAction.Response response = safeGet(
+            client().execute(
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(SAFE_AWAIT_TIMEOUT, new String[] { dataStreamName })
+            )
+        );
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        DataStream dataStream = response.getDataStreams().getFirst().getDataStream();
+        assertThat(dataStream.getName(), equalTo(dataStreamName));
+        return dataStream.getIndices();
+    }
+
     private void assertDownsamplingMethod(DownsampleConfig.SamplingMethod downsamplingMethod, String... indexNames) {
         String expected = DownsampleConfig.SamplingMethod.getOrDefault(downsamplingMethod).toString();
         GetSettingsResponse response = safeGet(
@@ -372,5 +495,57 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         for (String indexName : indexNames) {
             assertThat(response.getSetting(indexName, IndexMetadata.INDEX_DOWNSAMPLE_METHOD_KEY), equalTo(expected));
         }
+    }
+
+    private void markNodesForShutdown() {
+        String masterNodeName = internalCluster().getMasterName();
+        internalCluster().clusterService(masterNodeName)
+            .getMasterService()
+            .submitUnbatchedStateUpdateTask("block", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    HashMap<String, SingleNodeShutdownMetadata> shutdownMetadata = new HashMap<>(
+                        currentState.metadata().nodeShutdowns().getAll()
+                    );
+                    for (DiscoveryNode node : currentState.getNodes()) {
+                        SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
+                            .setNodeId(node.getId())
+                            .setNodeEphemeralId(node.getEphemeralId())
+                            .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                            .setReason("Delay downsampling")
+                            .setStartedAtMillis(System.currentTimeMillis())
+                            .build();
+                        shutdownMetadata.put(node.getId(), newNodeMetadata);
+                    }
+
+                    return currentState.copyAndUpdateMetadata(
+                        b -> b.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e.getMessage());
+                }
+            });
+    }
+
+    private void unmarkNodesForShutdown() {
+        String masterNodeName = internalCluster().getMasterName();
+        internalCluster().clusterService(masterNodeName)
+            .getMasterService()
+            .submitUnbatchedStateUpdateTask("block", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    return currentState.copyAndUpdateMetadata(
+                        b -> b.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of()))
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e.getMessage());
+                }
+            });
     }
 }

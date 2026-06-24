@@ -325,7 +325,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Builder(String name, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
             super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
             this.indexSettings = indexSettings;
-            this.docValuesParameters = DocValuesParameter.ofWithCardinality(() -> {
+            this.docValuesParameters = DocValuesParameter.of(() -> {
                 DocValuesParameter.Values defaultDocValues = defaultDocValuesParameters(indexSettings);
                 // In strict-columnar mode, skip the text field's own doc values when a plain keyword multi-field already stores an
                 // identical copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating.
@@ -1626,7 +1626,8 @@ public final class TextFieldMapper extends FieldMapper {
                     name(),
                     CoreValuesSourceType.KEYWORD,
                     TextDocValuesField::new,
-                    indexCreatedVersion
+                    indexCreatedVersion,
+                    useArrayOrderBinaryDocValues
                 );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(

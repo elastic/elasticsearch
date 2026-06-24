@@ -32,6 +32,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1085,7 +1086,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapper foo = update.getRoot().getMapper("foo");
         assertThat(foo, instanceOf(KeywordFieldMapper.class));
         assertFalse(((KeywordFieldMapper) foo).multiFields().iterator().hasNext());
-        assertTrue(((KeywordFieldMapper) foo).fieldType().usesBinaryDocValues());
+        assertTrue(((KeywordFieldMapper) foo).fieldType().hasDocValues());
+        assertFalse(((KeywordFieldMapper) foo).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("foo.keyword"));
     }
 
@@ -1112,7 +1114,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapper field2 = update.getRoot().getMapper("field2");
         assertThat(field2, instanceOf(KeywordFieldMapper.class));
         assertFalse(((KeywordFieldMapper) field2).multiFields().iterator().hasNext());
-        assertTrue(((KeywordFieldMapper) field2).fieldType().usesBinaryDocValues());
+        assertFalse(((KeywordFieldMapper) field2).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("field2.keyword"));
     }
 
@@ -1148,7 +1150,25 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapper baz = bar.getMapper("baz");
         assertThat(baz, instanceOf(KeywordFieldMapper.class));
         assertFalse(((KeywordFieldMapper) baz).multiFields().iterator().hasNext());
-        assertTrue(((KeywordFieldMapper) baz).fieldType().usesBinaryDocValues());
+        assertFalse(((KeywordFieldMapper) baz).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("object.foo.bar.baz.keyword"));
+    }
+
+    public void testVectordbDocumentDenseVectorMappingsUseLowerThreshold() throws IOException {
+        DocumentMapper mapper = createVectordbDocumentModeDocumentMapper(topMapping(b -> {}));
+        BytesReference source = BytesReference.bytes(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .field("tooSmall", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB - 1, 0.0, 5.0).toArray())
+                .field("mapsToVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB, 0.0, 5.0).toArray())
+                .field("alsoMapsToVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+                .endObject()
+        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, XContentType.JSON));
+        Mapping update = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate());
+        assertNotNull(update);
+        assertThat(((FieldMapper) update.getRoot().getMapper("tooSmall")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToVector")).fieldType().typeName(), equalTo("dense_vector"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("alsoMapsToVector")).fieldType().typeName(), equalTo("dense_vector"));
     }
 }

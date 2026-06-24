@@ -7,21 +7,43 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.internal.hppc.IntArrayList;
-import org.apache.lucene.internal.hppc.IntDoubleHashMap;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.DocValuesType;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.withDocIdIterator;
+import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.withoutDocIdIterator;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
+
+    private final DocValuesType docValuesType;
+
+    public AggregateCounterFieldDownsamplerTests(DocValuesType docValuesType) {
+        this.docValuesType = docValuesType;
+    }
+
+    @ParametersFactory(shuffle = false)
+    public static List<Object[]> iteratorTypes() {
+        return List.of(new Object[] { DocValuesType.WITH_ITERATOR }, new Object[] { DocValuesType.WITHOUT_ITERATOR });
+    }
+
+    private SortedNumericDoubleValues getIterator(IntArrayList docIdsWithValues, double... values) {
+        return switch (docValuesType) {
+            case WITH_ITERATOR -> withDocIdIterator(docIdsWithValues, values);
+            case WITHOUT_ITERATOR -> withoutDocIdIterator(docIdsWithValues, values);
+        };
+    }
 
     /**
      * Monotonically increasing counter with no resets within a single bucket.
@@ -32,7 +54,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
-        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 64, 32, 16, 8, 4, 2, 1);
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 64, 32, 16, 8, 4, 2, 1);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
         producer.updateResetDataPoints(resetDataPoints);
@@ -62,7 +84,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
-        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 8, 5, 16, 8, 4, 2, 1);
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 8, 5, 16, 8, 4, 2, 1);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(1.0));
@@ -101,7 +123,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
         long[] timeValues = new long[] { 30, 20, 10 };
-        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 7, 0, 1);
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 7, 0, 1);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(1.0));
@@ -135,7 +157,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(7, 6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 80, 70, 60, 50, 40, 30, 20, 10 };
-        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 4, 2, 5, 3, 8, 4, 2, 1);
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 4, 2, 5, 3, 8, 4, 2, 1);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(1.0));
@@ -177,7 +199,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
-        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 4, 2, 5, 3, 4, 2, 1);
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 4, 2, 5, 3, 4, 2, 1);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(1.0));
@@ -223,7 +245,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         // Bucket #2
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4);
         long[] timeValues = new long[] { 70, 60, 50 };
-        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 6, 5, 4);
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 6, 5, 4);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(4.0));
@@ -233,7 +255,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         // Bucket #1
         docIdBuffer = IntArrayList.from(3, 2, 1, 0);
         timeValues = new long[] { 40, 30, 20, 10 };
-        counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
+        counterValues = getIterator(docIdBuffer, 2, 0, 8, 7);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
@@ -269,7 +291,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         // Bucket tsid_2
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4);
         long[] timeValues = new long[] { 40, 20, 10 };
-        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 6, 5, 4);
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 6, 5, 4);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(4.0));
@@ -279,7 +301,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         // Bucket tsid_1
         docIdBuffer = IntArrayList.from(3, 2, 1, 0);
         timeValues = new long[] { 40, 30, 20, 10 };
-        counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
+        counterValues = getIterator(docIdBuffer, 2, 0, 8, 7);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
@@ -316,7 +338,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
         // Values that would trigger reset detection in cumulative mode (5 > 3, 8 > 2), but delta just sums them
-        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 8, 5, 16, 8, 4, 2, 1);
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 8, 5, 16, 8, 4, 2, 1);
         producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(44.0));
@@ -328,7 +350,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
         docIdBuffer = IntArrayList.from(9, 8, 7);
         timeValues = new long[] { 100, 90, 80 };
-        counterValues = createNumericValuesInstance(docIdBuffer, 3, 7, 10);
+        counterValues = getIterator(docIdBuffer, 3, 7, 10);
         producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
         resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
@@ -346,7 +368,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         // tsid_1: delta — values are summed
         IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
         long[] timeValues = new long[] { 30, 20, 10 };
-        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 5, 3, 2);
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 5, 3, 2);
         producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
         assertThat(producer.downsampledValue(), equalTo(10.0));
         resetDataPoints = new ResetDataPoints();
@@ -360,7 +382,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         // tsid_2: delta — starts fresh, values are summed
         docIdBuffer = IntArrayList.from(5, 4, 3);
         timeValues = new long[] { 30, 20, 10 };
-        counterValues = createNumericValuesInstance(docIdBuffer, 100, 200, 300);
+        counterValues = getIterator(docIdBuffer, 100, 200, 300);
         producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
         assertThat(producer.downsampledValue(), equalTo(600.0));
@@ -374,7 +396,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         // tsid_3: cumulative with a reset — oldest value kept, reset data points produced
         docIdBuffer = IntArrayList.from(9, 8, 7, 6);
         timeValues = new long[] { 40, 30, 20, 10 };
-        counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
+        counterValues = getIterator(docIdBuffer, 2, 0, 8, 7);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         assertThat(producer.downsampledValue(), equalTo(7.0));
         resetDataPoints = new ResetDataPoints();
@@ -388,7 +410,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         // tsid_4: delta again — fully independent from the cumulative tsid
         docIdBuffer = IntArrayList.from(12, 11, 10);
         timeValues = new long[] { 30, 20, 10 };
-        counterValues = createNumericValuesInstance(docIdBuffer, 7, 3, 1);
+        counterValues = getIterator(docIdBuffer, 7, 3, 1);
         producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
         assertThat(producer.downsampledValue(), equalTo(11.0));
         resetDataPoints = new ResetDataPoints();
@@ -397,28 +419,4 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
     }
 
-    static SortedNumericDoubleValues createNumericValuesInstance(IntArrayList docIdBuffer, double... values) {
-        return new SortedNumericDoubleValues(null) {
-
-            final IntDoubleHashMap docIdToValue = IntDoubleHashMap.from(docIdBuffer.toArray(), values);
-
-            int currentDocId = -1;
-
-            @Override
-            public boolean advanceExact(int target) {
-                currentDocId = target;
-                return docIdToValue.containsKey(target);
-            }
-
-            @Override
-            public double nextValue() {
-                return docIdToValue.get(currentDocId);
-            }
-
-            @Override
-            public int docValueCount() {
-                return 1;
-            }
-        };
-    }
 }

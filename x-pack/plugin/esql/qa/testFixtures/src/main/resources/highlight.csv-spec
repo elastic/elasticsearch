@@ -82,7 +82,9 @@ null
 ;
 
 
-# no_match_size returns leading text even when nothing matches.
+# no_match_size > 0 makes a non-matching field fall back to its leading text instead of null. Contrast
+# with highlightNoMatch above, which returns null for the same kind of non-matching query when no_match_size
+# is left at its default of 0.
 highlightNoMatchSize
 required_capability: highlight_v1
 
@@ -195,6 +197,21 @@ highlight_content:keyword
 ;
 
 
+# number_of_fragments = 0 disables fragmentation: the whole field value is returned as a single fragment
+# with the matches still wrapped, instead of being split into per-sentence fragments.
+highlightNumberOfFragmentsZero
+required_capability: highlight_v1
+
+ROW content = "Elasticsearch is fast. Elasticsearch is scalable. Elasticsearch is open."
+| HIGHLIGHT "elasticsearch" ON content WITH { "number_of_fragments": 0 }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+<em>Elasticsearch</em> is fast. <em>Elasticsearch</em> is scalable. <em>Elasticsearch</em> is open.
+;
+
+
 # HIGHLIGHT over fields loaded from an index, after a full-text WHERE filter.
 highlightFromIndexAfterMatch
 required_capability: highlight_v1
@@ -267,7 +284,8 @@ The One Ring was forged by Sauron. | The One <em>Ring</em> was forged by Sauron.
 ;
 
 
-# A fragment_size larger than the whole text returns a single bounded fragment covering both sentences.
+# fragment_size bounds each sentence-based fragment to that many characters. A large value lets both
+# sentences share one fragment; the contrasting small-fragment_size test below splits them apart.
 highlightFragmentSizeLargerThanText
 required_capability: highlight_v1
 
@@ -281,21 +299,55 @@ highlight_content:keyword
 ;
 
 
-# The word boundary scanner is accepted and highlights matches within the value.
+# A small fragment_size keeps each sentence in its own fragment, so the two matching sentences become
+# two separate values instead of sharing one fragment as they do with the large fragment_size above.
+highlightSmallFragmentSizeSplitsSentences
+required_capability: highlight_v1
+
+ROW content = "Elasticsearch is fast. Elasticsearch is scalable."
+| HIGHLIGHT "elasticsearch" ON content WITH { "fragment_size": 25 }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+[<em>Elasticsearch</em> is fast., <em>Elasticsearch</em> is scalable.]
+;
+
+
+# The default sentence boundary scanner breaks fragments on sentence boundaries: with a fragment_size that
+# spans both sentences, the match brings back the full surrounding text. Contrast with the word boundary
+# scanner test directly below, which scopes the fragment to the matched word instead.
+highlightSentenceBoundaryScanner
+required_capability: highlight_v1
+
+ROW content = "The One Ring was forged by Sauron. Frodo carried it to Mount Doom."
+| HIGHLIGHT "ring" ON content WITH { "boundary_scanner": "sentence" }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The One <em>Ring</em> was forged by Sauron. Frodo carried it to Mount Doom.
+;
+
+
+# The word boundary scanner breaks fragments on word boundaries instead of sentences, so the fragment is
+# scoped to the words around the match rather than the full sentence the sentence scanner returns above.
 highlightWordBoundaryScanner
 required_capability: highlight_v1
 
-ROW content = "The One Ring was forged by Sauron."
+ROW content = "The One Ring was forged by Sauron. Frodo carried it to Mount Doom."
 | HIGHLIGHT "ring" ON content WITH { "boundary_scanner": "word" }
 | KEEP highlight_content
 ;
 
 highlight_content:keyword
-The One <em>Ring</em> was forged by Sauron.
+<em>Ring</em>
 ;
 
 
-# boundary_scanner_locale is accepted and behaves like the default for ROOT-equivalent input.
+# boundary_scanner_locale picks the Locale for the break iterator. For ROOT-equivalent English input it
+# breaks identically to the default locale, so the highlighted output is unchanged; this asserts the option
+# is accepted and applied without altering the result for this input.
 highlightBoundaryScannerLocale
 required_capability: highlight_v1
 
@@ -309,7 +361,24 @@ The One <em>Ring</em> was forged by Sauron.
 ;
 
 
-# order=score returns the highest-scoring value first; the second value has two matches so it ranks first.
+# order=none (the default) keeps fragments in document order, so the values come back in the order they
+# appear in the input regardless of how many matches each fragment has. Contrast with the order=score test
+# below, which reorders these same two values by descending score.
+highlightOrderNoneKeepsDocumentOrder
+required_capability: highlight_v1
+
+ROW content = ["fast search", "fast and fast results"]
+| HIGHLIGHT "fast" ON content WITH { "order": "none" }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+[<em>fast</em> search, <em>fast</em> and <em>fast</em> results]
+;
+
+
+# order=score reorders fragments by descending score: the second value has two matches so it scores higher
+# and is returned first, flipping the document order seen in the order=none test above.
 highlightOrderByScore
 required_capability: highlight_v1
 
@@ -323,22 +392,41 @@ highlight_content:keyword
 ;
 
 
-# max_analyzed_offset is accepted; a large limit does not change the result.
-highlightMaxAnalyzedOffset
+# max_analyzed_offset caps how far into the field analysis runs: only terms whose offset is below the cap
+# are considered for matching. A match within the first 10 characters ("One" ends at offset 7) is still
+# highlighted under a cap of 10.
+highlightMaxAnalyzedOffsetWithinLimit
 required_capability: highlight_v1
 
 ROW content = "The One Ring was forged by Sauron."
-| HIGHLIGHT "ring" ON content WITH { "max_analyzed_offset": 1000 }
+| HIGHLIGHT "one" ON content WITH { "max_analyzed_offset": 10 }
 | KEEP highlight_content
 ;
 
 highlight_content:keyword
-The One <em>Ring</em> was forged by Sauron.
+The <em>One</em> Ring was forged by Sauron.
 ;
 
 
-# boundary_chars, boundary_max_scan and phrase_limit are accepted for Query DSL parity but are
-# no-ops for the unified highlighter, so the output matches the default-options output.
+# A match that sits past the max_analyzed_offset cap is invisible to the highlighter: "Sauron" starts well
+# beyond offset 10, so analysis stops before reaching it, nothing matches, and (with the default
+# no_match_size = 0) the row is null.
+highlightMaxAnalyzedOffsetTruncatesMatch
+required_capability: highlight_v1
+
+ROW content = "The One Ring was forged by Sauron."
+| HIGHLIGHT "sauron" ON content WITH { "max_analyzed_offset": 10 }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+null
+;
+
+
+# boundary_chars, boundary_max_scan and phrase_limit only affect the FastVectorHighlighter. HIGHLIGHT
+# always uses the unified highlighter, so these are accepted for Query DSL parity but are no-ops: the
+# output is identical to running with default options.
 highlightUnifiedNoOpOptions
 required_capability: highlight_v1
 
@@ -349,4 +437,83 @@ ROW content = "The One Ring was forged by Sauron."
 
 highlight_content:keyword
 The One <em>Ring</em> was forged by Sauron.
+;
+
+
+# The query is a bag of words, so adjacent matched terms are each wrapped independently rather than being
+# merged into one span: "new york" matches "New" and "York" as two separate terms, producing two adjacent
+# <em>...</em> wraps. (Span merging in the formatter only kicks in for overlapping offsets, which a
+# term-based query does not produce.)
+highlightAdjacentMatchesWrappedIndependently
+required_capability: highlight_v1
+
+ROW content = "I love New York City in the spring."
+| HIGHLIGHT "new york" ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+I love <em>New</em> <em>York</em> City in the spring.
+;
+
+
+# order=score combined with a number_of_fragments cap keeps the highest-scoring fragments, not the first in
+# document order. The third value has two matches so it scores highest and survives the cap of 1, even
+# though it is last in document order.
+highlightOrderByScoreWithFragmentCap
+required_capability: highlight_v1
+
+ROW content = ["one fast result", "a slow result", "fast and fast wins"]
+| HIGHLIGHT "fast" ON content WITH { "order": "score", "number_of_fragments": 1 }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+<em>fast</em> and <em>fast</em> wins
+;
+
+
+# no_match_size bounds the leading text returned for a non-matching field. With a field longer than the
+# size, only the leading portion (the first sentence here, trimmed at the sentence boundary) is returned
+# rather than the whole multi-sentence value.
+highlightNoMatchSizeTruncatesLongText
+required_capability: highlight_v1
+
+ROW content = "Gardens and flowers bloom in spring. Bees hum across the meadow. Rain falls in autumn."
+| HIGHLIGHT "elasticsearch" ON content WITH { "no_match_size": 30 }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+Gardens and flowers bloom in spring
+;
+
+
+# In a multi-valued field, only values that contain a match are highlighted and returned; values with no
+# match are dropped, so a single matching value comes back as a single value rather than a multi-value.
+highlightMultivaluedPartialMatch
+required_capability: highlight_v1
+
+ROW positions = ["Staff Engineer", "Team Lead", "Product Manager"]
+| HIGHLIGHT "lead" ON positions
+| KEEP highlight_positions
+;
+
+highlight_positions:keyword
+Team <em>Lead</em>
+;
+
+
+# An empty query analyzes to no terms and, with the default no_match_size = 0, yields null (the
+# MatchNoDocsQuery path) rather than echoing the field text back.
+highlightEmptyQueryDefaultNoMatchSizeIsNull
+required_capability: highlight_v1
+
+ROW content = "Plain fallback text."
+| HIGHLIGHT "" ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+null
 ;

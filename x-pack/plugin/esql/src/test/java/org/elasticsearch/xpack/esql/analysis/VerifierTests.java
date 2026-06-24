@@ -4495,27 +4495,17 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
-    public void testHighlightRejectsInvalidEncoder() {
+    public void testHighlightRejectsInvalidEnumOptions() {
         assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
-        defaultAnalyzer().error(
-            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"encoder\": \"xml\" }",
-            containsString("Invalid [encoder] value [xml] in HIGHLIGHT")
-        );
+        assertInvalidHighlightOption("encoder", "xml");
+        assertInvalidHighlightOption("boundary_scanner", "chars");
+        assertInvalidHighlightOption("order", "doc");
     }
 
-    public void testHighlightRejectsInvalidBoundaryScanner() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+    private void assertInvalidHighlightOption(String optionName, String optionValue) {
         defaultAnalyzer().error(
-            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"boundary_scanner\": \"chars\" }",
-            containsString("Invalid [boundary_scanner] value [chars] in HIGHLIGHT")
-        );
-    }
-
-    public void testHighlightRejectsInvalidOrder() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
-        defaultAnalyzer().error(
-            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"order\": \"doc\" }",
-            containsString("Invalid [order] value [doc] in HIGHLIGHT")
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"" + optionName + "\": \"" + optionValue + "\" }",
+            containsString("Invalid [" + optionName + "] value [" + optionValue + "] in HIGHLIGHT")
         );
     }
 

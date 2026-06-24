@@ -124,21 +124,31 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             ? IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY)
             : config.maxAnalyzedOffset();
         // Ask Lucene for every passage and trim to number_of_fragments ourselves. Lucene would otherwise keep the
-        // top passages by score, which loses document order when several sentences tie.
+        // top passages by score, which loses document order when several sentences tie. We want document order.
         this.highlighterNumberOfFragments = Integer.MAX_VALUE - 1;
-        this.breakIteratorSupplier = breakIterator(config.numberOfFragments(), config.fragmentSize(), config.wordBoundary(), config.locale());
+        this.breakIteratorSupplier = breakIterator(
+            config.numberOfFragments(),
+            config.fragmentSize(),
+            config.wordBoundary(),
+            config.locale()
+        );
     }
 
-    // Mirrors DefaultHighlighter#getBreakIterator: word scanner ignores fragment_size; sentence scanner honours it.
+    // Mirrors DefaultHighlighter getBreakIterator: word scanner ignores fragment_size, sentence scanner honours it.
     private static Supplier<BreakIterator> breakIterator(int numberOfFragments, int fragmentSize, boolean wordBoundary, Locale locale) {
         if (numberOfFragments == 0) {
             // One passage per (multi-)value: only break on the multi-value separator.
             return () -> new CustomSeparatorBreakIterator(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
         }
-        return () -> new SplittingBreakIterator(
-            wordBoundary ? BreakIterator.getWordInstance(locale) : sentenceBreakIterator(fragmentSize, locale),
-            CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR
-        );
+        return () -> {
+            BreakIterator passageIterator;
+            if (wordBoundary) {
+                passageIterator = BreakIterator.getWordInstance(locale);
+            } else {
+                passageIterator = sentenceBreakIterator(fragmentSize, locale);
+            }
+            return new SplittingBreakIterator(passageIterator, CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
+        };
     }
 
     // Break on sentences, capped to fragment_size chars when it's positive (long sentences get split, short ones may
@@ -156,21 +166,24 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         BytesRef scratch = new BytesRef();
         try {
             for (int f = 0; f < fieldEvaluators.length; f++) {
-                try (Block block = fieldEvaluators[f].eval(page)) {
-                    if (block instanceof BytesRefBlock fieldValues) {
-                        highlightedBlocks[f] = highlightField(fieldValues, rowCount, scratch);
-                    } else {
-                        throw new IllegalArgumentException(
-                            "HIGHLIGHT ON fields must evaluate to keyword/text values but got [" + block.getClass().getSimpleName() + "]"
-                        );
-                    }
-                }
+                highlightedBlocks[f] = highlightField(page, f, rowCount, scratch);
             }
             return page.appendBlocks(highlightedBlocks);
         } catch (Exception e) {
             // If we highlighted some fields but failed before appending them, we need to release them.
             Releasables.closeExpectNoException(highlightedBlocks);
             throw e;
+        }
+    }
+
+    private Block highlightField(Page page, int fieldIndex, int rowCount, BytesRef scratch) {
+        try (Block block = fieldEvaluators[fieldIndex].eval(page)) {
+            if (block instanceof BytesRefBlock fieldValues) {
+                return highlightField(fieldValues, rowCount, scratch);
+            }
+            throw new IllegalArgumentException(
+                "HIGHLIGHT ON fields must evaluate to keyword/text values but got [" + block.getClass().getSimpleName() + "]"
+            );
         }
     }
 
@@ -244,25 +257,38 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      * {@code number_of_fragments > 0} they are then capped to that many fragments.
      */
     private void appendSnippets(BytesRefBlock.Builder builder, Snippet[] snippets) {
-        int length = snippets == null ? 0 : snippets.length;
-        if (config.orderByScore() && length > 1) {
+        Snippet[] selectedSnippets = selectSnippets(snippets);
+        appendSelectedSnippets(builder, selectedSnippets);
+    }
+
+    private Snippet[] selectSnippets(Snippet[] snippets) {
+        if (snippets == null || snippets.length == 0) {
+            return new Snippet[0];
+        }
+        if (config.orderByScore() && snippets.length > 1) {
             Arrays.sort(snippets, Comparator.comparingDouble(Snippet::getScore).reversed());
         }
         int numberOfFragments = config.numberOfFragments();
-        if (numberOfFragments > 0) {
-            length = Math.min(length, numberOfFragments);
+        if (numberOfFragments > 0 && snippets.length > numberOfFragments) {
+            return Arrays.copyOf(snippets, numberOfFragments);
         }
-        if (length == 0) {
+        return snippets;
+    }
+
+    private static void appendSelectedSnippets(BytesRefBlock.Builder builder, Snippet[] selectedSnippets) {
+        if (selectedSnippets.length == 0) {
             builder.appendNull();
-        } else if (length == 1) {
-            builder.appendBytesRef(new BytesRef(snippets[0].getText()));
-        } else {
-            builder.beginPositionEntry();
-            for (int i = 0; i < length; i++) {
-                builder.appendBytesRef(new BytesRef(snippets[i].getText()));
-            }
-            builder.endPositionEntry();
+            return;
         }
+        if (selectedSnippets.length == 1) {
+            builder.appendBytesRef(new BytesRef(selectedSnippets[0].getText()));
+            return;
+        }
+        builder.beginPositionEntry();
+        for (Snippet snippet : selectedSnippets) {
+            builder.appendBytesRef(new BytesRef(snippet.getText()));
+        }
+        builder.endPositionEntry();
     }
 
     @Override

@@ -53,6 +53,10 @@ public record HighlightOptions(
     public static final String DEFAULT_BOUNDARY_SCANNER = BOUNDARY_SCANNER_SENTENCE;
     public static final Locale DEFAULT_BOUNDARY_SCANNER_LOCALE = Locale.ROOT;
     public static final String DEFAULT_ORDER = ORDER_NONE;
+
+    public static final List<String> ALLOWED_ENCODERS = List.of(DEFAULT_ENCODER, HTML_ENCODER);
+    public static final List<String> ALLOWED_BOUNDARY_SCANNERS = List.of(BOUNDARY_SCANNER_SENTENCE, BOUNDARY_SCANNER_WORD);
+    public static final List<String> ALLOWED_ORDERS = List.of(ORDER_NONE, ORDER_SCORE);
     // -1 means "use the index setting", matching Query DSL.
     public static final int DEFAULT_MAX_ANALYZED_OFFSET = -1;
     public static final int DEFAULT_PHRASE_LIMIT = 256;

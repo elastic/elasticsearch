@@ -230,13 +230,13 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        verifyEnum(failures, ENCODER, HighlightOptions.DEFAULT_ENCODER, HighlightOptions.HTML_ENCODER);
-        verifyEnum(failures, BOUNDARY_SCANNER, HighlightOptions.BOUNDARY_SCANNER_SENTENCE, HighlightOptions.BOUNDARY_SCANNER_WORD);
-        verifyEnum(failures, ORDER, HighlightOptions.ORDER_NONE, HighlightOptions.ORDER_SCORE);
+        verifyEnum(failures, ENCODER, HighlightOptions.ALLOWED_ENCODERS);
+        verifyEnum(failures, BOUNDARY_SCANNER, HighlightOptions.ALLOWED_BOUNDARY_SCANNERS);
+        verifyEnum(failures, ORDER, HighlightOptions.ALLOWED_ORDERS);
     }
 
     // Checks that a foldable string option is one of the allowed values.
-    private void verifyEnum(Failures failures, String name, String... allowed) {
+    private void verifyEnum(Failures failures, String name, List<String> allowed) {
         if (options == null) {
             return;
         }
@@ -245,12 +245,10 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             return;
         }
         String actual = BytesRefs.toString(value.fold(FoldContext.small()));
-        for (String candidate : allowed) {
-            if (candidate.equals(actual)) {
-                return;
-            }
+        if (allowed.contains(actual)) {
+            return;
         }
-        failures.add(fail(this, "Invalid [{}] value [{}] in HIGHLIGHT, expected one of {}", name, actual, List.of(allowed)));
+        failures.add(fail(this, "Invalid [{}] value [{}] in HIGHLIGHT, expected one of {}", name, actual, allowed));
     }
 
     @Override

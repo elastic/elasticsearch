@@ -820,7 +820,7 @@ public class DataSourceModuleTests extends ESTestCase {
             List.of()
         );
 
-        List<ExternalSplit> splits = module.sourceFactories().get("file").splitProvider().discoverSplits(ctx);
+        List<ExternalSplit> splits = module.sourceFactories().get("file").splitProvider().discoverSplits(ctx).splits();
         assertTrue("Expected newline-aligned macro splits from registry-backed provider", splits.size() > 1);
 
         long totalLength = 0;

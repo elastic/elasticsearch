@@ -736,3 +736,17 @@ FROM k8s
 last_geo_pt:geo_point
 POINT (35.932799968868494 31.949699968099594)
 ;
+
+Test last aggregation on geo_shape type
+required_capability: last_agg_extended_types
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM airport_city_boundaries
+| WHERE abbrev == "PMI"
+| EVAL sort = 1::long
+| STATS last_shape = LAST(city_boundary, sort)
+; 
+
+last_shape:geo_shape
+POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39.6334))
+;

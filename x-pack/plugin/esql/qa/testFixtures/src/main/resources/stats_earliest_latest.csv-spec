@@ -467,3 +467,21 @@ FROM k8s
 last_geo_pt:geo_point
 POINT (35.932799968868494 31.949699968099594)
 ;
+
+Test latest aggregation on geo_shape type
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+
+ROW rows = [
+"2025-01-01T00:00:01.000Z | POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39.6334))",
+"2025-01-01T00:00:02.000Z | POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{@timestamp} | %{shape}"""
+| EVAL @timestamp = TO_DATETIME(@timestamp), gs = TO_GEOSHAPE(shape)
+| STATS last_shape = LATEST(gs)
+; 
+
+last_shape:geo_shape
+POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))
+;

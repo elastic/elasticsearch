@@ -48,7 +48,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         );
 
         Set<DataType> taggedTypes = new HashSet<>();
-        List<DataType> extraBoth = List.of(DataType.VERSION, DataType.GEO_POINT);
+        List<DataType> extraBoth = List.of(DataType.VERSION, DataType.GEO_POINT, DataType.GEO_SHAPE);
         searchFieldTypes.addAll(extraBoth);
         taggedTypes.addAll(extraBoth);
 
@@ -58,7 +58,6 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                 DataType.EXPONENTIAL_HISTOGRAM,
                 DataType.CARTESIAN_POINT,
                 DataType.CARTESIAN_SHAPE,
-                DataType.GEO_SHAPE,
                 DataType.GEOHASH,
                 DataType.GEOTILE,
                 DataType.GEOHEX,

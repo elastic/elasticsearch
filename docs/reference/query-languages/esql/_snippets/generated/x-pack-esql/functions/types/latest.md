@@ -9,6 +9,7 @@
 | date_nanos | date_nanos |
 | double | double |
 | geo_point {applies_to}`stack: ga 9.5.0` | geo_point |
+| geo_shape {applies_to}`stack: ga 9.5.0` | geo_shape |
 | integer | integer |
 | ip | ip |
 | keyword | keyword |

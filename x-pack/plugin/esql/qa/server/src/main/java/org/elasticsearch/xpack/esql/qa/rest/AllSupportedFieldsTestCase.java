@@ -185,15 +185,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
     }
 
-    private static Boolean vectordbDocumentIndexModeSupported;
-
-    private boolean vectordbDocumentIndexModeSupported() throws IOException {
-        if (vectordbDocumentIndexModeSupported == null) {
-            vectordbDocumentIndexModeSupported = fetchVectordbDocumentIndexModeSupported();
-        }
-        return vectordbDocumentIndexModeSupported;
-    }
-
     protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
         return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
     }
@@ -280,7 +271,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @Before
     public void createIndices() throws IOException {
         if (indexMode == IndexMode.VECTORDB_DOCUMENT) {
-            assumeTrue("vectordb_document index mode requires a snapshot build", Build.current().isSnapshot());
             assumeTrue(
                 "Cluster has nodes that do not support index.mode=vectordb_document",
                 minVersion().supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
@@ -295,6 +285,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             assumeTrue(
                 "Cluster has nodes that default to low-cardinality doc values in columnar index modes",
                 clusterHasFeature("mapper.keyword.columnar_default_high_cardinality")
+            );
+            assumeTrue(
+                "Cluster has nodes that do not default to doc values for text fields in columnar index modes",
+                clusterHasFeature("mapper.text_fields.enable_doc_values_by_default_in_columnar_mode")
             );
         }
         if (supportsNodeAssignment()) {
@@ -1489,8 +1483,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
         expected = expected.entry(
             "_id",
-            indexMode == IndexMode.TIME_SERIES
-                ? matchesList().item("column_at_a_time:TsIdFieldReader")
+            indexMode == IndexMode.TIME_SERIES ? matchesList().item("column_at_a_time:TsIdFieldReader")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:IdDocValuesReader")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Id")
         )
             .entry("_ignored", matchesList().item("column_at_a_time:constant_nulls"))
@@ -1550,7 +1544,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
-            case TEXT -> syntheticSourceByDefault()
+            case TEXT -> indexMode.isStrictColumnar() || syntheticSourceByDefault()
                 ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");

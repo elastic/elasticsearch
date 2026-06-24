@@ -12,12 +12,12 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -60,6 +60,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * format-name resolver.
      */
     static final Set<String> COORDINATOR_KEYS;
+
+    /**
+     * Coordinator keys deliberately NOT exposed as dataset settings: the {@link #CONFIG_FORMAT} and
+     * {@link FormatNameResolver#CONFIG_READER} overrides remain EXTERNAL-only development knobs (a
+     * dataset implies its format from the registered resource's extension). Pinned against
+     * {@link #COORDINATOR_KEYS} and the dataset key set by {@code FileSourceFactoryValidationTests}
+     * so neither can drift: any new coordinator key must either be added to the dataset vocabulary or
+     * explicitly listed here.
+     */
+    static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(CONFIG_FORMAT, FormatNameResolver.CONFIG_READER);
 
     static {
         Set<String> keys = new HashSet<>();
@@ -263,15 +273,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
 
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
-            // Auto-detect the deferred-extraction signal: the synthetic _rowPosition column in the
-            // projection means InsertExternalFieldExtraction injected a paired
-            // ExternalFieldExtractExec downstream and expects this source to register a
-            // ColumnExtractor per opened file plus emit encoded row references. Only enable it
-            // when the resolved reader actually advertises ColumnExtractorAware — without that
-            // capability the builder would refuse to set the flag.
-            boolean deferredExtraction = format instanceof ColumnExtractorAware
-                && context.projectedColumns() != null
-                && context.projectedColumns().contains(ColumnExtractor.ROW_POSITION_COLUMN);
+            // Deferred extraction fires when both signals are present: the reader is
+            // ColumnExtractorAware AND the plan paired this source with an ExternalFieldExtractExec
+            // (the context flag InsertExternalFieldExtraction sets). _rowPosition presence in the
+            // projection is NOT a valid signal on its own — InjectRowPositionForExternalId also
+            // injects it for plain _id composition, where enabling deferred mode would create a
+            // SourceExtractors registry no extract operator ever closes.
+            boolean deferredExtraction = format instanceof ColumnExtractorAware && context.deferredExtraction();
 
             return AsyncExternalSourceOperatorFactory.builder(
                 storage,
@@ -298,8 +306,35 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .pushdownSupport(pushdownSupport)
                 .onClose(onClose)
                 .deferredExtraction(deferredExtraction)
+                // datasetName drives the per-file _index synthesizer in
+                // {@link ExternalMetadataColumns#extractPerFileConstants}; null when the query
+                // came from inline EXTERNAL (no dataset mapping), populated when it came from
+                // FROM <dataset>.
+                .datasetName(context.datasetName())
+                // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime
+                // carrier; without this wire-up _version would silently render as SQL NULL even
+                // on resolved single-file plans. The slice-queue / multi-file paths still source
+                // mtime from FileSplit.partitionValues / per-FileList entry respectively and
+                // ignore this builder value.
+                .lastModifiedMillis(firstFileMtime(context.fileList()))
                 .build();
         };
+    }
+
+    /**
+     * Returns the {@code lastModifiedMillis} of the first entry in {@code fileList}, or {@code null}
+     * when the list is absent / unresolved / empty. Threaded into
+     * {@link AsyncExternalSourceOperatorFactory.Builder#lastModifiedMillis(Long)} so that the
+     * single-file producer paths render {@code _version} from the file's mtime instead of SQL
+     * {@code NULL}. Returning a boxed {@code Long} lets the builder distinguish "no mtime available"
+     * from "mtime is zero (epoch)".
+     */
+    @Nullable
+    private static Long firstFileMtime(@Nullable FileList fileList) {
+        if (fileList == null || fileList.fileCount() == 0) {
+            return null;
+        }
+        return fileList.lastModifiedMillis(0);
     }
 
     /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default

@@ -1106,7 +1106,7 @@ public class InternalEngine extends Engine {
                         useTsdbSyntheticId
                     );
                 } else {
-                    return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
+                    return VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
                 }
             });
             if (docIdAndVersion != null) {
@@ -1199,7 +1199,7 @@ public class InternalEngine extends Engine {
     protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
         assert operation.seqNo() == UNASSIGNED_SEQ_NO : "ops should not have an assigned seq no. but was: " + operation.seqNo();
-        return doGenerateSeqNoForOperation(operation);
+        return doGenerateSeqNo();
     }
 
     protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
@@ -1211,12 +1211,11 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Generate the sequence number for the specified operation.
+     * Generate a sequence number.
      *
-     * @param operation the operation
      * @return the sequence number
      */
-    long doGenerateSeqNoForOperation(final Operation operation) {
+    long doGenerateSeqNo() {
         return localCheckpointTracker.generateSeqNo();
     }
 
@@ -1450,6 +1449,7 @@ public class InternalEngine extends Engine {
         long maxStartNanos = lastWriteNanos;
 
         final var origin = operations.get(subBatchIdx).origin(); // all origins must be uniform, so grab the first one as "the" origin
+        final var primaryTerm = operations.get(subBatchIdx).primaryTerm();
         for (int i = 0; i < subBatchSize; i++) {
             Index op = operations.get(subBatchIdx + i);
             if (origin != op.origin()) { // verify that origins are uniform
@@ -1457,6 +1457,13 @@ public class InternalEngine extends Engine {
                 assert false : message;
                 throw new IllegalStateException(message);
             }
+
+            if (primaryTerm != op.primaryTerm()) { // verify that primary terms are same
+                final var message = "mixed primary terms in sub-batch: " + primaryTerm + " vs " + op.primaryTerm();
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+
             if (op.startTime() - maxStartNanos > 0) {
                 maxStartNanos = op.startTime();
             }
@@ -1672,59 +1679,49 @@ public class InternalEngine extends Engine {
         }
 
         // Phase 2: single Lucene reader acquisition for all versionMap misses.
-        // For standard indices: collect misses into flat arrays and do a single sorted scan per segment.
-        // For time series indices: keep the per-UID path (timestamp-based segment skipping complicates batching).
+        // Collect misses into flat arrays and resolve them all in one sorted segment scan.
         if (anyNeedsLucene) {
             final boolean isTimeSeries = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
-            if (isTimeSeries) {
-                performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
-                    for (int i = 0; i < count; i++) {
-                        if (needsLucene[i] == false) {
-                            continue;
-                        }
-                        final Index op = ops[i];
-                        final boolean loadSeqNo = op.getIfSeqNo() != UNASSIGNED_SEQ_NO;
-                        final DocIdAndVersion d = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
-                            reader,
-                            op.uid(),
-                            op.id(),
-                            loadSeqNo,
-                            useTsdbSyntheticId
-                        );
-                        if (d != null) {
-                            resolvedVersions[i] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
-                        }
+            int luceneCount = 0;
+            for (int i = 0; i < count; i++) {
+                if (needsLucene[i]) luceneCount++;
+            }
+            final BytesRef[] luceneUids = new BytesRef[luceneCount];
+            final String[] luceneIds = isTimeSeries ? new String[luceneCount] : null;
+            final boolean[] luceneLoadSeqNo = new boolean[luceneCount];
+            final int[] luceneToSubBatch = new int[luceneCount];
+            for (int i = 0, k = 0; i < count; i++) {
+                if (needsLucene[i]) {
+                    luceneUids[k] = ops[i].uid();
+                    luceneLoadSeqNo[k] = ops[i].getIfSeqNo() != UNASSIGNED_SEQ_NO;
+                    luceneToSubBatch[k] = i;
+                    if (luceneIds != null) {
+                        luceneIds[k] = ops[i].id();
                     }
-                    return null;
-                });
-            } else {
-                // Collect the Lucene-miss UIDs into flat arrays, then resolve them all in one sorted
-                // segment scan via batchLoadDocIdAndVersion.
-                int luceneCount = 0;
-                for (int i = 0; i < count; i++) {
-                    if (needsLucene[i]) luceneCount++;
+                    k++;
                 }
-                final BytesRef[] luceneUids = new BytesRef[luceneCount];
-                final boolean[] luceneLoadSeqNo = new boolean[luceneCount];
-                final int[] luceneToSubBatch = new int[luceneCount];
-                for (int i = 0, k = 0; i < count; i++) {
-                    if (needsLucene[i]) {
-                        luceneUids[k] = ops[i].uid();
-                        luceneLoadSeqNo[k] = ops[i].getIfSeqNo() != UNASSIGNED_SEQ_NO;
-                        luceneToSubBatch[k] = i;
-                        k++;
-                    }
-                }
-                final DocIdAndVersion[] luceneResults = new DocIdAndVersion[luceneCount];
-                performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+            }
+            final DocIdAndVersion[] luceneResults = new DocIdAndVersion[luceneCount];
+            performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+                if (isTimeSeries) {
+                    assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
+                    VersionsAndSeqNoResolver.timeSeriesBatchLoadDocIdAndVersion(
+                        reader,
+                        luceneUids,
+                        luceneIds,
+                        useTsdbSyntheticId,
+                        luceneLoadSeqNo,
+                        luceneResults
+                    );
+                } else {
                     VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, luceneUids, luceneLoadSeqNo, luceneResults);
-                    return null;
-                });
-                for (int k = 0; k < luceneCount; k++) {
-                    final DocIdAndVersion d = luceneResults[k];
-                    if (d != null) {
-                        resolvedVersions[luceneToSubBatch[k]] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
-                    }
+                }
+                return null;
+            });
+            for (int k = 0; k < luceneCount; k++) {
+                final DocIdAndVersion d = luceneResults[k];
+                if (d != null) {
+                    resolvedVersions[luceneToSubBatch[k]] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
                 }
             }
         }
@@ -2328,6 +2325,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings().seqNoIndexOptions(),
                 engineConfig.getIndexSettings().useDocValuesSkipper(),
                 useTsdbSyntheticId,
+                engineConfig.getMapperService().isUseColumnarId(),
                 delete.id(),
                 delete.uid()
             );

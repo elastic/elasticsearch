@@ -337,12 +337,7 @@ final class DynamicFieldsBuilder {
                         context
                     );
                 } else {
-                    return createDynamicField(
-                        new KeywordFieldMapper.Builder(name, indexSettings, false).docValues(
-                            FieldMapper.DocValuesParameter.Values.Cardinality.HIGH
-                        ),
-                        context
-                    );
+                    return createDynamicField(new KeywordFieldMapper.Builder(name, indexSettings, false), context);
                 }
             }
         }

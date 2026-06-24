@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -62,13 +63,22 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         }
 
         // text field doc_values support is behind a feature flag
-        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
         }
 
+        // multi_value: false enforces single-value semantics and is only meaningful when doc_values is enabled.
         return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true);
+            case 0 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                randomBoolean()
+            );
+            case 1 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                randomBoolean()
+            );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };
@@ -116,6 +126,17 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         @Override
         public boolean ignoreAbove() {
             return keywordMultiFieldSyntheticSourceSupport.ignoreAbove();
+        }
+
+        @Override
+        public boolean enforcesSingleValue() {
+            if (store) {
+                return false;
+            }
+            if (docValues.enabled()) {
+                return docValues.multiValue() == false;
+            }
+            return keywordMultiFieldSyntheticSourceSupport.enforcesSingleValue();
         }
 
         @Override
@@ -176,17 +197,17 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private MapperTestCase.SyntheticSourceExample docValuesFieldExample(int maxValues) {
             CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
                 b.field("type", fieldType);
-                // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-                if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
-                    b.field("doc_values", true);
-                } else {
+                if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && docValues.multiValue() == false) {
                     b.startObject("doc_values");
-                    b.field("cardinality", docValues.cardinality().toString());
+                    b.field("multi_value", false);
                     b.endObject();
+                } else {
+                    b.field("doc_values", true);
                 }
             };
 
-            if (randomBoolean()) {
+            // When multi_value is disabled a document may only have a single value, so never produce a multi-valued example.
+            if (enforcesSingleValue() || randomBoolean()) {
                 var randomString = randomString();
                 return new MapperTestCase.SyntheticSourceExample(randomString, randomString, mapping);
             }

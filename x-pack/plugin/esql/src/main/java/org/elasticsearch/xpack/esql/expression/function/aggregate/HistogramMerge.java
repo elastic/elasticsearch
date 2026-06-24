@@ -42,7 +42,11 @@ public class HistogramMerge extends AggregateFunction implements ToAggregator {
         HistogramMerge::new
     );
 
-    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, type = FunctionType.AGGREGATE)
+    @FunctionInfo(
+        returnType = { "exponential_histogram", "tdigest" },
+        type = FunctionType.AGGREGATE,
+        briefSummary = "Merges histogram field values into a single histogram."
+    )
     public HistogramMerge(Source source, @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field) {
         this(source, field, Literal.TRUE, NO_WINDOW);
     }

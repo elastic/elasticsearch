@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -467,7 +468,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
             }
         } catch (RuntimeException e) {
             logger.error(
-                () -> String.format(
+                () -> Strings.format(
                     "failed to unwrap project encryption key [passwordId=%s] from disk; node starting in degraded state."
                         + " To recover: fix the password and restart, or call POST /_encryption/_reset?accept_data_loss=true",
                     parsed.passwordId

@@ -49,6 +49,8 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
     private byte[] blobBytes;
     private int[] offsets = new int[8];
     private int[] lengths = new int[8];
+    private int[] distinctOffsets = new int[8];
+    private int[] distinctLengths = new int[8];
 
     public ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(String name) {
         this.name = Objects.requireNonNull(name);
@@ -98,22 +100,24 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
             // decode [D][len1][val1]...[lenD][valD][opt: ord1...ordSlotCount] into per-slot offsets/lengths
             scratchInput.reset(bytes.bytes, bytes.offset, bytes.length);
             int distinctCount = scratchInput.readVInt();
-            int[] distinctOffsets = new int[distinctCount];
-            int[] distinctLengths = new int[distinctCount];
-            for (int d = 0; d < distinctCount; d++) {
-                int length = scratchInput.readVInt();
-                int offset = scratchInput.getPosition();
-                scratchInput.setPosition(offset + length);
-                distinctOffsets[d] = offset;
-                distinctLengths[d] = length;
-            }
             if (slotCount == distinctCount) {
-                // no duplicates, no nulls: distinct values in first-seen order are the slots
+                // no duplicates, no nulls, no ordinal stream: distinct values in order are the slots
                 for (int i = 0; i < distinctCount; i++) {
-                    offsets[i] = distinctOffsets[i];
-                    lengths[i] = distinctLengths[i];
+                    int length = scratchInput.readVInt();
+                    int offset = scratchInput.getPosition();
+                    scratchInput.setPosition(offset + length);
+                    offsets[i] = offset;
+                    lengths[i] = length;
                 }
             } else {
+                ensureDistinctCapacity(distinctCount);
+                for (int d = 0; d < distinctCount; d++) {
+                    int length = scratchInput.readVInt();
+                    int offset = scratchInput.getPosition();
+                    scratchInput.setPosition(offset + length);
+                    distinctOffsets[d] = offset;
+                    distinctLengths[d] = length;
+                }
                 for (int i = 0; i < slotCount; i++) {
                     int ord = scratchInput.readVInt();
                     if (ord == 0) {
@@ -176,6 +180,13 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
         if (offsets.length < minSize) {
             offsets = ArrayUtil.grow(offsets, minSize);
             lengths = ArrayUtil.grow(lengths, minSize);
+        }
+    }
+
+    private void ensureDistinctCapacity(int minSize) {
+        if (distinctOffsets.length < minSize) {
+            distinctOffsets = ArrayUtil.grow(distinctOffsets, minSize);
+            distinctLengths = ArrayUtil.grow(distinctLengths, minSize);
         }
     }
 }

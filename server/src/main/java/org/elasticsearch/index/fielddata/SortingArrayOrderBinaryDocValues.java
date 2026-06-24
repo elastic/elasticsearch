@@ -13,6 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.FieldArrayContext;
@@ -42,6 +43,8 @@ public final class SortingArrayOrderBinaryDocValues extends SortingBinaryDocValu
     private final BinaryDocValues binary;
     private final NumericDocValues counts;
     private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+    private int[] distinctOffsets = new int[8];
+    private int[] distinctLengths = new int[8];
 
     public SortingArrayOrderBinaryDocValues(BinaryDocValues binary, NumericDocValues counts) {
         this.binary = binary;
@@ -90,24 +93,25 @@ public final class SortingArrayOrderBinaryDocValues extends SortingBinaryDocValu
         in.reset(bytes.bytes, bytes.offset, bytes.length);
         int distinctCount = in.readVInt();
 
-        int[] distinctOffsets = new int[distinctCount];
-        int[] distinctLengths = new int[distinctCount];
-        for (int d = 0; d < distinctCount; d++) {
-            int length = in.readVInt();
-            int offset = in.getPosition();
-            in.setPosition(offset + length);
-            distinctOffsets[d] = offset;
-            distinctLengths[d] = length;
-        }
-
         if (slotCount == distinctCount) {
-            // no duplicates, no nulls: distinct values in first-seen order are the slots
+            // no duplicates, no nulls, no ordinal stream: distinct values in order are the slots; decode straight into values
             count = distinctCount;
             grow();
             for (int d = 0; d < distinctCount; d++) {
-                values[d].copyBytes(bytes.bytes, distinctOffsets[d], distinctLengths[d]);
+                int length = in.readVInt();
+                int offset = in.getPosition();
+                in.setPosition(offset + length);
+                values[d].copyBytes(bytes.bytes, offset, length);
             }
         } else {
+            ensureDistinctCapacity(distinctCount);
+            for (int d = 0; d < distinctCount; d++) {
+                int length = in.readVInt();
+                int offset = in.getPosition();
+                in.setPosition(offset + length);
+                distinctOffsets[d] = offset;
+                distinctLengths[d] = length;
+            }
             count = slotCount;
             grow();
             int nonNull = 0;
@@ -124,5 +128,12 @@ public final class SortingArrayOrderBinaryDocValues extends SortingBinaryDocValu
         }
         sort();
         return count > 0;
+    }
+
+    private void ensureDistinctCapacity(int minSize) {
+        if (distinctOffsets.length < minSize) {
+            distinctOffsets = ArrayUtil.grow(distinctOffsets, minSize);
+            distinctLengths = ArrayUtil.grow(distinctLengths, minSize);
+        }
     }
 }

@@ -35,7 +35,7 @@ public final class ExternalSourceSettings {
      * Default: 256 — sized to local resources, generous enough that S3/GCS/Azure parallelism is not artificially
      * capped (the old default of 50 mirrored the AWS SDK's connection-pool default and throttled throughput). The
      * S3 async client's connection pool is sized above this setting's maximum so the guardrail, not the SDK pool,
-     * is always the binding constraint. See elastic/esql-planning#896.
+     * is always the binding constraint.
      */
     public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
         "esql.external.max_connections",

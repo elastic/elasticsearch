@@ -24,8 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * self-imposed limit must make work wait its turn, never kill a query for being at the limit. It stays
  * interruptible so query cancellation still unblocks a waiter. Permits are per-call, each acquirer holds
  * exactly one and releases it before taking the next, so blocking cannot deadlock as long as the limit is
- * positive. A permits value of 0 disables limiting entirely (all operations pass through). See
- * elastic/esql-planning#896.
+ * positive. A permits value of 0 disables limiting entirely (all operations pass through).
  * <p>
  * Thread-safe and designed to be shared across all queries targeting the same storage scheme.
  */

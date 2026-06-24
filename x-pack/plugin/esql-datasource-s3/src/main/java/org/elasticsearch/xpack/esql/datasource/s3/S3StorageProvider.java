@@ -92,7 +92,7 @@ public class S3StorageProvider implements StorageProvider {
     // constraint on read concurrency, and the SDK's connectionAcquisitionTimeout is never reached under guardrail
     // control. Replaces the SDK default of 50, which mirrored the old per-query budget and capped read parallelism
     // far below what S3 serves; S3 throttles per key-prefix request rate and we handle that reactively via
-    // retry/backoff, not by a low connection cap. See elastic/esql-planning#896.
+    // retry/backoff, not by a low connection cap.
     private static final int ASYNC_CLIENT_MAX_CONNECTIONS = 512;
     private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
 
@@ -220,7 +220,7 @@ public class S3StorageProvider implements StorageProvider {
         // per-machine connection count, and pushes back with 503/backoff when it actually needs to. We let the
         // pool be wide and lean on reactive backoff for throttling; a deliberate node-level guardrail bounds our
         // own resources. connectionAcquisitionTimeout is generous so brief pool contention queues rather than
-        // failing the read. See elastic/esql-planning#896.
+        // failing the read.
         return configureCommon(S3AsyncClient.builder(), config, credentials).httpClientBuilder(
             NettyNioAsyncHttpClient.builder()
                 .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)

@@ -266,7 +266,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // No per-query concurrency wrap here. Storage already carries the node-level guardrail and reactive
             // retry/backoff from the registry (see StorageProviderRegistry#wrapProvider). The old per-query budget
             // self-throttled a single query against its own shrunk share and failed it on a 60s timeout; removed in
-            // favor of a blocking guardrail + reactive backoff. See elastic/esql-planning#896.
+            // favor of a blocking guardrail + reactive backoff.
             Closeable onClose = null;
 
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();

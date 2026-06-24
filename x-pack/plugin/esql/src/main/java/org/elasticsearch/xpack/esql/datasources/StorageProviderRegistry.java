@@ -242,7 +242,6 @@ public class StorageProviderRegistry implements Closeable {
         // signal backpressure the way object stores do (no 503 to react to); it just degrades under unbounded
         // concurrent IO, so it needs the guardrail most. The retry/backoff layer is inert for file:// (local
         // reads raise plain IOExceptions, never the throttling-typed ExternalUnavailableException it retries on).
-        // See elastic/esql-planning#896.
         ConcurrencyLimiter limiter = limiterForScheme(scheme);
         StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
         // The adaptive backoff is selected per throttle scope (per-bucket/account) at read time, not baked in here:
@@ -276,7 +275,7 @@ public class StorageProviderRegistry implements Closeable {
      * scope; the port is included so two custom endpoints on the same host but different ports stay isolated.
      * {@code userInfo} is deliberately excluded: it can carry credentials (which must never be retained in this
      * long-lived map) and is not a throttle axis. Finer per-prefix granularity for S3 is the deferred per-store SPI
-     * refinement. See elastic/esql-planning#896.
+     * refinement.
      */
     static String throttleScope(StoragePath path) {
         StringBuilder sb = new StringBuilder(path.scheme()).append("://");

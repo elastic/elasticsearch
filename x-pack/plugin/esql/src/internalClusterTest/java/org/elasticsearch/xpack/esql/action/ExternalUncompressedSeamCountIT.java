@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Reproduction harness for esql-planning#896 behaviour B — a record dropped at a byte-range split seam
+ * Reproduction harness for the byte-range split-seam case — a record dropped at a byte-range split seam
  * yields an EXACTLY-one-short {@code COUNT(*)} on uncompressed CSV, silently at HTTP 200.
  * <p>
  * The sibling {@code ExternalUncompressedMultiFileSegmentCapIT} exercises the {@code header_row=true},

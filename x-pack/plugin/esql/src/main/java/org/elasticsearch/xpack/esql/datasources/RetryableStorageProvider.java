@@ -24,8 +24,8 @@ import java.util.function.Function;
  * per-bucket for S3/GCS, per-account for Azure), not per scheme: a hot bucket backs off only its own traffic
  * instead of slowing every read on the same store. The scope's {@link RetryPolicy} (which carries that scope's
  * backoff) is looked up — cached, computed once per scope — when an object is created, since the path, hence the
- * scope, is known there. The two- and three-arg constructors bind a single fixed policy for every path (used by
- * tests and any caller that does not need per-scope backoff). See elastic/esql-planning#896.
+ * scope, is known there. The two-arg constructor binds a single fixed policy for every path (used by tests and
+ * any caller that does not need per-scope backoff).
  */
 class RetryableStorageProvider implements StorageProvider {
 
@@ -35,10 +35,6 @@ class RetryableStorageProvider implements StorageProvider {
 
     RetryableStorageProvider(StorageProvider delegate, RetryPolicy retryPolicy) {
         this(delegate, RetryScheduler.DIRECT, fixed(retryPolicy));
-    }
-
-    RetryableStorageProvider(StorageProvider delegate, RetryPolicy retryPolicy, RetryScheduler retryScheduler) {
-        this(delegate, retryScheduler, fixed(retryPolicy));
     }
 
     RetryableStorageProvider(StorageProvider delegate, RetryScheduler retryScheduler, Function<StoragePath, RetryPolicy> policyForScope) {

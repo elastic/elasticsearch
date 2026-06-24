@@ -138,6 +138,16 @@ public class CsvTestsDataLoader {
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
         new TestDataset(
+            "partial_mapping_mv_sample_data",
+            "mapping-partial_mapping_sample_data.json",
+            "partial_mapping_mv_sample_data.csv"
+        ),
+        new TestDataset(
+            "partial_mapping_mv_no_source_sample_data",
+            "mapping-partial_mapping_no_source_sample_data.json",
+            "partial_mapping_mv_sample_data.csv"
+        ),
+        new TestDataset(
             "partial_message_types_lookup",
             "mapping-partial_message_types_lookup.json",
             "partial_message_types_lookup.csv",
@@ -354,6 +364,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
         new ViewConfig("partial_mapping_view"),
+        new ViewConfig("partial_mapping_mv_view"),
         new ViewConfig("view_with_subquery"),
         new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),

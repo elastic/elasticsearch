@@ -1248,3 +1248,138 @@ c:long | message:keyword
 3      | Connection error?
 2      | Disconnected
 ;
+
+###############################################
+# Multi-value fields loaded from _source tests #
+###############################################
+
+// An unmapped field whose _source value is an array loads as a multi-value keyword; MV_EXPAND splits
+// every value of every document into its own row.
+mvLoadFromSourceExpandCount
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| MV_EXPAND unmapped_mv
+| STATS c = COUNT(*)
+;
+
+c:long
+13
+;
+
+// Every value of the multi-value field becomes its own row; all 13 values are surfaced.
+mvLoadFromSourceExpandValues
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| MV_EXPAND unmapped_mv
+| KEEP unmapped_mv
+| SORT unmapped_mv
+;
+
+unmapped_mv:keyword
+a
+b
+c
+d
+e
+f
+g
+h
+i
+j
+k
+l
+m
+;
+
+// The _source array order is preserved on load: the document stored [i, h] and the field keeps that order.
+mvLoadFromSourcePreservesOrder
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| WHERE message == "42"
+| KEEP message, unmapped_mv
+;
+
+message:keyword | unmapped_mv:keyword
+42              | [i, h]
+;
+
+// Multi-value functions operate on a multi-value field loaded from _source.
+mvLoadFromSourceFunctions
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| EVAL n = MV_COUNT(unmapped_mv), lo = MV_MIN(unmapped_mv), hi = MV_MAX(unmapped_mv)
+| KEEP message, n, lo, hi
+| SORT lo, message
+;
+
+message:keyword        | n:integer | lo:keyword | hi:keyword
+Connected to 10.1.0.1! | 2         | a          | b
+Connection error?      | 1         | c          | c
+Connection error?      | 3         | d          | f
+Connection error?      | 1         | g          | g
+42                     | 2         | h          | i
+Connected to 10.1.0.2! | 1         | j          | j
+Connected to 10.1.0.3! | 3         | k          | m
+;
+
+// MV_EXPAND of a field that exists in neither mapping nor _source treats the null as a single value, so the
+// row count is preserved.
+mvExpandNonExistentFieldKeepsRows
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| MV_EXPAND does_not_exist
+| STATS c = COUNT(*)
+;
+
+c:long
+7
+;
+
+// Negative control: the same multi-value documents indexed with _source disabled cannot surface the value, so
+// the field is null everywhere. This proves the multi-value above is genuinely read from _source.
+mvLoadRequiresSourceForMultiValue
+required_capability: optional_fields_v5
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_no_source_sample_data
+| KEEP @timestamp, unmapped_mv
+| SORT @timestamp
+;
+
+@timestamp:date          | unmapped_mv:keyword
+2024-10-23T12:15:03.360Z | null
+2024-10-23T12:27:28.948Z | null
+2024-10-23T13:33:34.937Z | null
+2024-10-23T13:51:54.732Z | null
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:55:01.543Z | null
+;
+
+// Multi-index union where the multi-value field exists in _source of only one index; the other index, sharing
+// the same mapping but without the field in _source, null-fills it.
+mvLoadMultiIndexUnionPartialSource
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data, partial_mapping_sample_data METADATA _index
+| WHERE message == "42"
+| KEEP _index, message, unmapped_mv
+| SORT _index
+;
+
+_index:keyword                 | message:keyword | unmapped_mv:keyword
+partial_mapping_mv_sample_data | 42              | [i, h]
+partial_mapping_sample_data    | 42              | null
+;

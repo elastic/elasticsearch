@@ -2705,3 +2705,94 @@ Connection error?      | Disconnection error
 Connection error?      | Disconnection error
 Connection error?      | Disconnection error
 ;
+
+// MV_EXPAND on a multi-value field loaded from _source through a view splits every value into its own row.
+loadMvViewExpandCount
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| MV_EXPAND unmapped_mv
+| STATS c = COUNT(*)
+;
+
+c:long
+13
+;
+
+// Filtering before MV_EXPAND through a view splits only the matching documents' values into rows.
+loadMvViewExpandValues
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| WHERE message == "Connection error?"
+| MV_EXPAND unmapped_mv
+| KEEP message, unmapped_mv
+| SORT unmapped_mv
+;
+
+message:keyword   | unmapped_mv:keyword
+Connection error? | c
+Connection error? | d
+Connection error? | e
+Connection error? | f
+Connection error? | g
+;
+
+// Multi-value functions operate on a field loaded from _source through a view.
+loadMvViewFunctions
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| WHERE message == "42"
+| EVAL n = MV_COUNT(unmapped_mv), lo = MV_MIN(unmapped_mv), hi = MV_MAX(unmapped_mv)
+| KEEP message, n, lo, hi
+;
+
+message:keyword | n:integer | lo:keyword | hi:keyword
+42              | 2         | h          | i
+;
+
+// DISSECT parses a keyword field loaded from _source through a view.
+loadDissectViewLoadedField
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| WHERE message == "Connected to 10.1.0.3!"
+| DISSECT unmapped_message "%{action} from %{host}"
+| KEEP message, action, host
+;
+
+message:keyword        | action:keyword | host:keyword
+Connected to 10.1.0.3! | Disconnected   | 10.1.0.3
+;
+
+// Branching union of the same source-loading view: one branch MV_EXPANDs the loaded multi-value field while
+// the sibling branch keeps its multi-value form. Values are loaded per-branch and survive the union.
+loadMvViewBranchingExpandInOneBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_mv_view | WHERE message == "42" | MV_EXPAND unmapped_mv | KEEP message, unmapped_mv), (FROM partial_mapping_mv_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message, unmapped_mv)
+| SORT message, unmapped_mv
+;
+
+message:keyword        | unmapped_mv:keyword
+42                     | h
+42                     | i
+Connected to 10.1.0.1! | [a, b]
+;

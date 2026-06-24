@@ -1072,3 +1072,147 @@ emp_no:integer | emp_no_foo:keyword | emp_no_plus:long
 10001          | null               | null
 10002          | null               | null
 ;
+
+// MV_EXPAND on a multi-value field loaded from _source in one FORK branch splits its values into rows. The
+// sibling branch that references the same field via KEEP keeps the multi-value form unchanged.
+loadMvUnmappedFieldExpandInForkBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| WHERE message == "42" OR message == "Connected to 10.1.0.1!"
+| FORK (MV_EXPAND unmapped_mv) (WHERE message == "42" | KEEP message, unmapped_mv)
+| KEEP _fork, message, unmapped_mv
+| SORT _fork, message, unmapped_mv
+;
+
+_fork:keyword | message:keyword        | unmapped_mv:keyword
+fork1         | 42                     | h
+fork1         | 42                     | i
+fork1         | Connected to 10.1.0.1! | a
+fork1         | Connected to 10.1.0.1! | b
+fork2         | 42                     | [i, h]
+;
+
+// One FORK branch expands a loaded multi-value field and counts rows; the other sums the per-row value count
+// of the same field. Both branches see 13 total values.
+loadMvUnmappedFieldExpandAndCountAcrossForkBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| FORK (MV_EXPAND unmapped_mv | STATS expanded = COUNT(*)) (STATS total_values = SUM(MV_COUNT(unmapped_mv)))
+| SORT _fork
+;
+
+expanded:long | _fork:keyword | total_values:long
+13            | fork1         | null
+null          | fork2         | 13
+;
+
+// MV_EXPAND of a field absent from mapping and _source inside a FORK branch keeps the (null) row; the sibling
+// branch null-fills the same column.
+loadMvExpandNonExistentInForkBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| WHERE message == "42"
+| FORK (MV_EXPAND does_not_exist) (WHERE true)
+| KEEP _fork, message, does_not_exist
+| SORT _fork
+;
+
+_fork:keyword | message:keyword | does_not_exist:keyword
+fork1         | 42              | null
+fork2         | 42              | null
+;
+
+// DISSECT parses a keyword field loaded from _source in one FORK branch; non-matching values produce nulls
+// and the sibling branch null-fills the parsed columns.
+loadDissectLoadedFieldInForkBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_sample_data
+| WHERE message == "Connected to 10.1.0.1!" OR message == "42"
+| FORK (DISSECT unmapped_message "%{action} from %{host}" | KEEP message, action, host) (WHERE message == "42" | KEEP message, unmapped_message)
+| KEEP _fork, message, action, host, unmapped_message
+| SORT _fork, message
+;
+
+_fork:keyword | message:keyword        | action:keyword | host:keyword | unmapped_message:keyword
+fork1         | 42                     | null           | null         | null
+fork1         | Connected to 10.1.0.1! | Disconnected   | 10.1.0.1     | null
+fork2         | 42                     | null           | null         | 43
+;
+
+// A subquery that MV_EXPANDs a multi-value field loaded from _source returns one row per value.
+loadMvUnmappedFieldExpandInSubquery
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_mv_sample_data | WHERE message == "Connected to 10.1.0.3!" | MV_EXPAND unmapped_mv)
+| KEEP message, unmapped_mv
+| SORT unmapped_mv
+;
+
+message:keyword        | unmapped_mv:keyword
+Connected to 10.1.0.3! | k
+Connected to 10.1.0.3! | l
+Connected to 10.1.0.3! | m
+;
+
+// A branching union of an index and a subquery that expands a loaded multi-value field: the field is loaded
+// per-branch, so the index branch null-fills it while the subquery branch carries the expanded values. As with
+// other subquery branches, METADATA _index is null for the subquery-sourced rows.
+loadMvUnmappedFieldExpandSubqueryWithIndex
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM employees, (FROM partial_mapping_mv_sample_data | WHERE message == "42" | MV_EXPAND unmapped_mv | KEEP message, unmapped_mv) METADATA _index
+| WHERE message == "42" OR emp_no == 10001
+| KEEP emp_no, message, unmapped_mv, _index
+| SORT unmapped_mv NULLS LAST, emp_no
+;
+
+emp_no:integer | message:keyword | unmapped_mv:keyword | _index:keyword
+null           | 42              | h                   | null
+null           | 42              | i                   | null
+10001          | null            | null                | employees
+;
+
+// GROK parses a keyword field loaded from _source inside a subquery.
+loadGrokLoadedFieldInSubquery
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_mv_sample_data | WHERE message == "Connected to 10.1.0.2!" | GROK unmapped_message "%{WORD:action} from %{IP:host}")
+| KEEP message, action, host
+| SORT message
+;
+
+message:keyword        | action:keyword | host:keyword
+Connected to 10.1.0.2! | Disconnected   | 10.1.0.2
+;
+
+// Multi-value functions operate on a field loaded from _source inside a subquery.
+loadMvFunctionsInSubquery
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_mv_sample_data | EVAL n = MV_COUNT(unmapped_mv) | KEEP message, n)
+| STATS total = SUM(n), rows = COUNT(*)
+;
+
+total:long | rows:long
+13         | 7
+;

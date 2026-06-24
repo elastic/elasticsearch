@@ -38,6 +38,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * A running-slot rejection from the executor (surfaced via {@link ActionListener#onFailure}) is recorded
  * the same way, so the call fails fast and cleanly rather than hanging.
  *
+ * <p>Fast-fail granularity is per slot, not per call: an item whose {@code fn} invocation is already in
+ * progress when the failure (or a cancellation observed inside {@code fn}) is seen runs to completion —
+ * at most {@code maxConcurrency} such calls can be in flight. Only items that have not yet started are
+ * skipped. A caller that aborts via a cancellation check inside {@code fn} therefore stops promptly, but
+ * up to one already-started call per slot may still finish before {@code gather} returns.
+ *
  * <p>For zero or one items, the function is executed inline on the calling thread — no thread
  * dispatch occurs. This avoids executor overhead for the common trivial case.
  */

@@ -88,6 +88,8 @@ public class ExternalSourceResolver {
 
     private static final int MAX_PARALLEL_METADATA_READS = 16;
 
+    private static final String RESOLUTION_CANCELLED_MESSAGE = "ES|QL external source resolution cancelled";
+
     /**
      * Returns a config suitable for passing to a storage provider: merges the {@link #DATASOURCE_CONFIG_KEY}
      * sub-map (data-source auth/connection settings) into the top level so that the provider can
@@ -192,7 +194,7 @@ public class ExternalSourceResolver {
      */
     private void throwIfCancelled() {
         if (isCancelled()) {
-            throw new TaskCancelledException("ES|QL external source resolution cancelled");
+            throw new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE);
         }
     }
 
@@ -207,7 +209,7 @@ public class ExternalSourceResolver {
     private boolean reportIfCancelled(String path, ActionListener<?> listener) {
         if (isCancelled()) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
-            listener.onFailure(new TaskCancelledException("ES|QL external source resolution cancelled"));
+            listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
             return true;
         }
         return false;
@@ -232,6 +234,11 @@ public class ExternalSourceResolver {
             return;
         }
 
+        // Resolution runs on the SEARCH pool and a wide multi-file resolve pins this worker on the
+        // BoundedParallelGather latch while it dispatches up to MAX_PARALLEL_METADATA_READS more SEARCH
+        // tasks (join pattern). This is an accepted tradeoff: the rework bounds submission so a saturated
+        // pool now fails fast via running-slot rejection rather than deadlocking on a flooded queue.
+        // Moving resolution off SEARCH entirely is left as a possible follow-up.
         executor.execute(() -> {
             try {
                 Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());

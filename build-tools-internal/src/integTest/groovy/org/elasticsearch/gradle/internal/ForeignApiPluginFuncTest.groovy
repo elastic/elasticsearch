@@ -75,10 +75,14 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         result.task(":extractForeignApiJar").outcome == TaskOutcome.FROM_CACHE
     }
 
-    def "extractForeignApiJar is skipped on non-JDK 21"() {
-        assumeFalse("Requires non-JDK 21", isJdk21())
-
+    def "extractForeignApiJar is skipped when minimumRuntimeVersion is not 21"() {
         given:
+        buildFile.text = buildFile.text.replace(
+            "plugins.apply(ForeignApiPlugin)",
+            """def bp = project.getExtensions().getByType(BuildParameterExtension)
+            bp.setMinimumRuntimeVersion(JavaVersion.VERSION_22)
+            plugins.apply(ForeignApiPlugin)"""
+        )
         clazz('org.acme.Dummy')
 
         when:
@@ -164,11 +168,10 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         buildFile << """
             import org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
             import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
-            import ${ForeignApiPlugin.name}
 
             apply plugin: 'java'
             apply plugin: ForbiddenApisPrecommitPlugin
-            plugins.apply(ForeignApiPlugin)
+            apply plugin: 'elasticsearch.foreign-api'
 
             tasks.withType(CheckForbiddenApisTask).configureEach {
                 replaceSignatureFiles '${sigFile}'

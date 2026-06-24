@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -260,7 +259,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         assertItemFailures(INDEX_NAME, () -> Map.of("embedding_field", List.of(List.of("foo", "bar"))), r -> {
             String expectedMessage = useLegacyFormat || SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false
                 ? "expected [String|Number|Boolean]"
-                : "expected [String|Number|Boolean|InferenceString]";
+                : "expected [String|Number|Boolean|Object]";
             assertThat(rootCause(r.getFailure().getCause()).getMessage(), containsString(expectedMessage));
         });
     }
@@ -382,7 +381,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         // Text expressed as an inference string object
         assertItemFailures(
             INDEX_NAME,
-            () -> Map.of("semantic_field", new InferenceString(DataType.TEXT, "foo")),
+            () -> Map.of("semantic_field", InferenceString.ofText("foo")),
             r -> assertThat(
                 rootCause(r.getFailure().getCause()).getMessage(),
                 containsString("Objects for text values are not supported, use a string literal instead")
@@ -393,10 +392,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         assertItemFailures(
             INDEX_NAME,
             () -> Map.of("semantic_field", List.of(List.of("foo", "bar"))),
-            r -> assertThat(
-                rootCause(r.getFailure().getCause()).getMessage(),
-                containsString("expected [String|Number|Boolean|InferenceString]")
-            )
+            r -> assertThat(rootCause(r.getFailure().getCause()).getMessage(), containsString("expected [String|Number|Boolean|Object]"))
         );
     }
 

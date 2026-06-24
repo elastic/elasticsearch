@@ -33,6 +33,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -134,6 +135,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
         UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
@@ -206,6 +208,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             usageService,
             new InferenceService(client, clusterService),
             userAgentParserRegistry,
+            ipLocationService,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
             crossProjectModeDecider
@@ -483,6 +486,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.pages(),
                 result.completionInfo().documentsFound(),
                 result.completionInfo().valuesLoaded(),
+                result.completionInfo().rowsEmitted(),
+                result.completionInfo().bytesRead(),
+                result.completionInfo().readNanos(),
+                result.completionInfo().cpuNanos(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -499,8 +506,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             result.pages(),
             result.completionInfo().documentsFound(),
             result.completionInfo().valuesLoaded(),
+            result.completionInfo().rowsEmitted(),
+            result.completionInfo().bytesRead(),
+            result.completionInfo().readNanos(),
+            result.completionInfo().cpuNanos(),
             profile,
             request.columnar(),
+            null,
+            false,
             request.async(),
             result.configuration().zoneId(),
             task.getStartTime(),

@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
@@ -39,11 +43,39 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
 public class FileDataSourceValidator implements DataSourceValidator {
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
-    private static final String PARTITION_DETECTION = "partition_detection";
     private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
     private static final int SCHEMA_SAMPLE_SIZE_MAX = 1000;
-    private static final String ERROR_MODE = "error_mode";
-    private static final Set<String> DATASET_FIELDS = Set.of(PARTITION_DETECTION, SCHEMA_SAMPLE_SIZE, ERROR_MODE);
+
+    /**
+     * Coordinator-level data-shape keys accepted on a dataset, sourced from each owning component's
+     * own {@code CONFIG_KEYS}. This is exactly {@code FileSourceFactory.COORDINATOR_KEYS} minus the
+     * EXTERNAL-only knobs ({@code format}/{@code reader}) and the internal {@code _datasource}
+     * envelope — a relationship pinned by {@code FileSourceFactoryValidationTests}. Keeping it sourced
+     * from the components' constants holds the dataset vocabulary in lockstep with the query path, so
+     * a new coordinator key cannot silently regress to EXTERNAL-only.
+     */
+    public static final Set<String> COORDINATOR_DATASET_KEYS;
+    static {
+        Set<String> fields = new HashSet<>();
+        fields.add(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION);
+        fields.addAll(ErrorPolicy.CONFIG_KEYS);
+        fields.addAll(PartitionConfig.CONFIG_KEYS);
+        fields.addAll(FileSplitProvider.CONFIG_KEYS);
+        COORDINATOR_DATASET_KEYS = Set.copyOf(fields);
+    }
+
+    /**
+     * Full set of base dataset fields accepted by every file-based source, independent of file format:
+     * the {@link #COORDINATOR_DATASET_KEYS} plus the format-agnostic {@code schema_sample_size} sampling
+     * bound (which is consumed by the format readers, not the coordinator). Format-specific fields are
+     * unioned on per-resource via {@link #resolveAcceptedFields(String)}.
+     */
+    private static final Set<String> DATASET_FIELDS;
+    static {
+        Set<String> fields = new HashSet<>(COORDINATOR_DATASET_KEYS);
+        fields.add(SCHEMA_SAMPLE_SIZE);
+        DATASET_FIELDS = Set.copyOf(fields);
+    }
 
     private final String type;
     private final Function<Map<String, Object>, DataSourceConfiguration> configFactory;
@@ -51,13 +83,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
     private final Set<String> compressionExtensions;
+    private final BooleanSupplier workloadIdentityEnabled;
 
     public FileDataSourceValidator(
         String type,
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of());
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false);
     }
 
     private FileDataSourceValidator(
@@ -65,13 +98,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
-        Set<String> compressionExtensions
+        Set<String> compressionExtensions,
+        BooleanSupplier workloadIdentityEnabled
     ) {
         this.type = type;
         this.configFactory = configFactory;
         this.supportedSchemes = supportedSchemes;
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
+        this.workloadIdentityEnabled = workloadIdentityEnabled;
     }
 
     /**
@@ -84,7 +119,18 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * runtime resolution in {@code FormatReaderRegistry}/{@code DecompressionCodecRegistry}.
      */
     public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions);
+        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions, workloadIdentityEnabled);
+    }
+
+    /**
+     * Returns a new validator that gates {@code auth=workload_identity} on the supplied boolean supplier.
+     * The supplier is called on each validation. Pass a live supplier (e.g. backed by an
+     * {@code AtomicBoolean} updated via {@code ClusterSettings.addSettingsUpdateConsumer}) so
+     * that operator changes to {@code esql.datasource.workload_identity.enabled} take effect
+     * without a node restart.
+     */
+    public FileDataSourceValidator withWorkloadIdentityEnabled(BooleanSupplier supplier) {
+        return new FileDataSourceValidator(type, configFactory, supportedSchemes, formatConfigKeyResolver, compressionExtensions, supplier);
     }
 
     @Override
@@ -98,6 +144,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return Map.of();
         }
         DataSourceConfiguration config = configFactory.apply(datasourceSettings);
+        if (config instanceof FileDataSourceConfiguration fc
+            && fc.isWorkloadIdentity()
+            && workloadIdentityEnabled.getAsBoolean() == false) {
+            throw new ValidationException().addValidationError(FileDataSourceConfiguration.WORKLOAD_IDENTITY_DISABLED_MESSAGE);
+        }
         return config != null ? config.toStoredSettings() : Map.of();
     }
 
@@ -119,29 +170,64 @@ public class FileDataSourceValidator implements DataSourceValidator {
         rejectUnknownFields(datasetSettings, acceptedFields, errors);
 
         Map<String, Object> result = new HashMap<>();
+
+        // schema_sample_size keeps its dedicated bounded-int validation, which also stores the parsed int.
+        validateInt(datasetSettings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
+
+        // Strictly validate the data-shape coordinator keys by delegating to the very parsers the
+        // query path uses, so a malformed setting is rejected at PUT time with the same message it
+        // would produce at query time. Each parser reads the keys it owns from the settings map.
+        Map<String, Object> settings = datasetSettings;
+        // error_mode + max_errors + max_error_ratio (incl. mutual exclusion) via the owning policy parser.
+        validate(() -> ErrorPolicy.fromConfig(settings, ErrorPolicy.STRICT), errors);
+        // partition_detection enum via its owning parser (partition_path/hive_partitioning are free-form,
+        // matching the query path which treats any non-"false" hive value as enabled).
         validateEnum(
-            datasetSettings,
+            settings,
             result,
-            PARTITION_DETECTION,
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
             PartitionConfig.Strategy.values(),
             PartitionConfig.Strategy::parse,
             errors
         );
-        validateEnum(datasetSettings, result, ERROR_MODE, ErrorPolicy.Mode.values(), ErrorPolicy.Mode::parse, errors);
-        validateInt(datasetSettings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
+        Object schemaResolution = settings.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION);
+        if (schemaResolution != null) {
+            validate(() -> FormatReader.SchemaResolution.parse(schemaResolution.toString()), errors);
+        }
+        Object targetSplitSize = settings.get(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE);
+        if (targetSplitSize != null) {
+            String trimmedSplitSize = targetSplitSize.toString().trim();
+            if (trimmedSplitSize.isEmpty() == false) {
+                validate(() -> FileSplitProvider.validateTargetSplitSize(trimmedSplitSize), errors);
+            }
+        }
 
-        // Format-specific fields pass through without type validation at CRUD time;
-        // the format reader validates types when it consumes the config at query time.
-        if (acceptedFields.size() > DATASET_FIELDS.size()) {
-            for (Map.Entry<String, Object> entry : datasetSettings.entrySet()) {
-                if (DATASET_FIELDS.contains(entry.getKey()) == false && acceptedFields.contains(entry.getKey())) {
-                    result.put(entry.getKey(), entry.getValue());
-                }
+        // Store every accepted setting that is present, as its raw value. Each query-time consumer
+        // re-parses from value.toString(), so raw storage avoids type-coercion mismatches. Format-specific
+        // fields pass through here too; the format reader validates their types at query time. The parsed
+        // schema_sample_size already placed above is left intact.
+        for (Map.Entry<String, Object> entry : datasetSettings.entrySet()) {
+            if (acceptedFields.contains(entry.getKey()) && result.containsKey(entry.getKey()) == false) {
+                result.put(entry.getKey(), entry.getValue());
             }
         }
 
         errors.throwIfValidationErrorsExist();
         return result;
+    }
+
+    /**
+     * Runs an owning component's parser purely for its validation side effect, translating any
+     * parse failure into an accumulated CRUD validation error. {@link IllegalArgumentException}
+     * covers the enum/number/conflict parsers; {@link ElasticsearchException} covers
+     * {@code ByteSizeValue} parse failures from {@link FileSplitProvider#validateTargetSplitSize}.
+     */
+    private static void validate(Runnable parser, ValidationException errors) {
+        try {
+            parser.run();
+        } catch (IllegalArgumentException | ElasticsearchException e) {
+            errors.addValidationError(e.getMessage());
+        }
     }
 
     /**

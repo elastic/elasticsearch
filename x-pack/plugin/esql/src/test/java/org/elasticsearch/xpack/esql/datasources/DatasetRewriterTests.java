@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.metadata.DataSource;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -23,10 +20,14 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -81,7 +82,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
-        assertThat(paramValue(out, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue(out, "region"), equalTo("us-east-1"));
         assertThat(paramValue(out, "format"), equalTo("parquet"));
     }
 
@@ -157,9 +158,11 @@ public class DatasetRewriterTests extends ESTestCase {
         }
     }
 
-    public void testMetadataFieldsRejectedOnDataset() {
-        // METADATA fields on a dataset are rejected at the rewriter rather than silently dropped.
-        // Mirrors the TS / LOOKUP rejection style. _index synthesis is tracked separately.
+    public void testMetadataFieldsThreadedToUnresolvedExternalRelation() {
+        // METADATA fields on FROM <dataset> are no longer rejected; the rewriter carries them
+        // verbatim into UnresolvedExternalRelation so the analyzer's ResolveExternalRelations can
+        // bind each one to an ExternalMetadataAttribute. The registered dataset name also flows
+        // through (drives the per-file _index synthesizer).
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
@@ -168,13 +171,19 @@ public class DatasetRewriterTests extends ESTestCase {
             Source.EMPTY,
             new IndexPattern(Source.EMPTY, "logs"),
             false,
-            List.of(MetadataAttribute.create(Source.EMPTY, MetadataAttribute.INDEX)),
+            List.of(MetadataAttribute.create(Source.EMPTY, MetadataAttribute.INDEX), MetadataAttribute.create(Source.EMPTY, "_id")),
             IndexMode.STANDARD,
             null
         );
-        VerificationException ex = expectThrows(VerificationException.class, () -> DatasetRewriter.rewrite(relation, project, RESOLVER));
-        assertThat(ex.getMessage(), containsString("METADATA fields are not supported on datasets"));
-        assertThat(ex.getMessage(), containsString("logs"));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relation, project, RESOLVER);
+
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat("metadata fields preserved verbatim", out.metadataFields(), hasSize(2));
+        assertThat(out.metadataFields().get(0).name(), equalTo(MetadataAttribute.INDEX));
+        assertThat(out.metadataFields().get(1).name(), equalTo("_id"));
+        assertThat("dataset name threaded", out.datasetName(), equalTo("logs"));
     }
 
     public void testDatasetReferencingUnknownDataSourceFailsWithExplicitMessage() {
@@ -205,7 +214,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
-        assertThat(paramValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("us-east-1"));
     }
 
     // ---- Pattern expansion (parity with FROM <index> patterns via IndexNameExpressionResolver) ----
@@ -314,19 +323,15 @@ public class DatasetRewriterTests extends ESTestCase {
 
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
-        assertThat(out.config().get("max_connections"), equalTo((Object) 50));
-        assertThat(out.config().get("request_timeout_ms"), equalTo((Object) 30000L));
-        assertThat(out.config().get("use_compression"), equalTo((Object) Boolean.TRUE));
+        assertThat(datasourceParamValue(out, "max_connections"), equalTo(50));
+        assertThat(datasourceParamValue(out, "request_timeout_ms"), equalTo(30000L));
+        assertThat(datasourceParamValue(out, "use_compression"), equalTo(Boolean.TRUE));
         assertThat(out.config().get("format"), equalTo((Object) "parquet"));
     }
 
-    public void testSecretSettingsArrivedAsSecureStringNotPlaintext() {
-        // Secret values arrive in the carrier as SecureString rather than plaintext String — a
-        // hygiene boundary at this layer, not an end-to-end guarantee. DataSourceSetting wraps the
-        // underlying String in a SecureString on every secretValue() call; consumers may close()
-        // after use to bound the carrier-side lifetime. Plugins still call .toString() at the point
-        // of use, which materializes a plaintext copy that the SDK consumes — full secret-handling
-        // protection is out of scope for this layer and is tracked under separate encryption work.
+    public void testSecretSettingsForwardedAsPlaintextString() {
+        // Plaintext-stored secrets (the no-encryption-service producer path) pass through mergeSettings
+        // as their original String. The connector receives the String directly — no decrypt needed.
         DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting("AKIAEXAMPLE_SECRET_VALUE", true)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
@@ -334,10 +339,27 @@ public class DatasetRewriterTests extends ESTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
 
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
-        Object accessKey = out.config().get("access_key");
-        assertThat(accessKey, instanceOf(org.elasticsearch.common.settings.SecureString.class));
-        // .toString() at the consumer surfaces the plaintext.
-        assertThat(accessKey.toString(), equalTo("AKIAEXAMPLE_SECRET_VALUE"));
+        Object accessKey = datasourceParamValue(out, "access_key");
+        assertThat(accessKey, instanceOf(String.class));
+        assertThat(accessKey, equalTo("AKIAEXAMPLE_SECRET_VALUE"));
+    }
+
+    public void testSecretSettingsForwardedAsEncryptedDataCarrier() {
+        // Encrypted secrets (the master-side encryption step produced an EncryptedData carrier) pass
+        // through mergeSettings by reference. The decryption step at the connector boundary
+        // (DataSourceCredentials.decryptInPlace) recognizes the carrier by type and materialises
+        // plaintext just before the SDK call.
+        EncryptedData carrier = new EncryptedData("test-key", new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 });
+        DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting(carrier, true)));
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        Object accessKey = datasourceParamValue(out, "access_key");
+        assertThat("encrypted secret stays an EncryptedData carrier on the live config map", accessKey, instanceOf(EncryptedData.class));
+        assertSame("carrier is forwarded by reference", carrier, accessKey);
     }
 
     public void testFastPathSkipsResolverWhenNoPatternCouldMatchDataset() {
@@ -569,5 +591,14 @@ public class DatasetRewriterTests extends ESTestCase {
     private static String paramValue(UnresolvedExternalRelation relation, String key) {
         Object value = relation.config().get(key);
         return value instanceof BytesRef br ? BytesRefs.toString(br) : String.valueOf(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object datasourceParamValue(UnresolvedExternalRelation relation, String key) {
+        Object sub = relation.config().get(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
+        if (sub instanceof Map<?, ?> subMap) {
+            return ((Map<String, Object>) subMap).get(key);
+        }
+        return null;
     }
 }

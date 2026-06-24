@@ -26,16 +26,16 @@ import org.apache.orc.Writer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Build-time generator for ORC fixture files. Converts CSV to ORC.
@@ -55,7 +55,9 @@ public final class OrcFixtureGenerator {
 
     private OrcFixtureGenerator() {}
 
-    @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.out and Path.of")
+    private static final Logger logger = LoggerFactory.getLogger(OrcFixtureGenerator.class);
+
+    @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
         if (args.length == 2) {
             java.nio.file.Path sourcePath = java.nio.file.Path.of(args[0]);
@@ -66,7 +68,7 @@ public final class OrcFixtureGenerator {
             Files.createDirectories(outputPath.getParent());
             Files.deleteIfExists(outputPath);
             generate(sourcePath, outputPath);
-            System.out.println("Generated ORC fixture: " + outputPath);
+            logger.info("Generated ORC fixture: {}", outputPath);
         } else if (args.length == 3) {
             java.nio.file.Path sourcePath = java.nio.file.Path.of(args[0]);
             java.nio.file.Path outputDir = java.nio.file.Path.of(args[1]);
@@ -87,7 +89,7 @@ public final class OrcFixtureGenerator {
                 java.nio.file.Path outputPath = outputDir.resolve(fileName);
                 Files.deleteIfExists(outputPath);
                 generateFromRows(result, range.from(), range.to(), outputPath);
-                System.out.println("Generated ORC split fixture: " + outputPath + " (rows " + range.from() + "-" + range.to() + ")");
+                logger.info("Generated ORC split fixture: {} (rows {}-{})", outputPath, range.from(), range.to());
             }
         } else {
             System.err.println("Usage: OrcFixtureGenerator <source-csv-path> <output-orc-path>");
@@ -134,7 +136,7 @@ public final class OrcFixtureGenerator {
         // Precompute per-column child-index paths (top-level fields have a 1-element path);
         // used at write-time to navigate StructColumnVector.fields[]. Flat (literal-dot)
         // columns resolve to a single top-level index even if their name contains dots.
-        boolean[] flatten = computeFlatten(columns);
+        boolean[] flatten = CsvFixtureParser.computeFlatten(columns);
         int[][] columnVectorPaths = new int[columns.size()][];
         for (int i = 0; i < columns.size(); i++) {
             if (flatten[i]) {
@@ -215,7 +217,7 @@ public final class OrcFixtureGenerator {
      * flat to preserve backward compatibility with existing fixtures.
      */
     private static TypeDescription buildSchema(List<CsvFixtureParser.ColumnSpec> columns, boolean[] isListColumn) {
-        boolean[] flatten = computeFlatten(columns);
+        boolean[] flatten = CsvFixtureParser.computeFlatten(columns);
         SchemaNode root = new SchemaNode();
         for (int i = 0; i < columns.size(); i++) {
             if (flatten[i]) {
@@ -238,27 +240,6 @@ public final class OrcFixtureGenerator {
             struct.addField(e.getKey(), buildType(e.getValue(), columns, isListColumn));
         }
         return struct;
-    }
-
-    /** See {@code ParquetFixtureGenerator.computeFlatten}; same rule applied for ORC. */
-    static boolean[] computeFlatten(List<CsvFixtureParser.ColumnSpec> columns) {
-        Set<String> names = new HashSet<>();
-        for (CsvFixtureParser.ColumnSpec c : columns) {
-            names.add(c.name());
-        }
-        boolean[] flatten = new boolean[columns.size()];
-        for (int i = 0; i < columns.size(); i++) {
-            String name = columns.get(i).name();
-            int dot = name.indexOf('.');
-            while (dot > 0) {
-                if (names.contains(name.substring(0, dot))) {
-                    flatten[i] = true;
-                    break;
-                }
-                dot = name.indexOf('.', dot + 1);
-            }
-        }
-        return flatten;
     }
 
     private static TypeDescription buildType(SchemaNode node, List<CsvFixtureParser.ColumnSpec> columns, boolean[] isListColumn) {

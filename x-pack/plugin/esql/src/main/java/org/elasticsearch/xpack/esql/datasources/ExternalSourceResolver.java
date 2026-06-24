@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -71,16 +70,73 @@ public class ExternalSourceResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(ExternalSourceResolver.class);
 
-    static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
+    public static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
 
-    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION);
+    /**
+     * Config key under which {@link DatasetRewriter} stores data-source-level settings
+     * (auth credentials, region, etc.) when building the merged config for a dataset query.
+     * These are kept separate from the dataset format settings so that file-format factories
+     * can validate only the keys they own, and so that credential values are not embedded in
+     * the serialized plan sent to data nodes.
+     */
+    public static final String DATASOURCE_CONFIG_KEY = "_datasource";
+
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION, DATASOURCE_CONFIG_KEY);
 
     private static final int MAX_PARALLEL_METADATA_READS = 16;
+
+    /**
+     * Returns a config suitable for passing to a storage provider: merges the {@link #DATASOURCE_CONFIG_KEY}
+     * sub-map (data-source auth/connection settings) into the top level so that the provider can
+     * access credentials. For queries that do not originate from a dataset (no {@code _datasource}
+     * key), the input map is returned unchanged.
+     */
+    static Map<String, Object> storageConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return config;
+        }
+        Object raw = config.get(DATASOURCE_CONFIG_KEY);
+        if (raw == null) {
+            return config;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> datasource = (Map<String, Object>) raw;
+        if (datasource.isEmpty()) {
+            return config;
+        }
+        Map<String, Object> result = new HashMap<>(datasource);
+        config.forEach((k, v) -> {
+            if (DATASOURCE_CONFIG_KEY.equals(k) == false) {
+                result.put(k, v);
+            }
+        });
+        return result;
+    }
+
+    /**
+     * Returns a config with the {@link #DATASOURCE_CONFIG_KEY} sub-map removed. Used as the fallback
+     * when serializing a plan to a data node whose transport version predates the encrypted-secret
+     * carrier (see {@code ExternalSourceExec.writeTo}): such a node cannot deserialize the carrier, so
+     * the credentials are stripped and it reverts to pre-credential-forwarding behavior.
+     */
+    public static Map<String, Object> planConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty() || config.containsKey(DATASOURCE_CONFIG_KEY) == false) {
+            return config;
+        }
+        Map<String, Object> result = new HashMap<>(config);
+        result.remove(DATASOURCE_CONFIG_KEY);
+        return result;
+    }
 
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
     private final Settings settings;
     private final ExternalSourceCacheService cacheService;
+
+    /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
+    public ExternalSourceCacheService cacheService() {
+        return cacheService;
+    }
 
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
         this(executor, dataSourceModule, Settings.EMPTY, null);
@@ -134,6 +190,10 @@ public class ExternalSourceResolver {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
+                    } catch (IllegalArgumentException | UnsupportedOperationException e) {
+                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+                        listener.onFailure(e);
+                        return;
                     } catch (Exception e) {
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         String exceptionMessage = e.getMessage();
@@ -194,10 +254,11 @@ public class ExternalSourceResolver {
             object = provider.newObject(storagePath);
         }
 
-        // Capture the raw file schema before enriching with virtual columns: schemaMap describes
-        // the physical schema each reader actually sees, not the user-facing projection.
+        // Capture the raw file schema: schemaMap describes the physical schema each reader actually
+        // sees, not the user-facing projection. _file.* columns are no longer glued onto the schema
+        // here — they are request-driven (FROM ... METADATA _file.path, or the temporary EXTERNAL
+        // shim that injects them into the relation's metadataFields). See ResolveExternalRelations.
         List<Attribute> fileSchema = extMetadata.schema();
-        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
 
         FileList singletonList = GlobExpander.fileListOf(
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
@@ -354,7 +415,8 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
+        // _file.* columns are request-driven now; no auto-attach to the schema. See
+        // ResolveExternalRelations / the EXTERNAL shim.
 
         // FFW: every file's readSchema is the anchor's data-only schema, identity mapping.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
@@ -405,7 +467,7 @@ public class ExternalSourceResolver {
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
         StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
         if (config != null && config.isEmpty() == false) {
-            return registry.createProvider(storagePath.scheme(), settings, config);
+            return registry.createProvider(storagePath.scheme(), settings, storageConfig(config));
         }
         return registry.provider(storagePath);
     }
@@ -437,6 +499,11 @@ public class ExternalSourceResolver {
             mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
+        // Warm stats live in the entry's safeMetadata, reconciled there from the data-node capture
+        // (DriverCompletionInfo → ExternalSourceCacheService.reconcileSourceStats). The optimizer
+        // reads the _stats.* keys straight off this map; no separate cache lookup.
+        final Map<String, Object> finalMetadata = entry.safeMetadata();
+
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -455,7 +522,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return entry.safeMetadata();
+                return finalMetadata;
             }
 
             @Override
@@ -504,7 +571,8 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
+        // _file.* columns are request-driven now; no auto-attach to the schema. See
+        // ResolveExternalRelations / the EXTERNAL shim.
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
         return new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
@@ -689,14 +757,7 @@ public class ExternalSourceResolver {
         if (value == null) {
             return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
         }
-        return switch (value.toString().toLowerCase(Locale.ROOT)) {
-            case "first_file_wins" -> FormatReader.SchemaResolution.FIRST_FILE_WINS;
-            case "strict" -> FormatReader.SchemaResolution.STRICT;
-            case "union_by_name" -> FormatReader.SchemaResolution.UNION_BY_NAME;
-            default -> throw new IllegalArgumentException(
-                "Unknown schema_resolution value [" + value + "]. Valid values are: first_file_wins, strict, union_by_name"
-            );
-        };
+        return FormatReader.SchemaResolution.parse(value.toString());
     }
 
     private static Map<String, Object> mergeConfigs(
@@ -879,28 +940,6 @@ public class ExternalSourceResolver {
         return withSchema(metadata, List.copyOf(enrichedSchema));
     }
 
-    public static ExternalSourceMetadata enrichSchemaWithFileMetadataColumns(ExternalSourceMetadata metadata) {
-        List<Attribute> originalSchema = metadata.schema();
-        Set<String> existingNames = new LinkedHashSet<>();
-        for (Attribute attr : originalSchema) {
-            existingNames.add(attr.name());
-        }
-
-        List<Attribute> enrichedSchema = new ArrayList<>(originalSchema);
-        for (Map.Entry<String, DataType> entry : FileMetadataColumns.COLUMNS.entrySet()) {
-            String name = entry.getKey();
-            if (existingNames.contains(name) == false) {
-                enrichedSchema.add(new ExternalMetadataAttribute(Source.EMPTY, name, entry.getValue()));
-            }
-        }
-
-        if (enrichedSchema.size() == originalSchema.size()) {
-            return metadata;
-        }
-
-        return withSchema(metadata, List.copyOf(enrichedSchema));
-    }
-
     /**
      * Validates that data source plugins export ReferenceAttribute only.
      * Called when receiving schema from any plugin (FormatReader, TableCatalog, Connector).
@@ -933,7 +972,9 @@ public class ExternalSourceResolver {
         }
 
         // Merge the config from resolveMetadata (e.g. endpoint for Flight) with query-level params (WITH clause).
-        // Query-level params take precedence so users can override connector-resolved values.
+        // Query-level params take precedence so users can override connector-resolved values. _datasource is
+        // retained (carrying encrypted secrets) so it can travel to data nodes; ExternalSourceExec.writeTo
+        // gates it on the transport version and strips it for older targets.
         Map<String, Object> mergedConfig;
         Map<String, Object> metadataConfig = metadata.config();
         if (metadataConfig != null && metadataConfig.isEmpty() == false) {
@@ -942,7 +983,7 @@ public class ExternalSourceResolver {
                 mergedConfig.putAll(queryConfig);
             }
         } else {
-            mergedConfig = queryConfig;
+            mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
         Map<String, Object> enrichedSourceMetadata = metadata.statistics()

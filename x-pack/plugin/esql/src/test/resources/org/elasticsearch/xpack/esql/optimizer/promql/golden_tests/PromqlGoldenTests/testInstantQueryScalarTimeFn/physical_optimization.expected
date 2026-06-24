@@ -1,0 +1,6 @@
+ProjectExec[[result{r}#0, step{r}#1 AS step#2]]
+\_LimitExec[1000[INTEGER],null]
+  \_FilterExec[ISNOTNULL(result{r}#0)]
+    \_EvalExec[[TODOUBLE(step{r}#1) / 1000.0[DOUBLE] AS result#0]]
+      \_MvExpandExec[[1715299380000][DATETIME] AS step#2,step{r}#1]
+        \_LocalSourceExec[[step{r}#2],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=1715299380000]]]}]

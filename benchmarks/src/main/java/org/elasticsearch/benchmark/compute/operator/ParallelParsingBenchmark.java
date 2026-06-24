@@ -25,6 +25,9 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -134,21 +137,55 @@ public class ParallelParsingBenchmark {
     }
 
     private static class BenchLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            byte[] buf = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
-                for (int i = 0; i < bytesRead; i++) {
-                    consumed++;
-                    if (buf[i] == '\n') {
-                        return consumed;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return new RecordSplitter() {
+                @Override
+                public long findNextRecordBoundary(InputStream stream) throws IOException {
+                    long consumed = 0;
+                    byte[] buf = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
+                        for (int i = 0; i < bytesRead; i++) {
+                            consumed++;
+                            if (consumed > maxRecordBytes) {
+                                return RECORD_TOO_LARGE;
+                            }
+                            if (buf[i] == '\n') {
+                                return consumed;
+                            }
+                        }
                     }
+                    return -1;
                 }
-            }
-            return -1;
+
+                @Override
+                public int findLastRecordBoundary(byte[] buf, int offset, int length) {
+                    int end = offset + length;
+                    int recordStart = offset;
+                    int lastBoundary = -1;
+                    for (int i = offset; i < end; i++) {
+                        if (buf[i] == '\n') {
+                            if (i - recordStart + 1 > maxRecordBytes) {
+                                return lastBoundary >= 0 ? lastBoundary : (int) RECORD_TOO_LARGE;
+                            }
+                            lastBoundary = i;
+                            recordStart = i + 1;
+                        }
+                    }
+                    return end - recordStart > maxRecordBytes && lastBoundary < 0 ? (int) RECORD_TOO_LARGE : lastBoundary;
+                }
+
+                @Override
+                public int maxRecordBytes() {
+                    return maxRecordBytes;
+                }
+            };
         }
 
         @Override

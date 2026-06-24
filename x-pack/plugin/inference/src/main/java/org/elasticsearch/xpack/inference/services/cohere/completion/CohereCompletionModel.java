@@ -45,7 +45,7 @@ public class CohereCompletionModel extends CohereModel {
             modelConfigurations,
             modelSecrets,
             (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            ((CohereCompletionServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((CohereCompletionServiceSettings) modelConfigurations.getServiceSettings()).commonSettings()
         );
     }
 

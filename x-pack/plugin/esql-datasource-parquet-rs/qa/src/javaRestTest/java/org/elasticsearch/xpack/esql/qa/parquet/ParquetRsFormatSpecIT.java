@@ -92,7 +92,11 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         "nestedKeepTwoSubfieldsSameParent",
         "nestedKeepMixedTopLevelAndNested",
         "nestedStatsByNested",
-        "nestedNullPropagation"
+        "nestedNullPropagation",
+        "nestedWhereEquals",
+        "nestedWhereIsNull",
+        "nestedStatsMinMax",
+        "nestedFilterAndProjectMixed"
     );
 
     @Override

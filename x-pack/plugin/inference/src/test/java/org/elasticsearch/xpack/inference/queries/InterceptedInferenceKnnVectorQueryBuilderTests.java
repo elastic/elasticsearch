@@ -526,9 +526,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
 
     public void testCcsMultipleInputsRejectedForOldRemoteTransportVersion() throws Exception {
         assertCcsInputRejectedForOldRemoteTransportVersion(
-            new InferenceStringGroup(
-                List.of(new InferenceString(DataType.TEXT, "first input"), new InferenceString(DataType.TEXT, "second input"))
-            )
+            new InferenceStringGroup(List.of(InferenceString.ofText("first input"), InferenceString.ofText("second input")))
         );
     }
 

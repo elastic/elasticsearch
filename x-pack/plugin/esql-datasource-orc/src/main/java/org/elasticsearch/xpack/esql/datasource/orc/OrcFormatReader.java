@@ -21,6 +21,9 @@ import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
+import org.apache.orc.BooleanColumnStatistics;
 import org.apache.orc.ColumnStatistics;
 import org.apache.orc.DoubleColumnStatistics;
 import org.apache.orc.IntegerColumnStatistics;
@@ -35,9 +38,13 @@ import org.apache.orc.impl.OrcTail;
 import org.apache.orc.impl.ReaderImpl;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -46,22 +53,29 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -93,7 +107,9 @@ import java.util.concurrent.ExecutionException;
  *   <li>Stripe-level split parallelism for multi-stripe files</li>
  * </ul>
  */
-public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader {
+public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, DynamicThresholdAware {
+
+    private static final Logger LOGGER = LogManager.getLogger(OrcFormatReader.class);
 
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
@@ -113,26 +129,39 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
+    private final OrcReaderCounters counters = new OrcReaderCounters();
+    private final DynamicThreshold dynamicThreshold;
 
     public OrcFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, null, null);
+        this(blockFactory, null, null, null);
     }
 
-    private OrcFormatReader(BlockFactory blockFactory, SearchArgument pushedFilter, OrcPushedExpressions pushedExpressions) {
+    private OrcFormatReader(
+        BlockFactory blockFactory,
+        SearchArgument pushedFilter,
+        OrcPushedExpressions pushedExpressions,
+        DynamicThreshold dynamicThreshold
+    ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
+        this.dynamicThreshold = dynamicThreshold;
     }
 
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof SearchArgument sarg) {
-            return new OrcFormatReader(this.blockFactory, sarg, null);
+            return new OrcFormatReader(this.blockFactory, sarg, null, dynamicThreshold);
         }
         if (pushedFilter instanceof OrcPushedExpressions exprs) {
-            return new OrcFormatReader(this.blockFactory, null, exprs);
+            return new OrcFormatReader(this.blockFactory, null, exprs, dynamicThreshold);
         }
         return this;
+    }
+
+    @Override
+    public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
+        return new OrcFormatReader(blockFactory, pushedFilter, pushedExpressions, threshold);
     }
 
     @Override
@@ -175,7 +204,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * {@link OrcFile.ReaderOptions#orcTail}. When ORC sees a pre-supplied tail it skips
      * {@code ReaderImpl.extractFileTail(FileSystem, Path, long)} and the associated remote read.
      */
-    private static Reader openReaderCached(OrcStorageObjectAdapter fs, Path path) throws IOException {
+    private Reader openReaderCached(OrcStorageObjectAdapter fs, Path path) throws IOException {
         OrcTail tail = loadTail(fs, path);
         return OrcFile.createReader(path, orcReaderOptions(fs).orcTail(tail));
     }
@@ -186,9 +215,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * the tail) and immediately closes it after extracting the {@link OrcTail}; subsequent calls
      * reuse the cached tail.
      */
-    private static OrcTail loadTail(OrcStorageObjectAdapter fs, Path path) throws IOException {
+    private OrcTail loadTail(OrcStorageObjectAdapter fs, Path path) throws IOException {
+        // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
+        boolean[] missed = { false };
         try {
-            return PARSED_FOOTERS.getOrLoad(fs.cacheKey(), key -> {
+            OrcTail tail = PARSED_FOOTERS.getOrLoad(fs.cacheKey(), key -> {
+                missed[0] = true;
                 // Open a reader once, extract the parsed tail, then close the reader. The
                 // OrcTail itself retains the serialized buffer + parsed protobuf footer and is
                 // safe to share across threads (treated as immutable by all callers).
@@ -207,6 +239,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     return ReaderImpl.extractFileTail(r.getSerializedFileFooter());
                 }
             });
+            counters.recordFooterCache(missed[0] == false);
+            return tail;
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/
             // ElasticsearchException; anything else (typically a plain RuntimeException from
@@ -225,50 +259,21 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         long rowCount = reader.getNumberOfRows();
         long sizeInBytes = reader.getContentLength();
         ColumnStatistics[] orcStats = reader.getStatistics();
-        List<String> fieldNames = schema.getFieldNames();
-        List<TypeDescription> children = schema.getChildren();
 
+        // Walk every dotted leaf the flattener emits, publishing stats at the same names the
+        // planner sees as ESQL attributes. Without this, only top-level entries land in the
+        // map and nested-leaf aggregate pushdown (e.g. MIN(event.id)) silently degrades.
+        // STRUCT intermediates are skipped by walkDottedLeaves — their ColumnStatistics carry
+        // no useful min/max (they aggregate child statistics into the parent's id) and they
+        // bind to no ESQL attribute. Truncated over-cap groups are also skipped: the flattener
+        // emits them as a single UNSUPPORTED attribute that the planner never reads stats for.
         Map<String, SourceStatistics.ColumnStatistics> columnStats = new HashMap<>();
-        for (int i = 0; i < fieldNames.size(); i++) {
-            String name = fieldNames.get(i);
-            int colId = children.get(i).getId();
-            if (colId >= orcStats.length) {
-                continue;
+        walkDottedLeaves(schema, (dottedPath, type, truncated) -> {
+            if (truncated) {
+                return;
             }
-            ColumnStatistics cs = orcStats[colId];
-            long totalValues = cs.getNumberOfValues();
-            long nullCount = rowCount - totalValues;
-            Object minVal = extractOrcMin(cs);
-            Object maxVal = extractOrcMax(cs);
-            long bytesOnDisk = cs.getBytesOnDisk();
-
-            columnStats.put(name, new SourceStatistics.ColumnStatistics() {
-                @Override
-                public OptionalLong nullCount() {
-                    return OptionalLong.of(nullCount);
-                }
-
-                @Override
-                public OptionalLong distinctCount() {
-                    return OptionalLong.empty();
-                }
-
-                @Override
-                public Optional<Object> minValue() {
-                    return Optional.ofNullable(minVal);
-                }
-
-                @Override
-                public Optional<Object> maxValue() {
-                    return Optional.ofNullable(maxVal);
-                }
-
-                @Override
-                public OptionalLong sizeInBytes() {
-                    return bytesOnDisk > 0 ? OptionalLong.of(bytesOnDisk) : OptionalLong.empty();
-                }
-            });
-        }
+            collectLeafStatistics(type, dottedPath, rowCount, orcStats, columnStats);
+        });
 
         return new SourceStatistics() {
             @Override
@@ -286,6 +291,61 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return columnStats.isEmpty() ? Optional.empty() : Optional.of(columnStats);
             }
         };
+    }
+
+    /**
+     * Publishes ORC column statistics for a single non-STRUCT leaf at its dotted attribute name.
+     * Called from {@link #extractStatistics} via {@link #walkDottedLeaves}, so the keys match
+     * exactly what {@link #convertOrcSchemaToAttributes} produces and the planner looks up.
+     *
+     * <p>MAP/LIST&lt;STRUCT&gt;/UNION leaves are still emitted with whatever ColumnStatistics ORC
+     * computed for them — the planner sees those as UNSUPPORTED attributes and never reads the
+     * stats, but emitting them does no harm and keeps this helper unconditional.
+     */
+    private static void collectLeafStatistics(
+        TypeDescription type,
+        String dottedPath,
+        long rowCount,
+        ColumnStatistics[] orcStats,
+        Map<String, SourceStatistics.ColumnStatistics> out
+    ) {
+        int colId = type.getId();
+        if (colId >= orcStats.length) {
+            return;
+        }
+        ColumnStatistics cs = orcStats[colId];
+        long totalValues = cs.getNumberOfValues();
+        long nullCount = rowCount - totalValues;
+        Object minVal = extractOrcMin(cs);
+        Object maxVal = extractOrcMax(cs);
+        long bytesOnDisk = cs.getBytesOnDisk();
+
+        out.put(dottedPath, new SourceStatistics.ColumnStatistics() {
+            @Override
+            public OptionalLong nullCount() {
+                return OptionalLong.of(nullCount);
+            }
+
+            @Override
+            public OptionalLong distinctCount() {
+                return OptionalLong.empty();
+            }
+
+            @Override
+            public Optional<Object> minValue() {
+                return Optional.ofNullable(minVal);
+            }
+
+            @Override
+            public Optional<Object> maxValue() {
+                return Optional.ofNullable(maxVal);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return bytesOnDisk > 0 ? OptionalLong.of(bytesOnDisk) : OptionalLong.empty();
+            }
+        });
     }
 
     private static Object extractOrcMin(ColumnStatistics cs) {
@@ -318,6 +378,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
+        long footerStartNanos = System.nanoTime();
         Reader reader = openReaderCached(fs, path);
         TypeDescription schema = reader.getSchema();
         List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
@@ -326,10 +387,37 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
+        long stripeCount = reader.getStripes().size();
+        int totalColumns = schema.getFieldNames().size();
+        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripeCount);
+        counters.addStripesTotal(stripeCount);
+        counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
-        CloseableIterator<Page> iter = new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+        CloseableIterator<Page> iter = new OrcPageIterator(
+            reader,
+            rows,
+            schema,
+            projectedAttributes,
+            batchSize,
+            blockFactory,
+            StripeSkipTable.build(reader, schema, dynamicThreshold, 0L, Long.MAX_VALUE),
+            counters
+        );
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
+    }
+
+    private static int countProjected(boolean[] include, int totalColumns) {
+        if (include == null) {
+            return totalColumns;
+        }
+        int n = 0;
+        for (int i = 1; i < include.length; i++) {
+            if (include[i]) {
+                n++;
+            }
+        }
+        return n;
     }
 
     @Override
@@ -419,6 +507,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         // thread.
         // 2. PARSED_FOOTERS — JVM-wide cache keyed by (path, length); shared across producer
         // threads and across queries within the access TTL.
+        long footerStartNanos = System.nanoTime();
         OrcTail tail;
         if (context.fileContext() instanceof OrcTail cached) {
             tail = cached;
@@ -438,9 +527,48 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
         readOptions.range(rangeStart, rangeEnd - rangeStart);
+        long stripesInRange = countStripesInRange(reader, rangeStart, rangeEnd);
+        long stripesInFile = reader.getStripes().size();
+        int totalColumns = schema.getFieldNames().size();
+        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripesInFile);
+        counters.addStripesTotal(stripesInRange);
+        counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
-        return new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+        return new OrcPageIterator(
+            reader,
+            rows,
+            schema,
+            projectedAttributes,
+            batchSize,
+            blockFactory,
+            StripeSkipTable.build(reader, schema, dynamicThreshold, rangeStart, rangeEnd),
+            counters
+        );
+    }
+
+    /** Returns {@code object.length()} if known, or 0 when unavailable. Best-effort sizing for
+     *  the {@code footer_size_bytes} counter; never throws. */
+    private static long sizeOrZero(StorageObject object) {
+        try {
+            long len = object.length();
+            return len >= 0 ? len : 0;
+        } catch (IOException e) {
+            return 0;
+        }
+    }
+
+    /** Counts stripes whose offset falls in {@code [rangeStart, rangeEnd)} — matches ORC's
+     *  range-based read selection. */
+    private static long countStripesInRange(Reader reader, long rangeStart, long rangeEnd) {
+        long n = 0;
+        for (StripeInformation stripe : reader.getStripes()) {
+            long off = stripe.getOffset();
+            if (off >= rangeStart && off < rangeEnd) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private static List<Attribute> resolveProjection(List<Attribute> attributes, List<String> projectedColumns) {
@@ -453,6 +581,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             attributeMap.put(attr.name(), attr);
         }
         for (String columnName : projectedColumns) {
+            if (ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName)) {
+                // Synthetic file-global row index, not an ORC column. Typed LONG (not NULL) so the
+                // producer pipeline reads it as a LongBlock; OrcPageIterator fills it from
+                // RecordReader.getRowNumber() rather than from the ORC vectors.
+                projected.add(SyntheticColumns.newRowPositionAttribute());
+                continue;
+            }
             Attribute attr = attributeMap.get(columnName);
             projected.add(
                 attr != null ? attr : new ReferenceAttribute(Source.EMPTY, null, columnName, DataType.NULL, Nullability.TRUE, null, false)
@@ -536,6 +671,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 nameSet.add(leaf.getColumnName());
             }
             readOptions.searchArgument(resolvedFilter, nameSet.toArray(new String[0]));
+            counters.markPredicatePushdownUsed();
+            counters.addPredicateColumns(nameSet);
         }
         return readOptions;
     }
@@ -589,9 +726,26 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         return "orc";
     }
 
+    /**
+     * Returns an immutable typed snapshot of the ORC reader's counters for the operator-status
+     * envelope. Zero counters, false flag, empty predicate columns before any read() / readRange()
+     * has run.
+     */
+    @Override
+    public OrcReaderStatus statusSnapshot() {
+        return counters.snapshot();
+    }
+
     @Override
     public List<String> fileExtensions() {
         return List.of(".orc");
+    }
+
+    @Override
+    public RowPositionStrategy rowPositionStrategy() {
+        // OrcPageIterator fills the {@code _rowPosition} slot natively from
+        // {@code RecordReader#getRowNumber()}; nothing for the dispatcher to splice.
+        return PassThroughRowPositionStrategy.INSTANCE;
     }
 
     @Override
@@ -603,10 +757,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * Maximum recursion depth for nested STRUCT flattening; mirrors
      * {@code ParquetFormatReader.MAX_STRUCT_FLATTENING_DEPTH}. Groups deeper than the cap
      * surface as a single UNSUPPORTED attribute and a DEBUG log line.
+     *
+     * <p>Depth counts from 1 at the schema's top-level children, so the deepest reachable
+     * group is at depth {@code MAX_STRUCT_FLATTENING_DEPTH}. The Parquet flattener uses the
+     * same convention so the two formats accept the same set of valid paths.
      */
     static final int MAX_STRUCT_FLATTENING_DEPTH = 64;
-
-    private static final org.elasticsearch.logging.Logger LOGGER = org.elasticsearch.logging.LogManager.getLogger(OrcFormatReader.class);
 
     /**
      * Recursively converts an ORC {@link TypeDescription} into ESQL {@link Attribute}s, flattening
@@ -708,12 +864,243 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         visitor.visit(dottedPath, type, false);
     }
 
+    private static final class StripeSkipTable {
+        private final DynamicThreshold threshold;
+        private final long[] startRows;
+        private final boolean[] active;
+        private final boolean[] hasStats;
+        private final boolean[] nullOnly;
+        private final long[] nullCounts;
+        private final long[] rawMins;
+        private final long[] rawMaxs;
+        // Populated instead of rawMins/rawMaxs when the threshold is BYTES_REF (keyword/text).
+        private final BytesRef[] rawMinBytes;
+        private final BytesRef[] rawMaxBytes;
+
+        private StripeSkipTable(
+            DynamicThreshold threshold,
+            long[] startRows,
+            boolean[] active,
+            boolean[] hasStats,
+            boolean[] nullOnly,
+            long[] nullCounts,
+            long[] rawMins,
+            long[] rawMaxs,
+            BytesRef[] rawMinBytes,
+            BytesRef[] rawMaxBytes
+        ) {
+            this.threshold = threshold;
+            this.startRows = startRows;
+            this.active = active;
+            this.hasStats = hasStats;
+            this.nullOnly = nullOnly;
+            this.nullCounts = nullCounts;
+            this.rawMins = rawMins;
+            this.rawMaxs = rawMaxs;
+            this.rawMinBytes = rawMinBytes;
+            this.rawMaxBytes = rawMaxBytes;
+        }
+
+        static StripeSkipTable build(Reader reader, TypeDescription schema, DynamicThreshold threshold, long rangeStart, long rangeEnd)
+            throws IOException {
+            if (threshold == null) {
+                return null;
+            }
+            TypeDescription sortType = buildDottedNameToType(schema).get(threshold.columnName());
+            if (sortType == null) {
+                return null;
+            }
+            List<StripeInformation> stripes = reader.getStripes();
+            List<StripeStatistics> stripeStats = reader.getStripeStatistics();
+            if (stripes.isEmpty() || stripeStats.isEmpty()) {
+                return null;
+            }
+            boolean bytesRef = threshold.elementType() == ElementType.BYTES_REF;
+            long[] startRows = new long[stripes.size() + 1];
+            boolean[] active = new boolean[stripes.size()];
+            boolean[] hasStats = new boolean[stripes.size()];
+            boolean[] nullOnly = new boolean[stripes.size()];
+            long[] nullCounts = new long[stripes.size()];
+            long[] rawMins = new long[stripes.size()];
+            long[] rawMaxs = new long[stripes.size()];
+            BytesRef[] rawMinBytes = bytesRef ? new BytesRef[stripes.size()] : null;
+            BytesRef[] rawMaxBytes = bytesRef ? new BytesRef[stripes.size()] : null;
+            long row = 0L;
+            int columnId = sortType.getId();
+            for (int i = 0; i < stripes.size(); i++) {
+                StripeInformation stripe = stripes.get(i);
+                startRows[i] = row;
+                row += stripe.getNumberOfRows();
+                active[i] = stripe.getOffset() >= rangeStart && stripe.getOffset() < rangeEnd;
+                if (active[i] && i < stripeStats.size()) {
+                    ColumnStatistics[] columnStatistics = stripeStats.get(i).getColumnStatistics();
+                    if (columnId < columnStatistics.length) {
+                        ColumnStatistics stats = columnStatistics[columnId];
+                        if (stats == null) {
+                            continue;
+                        }
+                        long nulls = stripe.getNumberOfRows() - stats.getNumberOfValues();
+                        if (bytesRef) {
+                            BytesRef min = rawMinBytes(stats, sortType);
+                            BytesRef max = rawMaxBytes(stats, sortType);
+                            if (min != null && max != null) {
+                                hasStats[i] = true;
+                                nullCounts[i] = nulls;
+                                rawMinBytes[i] = min;
+                                rawMaxBytes[i] = max;
+                            } else if (stats.getNumberOfValues() == 0 && nulls > 0) {
+                                hasStats[i] = true;
+                                nullOnly[i] = true;
+                                nullCounts[i] = nulls;
+                            }
+                        } else {
+                            Long min = rawMin(stats, sortType, threshold.elementType());
+                            Long max = rawMax(stats, sortType, threshold.elementType());
+                            if (min != null && max != null) {
+                                hasStats[i] = true;
+                                nullCounts[i] = nulls;
+                                rawMins[i] = min;
+                                rawMaxs[i] = max;
+                            } else if (stats.getNumberOfValues() == 0 && nulls > 0) {
+                                hasStats[i] = true;
+                                nullOnly[i] = true;
+                                nullCounts[i] = nulls;
+                            }
+                        }
+                    }
+                }
+            }
+            startRows[stripes.size()] = row;
+            return new StripeSkipTable(
+                threshold,
+                startRows,
+                active,
+                hasStats,
+                nullOnly,
+                nullCounts,
+                rawMins,
+                rawMaxs,
+                rawMinBytes,
+                rawMaxBytes
+            );
+        }
+
+        boolean noFurtherCandidates() {
+            return threshold.noFurtherCandidates();
+        }
+
+        int stripeIndexForRow(long rowNumber) {
+            int low = 0;
+            int high = active.length - 1;
+            while (low <= high) {
+                int mid = (low + high) >>> 1;
+                if (rowNumber < startRows[mid]) {
+                    high = mid - 1;
+                } else if (rowNumber >= startRows[mid + 1]) {
+                    low = mid + 1;
+                } else {
+                    return mid;
+                }
+            }
+            return -1;
+        }
+
+        boolean dominated(int stripeIndex) {
+            if (stripeIndex < 0 || stripeIndex >= active.length || active[stripeIndex] == false || hasStats[stripeIndex] == false) {
+                return false;
+            }
+            if (nullOnly[stripeIndex]) {
+                return threshold.dominatesNulls(nullCounts[stripeIndex]);
+            }
+            if (rawMinBytes != null) {
+                return threshold.dominates(rawMinBytes[stripeIndex], rawMaxBytes[stripeIndex], nullCounts[stripeIndex]);
+            }
+            return threshold.dominates(rawMins[stripeIndex], rawMaxs[stripeIndex], nullCounts[stripeIndex]);
+        }
+
+        int nextNonDominatedStripe(int fromStripe) {
+            for (int i = fromStripe; i < active.length; i++) {
+                if (active[i] && dominated(i) == false) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        long stripeStartRow(int stripeIndex) {
+            return startRows[stripeIndex];
+        }
+
+        private static Long rawMin(ColumnStatistics stats, TypeDescription sortType, ElementType elementType) {
+            return switch (elementType) {
+                case LONG -> sortType.getCategory() == TypeDescription.Category.LONG && stats instanceof IntegerColumnStatistics intStats
+                    ? intStats.getMinimum()
+                    : null;
+                case INT -> sortType.getCategory() == TypeDescription.Category.INT && stats instanceof IntegerColumnStatistics intStats
+                    ? intStats.getMinimum()
+                    : null;
+                case DOUBLE -> stats instanceof DoubleColumnStatistics doubleStats ? rawDouble(doubleStats.getMinimum()) : null;
+                case BOOLEAN -> stats instanceof BooleanColumnStatistics booleanStats ? (booleanStats.getFalseCount() > 0 ? 0L : 1L) : null;
+                default -> null;
+            };
+        }
+
+        private static Long rawMax(ColumnStatistics stats, TypeDescription sortType, ElementType elementType) {
+            return switch (elementType) {
+                case LONG -> sortType.getCategory() == TypeDescription.Category.LONG && stats instanceof IntegerColumnStatistics intStats
+                    ? intStats.getMaximum()
+                    : null;
+                case INT -> sortType.getCategory() == TypeDescription.Category.INT && stats instanceof IntegerColumnStatistics intStats
+                    ? intStats.getMaximum()
+                    : null;
+                case DOUBLE -> stats instanceof DoubleColumnStatistics doubleStats ? rawDouble(doubleStats.getMaximum()) : null;
+                case BOOLEAN -> stats instanceof BooleanColumnStatistics booleanStats ? (booleanStats.getTrueCount() > 0 ? 1L : 0L) : null;
+                default -> null;
+            };
+        }
+
+        private static Long rawDouble(double value) {
+            return Double.isNaN(value) ? null : NumericUtils.doubleToSortableLong(value);
+        }
+
+        /**
+         * Lexicographic min/max for a {@code BYTES_REF} threshold. Only string-family columns carry a
+         * comparable byte range; {@link StringColumnStatistics} min/max use UTF-8 (Text) ordering,
+         * which matches {@link BytesRef#compareTo}. Truncated stats stay safe because ORC reports a
+         * lower bound for the minimum and an upper bound for the maximum, so the true value range is
+         * always contained within {@code [min, max]} and we never skip a stripe that could contribute.
+         * Returns {@code null} for any other column type so a coerced (non-string) column is never
+         * skipped.
+         */
+        private static BytesRef rawMinBytes(ColumnStatistics stats, TypeDescription sortType) {
+            if (isStringFamily(sortType) && stats instanceof StringColumnStatistics strStats && strStats.getMinimum() != null) {
+                return new BytesRef(strStats.getMinimum());
+            }
+            return null;
+        }
+
+        private static BytesRef rawMaxBytes(ColumnStatistics stats, TypeDescription sortType) {
+            if (isStringFamily(sortType) && stats instanceof StringColumnStatistics strStats && strStats.getMaximum() != null) {
+                return new BytesRef(strStats.getMaximum());
+            }
+            return null;
+        }
+
+        private static boolean isStringFamily(TypeDescription sortType) {
+            return switch (sortType.getCategory()) {
+                case STRING, VARCHAR, CHAR -> true;
+                default -> false;
+            };
+        }
+    }
+
     private static class OrcPageIterator implements CloseableIterator<Page> {
         private final Reader reader;
         private final RecordReader rows;
         private final List<Attribute> attributes;
         private final BlockFactory blockFactory;
         private final VectorizedRowBatch batch;
+        private final StripeSkipTable stripeSkipTable;
         private boolean exhausted = false;
         private boolean batchReady = false;
         /**
@@ -723,6 +1110,16 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * Attributes absent from the file map to {@code null}.
          */
         private final Map<String, int[]> fieldNameToPath;
+        /** Index of the synthetic {@code _rowPosition} attribute, or {@code -1} when not projected. */
+        private final int rowPositionColumnIndex;
+        /**
+         * File-global row number of the first row in the current batch, captured from
+         * {@link RecordReader#getRowNumber()} immediately before each {@code nextBatch}. ORC reports
+         * an absolute, file-global row number even on stripe-ranged reads, so it is split-invariant.
+         */
+        private long batchStartRow;
+
+        private final OrcReaderCounters counters;
 
         OrcPageIterator(
             Reader reader,
@@ -730,13 +1127,19 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             TypeDescription schema,
             List<Attribute> attributes,
             int batchSize,
-            BlockFactory blockFactory
+            BlockFactory blockFactory,
+            StripeSkipTable stripeSkipTable,
+            OrcReaderCounters counters
         ) {
             this.reader = reader;
             this.rows = rows;
             this.attributes = attributes;
             this.blockFactory = blockFactory;
             this.batch = schema.createRowBatch(batchSize);
+            this.stripeSkipTable = stripeSkipTable;
+            this.counters = counters;
+
+            this.rowPositionColumnIndex = SyntheticColumns.rowPositionIndexInAttributes(attributes);
 
             this.fieldNameToPath = new HashMap<>(attributes.size());
             // Top-level field index, computed once for literal-name lookups.
@@ -794,17 +1197,53 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (batchReady) {
                 return true;
             }
+            long startNanos = System.nanoTime();
             try {
-                if (rows.nextBatch(batch)) {
-                    batchReady = true;
-                    return true;
-                } else {
-                    exhausted = true;
-                    return false;
+                while (true) {
+                    if (stripeSkipTable != null && stripeSkipTable.noFurtherCandidates()) {
+                        exhausted = true;
+                        return false;
+                    }
+                    if (skipDominatedStripes()) {
+                        if (exhausted) {
+                            return false;
+                        }
+                        continue;
+                    }
+                    // Capture the absolute file-global row number BEFORE reading the batch: after
+                    // nextBatch advances the cursor, getRowNumber() points past the batch.
+                    long startRow = rows.getRowNumber();
+                    if (rows.nextBatch(batch)) {
+                        batchStartRow = startRow;
+                        batchReady = true;
+                        return true;
+                    } else {
+                        exhausted = true;
+                        return false;
+                    }
                 }
             } catch (IOException e) {
-                throw new RuntimeException("Failed to read ORC batch", e);
+                throw new IllegalArgumentException("Failed to read ORC batch", e);
+            } finally {
+                counters.addReadNanos(System.nanoTime() - startNanos);
             }
+        }
+
+        private boolean skipDominatedStripes() throws IOException {
+            if (stripeSkipTable == null) {
+                return false;
+            }
+            int stripeIndex = stripeSkipTable.stripeIndexForRow(rows.getRowNumber());
+            if (stripeSkipTable.dominated(stripeIndex) == false) {
+                return false;
+            }
+            int nextStripe = stripeSkipTable.nextNonDominatedStripe(stripeIndex + 1);
+            if (nextStripe < 0) {
+                exhausted = true;
+                return true;
+            }
+            rows.seekToRow(stripeSkipTable.stripeStartRow(nextStripe));
+            return true;
         }
 
         @Override
@@ -813,6 +1252,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 throw new NoSuchElementException();
             }
             batchReady = false;
+            counters.addRowsEmitted(batch.size);
             return convertToPage();
         }
 
@@ -826,6 +1266,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 DataType dataType = attribute.dataType();
 
                 try {
+                    if (col == rowPositionColumnIndex) {
+                        blocks[col] = buildRowPositionBlock(rowCount);
+                        continue;
+                    }
                     int[] path = fieldNameToPath.get(fieldName);
                     if (path == null) {
                         blocks[col] = blockFactory.newConstantNullBlock(rowCount);
@@ -850,13 +1294,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     break;
                                 }
                             } else {
+                                // Reuse the shared boolean[]->BitSet helper plus BitSet.or so each
+                                // ancestor contributes via a single bulk operation rather than a
+                                // hand-rolled per-row loop; matches the pattern used elsewhere in
+                                // the reader for converting ORC's raw null arrays.
+                                BitSet svNulls = ColumnBlockConversions.toBitSet(sv.isNull, rowCount);
                                 if (ancestorNulls == null) {
-                                    ancestorNulls = new BitSet(rowCount);
-                                }
-                                for (int r = 0; r < rowCount; r++) {
-                                    if (sv.isNull[r]) {
-                                        ancestorNulls.set(r);
-                                    }
+                                    ancestorNulls = svNulls;
+                                } else if (svNulls != null) {
+                                    ancestorNulls.or(svNulls);
                                 }
                             }
                         }
@@ -873,6 +1319,27 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
 
             return new Page(blocks);
+        }
+
+        /**
+         * Emits the synthetic {@code _rowPosition} column: the file-global row index of each row in
+         * the batch, {@code [batchStartRow, batchStartRow + rowCount)}. Never null. This is the
+         * opaque, split-invariant per-record token the producer pipeline renders as
+         * {@code _file.record_ref} / composes into {@code _id}.
+         *
+         * <p>Direct array fill + {@link BlockFactory#newLongArrayVector} rather than
+         * {@link LongVector.Builder#appendLong}: the values are a known-size arithmetic sequence,
+         * so we skip the builder's per-element method-call overhead and finalization copy. The
+         * tight primitive loop is SIMD-vectorizable; circuit-breaker accounting is preserved by
+         * {@code newLongArrayVector}.
+         */
+        private Block buildRowPositionBlock(int rowCount) {
+            long[] values = new long[rowCount];
+            long base = batchStartRow;
+            for (int i = 0; i < rowCount; i++) {
+                values[i] = base + i;
+            }
+            return blockFactory.newLongArrayVector(values, rowCount).asBlock();
         }
 
         /**
@@ -1119,7 +1586,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             } else if (vector instanceof Decimal64ColumnVector d64) {
                 return d64.vector[idx] / d64ScaleFactor;
             }
-            throw new QlIllegalArgumentException("Unsupported list element type: " + vector.getClass().getSimpleName());
+            throw new IllegalArgumentException("Unsupported list element type: " + vector.getClass().getSimpleName());
         }
 
         private Block createListBooleanBlock(ListColumnVector listCol, int rowCount) {
@@ -1173,7 +1640,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     millis = lv.vector[idx] * MILLIS_PER_DAY;
                                 }
                             } else {
-                                throw new QlIllegalArgumentException(
+                                throw new IllegalArgumentException(
                                     "Unsupported list child type for DATETIME: " + child.getClass().getSimpleName()
                                 );
                             }
@@ -1219,7 +1686,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     effectiveNulls
                 );
             }
-            throw new QlIllegalArgumentException("Unsupported column type: " + vector.getClass().getSimpleName());
+            throw new IllegalArgumentException("Unsupported column type: " + vector.getClass().getSimpleName());
         }
 
         /**
@@ -1426,7 +1893,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 try {
                     delegate.close();
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new UncheckedIOException("Failed to close ORC reader", e);
                 }
             } else {
                 remaining -= rows;

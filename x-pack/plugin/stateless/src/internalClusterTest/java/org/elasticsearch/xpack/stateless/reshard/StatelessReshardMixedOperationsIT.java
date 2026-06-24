@@ -15,6 +15,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -27,9 +29,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +63,8 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             public void start(Index index, int clusterSize, int shardCount, String coordinator) {
                 var thread = new Thread(() -> {
                     do {
-                        Failure randomFailure = randomFrom(Failure.values());
+                        // We don't stop/restart nodes due to #147842.
+                        Failure randomFailure = randomFrom(Failure.LOCAL_FAIL_SHARD, Failure.RELOCATE_SHARD);
                         try {
                             induceFailure(randomFailure, index, coordinator);
                         } catch (Exception e) {
@@ -663,14 +668,74 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                 logger.info("--> Split round complete");
             }
 
-            for (int i = 0; i < threadsCount; i++) {
-                threads.get(i).join(SAFE_AWAIT_TIMEOUT.millis());
-            }
-        } finally {
             logger.info("--> Stopping disruption");
             disruptor.stop();
             ensureStableCluster(clusterSize, masterNode);
             logger.info("--> Disruptions stopped");
+
+            var threadExceptions = Collections.synchronizedList(new ArrayList<>());
+
+            // We need to join all threads even if there are failures so that they don't continue doing operations
+            // during teardown.
+            logger.info("--> Waiting for operations to complete");
+            for (int i = 0; i < threadsCount; i++) {
+                try {
+                    Thread thread = threads.get(i);
+                    // The amount of work threads do is finite and limited by `threadOperations`.
+                    // This timeout is to detect rogue threads without waiting for suite timeout.
+                    boolean terminated = thread.join(Duration.ofMinutes(5));
+                    if (terminated == false) {
+                        for (int j = i; j < threadsCount; j++) {
+                            threads.get(j).interrupt();
+                        }
+                        fail("Operations thread did not terminate in time");
+                    }
+                } catch (Exception e) {
+                    threadExceptions.add(e);
+                }
+            }
+            logger.info("--> Operations are done");
+
+            assertTrue("--> There are failed operations: " + Arrays.toString(threadExceptions.toArray()), threadExceptions.isEmpty());
+        } finally {
+            /// This is a workaround for assertion that `REQUEST` circuit breaker has outstanding bytes in
+            /// [InternalTestCluster#ensureEstimatedStats()].
+            /// Under disruption it is possible that shard fails in the middle of a bulk request.
+            /// In this case all successful writes so far are written to a [NodeTranslogBuffer.ShardBuffer].
+            /// But since the shard failed, translog can't be flushed after the bulk request is complete (the engine is closed in
+            /// [org.elasticsearch.index.shard.IndexShard#syncAfterWrite(Translog.Location, Consumer)]).
+            /// So the shard buffer remains open until the next translog flush when we would discover it corresponds to a closed shard
+            /// and discard it (in [NodeTranslogBuffer#complete(long, Collection)]).
+            /// However, if a node doesn't receive any other operations and time-based flush doesn't kick in until the test
+            /// completion, this won't happen.
+            /// This is fine from the correctness perspective since writes in the buffer were never acknowledged, and we'll clean up
+            /// this "garbage" buffer when the node is closed in [NodeTranslogBuffer#close()].
+            /// The problem is that [InternalTestCluster#ensureEstimatedStats()] runs _before_ the node is closed,
+            /// observes the state described above and says that there are outstanding bytes in the circuit breaker (there are).
+            /// We fix this by forcing a translog flush on every index node in the cluster using the trick below.
+            /// ¯\_(ツ)_/¯
+
+            logger.info("--> Applying node translog flush");
+            String cleanupIndexName = "cleanup";
+            int cleanupIndexShards = indexNodes;
+            createIndex(
+                cleanupIndexName,
+                indexSettings(cleanupIndexShards, 0).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+                    .build()
+            );
+            Index cleanupIndex = resolveIndex(cleanupIndexName);
+
+            var routing = IndexRouting.fromIndexMetadata(
+                ReshardingTestHelpers.indexMetadata(internalCluster().clusterService(masterNode).state(), cleanupIndex)
+            );
+            var bulkRequest = client().prepareBulk();
+            for (int shardId = 0; shardId < cleanupIndexShards; shardId++) {
+                String id = ReshardingTestHelpers.makeIdThatRoutesToShard(routing, shardId);
+                var indexRequest = client().prepareIndex(cleanupIndexName).setId(id).setSource(Map.of("random", "stuff"));
+                bulkRequest.add(indexRequest);
+            }
+            bulkRequest.get();
+            logger.info("--> Node translog flush complete");
         }
     }
 

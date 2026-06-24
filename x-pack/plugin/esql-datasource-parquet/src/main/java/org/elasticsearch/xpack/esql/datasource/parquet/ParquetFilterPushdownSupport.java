@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -163,49 +165,40 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * dropped from {@code FilterExec} (pushed as {@link Pushability#YES}); others must be
      * re-checked downstream ({@link Pushability#RECHECK}).
      *
-     * <p>The two-valued bitmask path is TVL-correct by construction for predicates that
-     * map nulls to bit {@code 0}: {@link WildcardLike} on a non-null value matches the
-     * automaton; on a null value it sets bit {@code 0}. The remaining work is to ensure
-     * {@code Not(WildcardLike)} also stays TVL-correct — the late-mat evaluator does this
-     * by AND-ing out the null mask before negating
-     * (see {@link ParquetPushedExpressions#evaluateExpression}).
-     *
-     * <p><b>Why {@code Not} only allows a bare {@link WildcardLike} child.</b> The evaluator's
-     * generic {@code Not} branch is a bitwise complement on the inner mask. For
-     * {@code Not(And(...))} that means {@code ~(m1 & m2)}, which is <em>not</em>
-     * {@code NOT (a AND b)} under SQL three-valued logic — e.g. {@code (NULL AND TRUE)} is
-     * {@code UNKNOWN} (mask bit 0); the bitwise complement flips it to 1, so the row
-     * incorrectly survives. Only {@code Not(WildcardLike)} has a TVL-aware special case in
+     * <p>The two-valued bitmask path is TVL-correct by construction for predicates that map
+     * nulls to bit {@code 0}. The LIKE-family — {@link WildcardLike}, {@link StartsWith},
+     * {@code EndsWith}, {@code Contains} — satisfies this on the positive side and is also
+     * routed through a TVL-aware {@code Not} branch in
      * {@link ParquetPushedExpressions#evaluateExpression} that AND-s out the null mask before
-     * negation. Anything else under {@code Not} stays {@link Pushability#RECHECK} so that
-     * {@code FilterExec} fixes the null handling.
+     * negating, so both bare and negated forms are YES.
      *
-     * <p>Conjunctions of YES-eligible predicates are themselves YES-eligible: {@code AND} of
-     * TVL-correct masks is TVL-correct (a 0 bit on either side blocks the row, regardless of
-     * whether it came from "no-match" or "null"). {@code OR} is intentionally excluded
-     * because {@code evaluateExpression}'s {@code Or} branch returns {@code null} (i.e.
-     * "all rows survive") when an arm is unevaluable — fine for {@link Pushability#RECHECK}
-     * (where {@code FilterExec} re-checks), but unsafe for {@link Pushability#YES}.
+     * <p>Other predicate families ({@code Eq}, {@code In}, {@code Range}, {@code IsNull},
+     * {@code IsNotNull}) stay {@link Pushability#RECHECK} because the generic bitwise negate
+     * is not TVL-correct for their nulls; the {@code FilterExec} safety net applies them
+     * per-row. {@code Not(And(...))} likewise stays RECHECK — bitwise {@code ~(m1 & m2)} is
+     * not {@code NOT (a AND b)} under TVL when either arm holds null.
      *
-     * <p>Other predicate families ({@code Eq}, {@code In}, {@code Range}, {@code StartsWith},
-     * {@code IsNull}, {@code IsNotNull}) remain {@link Pushability#RECHECK}; their {@code Not}
-     * handling has the same two-valued-mask null bug as LIKE used to, and is left unchanged
-     * to keep this PR focused on the LIKE win that motivated the work.
+     * <p>{@code AND} of YES-eligible predicates is YES (a {@code 0} on either side blocks the
+     * row regardless of provenance). {@code OR} is excluded: {@code evaluateExpression}'s
+     * {@code Or} branch returns {@code null} ("all rows survive") when an arm is unevaluable,
+     * which is fine under RECHECK but unsafe under YES.
      */
     static boolean isFullyEvaluable(Expression expr) {
-        if (expr instanceof WildcardLike) {
+        if (isLikeFamily(expr)) {
             return true;
         }
         if (expr instanceof Not not) {
-            // Only Not(WildcardLike) has a TVL-aware evaluator special case. Any other inner
-            // expression would fall through to the generic two-valued negate, which is unsafe
-            // under YES (see Javadoc above for the And-under-Not example).
-            return not.field() instanceof WildcardLike;
+            // Only the LIKE-family inner predicates have a TVL-aware evaluator special case.
+            return isLikeFamily(not.field());
         }
         if (expr instanceof And and) {
             return isFullyEvaluable(and.left()) && isFullyEvaluable(and.right());
         }
         return false;
+    }
+
+    private static boolean isLikeFamily(Expression e) {
+        return e instanceof WildcardLike || e instanceof StartsWith || e instanceof Contains || e instanceof EndsWith;
     }
 
     /**
@@ -255,6 +248,12 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         }
         if (expr instanceof StartsWith sw) {
             return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD) && literalValueOf(sw.prefix()) != null;
+        }
+        if (expr instanceof EndsWith ew) {
+            return PushdownPredicates.isEndsWith(ew, dt -> dt == DataType.KEYWORD) && literalValueOf(ew.suffix()) != null;
+        }
+        if (expr instanceof Contains c) {
+            return PushdownPredicates.isContains(c, dt -> dt == DataType.KEYWORD) && literalValueOf(c.substr()) != null;
         }
         if (expr instanceof WildcardLike wl) {
             // Parquet has no native LIKE support; this pushdown evaluates the pattern during late

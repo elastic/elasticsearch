@@ -136,7 +136,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private RecordingMeterRegistry recordingMeterRegistry;
 
     @Before
-    public void setUp() throws Exception {
+    public void initializeS3Service() throws Exception {
         shouldErrorOnDns = false;
         service = new S3Service(
             Mockito.mock(Environment.class),
@@ -173,13 +173,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         };
         service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();
-        super.setUp();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeS3Service() throws Exception {
         IOUtils.close(service);
-        super.tearDown();
     }
 
     @Override
@@ -257,7 +255,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
-            S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+            S3Repository.FALLBACK_STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+            S3Repository.DATA_STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+            S3Repository.METADATA_STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
             S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getDefault(Settings.EMPTY) == Boolean.FALSE,
             repositoryMetadata,
             BigArrays.NON_RECYCLING_INSTANCE,

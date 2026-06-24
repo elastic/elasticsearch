@@ -36,12 +36,15 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
@@ -88,14 +91,44 @@ public class NdJsonPageDecoder implements Closeable {
     private final BlockFactory blockFactory;
     private JsonParser parser;
     private final List<Attribute> projectedAttributes;
+    /**
+     * Index of the synthetic {@code _rowPosition} attribute in {@link #projectedAttributes}, or
+     * {@code -1} when not projected. When non-negative, each decoded record's file-global start
+     * byte is emitted into this slot (see {@link #recordFileOffset()}).
+     */
+    private final int rowPositionSlot;
+    /**
+     * Logical start offset of the parser's initial slice (the {@code sourceOffset} the first parser
+     * was created over). Used to relativize {@link #parserSliceStart}, which is updated to absolute
+     * positions within {@link #sourceBytes} on recovery.
+     */
+    private final int initialSliceStart;
+    /**
+     * File-global byte offset of the first byte this decoder reads (i.e. the split's start byte plus
+     * any leading partial record skipped before the decoder was handed the stream). Base for the
+     * {@code _rowPosition} / {@code _file.record_ref} emit; {@code 0} when not relevant. Set by the
+     * caller via {@link #setRecordOffsetBase(long)} before the first {@link #decodePage()}.
+     */
+    private long recordOffsetBase = 0L;
+
+    /** Page block layout: index {@code i} corresponds to {@code projectedAttributes().get(i)}. */
+    List<Attribute> projectedAttributes() {
+        return projectedAttributes;
+    }
 
     // What blocks got a value on the current line? Needed because Block.Builder doesn't provide
     // the number of positions that were added.
     private final BitSet blockTracker;
     private final ErrorPolicy errorPolicy;
     private final SkipWarnings skipWarnings;
+    private final NdJsonReaderCounters counters;
     private long totalRowCount;
     private long errorCount;
+
+    /** Number of malformed records observed during decoding (lenient policies swallow these). */
+    long errorCount() {
+        return errorCount;
+    }
 
     /**
      * Lazily allocated for {@link #decodePageLenient} only; reused across rows within this decoder
@@ -122,7 +155,8 @@ public class NdJsonPageDecoder implements Closeable {
         int batchSize,
         BlockFactory blockFactory,
         ErrorPolicy errorPolicy,
-        String sourceLocation
+        String sourceLocation,
+        NdJsonReaderCounters counters
     ) throws IOException {
         this(
             input,
@@ -135,6 +169,7 @@ public class NdJsonPageDecoder implements Closeable {
             blockFactory,
             errorPolicy,
             sourceLocation,
+            counters,
             NdJsonUtils.JSON_FACTORY
         );
     }
@@ -154,7 +189,8 @@ public class NdJsonPageDecoder implements Closeable {
         int batchSize,
         BlockFactory blockFactory,
         ErrorPolicy errorPolicy,
-        String sourceLocation
+        String sourceLocation,
+        NdJsonReaderCounters counters
     ) throws IOException {
         this(
             null,
@@ -167,13 +203,15 @@ public class NdJsonPageDecoder implements Closeable {
             blockFactory,
             errorPolicy,
             sourceLocation,
+            counters,
             NdJsonUtils.JSON_FACTORY
         );
     }
 
     /**
      * Test-only: accepts an injected {@link JsonFactory} so tests can wrap the created parser in a
-     * delegate (e.g. to count token-advance calls) without reflection.
+     * delegate (e.g. to count token-advance calls) without reflection. Uses a fresh counters
+     * instance since these tests don't assert on the counter snapshot.
      */
     NdJsonPageDecoder(
         InputStream input,
@@ -185,7 +223,20 @@ public class NdJsonPageDecoder implements Closeable {
         String sourceLocation,
         JsonFactory factory
     ) throws IOException {
-        this(input, null, 0, 0, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation, factory);
+        this(
+            input,
+            null,
+            0,
+            0,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            new NdJsonReaderCounters(),
+            factory
+        );
     }
 
     private NdJsonPageDecoder(
@@ -199,6 +250,7 @@ public class NdJsonPageDecoder implements Closeable {
         BlockFactory blockFactory,
         ErrorPolicy errorPolicy,
         String sourceLocation,
+        NdJsonReaderCounters counters,
         JsonFactory factory
     ) throws IOException {
         this.jsonFactory = factory;
@@ -220,7 +272,9 @@ public class NdJsonPageDecoder implements Closeable {
             this.parserSliceStart = 0;
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        Check.isTrue(counters != null, "counters must not be null");
         this.errorPolicy = errorPolicy;
+        this.counters = counters;
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             "NDJSON read from ["
@@ -253,6 +307,13 @@ public class NdJsonPageDecoder implements Closeable {
             }
             var resolved = new ArrayList<Attribute>(projectedColumns.size());
             for (String col : projectedColumns) {
+                if (ColumnExtractor.ROW_POSITION_COLUMN.equals(col)) {
+                    // Synthetic file-global record offset, not a JSON field. Typed LONG (not NULL) so
+                    // setupBuilders allocates a Long builder; the decode loop fills it from the
+                    // parser's byte offset rather than from JSON.
+                    resolved.add(NdJsonSchemaInferrer.attribute(col, DataType.LONG, false));
+                    continue;
+                }
                 Attribute match = byName.get(col);
                 resolved.add(match != null ? match : NdJsonSchemaInferrer.attribute(col, DataType.NULL, false));
             }
@@ -264,6 +325,8 @@ public class NdJsonPageDecoder implements Closeable {
         this.blockFactory = blockFactory;
         this.projectedAttributes = projectedAttributes;
         this.blockTracker = new BitSet(projectedAttributes.size());
+        this.initialSliceStart = sourceOffset;
+        this.rowPositionSlot = SyntheticColumns.rowPositionIndexInAttributes(projectedAttributes);
 
         if (sourceBytes != null) {
             this.parser = factory.createParser(sourceBytes, sourceOffset, sourceLength);
@@ -366,7 +429,29 @@ public class NdJsonPageDecoder implements Closeable {
         );
     }
 
+    /**
+     * Sets the file-global byte offset of this decoder's first input byte (split start + any leading
+     * partial record skipped upstream). Must be called before the first {@link #decodePage()} when
+     * {@code _rowPosition} is projected; harmless otherwise.
+     */
+    void setRecordOffsetBase(long recordOffsetBase) {
+        this.recordOffsetBase = recordOffsetBase;
+    }
+
+    /**
+     * File-global byte offset of the parser's current logical position. {@link #parserSliceStart} is
+     * the parser slice's absolute start within {@link #sourceBytes} (updated on recovery);
+     * {@link #initialSliceStart} relativizes it so the result stays anchored to {@link #recordOffsetBase}.
+     * Stable across split layouts because it is the record's intrinsic position in the file.
+     */
+    private long recordFileOffset() {
+        return recordOffsetBase + (parserSliceStart - initialSliceStart) + parser.getCurrentLocation().getByteOffset();
+    }
+
     Page decodePage() throws IOException {
+        long startNanos = System.nanoTime();
+        long startTotalRowCount = totalRowCount;
+        long startErrorCount = errorCount;
         var blockBuilders = new Block.Builder[projectedAttributes.size()];
         // Setting up builders may trip the circuit breaker. Make sure they're all always closed
         try {
@@ -374,6 +459,11 @@ public class NdJsonPageDecoder implements Closeable {
             return errorPolicy.isStrict() ? decodePageFailFast(blockBuilders) : decodePageLenient(blockBuilders);
         } finally {
             Releasables.close(blockBuilders);
+            long deltaTotal = totalRowCount - startTotalRowCount;
+            long deltaErrors = errorCount - startErrorCount;
+            counters.addRowsEmitted(deltaTotal - deltaErrors);
+            counters.addParseErrors(deltaErrors);
+            counters.addReadNanos(System.nanoTime() - startNanos);
         }
     }
 
@@ -395,11 +485,18 @@ public class NdJsonPageDecoder implements Closeable {
 
             totalRowCount++;
             this.blockTracker.clear();
+            // Capture the record's file-global start offset before decodeObject advances the parser.
+            long recordOffset = rowPositionSlot >= 0 ? recordFileOffset() : 0L;
 
             try {
                 decoder.decodeObject(parser, false);
             } catch (JsonParseException e) {
                 onNdjsonLineParseError(e, totalRowCount, "decodeObject");
+            }
+
+            if (rowPositionSlot >= 0) {
+                ((LongBlock.Builder) blockBuilders[rowPositionSlot]).appendLong(recordOffset);
+                blockTracker.set(rowPositionSlot);
             }
 
             lineCount++;
@@ -438,6 +535,8 @@ public class NdJsonPageDecoder implements Closeable {
 
             totalRowCount++;
             this.blockTracker.clear();
+            // Capture before decodeObject / recovery advance the parser.
+            long recordOffset = rowPositionSlot >= 0 ? recordFileOffset() : 0L;
 
             try {
                 decoder.setupBuilders(rowScratch);
@@ -447,6 +546,10 @@ public class NdJsonPageDecoder implements Closeable {
                     onNdjsonLineParseError(e, totalRowCount, "decodeObject");
                     recoverFromParseException(parser);
                     continue;
+                }
+                if (rowPositionSlot >= 0) {
+                    ((LongBlock.Builder) rowScratch[rowPositionSlot]).appendLong(recordOffset);
+                    blockTracker.set(rowPositionSlot);
                 }
                 for (int i = 0; i < rowScratch.length; i++) {
                     if (blockTracker.get(i) == false) {
@@ -572,7 +675,7 @@ public class NdJsonPageDecoder implements Closeable {
      * delegates to {@link org.elasticsearch.common.util.BytesRefArray#append(BytesRef)} and copies
      * before returning); the next call to this method overwrites the scratch.
      */
-    private BytesRef toScratchBytesRef(String value) {
+    private BytesRef toScratchBytesRef(CharSequence value) {
         int maxLen = UnicodeUtil.maxUTF8Length(value.length());
         if (keywordScratch.bytes.length < maxLen) {
             keywordScratch.bytes = new byte[maxLen];
@@ -805,13 +908,8 @@ public class NdJsonPageDecoder implements Closeable {
                     }
                 }
                 case KEYWORD -> {
-                    // Be lenient, this is a catch-all type
-                    var str = parser.getValueAsString();
-                    if (str != null) {
-                        ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(str));
-                    } else {
-                        unexpectedValue(blockBuilder, parser, inArray);
-                    }
+                    var chars = CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
+                    ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(chars));
                 }
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
             }

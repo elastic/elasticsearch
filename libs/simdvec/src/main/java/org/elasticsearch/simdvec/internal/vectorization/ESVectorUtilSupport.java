@@ -32,6 +32,12 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);
 
+    /** Calculates the dot product over {@code [offset, offset + length)}. */
+    float dotProduct(float[] a, float[] b, int offset, int length);
+
+    /** L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op. */
+    void l2Normalize(float[] v, int offset, int length);
+
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);
 
@@ -44,14 +50,23 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given byte arrays. */
     float dotProduct(byte[] a, byte[] b);
 
+    /** Calculates the dot product over {@code [offset, offset + length)}. */
+    float dotProduct(byte[] a, byte[] b, int offset, int length);
+
+    /** L2-normalizes {@code v[offset:offset + length)} in place using signed byte values as real components. */
+    void l2Normalize(byte[] v, int offset, int length);
+
+    /** Returns the sum of squared differences of the two vectors. */
+    float squareDistance(byte[] a, byte[] b);
+
+    /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
+    float squareDistance(byte[] a, byte[] b, int offset, int length);
+
     float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
 
     float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);
 
     float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch);
-
-    /** Returns the sum of squared differences of the two vectors. */
-    float squareDistance(byte[] a, byte[] b);
 
     /**
      * Compute dot product between {@code q} and {@code d}
@@ -89,37 +104,38 @@ public interface ESVectorUtilSupport {
 
     float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
 
+    float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm);
+
     int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
-    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
+    void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
 
     void squareDistanceBulk(
         float[] query,
-        int queryOffset,
-        int length,
+        int vectorOffset,
         float[] v0,
         float[] v1,
         float[] v2,
         float[] v3,
         int distancesOffset,
-        float[] distances
+        float[] distances,
+        int length
     );
 
-    /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
-    float squareDistance(byte[] a, byte[] b, int offset, int length);
+    void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
 
-    void squareDistanceBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
+    void cosineBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
 
     void squareDistanceBulk(
         byte[] query,
-        int queryOffset,
-        int length,
+        int vectorOffset,
         byte[] v0,
         byte[] v1,
         byte[] v2,
         byte[] v3,
         int distancesOffset,
-        float[] distances
+        float[] distances,
+        int length
     );
 
     void soarDistanceBulk(
@@ -134,9 +150,23 @@ public interface ESVectorUtilSupport {
         float[] distances
     );
 
+    void soarDistanceBulk(
+        byte[] v1,
+        byte[] c0,
+        byte[] c1,
+        byte[] c2,
+        byte[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    );
+
     void packAsBinary(int[] vector, byte[] packed);
 
     void packDibit(int[] vector, byte[] packed);
+
+    void packDibitQuad(int[] vector, byte[] packed);
 
     void transposeHalfByte(int[] q, byte[] quantQueryByte);
 
@@ -151,6 +181,10 @@ public interface ESVectorUtilSupport {
     void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
 
     void linearCombination(float scaleOther, float[] other, float[] dest);
+
+    void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest);
+
+    void linearCombination(float scaleOther, byte[] other, float[] dest);
 
     float logSumExpNQT(float[] vector);
 

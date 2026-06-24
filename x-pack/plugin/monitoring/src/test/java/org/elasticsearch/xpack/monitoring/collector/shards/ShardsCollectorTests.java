@@ -140,7 +140,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 

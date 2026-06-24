@@ -49,8 +49,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -5033,6 +5034,36 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection(plan2, "s1", "s2", "min", "count", "avg", "cluster", "time_bucket");
     }
 
+    public void testToGaugeStrippedOnAggregateMetricDoubleAndGaugeUnion() {
+        assumeTrue("to_gauge must be available", EsqlCapabilities.Cap.TO_GAUGE.isEnabled());
+        assumeTrue(
+            "aggregate metric double implicit casting must be available",
+            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()
+        );
+        Map<String, EsField> mapping = Map.of(
+            "@timestamp",
+            new EsField("@timestamp", DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "network.eth0.rx",
+            new InvalidMappedField(
+                "network.eth0.rx",
+                Map.of("aggregate_metric_double", Set.of("k8s-downsampled"), "integer", Set.of("k8s"))
+            )
+        );
+
+        var esIndex = new EsIndex(
+            "k8s,k8s-downsampled",
+            mapping,
+            Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of()
+        );
+        var testAnalyzer = analyzer().addIndex(esIndex);
+        var plan = testAnalyzer.query("""
+            TS k8s,k8s-downsampled | stats bytes = sum(avg_over_time(network.eth0.rx::gauge)) by time_bucket = bucket(@timestamp, 1minute)
+            """);
+        assertProjection(plan, "bytes", "time_bucket");
+    }
+
     public void testCountWithForkWithNoFields() {
         for (String count : List.of("count()", "count(*)", "count(1)")) {
             String query = LoggerMessageFormat.format(null, """
@@ -5352,6 +5383,93 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testIpLocation() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query("ROW ip=\"1.2.3.4\" | ip_location g = ip");
+
+        Limit limit = as(plan, Limit.class);
+        IpLocation ipLocation = as(limit.child(), IpLocation.class);
+
+        final List<Attribute> attributes = ipLocation.generatedAttributes();
+
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        assertContainsAttribute(attributes, "g.country_iso_code", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.continent_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.region_iso_code", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.region_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.city_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.location", DataType.GEO_POINT);
+        assertEquals(7, attributes.size());
+    }
+
+    public void testIpLocationStringInput() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // KEYWORD input should be accepted
+        basic().query("ROW ip=\"1.2.3.4\" | ip_location g = ip");
+    }
+
+    public void testIpLocationIpInput() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // IP-typed input should be accepted
+        basic().query("ROW ip=\"1.2.3.4\"::ip | ip_location g = ip");
+    }
+
+    public void testIpLocationInvalidInput() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        basic().error(
+            "ROW ip=123 | ip_location g = ip",
+            containsString("Input for IP_LOCATION must be of type [string] or [ip] but is [integer]")
+        );
+    }
+
+    public void testIpLocationCustomDatabase() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query("ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"database_file\": \"GeoLite2-Country.mmdb\" }");
+
+        Limit limit = as(plan, Limit.class);
+        IpLocation ipLocation = as(limit.child(), IpLocation.class);
+        assertEquals("GeoLite2-Country.mmdb", ipLocation.databaseFile());
+
+        final List<Attribute> attributes = ipLocation.generatedAttributes();
+        assertContainsAttribute(attributes, "g.continent_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_iso_code", DataType.KEYWORD);
+    }
+
+    public void testIpLocationPropertiesFilter() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query(
+            "ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"properties\": [\"city_name\", \"country_iso_code\"] }"
+        );
+
+        Limit limit = as(plan, Limit.class);
+        IpLocation ipLocation = as(limit.child(), IpLocation.class);
+
+        final List<Attribute> attributes = ipLocation.generatedAttributes();
+        assertEquals(2, attributes.size());
+        assertContainsAttribute(attributes, "g.city_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_iso_code", DataType.KEYWORD);
+    }
+
+    public void testIpLocationUnrecognizedDatabaseFile() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        basic().error(
+            "ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"database_file\": \"totally-unknown.mmdb\" }",
+            containsString("IP location database [totally-unknown.mmdb] is not recognized")
+        );
+    }
+
+    public void testIpLocationInvalidProperty() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // Properties are validated against the database schema by the analyzer; an unknown property is a verification failure.
+        basic().error(
+            "ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"properties\": [\"not_a_real_property\"] }",
+            containsString("illegal property value [not_a_real_property]")
+        );
+    }
+
     private void assertContainsAttribute(List<Attribute> attributes, String expectedName, DataType expectedType) {
         Attribute attr = attributes.stream().filter(a -> a.name().equals(expectedName)).findFirst().orElse(null);
         assertNotNull("Expected attribute " + expectedName + " not found", attr);
@@ -5371,7 +5489,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private boolean isMultiTypeEsField(Expression e) {
-        return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
+        return e instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField;
     }
 
     @Override

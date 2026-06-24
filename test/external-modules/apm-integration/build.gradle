@@ -20,17 +20,40 @@ esplugin {
 // let the javaRestTest see the classpath of main
 GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
 
-tasks.named("test").configure {
-  enabled = false
-}
-
 tasks.named('javaRestTest').configure {
   def buildParams = project.rootProject.extensions.getByName('buildParams')
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  usesDefaultDistribution("OtelAuditLogsIT requires xpack security + audit (default distribution)")
 }
+
+def otelVersion = '1.62.0'
 
 dependencies {
   clusterModules project(':modules:apm')
   implementation project(':libs:logging')
   javaRestTestImplementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-common:$otelVersion"
+  testImplementation sourceSets.javaRestTest.output
+  // RecordingApmServerTests (src/test) loads RecordingApmServer at runtime, which now references
+  // gRPC classes. Mirror the javaRestTest runtime deps so the test classloader can resolve them.
+  testRuntimeOnly "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
+  testRuntimeOnly "io.grpc:grpc-api:1.78.0"
+  testRuntimeOnly "io.grpc:grpc-stub:1.78.0"
+  testRuntimeOnly "io.grpc:grpc-netty:1.78.0"
+  testRuntimeOnly "io.grpc:grpc-core:1.78.0"
+  testRuntimeOnly "io.grpc:grpc-protobuf:1.78.0"
+  testRuntimeOnly "io.netty:netty-codec-http2:${versions.netty}"
+  testRuntimeOnly "io.netty:netty-handler-proxy:${versions.netty}"
+  testRuntimeOnly "com.google.guava:guava:33.4.0-jre"
+  testRuntimeOnly "com.google.guava:failureaccess:1.0.2"
+  // gRPC server-side deps for RecordingApmServer (version aligned with :x-pack:plugin:esql-datasource-grpc)
+  javaRestTestImplementation "io.grpc:grpc-api:1.78.0"
+  javaRestTestImplementation "io.grpc:grpc-protobuf:1.78.0"
+  javaRestTestImplementation "io.grpc:grpc-stub:1.78.0"
+  javaRestTestRuntimeOnly "io.grpc:grpc-netty:1.78.0"
+  javaRestTestRuntimeOnly "io.grpc:grpc-core:1.78.0"
+  javaRestTestRuntimeOnly "io.netty:netty-codec-http2:${versions.netty}"
+  javaRestTestRuntimeOnly "io.netty:netty-handler-proxy:${versions.netty}"
+  javaRestTestRuntimeOnly "com.google.guava:guava:33.4.0-jre" // required by grpc-java (unrelated to the okhttp sender used on the ES side)
+  javaRestTestRuntimeOnly "com.google.guava:failureaccess:1.0.2"
 }

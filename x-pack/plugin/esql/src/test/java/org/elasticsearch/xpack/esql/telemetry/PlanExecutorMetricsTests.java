@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -48,10 +49,12 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -107,6 +110,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             null,
             new InferenceService(mock(Client.class), clusterService),
             UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
             CrossProjectModeDecider.NOOP
@@ -207,7 +211,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 DataSourceCapabilities.build(plugins),
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -312,7 +318,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -414,7 +422,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -490,7 +500,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -552,7 +564,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -658,6 +672,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             CrossProjectModeDecider.NOOP,
             dataSourceModule,
             TEST_FUNCTION_REGISTRY,
+            PromqlFunctionRegistry.INSTANCE,
             TEST_PARSER,
             null
         );

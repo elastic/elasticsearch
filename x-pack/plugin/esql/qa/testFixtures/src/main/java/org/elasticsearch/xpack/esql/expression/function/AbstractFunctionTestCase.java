@@ -499,11 +499,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return EvalMapper.toEvaluator(FoldContext.small(), e, builder.build());
     }
 
-    protected final Page row(List<Object> values) {
+    public static Page row(List<Object> values) {
         return maybeConvertBytesRefsToOrdinals(new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values)));
     }
 
-    private Page maybeConvertBytesRefsToOrdinals(Page page) {
+    private static Page maybeConvertBytesRefsToOrdinals(Page page) {
         boolean anyBytesRef = false;
         for (int b = 0; b < page.getBlockCount(); b++) {
             if (page.getBlock(b).elementType() == ElementType.BYTES_REF) {
@@ -576,7 +576,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Hack together a layout by scanning for Fields.
      * Those will show up in the layout in whatever order a depth first traversal finds them.
      */
-    protected static void buildLayout(Layout.Builder builder, Expression e) {
+    public static void buildLayout(Layout.Builder builder, Expression e) {
         dedupAndBuildLayout(new HashSet<>(), builder, e);
     }
 
@@ -881,7 +881,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
                     continue;
                 }
-                List<DocsV3Support.Param> sig = tc.getData().stream().map(d -> new DocsV3Support.Param(d.type(), d.appliesTo())).toList();
+                List<DocsV3Support.Param> sig = tc.getData()
+                    .stream()
+                    .map(d -> new DocsV3Support.Param(d.type(), d.appliesTo(), d.preview()))
+                    .toList();
                 signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
             } catch (AssumptionViolatedException ignored) {
                 // Throwing an AssumptionViolatedException in a test is a valid way of ignoring a test in junit.
@@ -945,7 +948,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     protected final DriverContext driverContext() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
+        return driverContext(breakers);
+    }
+
+    public static DriverContext driverContext(List<CircuitBreaker> breakers) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(512)).withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
         return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }

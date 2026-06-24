@@ -14,7 +14,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -49,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.InferenceString.fromStringList;
 import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceService.random;
 
 public class TestRerankingServiceExtension implements InferenceServiceExtension {
@@ -117,9 +115,6 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         @Override
         public void infer(
             Model model,
-            @Nullable String query,
-            @Nullable Boolean returnDocuments,
-            @Nullable Integer topN,
             List<String> input,
             boolean stream,
             Map<String, Object> taskSettingsMap,
@@ -127,22 +122,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
-            if (((TestRerankingServiceExtension.TestTaskSettings) model.getTaskSettings()).shouldFailValidation()) {
-                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
-                return;
-            }
-            TaskSettings taskSettings = model.getTaskSettings().updatedTaskSettings(taskSettingsMap);
-
-            if (model.getConfigurations().getTaskType() == TaskType.RERANK) {
-                listener.onResponse(makeResults(fromStringList(input), (TestRerankingServiceExtension.TestTaskSettings) taskSettings));
-            } else {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
-                        RestStatus.BAD_REQUEST
-                    )
-                );
-            }
+            listener.onFailure(new UnsupportedOperationException("Rerank via infer() is not supported, use rerankInfer() instead"));
         }
 
         @Override
@@ -191,14 +171,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         @Override
-        public boolean supportsNewRerankCodePath() {
-            return true;
-        }
-
-        @Override
         public void chunkedInfer(
             Model model,
-            @Nullable String query,
             List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
             InputType inputType,

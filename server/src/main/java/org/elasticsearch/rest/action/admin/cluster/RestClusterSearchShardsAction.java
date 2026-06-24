@@ -54,8 +54,7 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         clusterSearchShardsRequest.routing(parsedRouting.routing())
             .searchSlice(
                 parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
-            )
-            .setRoutingFromSlice(parsedRouting.fromSlice());
+            );
         clusterSearchShardsRequest.preference(request.param("preference"));
         clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterSearchShardsRequest.indicesOptions()));
         return channel -> client.execute(

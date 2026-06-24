@@ -1984,6 +1984,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private ByteOffsetTrackingReader bulkByteTracker;
         /** The Jackson bulk mapping iterator, retained to read each row's start char offset. */
         private com.fasterxml.jackson.databind.MappingIterator<List<?>> bulkRows;
+        /** Last bulk-path char offset queried, to enforce the tracker's non-decreasing contract / detect anomalies. */
+        private long bulkLastCharOffset = 0L;
 
         /** One stripe's running stats: row count + per-column min/max/null. Byte ranges and cover anchors
          *  are derived from the chunk's byte geometry at emit, not accumulated. */
@@ -2207,7 +2209,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         @SuppressWarnings({ "rawtypes", "unchecked" })
         private Iterator<List<?>> newTrackedJacksonBulkIterator() throws IOException {
-            bulkByteTracker = new ByteOffsetTrackingReader(reader, splitStartByte);
+            // The header row and any schema-inference sample were already consumed from `reader` through
+            // recordReader, so the tracker's first character sits at splitStartByte + recordReader.bytesRead(),
+            // not at splitStartByte. Basing it at splitStartByte would skew every first-split row offset by the
+            // header's byte length — and asymmetrically, since non-first splits skip no header — so the same
+            // file read with different chunkings would attribute boundary records to different stripes and the
+            // sibling tilings would fold to disagreeing per-stripe counts (a silently wrong cached aggregate).
+            bulkByteTracker = new ByteOffsetTrackingReader(reader, splitStartByte + recordReader.bytesRead());
             bulkRows = sharedCsvMapper.readerFor(List.class).with(newCsvSchema()).readValues(bulkByteTracker);
             return (Iterator) bulkRows;
         }
@@ -2411,7 +2419,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 // blank/comment lines this next() consumed on the way to it).
                                 long rowStartByte = 0L;
                                 if (bulkByteTracker != null) {
-                                    rowStartByte = bulkByteTracker.byteOffsetAtChar(bulkRows.getCurrentLocation().getCharOffset());
+                                    // The parser's current-token char offset is the row's first char (its
+                                    // location reports char offsets for CSV; byte offsets are always -1). If it
+                                    // is unavailable (-1) or non-monotonic, we cannot map this record to a byte
+                                    // offset, so disable stripe capture for the file — a safe miss; the query
+                                    // still runs and a warm query simply re-scans rather than serving stale stats.
+                                    long charOff = bulkRows.getParser().currentTokenLocation().getCharOffset();
+                                    if (charOff < 0 || charOff < bulkLastCharOffset) {
+                                        stripeCaptureDisabled = true;
+                                    } else {
+                                        bulkLastCharOffset = charOff;
+                                        rowStartByte = bulkByteTracker.byteOffsetAtChar(charOff);
+                                    }
                                 }
                                 List<?> rowList = csvIterator.next();
                                 if (bulkByteTracker == null && trackOffsets) {

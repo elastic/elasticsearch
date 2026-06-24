@@ -123,6 +123,35 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         assertFoldsTo(frags, total);
     }
 
+    public void testHeaderRowScansFoldOnceThroughReconciler() throws Exception {
+        // A wide header (8 bytes) the first split must skip: the bulk byte tracker has to be based PAST the
+        // header (splitStartByte + recordReader.bytesRead()), not at splitStartByte. A mis-based tracker
+        // would shift the first split's record offsets by the header width while the non-first split (no
+        // header) stays correct, so the two chunkings would attribute boundary records to different stripes
+        // and the per-stripe fold would disagree.
+        byte[] header = "colname\n".getBytes(StandardCharsets.UTF_8); // 8 bytes
+        int total = 10;
+        byte[] data = asciiCsv(1, total); // data records sit at file bytes 8,10,...,26
+        byte[] full = new byte[header.length + data.length];
+        System.arraycopy(header, 0, full, 0, header.length);
+        System.arraycopy(data, 0, full, header.length, data.length);
+        long stripe = 9;
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "colname", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+
+        List<Map<String, Object>> frags = new ArrayList<>();
+        // Whole file (skips the header), file-final.
+        frags.addAll(captureRaw(full, 0, true, true, 1000, stripe, true, null));
+        // Same file split at a record boundary: the first chunk skips the header; the non-first chunk has
+        // no header and reads with the planner-resolved schema.
+        int cut = header.length + 4 * ASCII_RECORD_BYTES;
+        frags.addAll(captureRaw(slice(full, 0, cut), 0, true, false, 1000, stripe, true, null));
+        frags.addAll(captureRaw(slice(full, cut, full.length), cut, false, true, 1000, stripe, true, schema));
+
+        assertFoldsTo(frags, total);
+    }
+
     private List<Map<String, Object>> captureRaw(
         byte[] bytes,
         long baseOffset,
@@ -131,12 +160,26 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         int batchSize,
         long stripeSize
     ) throws Exception {
+        return captureRaw(bytes, baseOffset, firstSplit, fileFinal, batchSize, stripeSize, false, null);
+    }
+
+    private List<Map<String, Object>> captureRaw(
+        byte[] bytes,
+        long baseOffset,
+        boolean firstSplit,
+        boolean fileFinal,
+        int batchSize,
+        long stripeSize,
+        boolean headerRow,
+        List<Attribute> readSchema
+    ) throws Exception {
         StorageObject o = memoryObject(bytes);
         FormatReadContext ctx = FormatReadContext.builder()
             .batchSize(batchSize)
             .recordAligned(true)
             .firstSplit(firstSplit)
             .lastSplit(true)
+            .readSchema(readSchema)
             .splitStartByte(baseOffset)
             .stats(baseOffset, stripeSize, fileFinal)
             .build();
@@ -144,7 +187,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         try (
             var handle = ExternalStatsCapture.bind(sink);
             CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false)
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, headerRow)
             ).read(o, ctx)
         ) {
             while (it.hasNext()) {

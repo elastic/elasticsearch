@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -166,7 +167,13 @@ public final class AstKeywordFieldRewriter {
      * @param rewrittenFieldNames the set of keyword field names that were actually wrapped at least once
      * @param skipEvents          every in-scope keyword reference that was left unwrapped, in pipeline order
      */
-    public record RewriteResult(String rewrittenQuery, boolean modified, Set<String> rewrittenFieldNames, List<SkipEvent> skipEvents) {}
+    public record RewriteResult(
+        String rewrittenQuery,
+        boolean modified,
+        Set<String> rewrittenFieldNames,
+        List<SkipEvent> skipEvents,
+        boolean wrappedMatchFunctionArg
+    ) {}
 
     private AstKeywordFieldRewriter() {}
 
@@ -181,7 +188,7 @@ public final class AstKeywordFieldRewriter {
     public static RewriteResult rewrite(String query, ScopeResolver scopeResolver, String wrapperSubKey, List<String> expectedColumnOrder) {
         Set<String> initialScope = scopeResolver.resolveScope(query);
         if (initialScope.isEmpty()) {
-            return new RewriteResult(query, false, Set.of(), List.of());
+            return new RewriteResult(query, false, Set.of(), List.of(), false);
         }
         LogicalPlan plan;
         try {
@@ -190,14 +197,20 @@ public final class AstKeywordFieldRewriter {
             // The query uses grammar this parser configuration rejects (or relies on bound params);
             // leave it unmodified so the unmodified spec runs and any failure is attributable to the
             // engine rather than to a malformed rewrite.
-            return new RewriteResult(query, false, Set.of(), List.of());
+            return new RewriteResult(query, false, Set.of(), List.of(), false);
         }
         Walker walker = new Walker(query, scopeResolver, wrapperSubKey);
         Set<String> endScope = walker.processPipeline(plan, initialScope);
         String body = walker.applyEdits();
         String rewritten = appendTopLevelTailRecovery(body, endScope, expectedColumnOrder, wrapperSubKey, walker.rewrittenNames);
         boolean modified = rewritten.equals(query) == false;
-        return new RewriteResult(rewritten, modified, Set.copyOf(walker.rewrittenNames), List.copyOf(walker.skipEvents));
+        return new RewriteResult(
+            rewritten,
+            modified,
+            Set.copyOf(walker.rewrittenNames),
+            List.copyOf(walker.skipEvents),
+            walker.wrappedMatchFunctionArg
+        );
     }
 
     /**
@@ -310,6 +323,7 @@ public final class AstKeywordFieldRewriter {
         private final Map<String, Edit> editsByKey = new LinkedHashMap<>();
         final Set<String> rewrittenNames = new HashSet<>();
         final List<SkipEvent> skipEvents = new ArrayList<>();
+        boolean wrappedMatchFunctionArg = false;
 
         Walker(String query, ScopeResolver scopeResolver, String wrapperSubKey) {
             this.query = query;
@@ -797,6 +811,11 @@ public final class AstKeywordFieldRewriter {
                 return;
             }
             for (Expression child : expression.children()) {
+                if (expression instanceof UnresolvedFunction uf && "match".equalsIgnoreCase(uf.name())) {
+                    if (child instanceof UnresolvedAttribute attr && scope.contains(attr.name()) && spanMatches(attr.source())) {
+                        wrappedMatchFunctionArg = true;
+                    }
+                }
                 wrapExpression(child, scope);
             }
         }

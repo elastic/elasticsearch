@@ -27,6 +27,8 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.ScoreOperator.ExpressionScorer;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
@@ -54,6 +57,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -416,7 +420,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     protected boolean isRuntimeSearch() {
         return EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled()
             && configuration.pragmas().runtimeLexicalSearch()
-            && fieldAsFieldAttribute() == null;
+            && (fieldAsFieldAttribute() == null
+                || (fieldAsFieldAttribute().field() instanceof FunctionEsField functionEsField
+                    && functionEsField.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD));
     }
 
     @Override
@@ -425,6 +431,15 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return Translatable.NO;
         }
         return super.translatable(pushdownPredicates);
+    }
+
+    @Override
+    public ExpressionScorer.Factory toScorer(ExpressionScoreMapper.ToScorer toScorer) {
+        if (false == isRuntimeSearch()) {
+            return super.toScorer(toScorer);
+        }
+
+        throw new InvalidArgumentException("MATCH does not support scoring when evaluated as a runtime search", source());
     }
 
     @Override

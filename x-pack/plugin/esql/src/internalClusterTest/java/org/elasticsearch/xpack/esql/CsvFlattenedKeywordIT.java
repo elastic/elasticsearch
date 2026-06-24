@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
@@ -47,7 +48,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
 /**
@@ -589,7 +589,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         private static List<CsvSpecReader.CsvTestCase> loadAllCsvSpecTestCases() {
             try {
                 List<URL> urls = classpathResources("/*.csv-spec");
-                List<Object[]> rows = SpecReader.readScriptSpec(urls, specParser());
+                List<Object[]> rows = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
                 List<CsvSpecReader.CsvTestCase> cases = new ArrayList<>(rows.size());
                 for (Object[] row : rows) {
                     if (row[4] instanceof CsvSpecReader.CsvTestCase tc) {
@@ -673,7 +673,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         @Override
-        public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+        public IndexLoadStrategy.TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
             // Tests requiring ts_info_command or metrics_info_command expose TSDB dimension names
             // directly in query output (e.g. _timeseries, _tsid). After the keyword→flattened
             // rewrite those names change from "cluster" to "cluster.v", so the expected results
@@ -854,7 +854,12 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             if (Booleans.parseBoolean(System.getProperty(LOG_REWRITTEN_QUERIES_PROPERTY, "false"))) {
                 logger.info("keyword→flattened: rewritten query:\n{}", result.rewrittenQuery());
             }
-            return result.rewrittenQuery();
+
+            Settings extraPragmas = Settings.EMPTY;
+            if (result.wrappedMatchFunctionArg()) {
+                extraPragmas = Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build();
+            }
+            return new IndexLoadStrategy.TransformedQuery(result.rewrittenQuery(), extraPragmas);
         }
 
         /**

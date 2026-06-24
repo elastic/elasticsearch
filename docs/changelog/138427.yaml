@@ -1,0 +1,5 @@
+pr: 138427
+summary: Allow `KeyedFlattenedFieldType` to run wildcard queries on leaf subfields
+area: Search
+type: bug
+issues: []

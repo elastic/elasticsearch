@@ -11,11 +11,11 @@ With columnar mode enabled, Elasticsearch becomes a full **analytical and search
 
 - Fields are stored **once, as doc values only**. All non-text fields are not indexed by default, eliminating the storage cost of maintaining redundant index structures.
 - Mappings are always flat, and object like fields in mappings are always auto-flattened.
-- The original source will no longer be stored. If source is requested at query time, then a flattened or columnar representation of the source is generated on the fly and returned. Optionally, the columnar source can also be generated at index time and stored to disk as doc values.
+- The original source is no longer stored. If source is requested at query time, then a flattened or columnar representation of the source is generated on the fly and returned. Optionally, the columnar source can also be generated at index time and stored to disk as doc values.
 - New multi-value semantics: the original ordering of multiple values per field per document (e.g., in arrays) is preserved by default. Optionally, fields in mappings can be configured to only allow one value per document.
 - Fields in mappings can be configured to reject documents that have no value for them.
-- Metadata like `_routing` and `_id` are stored using doc values.
-- Optimized doc values format is used by default, further reducing storage footprint.
+- Metadata fields like `_routing` and `_id` are stored using doc values as well.
+- An optimized doc values format is used by default, further reducing storage footprint. especially when combined with index sorting.
 
 These changes bring Elasticsearch's storage footprint and columnar access in line with dedicated columnar stores while retaining its full search and aggregation capabilities.
 
@@ -24,7 +24,7 @@ These changes bring Elasticsearch's storage footprint and columnar access in lin
 Two columnar index modes are available:
 
 `columnar`
-:   A general-purpose columnar store with no use-case-specific defaults. Use this mode for data that does not fit the logging model.
+:   A general-purpose columnar store with no use-case-specific defaults. Use this mode for bare indices and data streams that does not fit the logging paradigm.
 
 `logsdb_columnar`
 :   A columnar store with logging-oriented defaults. It inherits all behavior of the `columnar` mode and additionally:

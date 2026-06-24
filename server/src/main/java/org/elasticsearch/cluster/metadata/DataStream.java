@@ -1761,14 +1761,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return getWriteIndex();
         }
 
-        Instant timestamp;
-        Object rawTimestamp = request.getRawTimestamp();
-        if (rawTimestamp != null) {
-            timestamp = getTimeStampFromRaw(rawTimestamp);
-        } else {
-            timestamp = getTimestampFromParser(request.source(), request.getContentType());
-        }
-        timestamp = getCanonicalTimestampBound(timestamp);
+        Instant timestamp = getDocumentTimestamp(request);
         Index result = selectTimeSeriesWriteIndex(timestamp, project);
         if (result == null) {
             String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
@@ -1792,6 +1785,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         return result;
+    }
+
+    public static Instant getDocumentTimestamp(IndexRequest request) {
+        Instant timestamp;
+        Object rawTimestamp = request.getRawTimestamp();
+        if (rawTimestamp != null) {
+            timestamp = getTimeStampFromRaw(rawTimestamp);
+        } else {
+            timestamp = getTimestampFromParser(request.source(), request.getContentType());
+        }
+        timestamp = getCanonicalTimestampBound(timestamp);
+        return timestamp;
     }
 
     @Override

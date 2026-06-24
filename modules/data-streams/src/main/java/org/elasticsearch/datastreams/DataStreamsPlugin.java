@@ -94,6 +94,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -317,5 +318,17 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     @Override
     public Collection<HealthIndicatorService> getHealthIndicatorServices() {
         return List.of(dataStreamLifecycleHealthIndicatorService.get());
+    }
+
+    /**
+     * Get the data stream lifecycle service object for this plugin. In cases where this is called very early in node start up, there is no
+     * guarantee that the service is fully initialized or even present. As such, it is best to call this every time the service is needed
+     * and to handle null return values accordingly and await for initialization to complete if required.
+     * @return The plugin's {@link DataStreamLifecycleService} instance, or null if it has not yet been created.
+     */
+    public DataStreamLifecycleService getDataStreamLifecycleService() {
+        DataStreamLifecycleService dataStreamLifecycleService = dataLifecycleInitialisationService.get();
+        Objects.requireNonNull(dataStreamLifecycleService, "DataStreamLifecycleService is not yet created");
+        return dataStreamLifecycleService;
     }
 }

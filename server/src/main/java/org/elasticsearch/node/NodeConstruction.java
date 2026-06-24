@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
+import org.elasticsearch.cluster.metadata.TimeSeriesIndexCreationWindowLocator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -993,6 +994,12 @@ class NodeConstruction {
             shardLimitValidator,
             threadPool
         );
+
+        final TimeSeriesIndexCreationWindowLocator timeSeriesIndexCreationWindowLocator =
+            new TimeSeriesIndexCreationWindowLocator.CompositeLocator(
+                pluginsService.loadServiceProviders(TimeSeriesIndexCreationWindowLocator.class)
+            );
+        modules.bindToInstance(TimeSeriesIndexCreationWindowLocator.class, timeSeriesIndexCreationWindowLocator);
 
         final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = createDataStreamServicesAndGlobalRetentionResolver(
             threadPool,

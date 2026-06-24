@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.TimeSeriesIndexCreationWindowLocator;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.SliceIndexing;
@@ -60,6 +62,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -91,8 +94,46 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final OriginSettingClient rolloverClient;
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
+    private final TimeSeriesIndexCreationWindowLocator timeSeriesIndexCreationWindowLocator;
 
     @Inject
+    public TransportBulkAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ClusterService clusterService,
+        IngestService ingestService,
+        NodeClient client,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices,
+        ProjectResolver projectResolver,
+        FailureStoreMetrics failureStoreMetrics,
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        FeatureService featureService,
+        TimeSeriesIndexCreationWindowLocator timeSeriesIndexCreationWindowLocator
+    ) {
+        this(
+            TYPE,
+            BulkRequest::new,
+            threadPool,
+            transportService,
+            clusterService,
+            ingestService,
+            client,
+            actionFilters,
+            indexNameExpressionResolver,
+            indexingPressure,
+            systemIndices,
+            projectResolver,
+            threadPool.relativeTimeInMillisSupplier(),
+            failureStoreMetrics,
+            dataStreamFailureStoreSettings,
+            featureService,
+            timeSeriesIndexCreationWindowLocator
+        );
+    }
+
     public TransportBulkAction(
         ThreadPool threadPool,
         TransportService transportService,
@@ -109,6 +150,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         FeatureService featureService
     ) {
         this(
+            TYPE,
+            BulkRequest::new,
             threadPool,
             transportService,
             clusterService,
@@ -122,7 +165,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             threadPool::relativeTimeInNanos,
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            featureService
+            featureService,
+            TimeSeriesIndexCreationWindowLocator.noOp()
         );
     }
 
@@ -158,7 +202,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             relativeTimeProvider,
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            featureService
+            featureService,
+            TimeSeriesIndexCreationWindowLocator.noOp()
         );
     }
 
@@ -178,7 +223,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService
+        FeatureService featureService,
+        TimeSeriesIndexCreationWindowLocator timeSeriesIndexCreationWindowLocator
     ) {
         super(
             bulkAction,
@@ -200,6 +246,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.failureStoreMetrics = failureStoreMetrics;
+        this.timeSeriesIndexCreationWindowLocator = timeSeriesIndexCreationWindowLocator;
     }
 
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
@@ -319,6 +366,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             projectState.metadata()
         );
         Set<String> indicesThatRequireAlias = new HashSet<>();
+        LongSupplier nowSupplier = threadPool::absoluteTimeInMillis;
+        Map<String, Instant> tsdsStartWindows = new HashMap<>();
 
         for (DocWriteRequest<?> request : bulkRequest.requests) {
             // Delete requests should not attempt to create the index (if the index does not exist), unless an external versioning is used.
@@ -361,6 +410,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 }
             }
             // Determine which data streams and failure stores need to be rolled over.
+            // PRTODO: Do we need to resolve any date math here? Should this be something that is resolved?
             DataStream dataStream = projectState.metadata().dataStreams().get(request.index());
             if (dataStream != null) {
                 if (writeToFailureStore == false && dataStream.getDataComponent().isRolloverOnWrite()) {
@@ -368,7 +418,57 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 } else if (writeToFailureStore && dataStream.getFailureComponent().isRolloverOnWrite()) {
                     failureStoresToBeRolledOver.add(request.index());
                 }
+                if (IndexMode.TIME_SERIES == dataStream.getIndexMode() && DocWriteRequest.OpType.CREATE == request.opType()) {
+                    maybeQueueTimeSeriesCreateIndexOperation(projectState.metadata(), dataStream, request, tsdsStartWindows, nowSupplier);
+                }
             }
+        }
+    }
+
+    /**
+     * Inspects if this time series data stream has a backing index to assign this document to, and if not, determines if it can create one.
+     * @param projectMetadata the project metadata used for looking up backing indices and examining data streams
+     * @param dataStream the data stream to inspect for start window
+     * @param request the write request to inspect for timestamp
+     * @param tsdsStartWindows any previously located tsds start windows
+     * @param nowSupplier current timestamp provider
+     */
+    private void maybeQueueTimeSeriesCreateIndexOperation(
+        // PRTODO: Add however we're collecting or organizing these auto create requests
+        ProjectMetadata projectMetadata,
+        DataStream dataStream,
+        DocWriteRequest<?> request,
+        Map<String, Instant> tsdsStartWindows,
+        LongSupplier nowSupplier
+    ) {
+        // We need to check if a tsds is able to accept a document based on its date.
+        Instant documentTimestamp;
+        try {
+            documentTimestamp = DataStream.getDocumentTimestamp(getIndexWriteRequest(request));
+        } catch (DataStream.TimestampError ignored) {
+            // just skip and let the error throw in BulkOperation
+            return;
+        }
+        var tsdsWriteIdx = dataStream.selectTimeSeriesWriteIndex(documentTimestamp, projectMetadata);
+        if (tsdsWriteIdx == null) {
+            // check if we're trying to write to the future
+            var now = nowSupplier.getAsLong();
+            if (documentTimestamp.toEpochMilli() > now) {
+                // just skip and let the error throw in BulkOperation
+                return;
+            }
+            // if there are no write indices then locate how far in the past we can create a tsds index
+            var windowStart = tsdsStartWindows.computeIfAbsent(
+                dataStream.getName(),
+                (dataStreamName) -> timeSeriesIndexCreationWindowLocator.locateCreateWindow(dataStream, projectMetadata, nowSupplier)
+            );
+            // Check document timestamp against window start, and if document is before window start
+            if (documentTimestamp.isBefore(windowStart)) {
+                // just skip and let the error throw in BulkOperation
+                return;
+            }
+            // PRTODO: TBD auto create operation for the TSDS
+            // (plus restructuring this added code as needed for tidiness)
         }
     }
 

@@ -1753,6 +1753,49 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
+     * Determines the earliest that a time series backing index could be created such that the lifecycle doesn't immediately make it
+     * unusable (either by deleting it or modifying it to be read only).
+     * @param dataStream A time series data stream
+     * @param projectMetadata The project metadata the stream belongs to
+     * @return an Instant that a backing index would be picked up and modified by its lifecycle, or {@link Instant#MIN} if no interference
+     * is detected.
+     */
+    public Instant timeseriesStartWindow(DataStream dataStream, ProjectMetadata projectMetadata, LongSupplier nowSupplier) {
+        assert IndexMode.TIME_SERIES.equals(dataStream.getIndexMode()) : "Time series data stream required";
+        DataStreamLifecycle lifecycle = dataStream.getDataLifecycle();
+        if (lifecycle == null || lifecycle.enabled() == false) {
+            // PRTODO: Is this all we'd need to check? Or do we need to check the data stream's
+            // template to see if it prefers ILM for new indices? A new index that prefers ILM
+            // would be managed by ILM and thus the data stream lifecycle wouldn't matter for
+            // the data stream's start time.
+            return Instant.MIN;
+        }
+        var dataRetention = getEffectiveRetention(dataStream, globalRetentionSettings, false);
+
+        // We delete indices that are older than `retentionPeriod` milliseconds in the past from `now`
+        long shortestPeriod = dataRetention.getMillis();
+
+        // Indices can be downsampled, which makes them unable to accept new documents.
+        if (lifecycle.downsamplingRounds() != null) {
+            for (DataStreamLifecycle.DownsamplingRound round : lifecycle.downsamplingRounds()) {
+                long downsampleAfter = round.after().getMillis();
+                shortestPeriod = Math.min(downsampleAfter, shortestPeriod);
+            }
+        }
+
+        // Indices can also be marked for frozen tier via DLM, which makes them readonly once snapshotted.
+        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
+            if (lifecycle.frozenAfter() != null) {
+                long frozenAfter = lifecycle.frozenAfter().getMillis();
+                shortestPeriod = Math.min(frozenAfter, shortestPeriod);
+            }
+        }
+
+        long now = nowSupplier.getAsLong();
+        return Instant.ofEpochMilli(now - shortestPeriod);
+    }
+
+    /**
      * This is a ClusterStateTaskListener that writes the force_merge_completed_timestamp into the cluster state. It is meant to run in
      * STATE_UPDATE_TASK_EXECUTOR.
      */

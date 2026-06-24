@@ -23,4 +23,8 @@ module org.elasticsearch.datastreams {
     exports org.elasticsearch.datastreams;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.datastreams.DataStreamFeatures;
+    provides org.elasticsearch.cluster.metadata.TimeSeriesIndexCreationWindowLocator
+        with
+            org.elasticsearch.datastreams.lifecycle.DLMTimeSeriesIndexCreationWindowLocator;
+
 }

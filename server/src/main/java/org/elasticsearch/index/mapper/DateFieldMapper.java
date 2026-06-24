@@ -258,7 +258,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        boolean multiValue = DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false
+        boolean multiValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
             || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
         boolean nullability = DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false
             || FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());

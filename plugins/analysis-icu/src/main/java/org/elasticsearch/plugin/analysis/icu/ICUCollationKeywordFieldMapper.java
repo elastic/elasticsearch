@@ -62,7 +62,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "icu_collation_keyword";
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
-        if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
         }
 

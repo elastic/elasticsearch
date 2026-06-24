@@ -349,8 +349,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
         private final boolean ignoreMalformed;
         // Decided once per instance so that the generated mapping is stable across the throwaway and per-document examples.
-        private final boolean extendedDocValues = FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-            && randomBoolean();
+        private final boolean extendedDocValues = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
         private final String cardinality = ESTestCase.randomFrom("low", "high");
         private final boolean enforceSingleValue = extendedDocValues && randomBoolean();
 
@@ -497,7 +496,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      * the current index version.
      */
     public void testHighCardinalityDocValuesUsesSeparateCountFormat() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("cardinality", "high").endObject())
         );
@@ -517,7 +516,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      * SeparateCount output regardless of indexCreatedVersion so the read path can decode it.
      */
     public void testHighCardinalityDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
         DocumentMapper mapper = createMapperService(
             legacyVersion,
@@ -538,7 +537,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      * fires, so enforcement does not trip.
      */
     public void testMultiValueFalseAcceptsSingleIgnoreMalformedValue() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -551,7 +550,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
      */
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -567,7 +566,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testMultiValueFalseRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -588,7 +587,7 @@ public class IpFieldMapperTests extends MapperTestCase {
      * call.
      */
     public void testMultiValueFalseRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -604,7 +603,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testHighCardinalityRejectedForIndexSortField() {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")

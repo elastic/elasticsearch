@@ -443,9 +443,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesDoubleUnmappedWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150672
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
-  method: testEsqlEnrichWithSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/150686
 - class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
   method: testCircuitBreakerTripCountMetric
   issue: https://github.com/elastic/elasticsearch/issues/150700
@@ -545,9 +542,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:stats.maxOfHalfFloat}
   issue: https://github.com/elastic/elasticsearch/issues/151357
-- class: org.elasticsearch.xpack.esql.plugin.CanMatchIT
-  method: testAliasFilters
-  issue: https://github.com/elastic/elasticsearch/issues/151367
 - class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
   method: testCreateAndRestoreSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/151388
@@ -635,9 +629,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileTests
   method: "testAggregateIntermediate {TestCase=<exponential_histogram>, <long> #3}"
   issue: https://github.com/elastic/elasticsearch/issues/151787
-- class: org.elasticsearch.search.vectors.IVFKnnVectorQueryCalibratedMergeTests
-  method: testShardMergeKeepsCandidatesPerMaxPersistedRescoreOversample
-  issue: https://github.com/elastic/elasticsearch/issues/151789
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:stats.minOfKeyword}
   issue: https://github.com/elastic/elasticsearch/issues/151790
@@ -689,3 +680,27 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageThirdPartyTests
   method: testStorageClassPerOperationPurpose
   issue: https://github.com/elastic/elasticsearch/issues/151924
+- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
+  method: testFetchingMixedTextAndImageChunks
+  issue: https://github.com/elastic/elasticsearch/issues/151928
+- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
+  method: testFetchingMixedTextAndImageValues
+  issue: https://github.com/elastic/elasticsearch/issues/151929
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:ip_location.*}
+  issue: https://github.com/elastic/elasticsearch/issues/151950
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
+  issue: https://github.com/elastic/elasticsearch/issues/151992
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:spatial-jts.stSimplifyCartesianShape}
+  issue: https://github.com/elastic/elasticsearch/issues/152004
+- class: org.elasticsearch.snapshots.SnapshotStressTestsIT
+  method: testRandomActivities
+  issue: https://github.com/elastic/elasticsearch/issues/152005
+- class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
+  method: testHKmeans
+  issue: https://github.com/elastic/elasticsearch/issues/152027
+- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
+  method: testExplicitMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/152030

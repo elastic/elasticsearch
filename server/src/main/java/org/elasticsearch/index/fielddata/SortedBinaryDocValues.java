@@ -27,10 +27,12 @@ public abstract class SortedBinaryDocValues {
     private final DocIdSetIterator docIdIterator;
 
     /**
-     * @param docIdSetIterator, the {@link DocIdSetIterator} that backs this instance.
+     * @param docIdSetIterator, the {@link DocIdSetIterator} that backs this instance. If the docIdSetIterator is an
+     *                          {@link AbstractBinaryDocValues} then we do not use it because it explicitly does not support
+     *                          the parts of the {@link DocIdSetIterator} interface.
      */
     public SortedBinaryDocValues(@Nullable DocIdSetIterator docIdSetIterator) {
-        this.docIdIterator = docIdSetIterator;
+        this.docIdIterator = docIdSetIterator instanceof AbstractBinaryDocValues ? null : docIdSetIterator;
     }
 
     /**

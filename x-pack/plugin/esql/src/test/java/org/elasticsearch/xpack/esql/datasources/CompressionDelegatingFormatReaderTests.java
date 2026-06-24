@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -125,6 +127,11 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
             @Override
             public List<String> fileExtensions() {
                 return List.of(".csv", ".tsv");
+            }
+
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
             }
 
             @Override
@@ -247,6 +254,10 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
     }
 
     private static class CapturingFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         boolean metadataCalled;
         boolean readCalled;

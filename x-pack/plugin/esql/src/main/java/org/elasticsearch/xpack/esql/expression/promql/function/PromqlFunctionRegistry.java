@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
@@ -110,6 +111,10 @@ public class PromqlFunctionRegistry {
         //
         Percentile.PROMQL_DEFINITION,
         PromqlHistogramQuantile.PROMQL_DEFINITION,
+        //
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
         //
         Ceil.PROMQL_DEFINITION,
         Abs.PROMQL_DEFINITION,
@@ -198,12 +203,9 @@ public class PromqlFunctionRegistry {
         "label_replace",
 
         // Histogram functions
-        "histogram_avg",
-        "histogram_count",
         "histogram_fraction",
         "histogram_stddev",
-        "histogram_stdvar",
-        "histogram_sum"
+        "histogram_stdvar"
     );
 
     private String normalize(String name) {

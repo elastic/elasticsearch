@@ -88,6 +88,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
         var collector = (ExponentialHistogramFieldDownsampler.AggregateHistogram.CumulativeCollector) producer.delegateCollector();
         assertThat(collector.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
+        assertThat(producer.isEmpty(), equalTo(true));
         assertThat(collector.previousValueHolder, nullValue());
         assertThat(producer.delegateCollector(), nullValue());
     }
@@ -145,6 +146,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
         var collector = (ExponentialHistogramFieldDownsampler.AggregateHistogram.CumulativeCollector) producer.delegateCollector();
         assertThat(collector.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
+        assertThat(producer.isEmpty(), equalTo(true));
         assertThat(collector.previousValueHolder, nullValue());
         assertThat(producer.delegateCollector(), nullValue());
     }
@@ -206,6 +208,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
         var collector = (ExponentialHistogramFieldDownsampler.AggregateHistogram.CumulativeCollector) producer.delegateCollector();
         assertThat(collector.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
+        assertThat(producer.isEmpty(), equalTo(true));
         assertThat(collector.previousValueHolder, nullValue());
         assertThat(producer.delegateCollector(), nullValue());
     }
@@ -231,6 +234,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
 
         producer.tsidReset();
+        assertThat(producer.isEmpty(), equalTo(true));
         assertThat(producer.delegateCollector(), nullValue());
 
         // tsid_2: cumulative — oldest value kept
@@ -251,6 +255,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
 
         producer.tsidReset();
+        assertThat(producer.isEmpty(), equalTo(true));
         assertThat(producer.delegateCollector(), nullValue());
 
         // tsid_3: delta again — fully independent

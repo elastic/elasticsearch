@@ -147,6 +147,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
         }
 
         void tsidReset() {
+            state = State.EMPTY;
             if (temporalityCollector != null) {
                 temporalityCollector.tsidReset();
                 temporalityCollector = null;

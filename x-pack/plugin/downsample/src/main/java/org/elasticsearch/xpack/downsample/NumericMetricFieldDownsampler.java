@@ -238,6 +238,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         public void tsidReset() {
+            state = State.EMPTY;
             if (temporalityCollector != null) {
                 temporalityCollector.tsidReset();
                 temporalityCollector = null;

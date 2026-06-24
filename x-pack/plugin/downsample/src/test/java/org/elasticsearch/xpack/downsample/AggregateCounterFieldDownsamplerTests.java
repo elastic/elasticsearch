@@ -354,6 +354,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
         producer.tsidReset();
+        assertThat(producer.isEmpty(), equalTo(true));
         assertThat(producer.delegateCollector(), nullValue());
 
         // tsid_2: delta — starts fresh, values are summed
@@ -367,6 +368,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
         producer.tsidReset();
+        assertThat(producer.isEmpty(), equalTo(true));
         assertThat(producer.delegateCollector(), nullValue());
 
         // tsid_3: cumulative with a reset — oldest value kept, reset data points produced
@@ -380,6 +382,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
         producer.tsidReset();
+        assertThat(producer.isEmpty(), equalTo(true));
         assertThat(producer.delegateCollector(), nullValue());
 
         // tsid_4: delta again — fully independent from the cumulative tsid

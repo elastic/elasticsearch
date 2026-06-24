@@ -35,6 +35,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.iplocation.api.IpDataLookupInfo;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -53,6 +56,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -69,7 +73,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
@@ -100,6 +104,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
@@ -180,6 +185,7 @@ public class EsqlSession {
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
+    private final DatasetResolver datasetResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
     private final EsqlParser parser;
@@ -201,6 +207,7 @@ public class EsqlSession {
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
     private final String clusterUuid;
+    private final IpLocationService ipLocationService;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -244,6 +251,7 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
+        DatasetResolver datasetResolver,
         ExternalSourceResolver externalSourceResolver,
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
@@ -264,6 +272,7 @@ public class EsqlSession {
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
+        this.datasetResolver = datasetResolver;
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
@@ -284,6 +293,7 @@ public class EsqlSession {
         this.clusterName = services.clusterService().getClusterName().value();
         this.clusterUuid = resolveClusterUuid(services.clusterService());
         this.projectMetadata = projectMetadata;
+        this.ipLocationService = services.ipLocationService();
     }
 
     public String sessionId() {
@@ -356,6 +366,9 @@ public class EsqlSession {
 
         // this is APM
         gatherPlanTelemetry(viewResolution.plan(), statement.settings());
+
+        // Trigger IP location database downloads for any IP_LOCATION command
+        requestIpLocationDownloads(viewResolution.plan());
 
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
@@ -1058,6 +1071,40 @@ public class EsqlSession {
         }
     }
 
+    /**
+     * Requests the download of the IP location databases referenced by any {@code IP_LOCATION} command in the plan.
+     * This is a fire-and-forget side-effect (the actual download is asynchronous) and is intentionally performed here, on the
+     * coordinator before analysis, rather than inside the analyzer rule that resolves the command's output columns.
+     */
+    private void requestIpLocationDownloads(LogicalPlan plan) {
+        if (ipLocationService == null || projectMetadata == null) {
+            return;
+        }
+        if (plan.anyMatch(UnresolvedIpLocation.class::isInstance)) {
+            ipLocationService.requestDownloads(projectMetadata.id().id(), IpLocationConsumer.ESQL);
+        }
+    }
+
+    /**
+     * Pre-fetches the IP database metadata for every {@code IP_LOCATION} command in the plan and bundles it into an
+     * {@link IpLocationResolution} for the analyzer.
+     * The lookup is a synchronous, side-effect-free metadata read keyed by database file name; an unrecognized database
+     * yields no entry, which the analyzer rule reports as an unresolved command.
+     */
+    private IpLocationResolution resolveIpLocations(LogicalPlan plan) {
+        if (ipLocationService == null) {
+            return IpLocationResolution.SERVICE_UNAVAILABLE;
+        }
+        Map<String, IpDataLookupInfo> databaseInfo = new HashMap<>();
+        plan.forEachDown(UnresolvedIpLocation.class, ip -> {
+            IpDataLookupInfo info = ipLocationService.getIpDataLookupInfo(ip.databaseFile());
+            if (info != null) {
+                databaseInfo.put(ip.databaseFile(), info);
+            }
+        });
+        return IpLocationResolution.fromPrefetched(databaseInfo);
+    }
+
     private void gatherSettingsMetrics(EsqlStatement statement) {
         if (metrics == null || statement.settings() == null) {
             return;
@@ -1162,13 +1209,25 @@ public class EsqlSession {
 
         TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
         datasetResolutionProfile.start();
-        // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
-        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
-        // expansion (wildcards, exclusions, date math, etc.) flows through the same
-        // IndexNameExpressionResolver path indices use. The rewriter bails internally when there are
-        // no datasets registered (the feature flag gates the CRUD layer that puts datasets there).
-        parsed = DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
-        datasetResolutionProfile.stop();
+        // Rewrite FROM <dataset> targets into UnresolvedExternalRelation so analysis treats them like the inline
+        // EXTERNAL command. The resolver first read-authorizes the names through the security filter — they are
+        // stripped from the plan here and would otherwise never reach authorization. Completes synchronously when
+        // no FROM pattern can match a registered dataset.
+        datasetResolver.replaceDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
+            datasetResolutionProfile.stop();
+            analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+        }));
+    }
+
+    private void analyzedPlanAfterDatasetResolution(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
+    ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
@@ -1979,7 +2038,8 @@ public class EsqlSession {
             unmappedResolution,
             projectMetadata,
             r,
-            timestampBounds
+            timestampBounds,
+            resolveIpLocations(parsed)
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);

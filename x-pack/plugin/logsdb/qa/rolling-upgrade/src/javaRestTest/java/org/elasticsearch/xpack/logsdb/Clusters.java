@@ -40,7 +40,7 @@ public class Clusters {
             .module("x-pack-stack")
             .setting("xpack.security.autoconfiguration.enabled", "false")
             .setting("xpack.license.self_generated.type", useTrial ? "trial" : "basic")
-            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS);
+            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG);
 
         return cluster.build();
     }

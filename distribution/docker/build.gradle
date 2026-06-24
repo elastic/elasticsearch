@@ -184,12 +184,15 @@ class SquashNewlinesFilter extends FilterReader {
   }
 }
 
-private static String toCamel(String input) {
-  return input.split("[^a-zA-Z0-9]").collect({ it.substring(0, 1) + it.substring(1).toLowerCase(Locale.ROOT) }).join("")
+// Defined as ext closures (not private static methods) so that the subprojects
+// block can reference them via `parent.ext.taskName(...)` without triggering
+// Gradle 9.x's deprecation of implicit method lookup in parent projects.
+ext.toCamel = { String input ->
+  input.split("[^a-zA-Z0-9]").collect({ it.substring(0, 1) + it.substring(1).toLowerCase(Locale.ROOT) }).join("")
 }
 
-private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
-  return prefix +
+ext.taskName = { String prefix, Architecture architecture, DockerBase base, String suffix ->
+  prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
     (base == DockerBase.DEFAULT ? "" : toCamel(base.name())) +
     suffix
@@ -625,8 +628,8 @@ subprojects { Project subProject ->
               'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
-    final String exportTaskName = taskName("export", architecture, base, 'DockerImage')
-    final String buildTaskName = taskName('build', architecture, base, 'DockerImage')
+    final String exportTaskName = parent.ext.taskName("export", architecture, base, 'DockerImage')
+    final String buildTaskName = parent.ext.taskName('build', architecture, base, 'DockerImage')
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
     def exportTask = tasks.register(exportTaskName, LoggedExec) {
@@ -650,7 +653,7 @@ subprojects { Project subProject ->
       dependsOn exportTask
     }
 
-    def compressExportTask = tasks.register(taskName("compress", architecture, base, 'DockerImageExport'), Tar) {
+    def compressExportTask = tasks.register(parent.ext.taskName("compress", architecture, base, 'DockerImageExport'), Tar) {
       it.from(project.tarTree(tarFile))
       archiveExtension = 'tar.gz'
       it.setCompression(Compression.GZIP)

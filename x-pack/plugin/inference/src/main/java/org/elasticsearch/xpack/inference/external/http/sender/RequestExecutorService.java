@@ -537,9 +537,9 @@ public class RequestExecutorService implements RequestExecutor {
 
         var estimatedRamBytesUsed = inferenceInputs.ramBytesUsed();
         try {
+            // Bytes are not added in the case of a CircuitBreakingException, so we do not need to release them
             circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRamBytesUsed, inferenceEntityId);
         } catch (CircuitBreakingException e) {
-            // TODO: add to telemetry
             listener.onFailure(
                 new EsRejectedExecutionException(
                     format(

@@ -236,6 +236,13 @@ public interface IndexAnalyzers extends Closeable {
                 // "coasting" sharer's analyzer reflects the refreshed state just the same. We deliberately
                 // do not distinguish "this shard did the I/O" — a coasted sharer is still reloaded, and a
                 // rebuilt=false flag would wrongly read as "your reload did not take effect".
+                //
+                // Conversely, the returned list (surfaced as the response's reload_details) is NOT an
+                // exhaustive list of every analyzer affected on the node. Because the rebuilt instance is
+                // shared, indices that were not part of this reload request but reference the same
+                // instance also observe the refreshed state — they simply are not enumerated here, since
+                // reload_details reports the analyzers of the requested index, not the full set of
+                // sharers.
                 return reloadableAnalyzers.stream().map(Map.Entry::getKey).toList();
             }
         };

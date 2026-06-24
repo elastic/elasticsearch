@@ -166,6 +166,108 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
     }
 
     /**
+     * One {@code _reload_search_analyzers} request fans out to every shard, and the indices sharing one
+     * {@link ReloadableCustomAnalyzer} on a node carry the same request token. The first sharer attempts
+     * the rebuild; a later sharer carrying the same token must observe that outcome rather than rebuild.
+     * Crucially, a failed attempt is remembered and <em>replayed</em> to same-token sharers — their shard
+     * reports the same failure without re-running the build. Sharers carry a byte-identical recipe, so a
+     * rebuild would only repeat the failure; for a resource failure such as a synonym map tripping the
+     * circuit breaker, retrying on every sharing shard would turn one failure into a storm. Only a fresh
+     * request (a new token) rebuilds.
+     */
+    public void testFailedReloadIsReplayedToSameRequestSharers() throws IOException {
+        AtomicInteger rebuildAttempts = new AtomicInteger();
+        TokenFilterFactory failsFirstReload = new AbstractTokenFilterFactory("my_filter") {
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return AnalysisMode.SEARCH_TIME;
+            }
+
+            @Override
+            public TokenFilterFactory getChainAwareTokenFilterFactory(
+                IndexCreationContext context,
+                TokenizerFactory tokenizer,
+                List<CharFilterFactory> charFilters,
+                List<TokenFilterFactory> previousTokenFilters,
+                Function<String, TokenFilterFactory> allFilters
+            ) {
+                // Attempt 1 is the initial build (must succeed); attempt 2 is the first explicit reload,
+                // which we fail to exercise the replay path; the next rebuild (a fresh request) succeeds.
+                if (rebuildAttempts.incrementAndGet() == 2) {
+                    throw new IllegalStateException("simulated reload failure");
+                }
+                return this;
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return tokenStream;
+            }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
+        };
+
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
+        Map<String, TokenFilterFactory> tokenFilters = Collections.singletonMap("my_filter", failsFirstReload);
+        AnalyzerComponents initial = createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            tokenFilters
+        );
+        assertEquals("the initial build is the first rebuild attempt", 1, rebuildAttempts.get());
+
+        try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(initial, 0, 0)) {
+            Object failedToken = new Object();
+            IllegalStateException failure = expectThrows(
+                IllegalStateException.class,
+                () -> analyzer.reload(
+                    failedToken,
+                    "my_analyzer",
+                    analyzerSettings,
+                    testAnalysis.tokenizer,
+                    testAnalysis.charFilter,
+                    tokenFilters
+                )
+            );
+            assertEquals("simulated reload failure", failure.getMessage());
+            assertEquals("the first sharer attempted the rebuild", 2, rebuildAttempts.get());
+
+            // A second sharer carrying the SAME token must replay the remembered failure, not rebuild.
+            assertTrue("a same-token sharer must re-enter reload() to replay the failure", analyzer.shouldReload(failedToken));
+            IllegalStateException replayed = expectThrows(
+                IllegalStateException.class,
+                () -> analyzer.reload(
+                    failedToken,
+                    "my_analyzer",
+                    analyzerSettings,
+                    testAnalysis.tokenizer,
+                    testAnalysis.charFilter,
+                    tokenFilters
+                )
+            );
+            assertSame("the same failure instance must be replayed, not a fresh build's", failure, replayed);
+            assertEquals("a same-token sharer must NOT rebuild after a failure (no circuit-breaker storm)", 2, rebuildAttempts.get());
+
+            // A fresh request (new token) rebuilds; this attempt succeeds and clears the remembered failure.
+            Object freshToken = new Object();
+            assertTrue("a new request must rebuild", analyzer.shouldReload(freshToken));
+            analyzer.reload(freshToken, "my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter, tokenFilters);
+            assertEquals("a fresh request rebuilds", 3, rebuildAttempts.get());
+
+            // After success the token dedups: a same-token sharer coasts on the fresh state, no rebuild.
+            assertFalse("a same-token sharer after success must coast", analyzer.shouldReload(freshToken));
+            analyzer.reload(freshToken, "my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter, tokenFilters);
+            assertEquals("a successful same-token reload must coast, not rebuild", 3, rebuildAttempts.get());
+        }
+    }
+
+    /**
      * Once the last sharer releases a shared {@link ReloadableCustomAnalyzer} the registry closes it.
      * A reload that was already in flight for that instance must quietly discard its result rather
      * than swap new components into — and keep alive — a torn-down analyzer. {@code close()} wins and

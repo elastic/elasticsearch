@@ -40,9 +40,19 @@ public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer>
 
     @Override
     public Object sharingKey() {
-        // The bound NamedAnalyzer instance is the entire state of this provider; two providers
-        // wrapping the same underlying analyzer should share their {@link AnalysisRegistry}
-        // cache slot.
+        // Keys on the bound NamedAnalyzer, whose equals()/hashCode() compare only the analyzer name.
+        // For prebuilt analyzers that is exactly the intended grain: the name is the node-global
+        // registration key (PreBuiltAnalyzerProviderFactory registers one provider per name), so the
+        // name uniquely identifies the analyzer's behavior — two providers that share a name are the
+        // same prebuilt analyzer, never two different ones.
+        //
+        // This deliberately collapses the per-IndexVersion instances PreBuiltAnalyzers caches into one
+        // shared cache slot. That is correct because the server prebuilt analyzers are version-invariant
+        // by construction (PreBuiltAnalyzers#create ignores the version), so sharing them across
+        // mixed-version indices saves the per-analyzer thread-local cost with no behavioral change — see
+        // AnalysisRegistryTests#testVersionInvariantAnalyzersShareAcrossVersions. A component whose
+        // behavior DOES depend on the index version must fold that version into its own factory
+        // sharingKey() (the composition-level key carries no version); FactorySharingKeyTests covers that.
         return analyzer;
     }
 }

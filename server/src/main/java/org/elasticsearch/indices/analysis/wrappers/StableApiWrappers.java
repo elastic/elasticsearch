@@ -115,10 +115,13 @@ public class StableApiWrappers {
 
             @Override
             public Object sharingKey() {
-                // The wrapped stable-API factory determines sharing. If the underlying factory
-                // is a singleton (the typical pattern for stable-API plugins), identity works;
-                // otherwise it falls back to per-instance uniqueness.
-                return charFilterFactory;
+                // The stable plugin API has no sharingKey() contract, so a stable factory must never
+                // share by default. Returning this (a fresh wrapper per get()) keys on wrapper identity,
+                // which is never equal across indices — independent of whether the wrapped factory is a
+                // singleton or overrides equals()/hashCode(). Returning the wrapped factory instead would
+                // silently opt stable plugins into sharing based on an equals() they never wrote as a
+                // sharing contract.
+                return this;
             }
         };
     }
@@ -147,7 +150,9 @@ public class StableApiWrappers {
 
             @Override
             public Object sharingKey() {
-                return f;
+                // Stable plugins have no sharingKey() contract: never share by default. A fresh wrapper
+                // per get() keys on wrapper identity, so it never collapses with another index's factory.
+                return this;
             }
 
             private static org.elasticsearch.index.analysis.AnalysisMode mapAnalysisMode(AnalysisMode analysisMode) {
@@ -171,7 +176,9 @@ public class StableApiWrappers {
 
             @Override
             public Object sharingKey() {
-                return f;
+                // Stable plugins have no sharingKey() contract: never share by default. A fresh wrapper
+                // per get() keys on wrapper identity, so it never collapses with another index's factory.
+                return this;
             }
         };
     }
@@ -195,7 +202,9 @@ public class StableApiWrappers {
 
             @Override
             public Object sharingKey() {
-                return f;
+                // Stable plugins have no sharingKey() contract: never share by default. A fresh wrapper
+                // per get() keys on wrapper identity, so it never collapses with another index's factory.
+                return this;
             }
         };
     }

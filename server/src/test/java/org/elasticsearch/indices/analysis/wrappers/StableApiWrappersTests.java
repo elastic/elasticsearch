@@ -222,10 +222,40 @@ public class StableApiWrappersTests extends ESTestCase {
         );
 
         // Two independent .get(...) calls — mimicking two indices on the same node — produce
-        // distinct wrappers around distinct stable-API factory instances.
+        // distinct wrappers, each keyed on its own identity.
         org.elasticsearch.index.analysis.TokenFilterFactory a = provider.get(null, mock(Environment.class), null, null);
         org.elasticsearch.index.analysis.TokenFilterFactory b = provider.get(null, mock(Environment.class), null, null);
-        assertNotSame("the wrapped stable factory must be a fresh instance per get()", a.sharingKey(), b.sharingKey());
+        assertNotSame("each get() must yield a wrapper with a distinct sharing key", a.sharingKey(), b.sharingKey());
+        assertNotEquals(a.sharingKey(), b.sharingKey());
+    }
+
+    /**
+     * The no-sharing-by-default invariant must not depend on the stable factory producing fresh,
+     * identity-distinct instances. A stable plugin is free to override {@code equals()}/{@code hashCode()}
+     * (or hand out a singleton) for its own reasons — that is not a sharing-contract opt-in, which the
+     * stable API has no way to express. The wrapper therefore keys on its own identity, so even two
+     * wrappers around stable factories that compare {@code equal} must still produce distinct sharing
+     * keys and never collapse to one shared analyzer.
+     */
+    public void testStableFactoryOverridingEqualsStillDoesNotShare() throws IOException {
+        StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
+        Mockito.when(registry.getPluginInfosForExtensible(eq(TokenFilterFactory.class.getCanonicalName())))
+            .thenReturn(
+                List.of(new PluginInfo("namedComponentName1", AlwaysEqualTokenFilterFactory.class.getName(), getClass().getClassLoader()))
+            );
+
+        Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenFilterFactory>> providers = StableApiWrappers
+            .oldApiForTokenFilterFactory(registry);
+        AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenFilterFactory> provider = providers.get(
+            "namedComponentName1"
+        );
+
+        org.elasticsearch.index.analysis.TokenFilterFactory a = provider.get(null, mock(Environment.class), null, null);
+        org.elasticsearch.index.analysis.TokenFilterFactory b = provider.get(null, mock(Environment.class), null, null);
+        // Sanity: the underlying stable factories really do compare equal, so keying on them would share.
+        assertEquals(new AlwaysEqualTokenFilterFactory(), new AlwaysEqualTokenFilterFactory());
+        // The wrappers must not: distinct identities, distinct sharing keys, no sharing.
+        assertNotSame(a.sharingKey(), b.sharingKey());
         assertNotEquals(a.sharingKey(), b.sharingKey());
     }
 
@@ -335,6 +365,35 @@ public class StableApiWrappersTests extends ESTestCase {
         @Override
         public AnalysisMode getAnalysisMode() {
             return AnalysisMode.INDEX_TIME;
+        }
+    }
+
+    /**
+     * A stable {@link TokenFilterFactory} whose instances all compare {@code equal}. Models a plugin
+     * that overrides {@code equals()}/{@code hashCode()} for its own reasons — which must NOT be read as
+     * a sharing opt-in. Used to prove the wrapper keys on its own identity, not on the wrapped factory.
+     */
+    @NamedComponent("AlwaysEqualTokenFilterFactory")
+    public static class AlwaysEqualTokenFilterFactory implements TokenFilterFactory {
+
+        @Override
+        public TokenStream create(TokenStream tokenStream) {
+            return tokenStream;
+        }
+
+        @Override
+        public AnalysisMode getAnalysisMode() {
+            return AnalysisMode.INDEX_TIME;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof AlwaysEqualTokenFilterFactory;
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
         }
     }
 

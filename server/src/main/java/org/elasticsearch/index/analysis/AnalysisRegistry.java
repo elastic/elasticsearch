@@ -309,17 +309,18 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     /**
-     * @return the total number of live references held across every cached analyzer and normalizer
-     *         entry. Each {@link IndexAnalyzers} holds one reference per cache entry it uses, so
-     *         this is the numerator of the sharing factor (total references / unique entries); a
-     *         ratio of 1.0 means no sharing, higher means more indices share each instance.
+     * @return the total number of live references held across the cached analyzer entries (the
+     *         {@link #analyzerCache} only — not the normalizer caches, whose unique count is reported
+     *         separately by {@link #normalizerCacheSize()}). Each {@link IndexAnalyzers} holds one
+     *         reference per analyzer cache entry it uses, so this is the numerator of the analyzer
+     *         sharing factor (total references / {@link #analyzerCacheSize() unique entries}); a ratio
+     *         of 1.0 means no sharing, higher means more indices share each instance. Keeping the
+     *         numerator and denominator over the same cache makes that ratio meaningful.
      */
     public long totalReferences() {
         long total = 0;
-        for (Map<AnalyzerKey, CacheEntry> cache : List.of(analyzerCache, normalizerCache, whitespaceNormalizerCache)) {
-            for (CacheEntry entry : cache.values()) {
-                total += entry.refCount.get();
-            }
+        for (CacheEntry entry : analyzerCache.values()) {
+            total += entry.refCount.get();
         }
         return total;
     }

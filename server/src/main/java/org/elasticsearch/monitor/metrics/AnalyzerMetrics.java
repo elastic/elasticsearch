@@ -65,8 +65,8 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
         metrics.add(
             registry.registerLongGauge(
                 TOTAL_REFERENCES_METRIC,
-                "total analyzer references across every index on this node "
-                    + "(sharing factor = references / unique; 1.0 = no sharing, higher = more sharing)",
+                "total references to cached analyzers across every index on this node (analyzer cache "
+                    + "only; sharing factor = references / unique; 1.0 = no sharing, higher = more sharing)",
                 "1",
                 () -> new LongWithAttributes(analysisRegistry.totalReferences())
             )

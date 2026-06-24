@@ -67,8 +67,8 @@ abstract class AbstractGradleFuncTest extends Specification {
             bundled_jdk_vendor = openjdk
             bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
             minimumJdkVersion = 21
-            minimumRuntimeJava = 21
-            minimumCompilerJava = 21
+            minimumRuntimeJava = 25
+            minimumCompilerJava = 25
         """
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME\n"

@@ -161,8 +161,8 @@ class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
             tasks.named('loggerUsageCheck').configure { enabled = false }
             // tested elsewhere
             tasks.named('thirdPartyAudit').configure {
-                getRuntimeJavaVersion().set(JavaVersion.VERSION_21)
-                getTargetCompatibility().set(JavaVersion.VERSION_21)
+                getRuntimeJavaVersion().set(JavaVersion.VERSION_25)
+                getTargetCompatibility().set(JavaVersion.VERSION_25)
                 enabled = false
             }
             """

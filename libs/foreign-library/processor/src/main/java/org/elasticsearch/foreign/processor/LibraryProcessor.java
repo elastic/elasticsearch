@@ -83,7 +83,7 @@ public class LibraryProcessor extends AbstractProcessor {
     }
 
     private int resolveClassFileVersion() {
-        String option = processingEnv.getOptions().getOrDefault(OPTION_JAVA_VERSION, "21");
+        String option = processingEnv.getOptions().getOrDefault(OPTION_JAVA_VERSION, "25");
         try {
             int javaRelease = Integer.parseInt(option);
             if (javaRelease < 21) {

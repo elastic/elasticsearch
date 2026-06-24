@@ -474,7 +474,7 @@ tasks.named("updateDaemonJvm") {
     )
   ]
   toolchainPlatforms.set(myPlatforms)
-  languageVersion = JavaLanguageVersion.of(21)
+  languageVersion = JavaLanguageVersion.of(25)
   vendor = JvmVendorSpec.ADOPTIUM
 }
 

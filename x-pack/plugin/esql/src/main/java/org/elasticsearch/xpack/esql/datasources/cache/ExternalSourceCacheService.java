@@ -12,6 +12,8 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -45,6 +47,15 @@ public class ExternalSourceCacheService implements Closeable {
     private final Cache<ListingCacheKey, FileList> listingCache;
     private final long maxTotalBytes;
     private volatile boolean enabled;
+
+    /**
+     * Per-file-path lock serializing the read-modify-write of a schema-cache entry's stripe metadata,
+     * so concurrent commits of different stripes for the same file accumulate instead of the later
+     * write dropping the earlier stripe (lost update). Coordinator-side commits are infrequent, so
+     * this never contends the read path. {@link KeyedLock} allocates a lock per active key and frees
+     * it once no thread holds it.
+     */
+    private final KeyedLock<String> stripeCommitLocks = new KeyedLock<>();
 
     public ExternalSourceCacheService(Settings settings) {
         ByteSizeValue totalBudget = ExternalSourceCacheSettings.CACHE_SIZE.get(settings);
@@ -352,6 +363,20 @@ public class ExternalSourceCacheService implements Closeable {
         if (delta.mtimeMillis() < 0) {
             return; // no freshness key — cannot match an entry
         }
+        // Serialize the read-modify-write per file path: concurrent commits of different stripes for the
+        // same file would otherwise each copy the same entry snapshot and the later put would drop the
+        // earlier stripe (lost update). Commits are coordinator-side and infrequent.
+        try (Releasable ignored = stripeCommitLocks.acquire(path)) {
+            applyStripeDelta(path, delta);
+        }
+    }
+
+    /**
+     * The locked read-modify-write of {@link #commitStripeDelta}: collect matching entries under the
+     * {@code Cache.forEach} segment readLock (see {@code reconcileSourceStats} for that contract), then
+     * enrich and re-put each. Must run holding the per-path {@link #stripeCommitLocks} lock.
+     */
+    private void applyStripeDelta(String path, StripeDelta delta) {
         // Same matching + concurrency discipline as reconcileSourceStats: collect under forEach
         // (segment readLock), mutate after (see that method's javadoc for the Cache.forEach contract).
         List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = new ArrayList<>();

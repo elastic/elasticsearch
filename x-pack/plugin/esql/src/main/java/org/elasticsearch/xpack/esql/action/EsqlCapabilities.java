@@ -3173,16 +3173,13 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MV_FUNCTIONS,
 
         /**
-         * Parsing and plan-shape support for the {@code HIGHLIGHT} command (grammar, plan nodes, serialization).
-         * Execution of the {@code HIGHLIGHT} command, exposing the generated {@code highlight_*} columns.
-         * Execution is gated separately by {@link #HIGHLIGHT_V1}. Snapshot-only.
          * Support for PromQL {@code histogram_count()}, {@code histogram_sum()} and {@code histogram_avg()} on native histograms.
          */
         PROMQL_HISTOGRAM_SUM_COUNT_AVG,
 
         /**
-         * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
-         * throws "not implemented yet". Snapshot-only.
+         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes the
+         * generated {@code highlight_*} columns. Snapshot-only.
          */
         HIGHLIGHT_V1(Build.current().isSnapshot()),
 

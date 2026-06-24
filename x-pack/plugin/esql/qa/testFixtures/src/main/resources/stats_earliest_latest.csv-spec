@@ -512,3 +512,17 @@ last_ghex = LATEST(ghex)
 last_gh:geohash | last_gt:geotile | last_ghex:geohex
 dr5r            | 3/4/2           | 812bbffffffffff
 ;
+
+Test latest aggregation on dense_vector type
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+
+FROM colors
+| WHERE id < 5
+| EVAL @timestamp = id
+| STATS last_rgb = LATEST(rgb_vector)
+;
+
+last_rgb:dense_vector
+[255.0, 0.0, 0.0]
+;

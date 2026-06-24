@@ -776,3 +776,15 @@ ROW rows = [
 last_gh:geohash | last_gt:geotile | last_ghex:geohex
 dr5r            | 3/4/2           | 812bbffffffffff
 ;
+
+Test last aggregation on dense_vector type
+required_capability: last_agg_extended_types
+
+FROM colors
+| WHERE id < 5
+| STATS last_rgb = LAST(rgb_vector, id)
+;
+
+last_rgb:dense_vector
+[255.0, 0.0, 0.0]
+;

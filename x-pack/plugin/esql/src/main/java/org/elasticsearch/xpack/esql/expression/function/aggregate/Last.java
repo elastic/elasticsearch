@@ -76,7 +76,8 @@ public class Last extends AggregateFunction implements ToAggregator {
             "geohash",
             "geotile",
             "geohex",
-            "unsigned_long" },
+            "unsigned_long",
+            "dense_vector" },
         briefSummary = "Returns the latest occurrence of a field based on a sort field.",
         description = """
             This function calculates the latest occurrence of the search field
@@ -122,7 +123,8 @@ public class Last extends AggregateFunction implements ToAggregator {
                 "geohash",
                 "geotile",
                 "geohex",
-                "unsigned_long" },
+                "unsigned_long",
+                "dense_vector" },
             description = "The search field"
         ) Expression field,
         @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
@@ -195,11 +197,13 @@ public class Last extends AggregateFunction implements ToAggregator {
                 || dt == DataType.CARTESIAN_SHAPE
                 || dt == DataType.GEOHASH
                 || dt == DataType.GEOTILE
-                || dt == DataType.GEOHEX,
+                || dt == DataType.GEOHEX
+                || dt == DataType.DENSE_VECTOR,
             sourceText(),
             FIRST,
             "boolean",
             "date",
+            "dense_vector",
             "ip",
             "string",
             "numeric except counter types"
@@ -225,7 +229,7 @@ public class Last extends AggregateFunction implements ToAggregator {
                 case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG -> new AnyLongAggregatorFunctionSupplier();
                 case INTEGER -> new AnyIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
-                case FLOAT -> new AnyFloatAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AnyFloatAggregatorFunctionSupplier();
                 case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE ->
                     new AnyBytesRefAggregatorFunctionSupplier();
                 case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
@@ -239,7 +243,7 @@ public class Last extends AggregateFunction implements ToAggregator {
                     new AllLastLongByLongAggregatorFunctionSupplier();
                 case INTEGER -> new AllLastIntByLongAggregatorFunctionSupplier();
                 case DOUBLE -> new AllLastDoubleByLongAggregatorFunctionSupplier();
-                case FLOAT -> new AllLastFloatByLongAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AllLastFloatByLongAggregatorFunctionSupplier();
                 case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE ->
                     new AllLastBytesRefByLongAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllLastBooleanByLongAggregatorFunctionSupplier();
@@ -253,7 +257,7 @@ public class Last extends AggregateFunction implements ToAggregator {
                     new AllLastLongByIntAggregatorFunctionSupplier();
                 case INTEGER -> new AllLastIntByIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AllLastDoubleByIntAggregatorFunctionSupplier();
-                case FLOAT -> new AllLastFloatByIntAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AllLastFloatByIntAggregatorFunctionSupplier();
                 case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE ->
                     new AllLastBytesRefByIntAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllLastBooleanByIntAggregatorFunctionSupplier();

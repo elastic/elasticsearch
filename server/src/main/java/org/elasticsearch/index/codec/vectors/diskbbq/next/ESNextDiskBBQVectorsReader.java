@@ -16,19 +16,16 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
@@ -40,13 +37,11 @@ import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
-import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -141,30 +136,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         FloatVectorValues values,
         float visitRatio
     ) throws IOException {
-        final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
-        // build optmization filters if possible
-        final FixedBitSet acceptCentroids = getCentroidFilter(centroids, numCentroids, values, acceptDocs, approximateCost);
-        final int numParents = centroids.readVInt();
-        final FixedBitSet acceptParents = getParentCentroidFilter(centroids, numParents, numCentroids, acceptDocs, fieldEntry.numSlices);
-        // build centroid search helpers
-        final int bulkSize = fieldEntry.getBulkSize();
-        final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        final int[] scratch = new int[targetQuery.length];
-        final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
+        final ESNextDiskBBQVectorsReader.NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
+        // TODO: switch on centroid index type read from the field entry
+        CentroidIndex index = new FlatCentroidIndex(
+            fieldInfo,
+            fieldEntry,
+            numCentroids,
+            centroids,
             targetQuery,
-            new float[targetQuery.length],
-            scratch,
-            (byte) 7,
-            fieldEntry.globalCentroid()
+            acceptDocs,
+            approximateCost,
+            values,
+            visitRatio
         );
-        final byte[] quantized = new byte[targetQuery.length];
-        for (int i = 0; i < quantized.length; i++) {
-            quantized[i] = (byte) scratch[i];
-        }
-
-
-
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+        return getPostingListPrefetchIterator(index.getIterator(), postingListSlice);
     }
 
     @Override
@@ -369,303 +354,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
 
         public float rescoreOversample() {
             return rescoreOversample;
-        }
-    }
-
-    private static CentroidIterator getCentroidIteratorNoParent(
-        FieldInfo fieldInfo,
-        IndexInput centroids,
-        int numCentroids,
-        ES92Int7VectorsScorer scorer,
-        byte[] quantizeQuery,
-        OptimizedScalarQuantizer.QuantizationResult queryParams,
-        float globalCentroidDp,
-        FixedBitSet acceptCentroids,
-        int bulkSize
-    ) throws IOException {
-        final NeighborQueue neighborQueue = new NeighborQueue(numCentroids, true);
-        final long centroidQuantizeSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Integer.BYTES;
-        score(
-            neighborQueue,
-            numCentroids,
-            0,
-            scorer,
-            centroids,
-            centroidQuantizeSize,
-            quantizeQuery,
-            queryParams,
-            globalCentroidDp,
-            fieldInfo.getVectorSimilarityFunction(),
-            new float[bulkSize],
-            acceptCentroids,
-            bulkSize
-        );
-        long offset = centroids.getFilePointer();
-        return new CentroidIterator() {
-            @Override
-            public boolean hasNext() {
-                return neighborQueue.size() > 0;
-            }
-
-            @Override
-            public PostingMetadata nextPosting() throws IOException {
-                long centroidOrdinalAndScore = neighborQueue.popRaw();
-                int centroidOrd = neighborQueue.decodeNodeId(centroidOrdinalAndScore);
-                float score = neighborQueue.decodeScore(centroidOrdinalAndScore);
-                centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrd);
-                long postingListOffset = centroids.readLong();
-                long postingListLength = centroids.readLong();
-                // NO_ORDINAL indicates that the global centroid should be used for query quantization
-                return new PostingMetadata(postingListOffset, postingListLength, NO_ORDINAL, score);
-            }
-        };
-    }
-
-    private static CentroidIterator getCentroidIteratorWithParents(
-        FieldInfo fieldInfo,
-        IndexInput centroids,
-        int numParents,
-        int numCentroids,
-        ES92Int7VectorsScorer scorer,
-        byte[] quantizeQuery,
-        OptimizedScalarQuantizer.QuantizationResult queryParams,
-        float globalCentroidDp,
-        float centroidRatio,
-        FixedBitSet acceptParents,
-        FixedBitSet acceptCentroids,
-        int bulkSize
-    ) throws IOException {
-        // build the three queues we are going to use
-        final long rawParentSize = (long) fieldInfo.getVectorDimension() * Float.BYTES;
-        final long centroidQuantizeSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Integer.BYTES;
-        final NeighborQueue parentsQueue = new NeighborQueue(numParents, true);
-        final int maxChildrenSize = centroids.readVInt();
-        final NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
-        final int bufferSize = (int) Math.min(Math.max(centroidRatio * numCentroids, 1), numCentroids);
-        final int numCentroidsFiltered = acceptCentroids == null ? numCentroids : acceptCentroids.cardinality();
-        if (numCentroidsFiltered == 0) {
-            // TODO maybe this makes CentroidIterator polymorphic?
-            return new CentroidIterator() {
-                @Override
-                public boolean hasNext() {
-                    return false;
-                }
-
-                @Override
-                public PostingMetadata nextPosting() {
-                    return null;
-                }
-            };
-        }
-        final float[] scores = new float[bulkSize];
-        final NeighborQueue neighborQueue;
-        if (acceptCentroids != null && numCentroidsFiltered <= bufferSize) {
-            // we are collecting every non-filter centroid, therefore we do not need to score the
-            // parents. We give each of them the same score.
-            neighborQueue = new NeighborQueue(numCentroidsFiltered, true);
-            for (int i = 0; i < numParents; i++) {
-                if (acceptParents == null || acceptParents.get(i)) {
-                    parentsQueue.add(i, 0.5f);
-                }
-            }
-            centroids.skipBytes((centroidQuantizeSize + rawParentSize) * numParents);
-        } else {
-            neighborQueue = new NeighborQueue(bufferSize, true);
-            // score the parents
-            centroids.skipBytes(rawParentSize * numParents);
-            score(
-                parentsQueue,
-                numParents,
-                0,
-                scorer,
-                centroids,
-                centroidQuantizeSize,
-                quantizeQuery,
-                queryParams,
-                globalCentroidDp,
-                fieldInfo.getVectorSimilarityFunction(),
-                scores,
-                acceptParents,
-                bulkSize
-            );
-        }
-
-        final long offset = centroids.getFilePointer();
-        final long childrenOffset = offset + (long) Long.BYTES * numParents;
-        // populate the children's queue by reading parents one by one
-        while (parentsQueue.size() > 0 && neighborQueue.size() < bufferSize) {
-            final int pop = parentsQueue.pop();
-            populateOneChildrenGroup(
-                currentParentQueue,
-                centroids,
-                offset + 2L * Integer.BYTES * pop,
-                childrenOffset,
-                centroidQuantizeSize,
-                fieldInfo,
-                scorer,
-                quantizeQuery,
-                queryParams,
-                globalCentroidDp,
-                scores,
-                acceptCentroids,
-                bulkSize
-            );
-            while (currentParentQueue.size() > 0 && neighborQueue.size() < bufferSize) {
-                final float score = currentParentQueue.topScore();
-                final int children = currentParentQueue.pop();
-                neighborQueue.add(children, score);
-            }
-        }
-        final long childrenFileOffsets = childrenOffset + centroidQuantizeSize * numCentroids;
-        return new CentroidIterator() {
-
-            @Override
-            public boolean hasNext() {
-                return neighborQueue.size() > 0;
-            }
-
-            @Override
-            public PostingMetadata nextPosting() throws IOException {
-                long centroidOrdinalAndScore = nextCentroid();
-                int centroidOrdinal = neighborQueue.decodeNodeId(centroidOrdinalAndScore);
-                float score = neighborQueue.decodeScore(centroidOrdinalAndScore);
-                centroids.seek(childrenFileOffsets + (long) (Long.BYTES * 2 + Integer.BYTES) * centroidOrdinal);
-                long postingListOffset = centroids.readLong();
-                long postingListLength = centroids.readLong();
-                int parentOrd = centroids.readInt();
-                return new PostingMetadata(postingListOffset, postingListLength, parentOrd, score);
-            }
-
-            private long nextCentroid() throws IOException {
-                if (currentParentQueue.size() > 0) {
-                    // return next centroid and maybe add a children from the current parent queue
-                    return neighborQueue.popRawAndAddRaw(currentParentQueue.popRaw());
-                } else if (parentsQueue.size() > 0) {
-                    // current parent queue is empty, populate it again with the next parent
-                    int pop = parentsQueue.pop();
-                    populateOneChildrenGroup(
-                        currentParentQueue,
-                        centroids,
-                        offset + 2L * Integer.BYTES * pop,
-                        childrenOffset,
-                        centroidQuantizeSize,
-                        fieldInfo,
-                        scorer,
-                        quantizeQuery,
-                        queryParams,
-                        globalCentroidDp,
-                        scores,
-                        acceptCentroids,
-                        bulkSize
-                    );
-                    return nextCentroid();
-                } else {
-                    return neighborQueue.popRaw();
-                }
-            }
-        };
-    }
-
-    private static void populateOneChildrenGroup(
-        NeighborQueue neighborQueue,
-        IndexInput centroids,
-        long parentOffset,
-        long childrenOffset,
-        long centroidQuantizeSize,
-        FieldInfo fieldInfo,
-        ES92Int7VectorsScorer scorer,
-        byte[] quantizeQuery,
-        OptimizedScalarQuantizer.QuantizationResult queryParams,
-        float globalCentroidDp,
-        float[] scores,
-        FixedBitSet acceptCentroids,
-        int bulkSize
-    ) throws IOException {
-        centroids.seek(parentOffset);
-        int childrenOrdinal = centroids.readInt();
-        int numChildren = centroids.readInt();
-        centroids.seek(childrenOffset + centroidQuantizeSize * childrenOrdinal);
-        score(
-            neighborQueue,
-            numChildren,
-            childrenOrdinal,
-            scorer,
-            centroids,
-            centroidQuantizeSize,
-            quantizeQuery,
-            queryParams,
-            globalCentroidDp,
-            fieldInfo.getVectorSimilarityFunction(),
-            scores,
-            acceptCentroids,
-            bulkSize
-        );
-    }
-
-    private static void score(
-        NeighborQueue neighborQueue,
-        int size,
-        int scoresOffset,
-        ES92Int7VectorsScorer scorer,
-        IndexInput centroids,
-        long centroidQuantizeSize,
-        byte[] quantizeQuery,
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
-        float centroidDp,
-        VectorSimilarityFunction similarityFunction,
-        float[] scores,
-        FixedBitSet acceptCentroids,
-        int bulkSize
-    ) throws IOException {
-        int limit = size - bulkSize + 1;
-        int i = 0;
-        for (; i < limit; i += bulkSize) {
-            if (acceptCentroids == null || acceptCentroids.cardinality(scoresOffset + i, scoresOffset + i + bulkSize) > 0) {
-                scorer.scoreBulk(
-                    quantizeQuery,
-                    queryCorrections.lowerInterval(),
-                    queryCorrections.upperInterval(),
-                    queryCorrections.quantizedComponentSum(),
-                    queryCorrections.additionalCorrection(),
-                    similarityFunction,
-                    centroidDp,
-                    scores,
-                    bulkSize
-                );
-                for (int j = 0; j < bulkSize; j++) {
-                    int centroidOrd = scoresOffset + i + j;
-                    if (acceptCentroids == null || acceptCentroids.get(centroidOrd)) {
-                        neighborQueue.add(centroidOrd, scores[j]);
-                    }
-                }
-            } else {
-                centroids.skipBytes(bulkSize * centroidQuantizeSize);
-            }
-        }
-
-        int tailBulkSize = size - i;
-        if (tailBulkSize > 0) {
-            if (acceptCentroids == null || acceptCentroids.cardinality(scoresOffset + i, scoresOffset + i + tailBulkSize) > 0) {
-                scorer.scoreBulk(
-                    quantizeQuery,
-                    queryCorrections.lowerInterval(),
-                    queryCorrections.upperInterval(),
-                    queryCorrections.quantizedComponentSum(),
-                    queryCorrections.additionalCorrection(),
-                    similarityFunction,
-                    centroidDp,
-                    scores,
-                    tailBulkSize
-                );
-                for (int j = 0; j < tailBulkSize; j++) {
-                    int centroidOrd = scoresOffset + i + j;
-                    if (acceptCentroids == null || acceptCentroids.get(centroidOrd)) {
-                        neighborQueue.add(centroidOrd, scores[j]);
-                    }
-                }
-            } else {
-                centroids.skipBytes(tailBulkSize * centroidQuantizeSize);
-            }
         }
     }
 

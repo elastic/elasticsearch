@@ -9,6 +9,10 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
+
+import java.io.IOException;
+
 interface CentroidIndex {
-    CentroidIterator getIterator();
+    CentroidIterator getIterator() throws IOException;
 }

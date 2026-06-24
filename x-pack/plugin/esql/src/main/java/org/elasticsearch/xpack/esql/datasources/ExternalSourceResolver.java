@@ -573,6 +573,10 @@ public class ExternalSourceResolver {
         // column to the coordinator-facing schema below. Keeping the mapping width data-only keeps it
         // in agreement with the data-only unified schema at ColumnMapping#pruneToPerFileQuery and with
         // queryDataSchema at the data-node SchemaAdaptingIterator guard.
+        //
+        // Ordering matters: shadowPartitionCollisions emits the single shadow warning and prunes the
+        // collision here, so the enrichSchemaWithPartitionColumns call below sees a data-only schema and
+        // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
         PartitionMetadata partitionMetadata = fileList.partitionMetadata();
         Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
         result = shadowPartitionCollisions(result, partitionNames);
@@ -592,6 +596,12 @@ public class ExternalSourceResolver {
         }
 
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+            // No-double-warning invariant: shadowPartitionCollisions above already pruned any physical
+            // column that collides with a partition key (and emitted the one shadow warning), so the
+            // post-shadow schema must be collision-free before enrich runs its own shadow detection.
+            assert extMetadata.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
+                : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
+                    + "column still collides with a partition key, which would warn twice";
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 

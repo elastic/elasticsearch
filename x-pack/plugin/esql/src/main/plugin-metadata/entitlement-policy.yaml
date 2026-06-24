@@ -3,3 +3,6 @@ ALL-UNNAMED:
   - outbound_network
   - set_https_connection_properties
   - create_class_loader
+  # Bulk aggregation reduces off-heap Arrow buffers via MemorySegment (AbstractArrowBufVector#valuesSegment),
+  # whose MemorySegment.reinterpret(...) is a restricted native-access method.
+  - load_native_libraries

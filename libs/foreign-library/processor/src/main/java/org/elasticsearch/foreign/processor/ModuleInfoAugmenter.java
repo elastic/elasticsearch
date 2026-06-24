@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.attribute.ModuleAttribute;
 import java.lang.classfile.attribute.ModuleProvideInfo;
@@ -40,6 +42,7 @@ public final class ModuleInfoAugmenter {
 
     private static final String LIBRARY_PROVIDER_FQN = "org.elasticsearch.foreign.LibraryProvider";
 
+    @SuppressForbidden(reason = "CLI entry point: System.exit() signals abnormal termination to the calling process")
     public static void main(String[] args) throws Exception {
         if (args.length != 3) {
             System.err.println("Usage: ModuleInfoAugmenter <module-info.class> <services-file> <output-file>");

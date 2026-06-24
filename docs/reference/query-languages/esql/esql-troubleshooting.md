@@ -27,7 +27,7 @@ When filing a support case for a slow or failing {{esql}} query, include the fol
 - The cluster version, available from `GET /`
 - The index pattern and approximate document count
 - The time range covered by the query
-- The number of fields in the matching indices, available from `GET /<index>/_mapping`
+- The fields and field types across all indices participating in the query, available from the [field capabilities API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-field-caps)
 - The `took` value from the response
 - Any error messages
 - A query log entry, if [query logging](/reference/query-languages/esql/esql-query-log.md) is enabled

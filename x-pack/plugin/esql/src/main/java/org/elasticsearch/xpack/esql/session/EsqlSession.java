@@ -1426,12 +1426,12 @@ public class EsqlSession {
                 while (current instanceof LookupJoin nested) {
                     current = nested.left();
                 }
-                if (current instanceof UnresolvedRelation dataSource) {
-                    IndexResolution resolution = result.indexResolution.get(dataSource.indexPattern());
+                current.forEachDown(UnresolvedRelation.class, source -> {
+                    IndexResolution resolution = result.indexResolution.get(source.indexPattern());
                     if (resolution != null && resolution.isValid()) {
                         scope.addAll(resolution.get().originalIndices().keySet());
                     }
-                }
+                });
             }
         });
         return scope;

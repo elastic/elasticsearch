@@ -175,6 +175,9 @@ public class EsqlCCSUtils {
     }
 
     static Set<String> onlyRunning(EsqlExecutionInfo executionInfo, Set<String> clusterAliases) {
+        if (executionInfo.getClusters().isEmpty()) {
+            return Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);// Happens when joining to ROW
+        }
         return executionInfo.getRunningClusterAliases().filter(clusterAliases::contains).collect(toSet());
     }
 

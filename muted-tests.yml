@@ -443,9 +443,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesDoubleUnmappedWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150672
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
-  method: testEsqlEnrichWithSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/150686
 - class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
   method: testCircuitBreakerTripCountMetric
   issue: https://github.com/elastic/elasticsearch/issues/150700
@@ -527,9 +524,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   method: test {p0=ml/jobs_get_result_overall_buckets/Test overall buckets given top_n is negative}
   issue: https://github.com/elastic/elasticsearch/issues/151160
-- class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
-  method: testWriteLoadForecastGetsPopulatedDuringRollovers
-  issue: https://github.com/elastic/elasticsearch/issues/151173
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/140_metadata/Aggregate ignored field}
   issue: https://github.com/elastic/elasticsearch/issues/151216
@@ -701,3 +695,30 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/152005
+- class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
+  method: testHKmeans
+  issue: https://github.com/elastic/elasticsearch/issues/152027
+- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
+  method: testExplicitMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/152030
+- class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
+  method: testRandomDirectoryIOExceptions
+  issue: https://github.com/elastic/elasticsearch/issues/152037
+- class: org.elasticsearch.xpack.esql.action.ExternalParquetStringTopNSideChannelIT
+  method: testNullsFirstEarlyTermination
+  issue: https://github.com/elastic/elasticsearch/issues/152038
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=indices.refresh/10_basic/Indices refresh test _all}
+  issue: https://github.com/elastic/elasticsearch/issues/152039
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:views.mixedIndexWithViewRowInFromSubquery}
+  issue: https://github.com/elastic/elasticsearch/issues/152040
+- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceIT
+  method: testCreateIndexBatching
+  issue: https://github.com/elastic/elasticsearch/issues/152041
+- class: org.elasticsearch.ingest.iplocation.IngestEnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderWithIngestPipeline
+  issue: https://github.com/elastic/elasticsearch/issues/152042
+- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
+  method: testMergingFallsBehindAndThenCatchesUp
+  issue: https://github.com/elastic/elasticsearch/issues/152045

@@ -55,8 +55,12 @@ public class Clusters {
             .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
             .shared(true)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
+            .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
+            .setting("ingest.geoip.downloader.enabled", "false")
             .apply(() -> configProvider)
-            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS);
+            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG);
         if (securityEnabled) {
             builder.user(ADMIN_USER, ADMIN_PASSWORD, "superuser", true);
         }

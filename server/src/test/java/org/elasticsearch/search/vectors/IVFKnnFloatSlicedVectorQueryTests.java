@@ -271,6 +271,15 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
                         TopDocs topDocs = getTopDocs(searcher, expectedDocs, vector, filterQuery, querySlices);
                         assertTopDocs(applyFilter, expectedDocs, topDocs, reader, filterField, filterValue, querySlices);
                     }
+                    {
+                        // all slices
+                        int expectedDocs = 0;
+                        for (int j = 0; j < numSlices; j++) {
+                            expectedDocs += applyFilter ? docsPerSliceFiltered[j] : docsPerSlice[j];
+                        }
+                        TopDocs topDocs = getTopDocs(searcher, expectedDocs, vector, filterQuery);
+                        assertEquals(expectedDocs, topDocs.scoreDocs.length);
+                    }
                     // invalid slice
                     TopDocs topDocs = getTopDocs(searcher, 0, vector, filterQuery, -1);
                     assertEquals(0, topDocs.scoreDocs.length);
@@ -279,13 +288,20 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
         }
     }
 
-    private TopDocs getTopDocs(IndexSearcher searcher, int expectedDocs, float[] vector, Query filterQuery, int... slice)
+    private TopDocs getTopDocs(IndexSearcher searcher, int expectedDocs, float[] vector, Query filterQuery, int... slices)
         throws IOException {
-        BytesRef[] sliceRef = new BytesRef[slice.length];
-        for (int i = 0; i < slice.length; i++) {
-            sliceRef[i] = new BytesRef("" + slice[i]);
+        BytesRef[] sliceRef;
+        int k;
+        if (slices != null) {
+            sliceRef = new BytesRef[slices.length];
+            for (int i = 0; i < slices.length; i++) {
+                sliceRef[i] = new BytesRef("" + slices[i]);
+            }
+            k = 2 * Math.max(1, expectedDocs);
+        } else {
+            sliceRef = null;
+            k = expectedDocs;
         }
-        int k = 2 * Math.max(1, expectedDocs);
         Query kvq = new IVFKnnFloatSlicedVectorQuery("vector", vector, k, k, filterQuery, 1.0f, testResolver(), SLICE_FIELD, sliceRef);
         return searcher.search(kvq, k);
     }

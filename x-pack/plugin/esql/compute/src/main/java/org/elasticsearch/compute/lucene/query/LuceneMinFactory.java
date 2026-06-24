@@ -137,7 +137,8 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
             limit,
             false,
             shardContext -> ScoreMode.COMPLETE_NO_SCORES,
-            directoryBytesRead
+            directoryBytesRead,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
         this.shardRefCounters = contexts;
         this.fieldName = fieldName;

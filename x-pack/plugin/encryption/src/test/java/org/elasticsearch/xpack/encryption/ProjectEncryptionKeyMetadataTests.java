@@ -319,6 +319,38 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         assertEquals(2, wrapCount.get());
     }
 
+    public void testGatewaySerializationWritesEmptyKeysWhenWrapFails() throws IOException {
+        PekEncryption failing = new PekEncryption() {
+            @Override
+            public String activePasswordId() {
+                throw new IllegalStateException("no active password configured");
+            }
+
+            @Override
+            public WrappedKey wrap(byte[] plaintext) {
+                throw new IllegalStateException("no active password configured");
+            }
+
+            @Override
+            public byte[] unwrap(byte[] wrapped, String passwordId) {
+                return wrapped.clone();
+            }
+        };
+
+        ToXContent.Params gatewayParams = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", new KeyEntry(randomPlaintextBytes(), 0L)),
+            "k1",
+            "v1",
+            Map.of(),
+            failing
+        );
+
+        // Wrap failure must not propagate — the blob should have an empty keys object instead.
+        String json = chunkedToXContent(metadata, gatewayParams);
+        assertThat("wrap failure must write empty keys", json, containsString("\"keys\":{}"));
+    }
+
     public void testFindRetireableKeyIdsKeyDeactivatedAtRotation() {
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
             Map.of("k1", entry(0L), "k2", entry(1_000_000L)),

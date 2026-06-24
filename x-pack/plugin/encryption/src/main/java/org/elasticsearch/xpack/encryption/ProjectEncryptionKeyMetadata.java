@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
@@ -14,6 +16,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -49,9 +52,16 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  *
  * <p>Keys are identified by a randomly generated key ID. The active key is identified by {@link #getActiveKeyId()}; its age drives the
  * next-rotation decision. Non-active keys age out after a grace period before being retired.
+ *
+ * <p>If a node cannot unwrap the on-disk blob at startup (missing or wrong password), {@link #fromXContent} produces a <em>degraded</em>
+ * instance ({@link #isUnwrapFailed()} returns {@code true}) instead of throwing. The node starts normally, but the encryption service
+ * reports {@code UNAVAILABLE_DECRYPTION_FAILED} and all encrypt/decrypt calls fail until the operator fixes the password and restarts,
+ * or calls {@code POST /_encryption/_reset?accept_data_loss=true}.
  */
 class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
     static final String TYPE = "primary_encryption_key";
+
+    private static final Logger logger = LogManager.getLogger(ProjectEncryptionKeyMetadata.class);
 
     @SuppressWarnings("unused")
     private static final TransportVersion PRIMARY_ENCRYPTION_KEY_VERSION = TransportVersion.fromName("primary_encryption_key");
@@ -63,6 +73,8 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     static final TransportVersion PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT = TransportVersion.fromName(
         "primary_encryption_key_cleartext_transport"
     );
+
+    static final TransportVersion PRIMARY_ENCRYPTION_KEY_DEGRADED = TransportVersion.fromName("primary_encryption_key_degraded");
 
     private static final ParseField KEYS_FIELD = new ParseField("keys");
     private static final ParseField ACTIVE_KEY_ID_FIELD = new ParseField("active_key_id");
@@ -119,6 +131,8 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     private final String passwordId;
     private final Map<String, String> handlerKeyIds;
     private final PekEncryption pekEncryption;
+    @Nullable
+    private final String unwrapFailureReason;
 
     /** Structured key for the wrapped-key cache, combining the key id and the password id used for wrapping. */
     record CacheKey(String keyId, String passwordId) {}
@@ -153,22 +167,86 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         this.passwordId = passwordId;
         this.handlerKeyIds = Map.copyOf(handlerKeyIds);
         this.pekEncryption = pekEncryption;
+        this.unwrapFailureReason = null;
+    }
+
+    /**
+     * Private constructor used only by {@link #degraded} — skips all invariant validation so the
+     * degraded instance can carry diagnostic fields without usable key material.
+     */
+    private ProjectEncryptionKeyMetadata(
+        Map<String, KeyEntry> keys,
+        @Nullable String activeKeyId,
+        String passwordId,
+        Map<String, String> handlerKeyIds,
+        PekEncryption pekEncryption,
+        String unwrapFailureReason
+    ) {
+        this.keys = keys;
+        this.activeKeyId = activeKeyId;
+        this.passwordId = passwordId;
+        this.handlerKeyIds = handlerKeyIds;
+        this.pekEncryption = pekEncryption;
+        this.unwrapFailureReason = unwrapFailureReason;
     }
 
     ProjectEncryptionKeyMetadata(StreamInput in, PekEncryption pekEncryption) throws IOException {
-        this(
-            in.readImmutableMap(StreamInput::readString, KeyEntry::new),
-            in.readString(),
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, StreamInput::readString),
-            pekEncryption
-        );
+        this.pekEncryption = pekEncryption;
+        if (in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_DEGRADED) && in.readBoolean()) {
+            this.unwrapFailureReason = in.readString();
+            this.activeKeyId = in.readString();
+            this.passwordId = in.readString();
+            this.keys = Map.of();
+            this.handlerKeyIds = Map.of();
+        } else {
+            this.unwrapFailureReason = null;
+            Map<String, KeyEntry> readKeys = in.readImmutableMap(StreamInput::readString, KeyEntry::new);
+            String readActiveKeyId = in.readString();
+            String readPasswordId = in.readString();
+            Map<String, String> readHandlerKeyIds = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+            if (readKeys.isEmpty()) {
+                throw new IllegalArgumentException("Keys map must not be empty");
+            }
+            if (readKeys.containsKey(readActiveKeyId) == false) {
+                throw new IllegalArgumentException("Active key ID [" + readActiveKeyId + "] not found in keys");
+            }
+            if (readHandlerKeyIds.values().stream().allMatch(readKeys::containsKey) == false) {
+                throw new IllegalArgumentException("handlerKeyIds references key IDs absent from keys");
+            }
+            this.keys = readKeys;
+            this.activeKeyId = readActiveKeyId;
+            this.passwordId = readPasswordId;
+            this.handlerKeyIds = readHandlerKeyIds;
+        }
+    }
+
+    /**
+     * Creates a degraded instance that carries the failure reason but no usable key material.
+     * Used by {@link #fromXContent} when the on-disk blob cannot be unwrapped.
+     */
+    static ProjectEncryptionKeyMetadata degraded(
+        @Nullable String activeKeyId,
+        String passwordId,
+        PekEncryption pekEncryption,
+        String unwrapFailureReason
+    ) {
+        return new ProjectEncryptionKeyMetadata(Map.of(), activeKeyId, passwordId, Map.of(), pekEncryption, unwrapFailureReason);
     }
 
     static String generateKeyId() {
         return UUIDs.randomBase64UUID();
     }
 
+    /**
+     * Returns {@code true} if this instance was created because {@link #fromXContent} could not unwrap
+     * the on-disk key blob. When {@code true}, {@link #getKeys()} is empty and the encryption service
+     * reports {@code UNAVAILABLE_DECRYPTION_FAILED}.
+     */
+    boolean isUnwrapFailed() {
+        return unwrapFailureReason != null;
+    }
+
+    @Nullable
     String getActiveKeyId() {
         return activeKeyId;
     }
@@ -191,7 +269,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     }
 
     boolean isHandlerOnActive(String customName) {
-        return activeKeyId.equals(handlerKeyIds.get(customName));
+        return activeKeyId != null && activeKeyId.equals(handlerKeyIds.get(customName));
     }
 
     ProjectEncryptionKeyMetadata withHandlerKeyId(String customName, String keyId) {
@@ -236,11 +314,20 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT;
+        return unwrapFailureReason != null ? PRIMARY_ENCRYPTION_KEY_DEGRADED : PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_DEGRADED)) {
+            out.writeBoolean(unwrapFailureReason != null);
+            if (unwrapFailureReason != null) {
+                out.writeString(unwrapFailureReason);
+                out.writeString(activeKeyId != null ? activeKeyId : "");
+                out.writeString(passwordId);
+                return;
+            }
+        }
         out.writeMap(keys, StreamOutput::writeString, (o, e) -> e.writeTo(o));
         out.writeString(activeKeyId);
         out.writeString(passwordId);
@@ -254,18 +341,50 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         final boolean gatewayContext = Metadata.XContentContext.from(params) == Metadata.XContentContext.GATEWAY;
-        final GatewayBytes gatewayResult = gatewayContext ? getOrComputeWrappedKeys() : null;
+
+        if (gatewayContext == false) {
+            return chunk((builder, p) -> {
+                builder.field(ACTIVE_KEY_ID_FIELD.getPreferredName(), activeKeyId);
+                builder.field(PASSWORD_ID_FIELD.getPreferredName(), passwordId);
+                builder.startObject(KEYS_FIELD.getPreferredName());
+                for (Map.Entry<String, KeyEntry> entry : keys.entrySet()) {
+                    builder.startObject(entry.getKey());
+                    builder.field(GENERATED_AT_FIELD.getPreferredName(), entry.getValue().generatedAt());
+                    builder.endObject();
+                }
+                builder.endObject();
+                builder.startObject(HANDLER_KEY_IDS_FIELD.getPreferredName());
+                for (Map.Entry<String, String> entry : handlerKeyIds.entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue());
+                }
+                builder.endObject();
+                return builder;
+            });
+        }
+
+        if (unwrapFailureReason != null) {
+            return emptyGatewayChunk();
+        }
+
+        final GatewayBytes gatewayResult;
+        try {
+            gatewayResult = getOrComputeWrappedKeys();
+        } catch (RuntimeException e) {
+            logger.error(
+                "cannot wrap project encryption keys for disk; writing empty key state."
+                    + " Fix the password configuration and call POST /_nodes/reload_secure_settings",
+                e
+            );
+            return emptyGatewayChunk();
+        }
+
         return chunk((builder, p) -> {
             builder.field(ACTIVE_KEY_ID_FIELD.getPreferredName(), activeKeyId);
-            // GATEWAY: use the id actually chosen by wrap() so the on-disk blob self-describes its wrapping.
-            // API: use the replicated signal id (the master's published active password).
-            builder.field(PASSWORD_ID_FIELD.getPreferredName(), gatewayContext ? gatewayResult.passwordId() : passwordId);
+            builder.field(PASSWORD_ID_FIELD.getPreferredName(), gatewayResult.passwordId());
             builder.startObject(KEYS_FIELD.getPreferredName());
             for (Map.Entry<String, KeyEntry> entry : keys.entrySet()) {
                 builder.startObject(entry.getKey());
-                if (gatewayContext) {
-                    builder.field(BYTES_FIELD.getPreferredName(), gatewayResult.wrappedByKeyId().get(entry.getKey()));
-                }
+                builder.field(BYTES_FIELD.getPreferredName(), gatewayResult.wrappedByKeyId().get(entry.getKey()));
                 builder.field(GENERATED_AT_FIELD.getPreferredName(), entry.getValue().generatedAt());
                 builder.endObject();
             }
@@ -275,6 +394,16 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
                 builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
+            return builder;
+        });
+    }
+
+    private Iterator<? extends ToXContent> emptyGatewayChunk() {
+        return chunk((builder, p) -> {
+            builder.field(ACTIVE_KEY_ID_FIELD.getPreferredName(), activeKeyId != null ? activeKeyId : "");
+            builder.field(PASSWORD_ID_FIELD.getPreferredName(), passwordId);
+            builder.startObject(KEYS_FIELD.getPreferredName()).endObject();
+            builder.startObject(HANDLER_KEY_IDS_FIELD.getPreferredName()).endObject();
             return builder;
         });
     }
@@ -314,6 +443,9 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
             List<Tuple<String, KeyEntry>> list = (List<Tuple<String, KeyEntry>>) args[2];
             Map<String, KeyEntry> keys = list.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
             Map<String, String> handlerKeyIds = args[3] != null ? (Map<String, String>) args[3] : Map.of();
+            if (keys.isEmpty()) {
+                return degraded(activeKeyId, passwordId, pekEncryption, "no key material found on disk (previously degraded state)");
+            }
             return new ProjectEncryptionKeyMetadata(keys, activeKeyId, passwordId, handlerKeyIds, pekEncryption);
         }
     );
@@ -326,10 +458,23 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     static ProjectEncryptionKeyMetadata fromXContent(XContentParser parser, PekEncryption pekEncryption) throws IOException {
         ProjectEncryptionKeyMetadata parsed = PARSER.parse(parser, pekEncryption);
+        if (parsed.isUnwrapFailed()) {
+            return parsed;
+        }
         Map<String, KeyEntry> plaintextKeys = HashMap.newHashMap(parsed.keys.size());
-        for (Map.Entry<String, KeyEntry> entry : parsed.keys.entrySet()) {
-            byte[] plaintext = pekEncryption.unwrap(entry.getValue().bytes(), parsed.passwordId);
-            plaintextKeys.put(entry.getKey(), new KeyEntry(plaintext, entry.getValue().generatedAt()));
+        try {
+            for (Map.Entry<String, KeyEntry> entry : parsed.keys.entrySet()) {
+                byte[] plaintext = pekEncryption.unwrap(entry.getValue().bytes(), parsed.passwordId);
+                plaintextKeys.put(entry.getKey(), new KeyEntry(plaintext, entry.getValue().generatedAt()));
+            }
+        } catch (RuntimeException e) {
+            logger.error(
+                "failed to unwrap project encryption key [passwordId={}] from disk; node starting in degraded state."
+                    + " To recover: fix the password and restart, or call POST /_encryption/_reset?accept_data_loss=true",
+                parsed.passwordId,
+                e
+            );
+            return degraded(parsed.activeKeyId, parsed.passwordId, pekEncryption, e.getMessage());
         }
         return new ProjectEncryptionKeyMetadata(
             Map.copyOf(plaintextKeys),
@@ -342,6 +487,15 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public String toString() {
+        if (unwrapFailureReason != null) {
+            return "ProjectEncryptionKeyMetadata{DEGRADED, activeKeyId="
+                + activeKeyId
+                + ", passwordId="
+                + passwordId
+                + ", reason="
+                + unwrapFailureReason
+                + "}";
+        }
         StringBuilder ts = new StringBuilder();
         for (String id : new TreeSet<>(keys.keySet())) {
             if (ts.isEmpty() == false) {

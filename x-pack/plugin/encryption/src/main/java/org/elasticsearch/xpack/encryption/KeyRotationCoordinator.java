@@ -251,6 +251,10 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     }
 
     private void advanceKeyLifecycle(ProjectEncryptionKeyMetadata metadata, long now) {
+        if (metadata.isUnwrapFailed()) {
+            logger.debug("project encryption key: skipping lifecycle advancement in degraded state");
+            return;
+        }
         if (rotationDisabled()) {
             return;
         }

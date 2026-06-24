@@ -109,6 +109,9 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
      */
     public EncryptionServiceState state() {
         KeyCache snapshot = cache;
+        if (snapshot.degraded()) {
+            return EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED;
+        }
         if (snapshot.activeKeyId == null) {
             // Awaiting first key install. DISABLED only when no password is configured at all; otherwise READY
             // (the coordinator will install the first key shortly after the password appears in settings).
@@ -147,11 +150,22 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
             return;
         }
 
+        if (metadata.isUnwrapFailed()) {
+            if (cache.degraded() == false) {
+                logger.warn(
+                    "project encryption key: disk recovery failed (degraded state), encryption/decryption unavailable."
+                        + " To recover: fix the password and restart, or call POST /_encryption/_reset?accept_data_loss=true"
+                );
+                this.cache = KeyCache.DEGRADED;
+            }
+            return;
+        }
+
         Map<String, SecretKey> decryptedKeys = HashMap.newHashMap(metadata.getKeys().size());
         for (Map.Entry<String, ProjectEncryptionKeyMetadata.KeyEntry> entry : metadata.getKeys().entrySet()) {
             decryptedKeys.put(entry.getKey(), new SecretKeySpec(entry.getValue().bytes(), "AES"));
         }
-        this.cache = new KeyCache(metadata.getActiveKeyId(), Map.copyOf(decryptedKeys));
+        this.cache = new KeyCache(metadata.getActiveKeyId(), Map.copyOf(decryptedKeys), false);
         logger.debug("project encryption key cache updated: activeKeyId={}", metadata.getActiveKeyId());
     }
 
@@ -175,11 +189,12 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         return cache.decryptedKeys.get(keyId);
     }
 
-    private record KeyCache(@Nullable String activeKeyId, Map<String, SecretKey> decryptedKeys) {
-        static final KeyCache EMPTY = new KeyCache(null, Map.of());
+    private record KeyCache(@Nullable String activeKeyId, Map<String, SecretKey> decryptedKeys, boolean degraded) {
+        static final KeyCache EMPTY = new KeyCache(null, Map.of(), false);
+        static final KeyCache DEGRADED = new KeyCache(null, Map.of(), true);
 
         KeyCache {
-            assert activeKeyId == null || decryptedKeys.containsKey(activeKeyId);
+            assert degraded || activeKeyId == null || decryptedKeys.containsKey(activeKeyId);
         }
     }
 }

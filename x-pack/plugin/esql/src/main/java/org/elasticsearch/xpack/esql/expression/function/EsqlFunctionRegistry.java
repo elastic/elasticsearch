@@ -688,7 +688,7 @@ public class EsqlFunctionRegistry {
 
     public static class ArgSignature {
 
-        public record Hint(String entityType, String kind, Map<String, String> constraints) {}
+        public record Hint(String entityType, String kind, Map<String, String> constraints, List<String> allowedValues) {}
 
         protected final String name;
         protected final String[] type;
@@ -969,7 +969,8 @@ public class EsqlFunctionRegistry {
                 );
             }
             String kind = param.hint().kind() != Param.Hint.Kind.STANDARD ? param.hint().kind().name().toLowerCase(Locale.ROOT) : null;
-            hint = new ArgSignature.Hint(entityType, kind, constraints);
+            List<String> allowedValues = List.of(param.hint().allowedValues());
+            hint = new ArgSignature.Hint(entityType, kind, constraints, allowedValues);
         }
 
         return new EsqlFunctionRegistry.ArgSignature(

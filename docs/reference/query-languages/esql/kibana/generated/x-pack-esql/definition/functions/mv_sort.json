@@ -18,7 +18,11 @@
           "optional" : true,
           "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -39,7 +43,11 @@
           "optional" : true,
           "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -60,7 +68,11 @@
           "optional" : true,
           "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -81,7 +93,11 @@
           "optional" : true,
           "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -102,7 +118,11 @@
           "optional" : true,
           "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -123,7 +143,11 @@
           "optional" : true,
           "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -144,7 +168,11 @@
           "optional" : true,
           "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -165,7 +193,11 @@
           "optional" : true,
           "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -186,7 +218,11 @@
           "optional" : true,
           "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -207,7 +243,11 @@
           "optional" : true,
           "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],

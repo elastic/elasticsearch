@@ -75,6 +75,8 @@ public @interface Param {
 
         Kind kind() default Kind.STANDARD;
 
+        String[] allowedValues() default {};
+
         Constraint[] constraints() default {};
 
         @Retention(RetentionPolicy.RUNTIME)

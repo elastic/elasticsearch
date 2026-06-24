@@ -107,7 +107,7 @@ public class Top extends AggregateFunction
             optional = true,
             name = "order",
             type = { "keyword" },
-            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT, allowedValues = { "asc", "desc" }),
             description = "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         ) Expression order,
         @Param(

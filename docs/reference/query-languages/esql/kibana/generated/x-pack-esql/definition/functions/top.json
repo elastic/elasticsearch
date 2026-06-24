@@ -48,7 +48,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -99,7 +103,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -129,7 +137,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -165,7 +177,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -201,7 +217,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -237,7 +257,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -294,7 +318,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -324,7 +352,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -360,7 +392,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -396,7 +432,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -432,7 +472,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -489,7 +533,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -519,7 +567,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -555,7 +607,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -591,7 +647,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -627,7 +687,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -684,7 +748,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -735,7 +803,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -786,7 +858,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],
@@ -816,7 +892,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -852,7 +932,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -888,7 +972,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -924,7 +1012,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         },
         {
@@ -981,7 +1073,11 @@
           "optional" : true,
           "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
           "hint" : {
-            "kind" : "constant"
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
           }
         }
       ],

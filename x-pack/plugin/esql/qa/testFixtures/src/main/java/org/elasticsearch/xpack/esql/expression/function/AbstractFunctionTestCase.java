@@ -696,6 +696,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         Boolean[] alwaysLiteral = new Boolean[args.size()];
+        List<Set<String>> usedAllowedValues = new ArrayList<>(args.size());
+        for (int i = 0; i < args.size(); i++) {
+            usedAllowedValues.add(new HashSet<>());
+        }
         Set<Method> paramsFactories = new ClassModel(testClass).getAnnotatedLeafMethods(ParametersFactory.class).keySet();
         if (paramsFactories.size() == 1) {
             Method paramsFactory = paramsFactories.iterator().next();
@@ -719,11 +723,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
                         for (int i = 0; i < tc.getData().size() && initialProvidedParamIndex + i < args.size(); i++) {
                             int argIndex = initialProvidedParamIndex + i;
-                            boolean isForceLiteral = tc.getData().get(i).isForceLiteral();
+                            TestCaseSupplier.TypedData argData = tc.getData().get(i);
+                            boolean isForceLiteral = argData.isForceLiteral();
                             if (alwaysLiteral[argIndex] == null) {
                                 alwaysLiteral[argIndex] = isForceLiteral;
                             } else {
                                 alwaysLiteral[argIndex] = alwaysLiteral[argIndex] && isForceLiteral;
+                            }
+                            if (isForceLiteral) {
+                                Object data = argData.originalData() != null ? argData.originalData() : argData.data();
+                                if (data instanceof String s) {
+                                    usedAllowedValues.get(argIndex).add(s.toLowerCase(Locale.ROOT));
+                                } else if (data instanceof org.apache.lucene.util.BytesRef br) {
+                                    usedAllowedValues.get(argIndex).add(br.utf8ToString().toLowerCase(Locale.ROOT));
+                                }
                             }
                         }
                     } catch (AssumptionViolatedException ignored) {}
@@ -764,6 +777,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         "Parameter [" + arg.name() + "] is always forced to be a literal in tests, so it must have the CONSTANT hint.",
                         arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind())
                     );
+                    if (arg.hint() != null && arg.hint().allowedValues() != null && arg.hint().allowedValues().isEmpty() == false) {
+                        Set<String> declaredValues = new HashSet<>(arg.hint().allowedValues());
+                        assertEquals(
+                            "Tests must use all of the declared allowedValues for parameter [" + arg.name() + "].",
+                            declaredValues,
+                            usedAllowedValues.get(i)
+                        );
+                    }
                 } else {
                     assertFalse(
                         "Parameter [" + arg.name() + "] is not always a literal in tests, so it must not have the CONSTANT hint.",

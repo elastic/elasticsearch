@@ -87,6 +87,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private static final Logger logger = LogManager.getLogger(ESNextDiskBBQVectorsWriter.class);
 
     private final int vectorPerCluster;
+    private final ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat;
     private final int centroidsPerParentCluster;
     private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
     private final TaskExecutor mergeExec;
@@ -103,6 +104,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         String rawVectorFormatName,
         boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
+        ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat,
         ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -129,6 +131,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             flatVectorThreshold
         );
         this.vectorPerCluster = vectorPerCluster;
+        this.centroidIndexFormat = centroidIndexFormat;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.quantEncoding = encoding;
         this.mergeExec = mergeExec;
@@ -155,13 +158,17 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
     @Override
     protected IvfSegmentConfig beginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
-        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition);
+        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(centroidIndexFormat, quantEncoding, doPrecondition);
         return flushConfigSource.load(segmentWriteState, fieldInfo).orElse(codec);
     }
 
     @Override
     protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        return mergeConfigResolver.resolve(fieldInfo, mergeState, IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition));
+        return mergeConfigResolver.resolve(
+            fieldInfo,
+            mergeState,
+            IvfSegmentConfig.fromCodecDefaults(centroidIndexFormat, quantEncoding, doPrecondition)
+        );
     }
 
     private static IvfSegmentConfig requireSegmentConfig(IvfSegmentConfig cfg) {
@@ -659,6 +666,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(ivfSegmentConfig);
         metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
+        metaOutput.writeInt(segmentConfig.centroidIndexFormat().id());
         metaOutput.writeInt(segmentConfig.quantEncoding().id());
         metaOutput.writeLong(preconditionerLength);
         if (preconditionerLength > 0) {

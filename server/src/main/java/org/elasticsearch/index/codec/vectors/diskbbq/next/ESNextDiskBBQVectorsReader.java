@@ -137,18 +137,19 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         float visitRatio
     ) throws IOException {
         final ESNextDiskBBQVectorsReader.NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
-        // TODO: switch on centroid index type read from the field entry
-        CentroidIndex index = new FlatCentroidIndex(
-            fieldInfo,
-            fieldEntry,
-            numCentroids,
-            centroids,
-            targetQuery,
-            acceptDocs,
-            approximateCost,
-            values,
-            visitRatio
-        );
+        CentroidIndex index = switch (fieldEntry.centroidIndexFormat()) {
+            case FLAT -> new FlatCentroidIndex(
+                fieldInfo,
+                fieldEntry,
+                numCentroids,
+                centroids,
+                targetQuery,
+                acceptDocs,
+                approximateCost,
+                values,
+                visitRatio
+            );
+        };
         return getPostingListPrefetchIterator(index.getIterator(), postingListSlice);
     }
 
@@ -168,6 +169,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         float globalCentroidDp
     ) throws IOException {
         int bulkSize = input.readInt();
+        ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat = ESNextDiskBBQVectorsFormat.CentroidIndexFormat.fromId(
+            input.readInt()
+        );
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
         long preconditionerLength = input.readLong();
         long preconditionerOffset = -1;
@@ -192,6 +196,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             postingListLength,
             globalCentroid,
             globalCentroidDp,
+            centroidIndexFormat,
             quantEncoding,
             bulkSize,
             preconditionerOffset,
@@ -288,6 +293,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     }
 
     public static class NextFieldEntry extends FieldEntry {
+        private final ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat;
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
@@ -310,6 +316,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             long postingListLength,
             float[] globalCentroid,
             float globalCentroidDp,
+            ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat,
             ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
             int bulkSize,
             long preconditionerOffset,
@@ -332,12 +339,17 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 globalCentroidDp,
                 bulkSize
             );
+            this.centroidIndexFormat = centroidIndexFormat;
             this.quantEncoding = quantEncoding;
             this.preconditionerOffset = preconditionerOffset;
             this.preconditionerLength = preconditionerLength;
             this.numSlices = numSlices;
             this.maxSliceSize = maxSliceSize;
             this.rescoreOversample = rescoreOversample;
+        }
+
+        public ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat() {
+            return centroidIndexFormat;
         }
 
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {

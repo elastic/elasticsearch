@@ -44,6 +44,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
@@ -242,6 +243,24 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return true;
     }
 
+    /**
+     * Whether the test node should enable index slicing validation.
+     * This adds the {@link IndexSettings#SLICE_VALIDATED} setting to all indices created in the cluster. In production, this happens
+     * via an x-pack plugin.
+     */
+    protected boolean enableIndexSlice() {
+        return true;
+    }
+
+    /**
+     * Determines whether the columnar ID mode should be randomized in the test setup.
+     *
+     * @return {@code true} if the columnar ID mode should be randomized; otherwise, returns {@code false}.
+     */
+    protected boolean randomizeColumnarIdMode() {
+        return true;
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return Stream.concat(
@@ -290,6 +309,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         Settings settings = settingBuilder.build();
 
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
+        if (enableIndexSlice()) {
+            plugins.add(ESIntegTestCase.AlwaysValidateSlicePlugin.class);
+        }
         if (plugins.contains(getTestTransportPlugin()) == false) {
             plugins.add(getTestTransportPlugin());
         }
@@ -300,6 +322,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomizeColumnarIdMode()) {
+            plugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
+        }
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings(), TEST_ENTITLEMENTS.addEntitledNodePaths(settings, null));
         try {
             node.start();

@@ -17,6 +17,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.BufferedInputStream;
@@ -33,10 +38,13 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 
 /**
@@ -56,7 +64,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     /**
      * Node-level setting for the parallel-parsing segment size. Larger segments amortise the fixed
      * Java/Jackson per-segment setup cost; smaller segments enable parallelism on smaller files.
-     * Also overridable per-query via the {@code segment_size} key in {@code WITH (...)}.
+     * Also overridable per-query via the {@code segment_size} key in {@code WITH {...}}.
      */
     public static final String SEGMENT_SIZE_SETTING = "esql.datasource.ndjson.segment_size";
 
@@ -90,12 +98,19 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final int schemaSampleSize;
     private final long segmentSizeBytes;
     private final DateFormatter datetimeFormatter;
+    /**
+     * Node-stable identity of the row-interpretation-affecting {@code WITH} config, per
+     * {@link SchemaCacheKey#buildFormatConfig} — the external-stats cache fingerprint. Derived from
+     * the canonical config rather than the projected/resolved schema so a data node's shipped-back
+     * contribution matches the coordinator's cache entry across JVMs. Empty until {@link #withConfig}.
+     */
+    private final String canonicalConfig;
     // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
     // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
     private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null);
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "");
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
@@ -108,7 +123,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         List<Attribute> resolvedSchema,
         int schemaSampleSize,
         long segmentSizeBytes,
-        DateFormatter datetimeFormatter
+        DateFormatter datetimeFormatter,
+        String canonicalConfig
     ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
@@ -116,11 +132,20 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         this.schemaSampleSize = schemaSampleSize;
         this.segmentSizeBytes = segmentSizeBytes;
         this.datetimeFormatter = datetimeFormatter;
+        this.canonicalConfig = canonicalConfig;
     }
 
     @Override
     public NdJsonFormatReader withSchema(List<Attribute> schema) {
-        return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes, datetimeFormatter);
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            schema,
+            schemaSampleSize,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig
+        );
     }
 
     @Override
@@ -132,11 +157,19 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
         DateFormatter newDatetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), datetimeFormatter);
-        FormatReader result = (newSampleSize == schemaSampleSize
-            && newSegmentSize == segmentSizeBytes
-            && newDatetimeFormatter == datetimeFormatter)
-                ? this
-                : new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize, newDatetimeFormatter);
+
+        // Pin the node-stable config identity from THIS query's WITH config (see CsvFormatReader).
+        String canon = SchemaCacheKey.buildFormatConfig(config);
+
+        FormatReader result = new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            newSampleSize,
+            newSegmentSize,
+            newDatetimeFormatter,
+            canon
+        );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
@@ -325,8 +358,47 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // exception on the primary failure rather than replacing it.
         try (Closeable abortOnExit = () -> object.abortStream(stream)) {
             List<Attribute> schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize, datetimeFormatter);
-            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
+            String location = object.path().toString();
+            long mtimeMillis;
+            try {
+                Instant mtime = object.lastModified();
+                if (mtime == null) {
+                    return new SimpleSourceMetadata(schema, formatName(), location);
+                }
+                mtimeMillis = mtime.toEpochMilli();
+            } catch (IOException e) {
+                return new SimpleSourceMetadata(schema, formatName(), location);
+            }
+            OptionalLong cachedSize;
+            try {
+                cachedSize = OptionalLong.of(object.length());
+            } catch (IOException | UnsupportedOperationException e) {
+                cachedSize = OptionalLong.empty();
+            }
+            String configFingerprint = computeConfigFingerprint();
+            // Cold resolution publishes only the file size + identity; row/column stats arrive via the
+            // data-node capture → coordinator reconcile into SchemaCacheEntry.
+            SourceStatistics stats = TextFormatStats.build(Optional.empty(), cachedSize, schema);
+            Map<String, Object> baseSourceMetadata = Map.of(
+                ExternalStats.MTIME_MILLIS_KEY,
+                mtimeMillis,
+                ExternalStats.CONFIG_FINGERPRINT_KEY,
+                configFingerprint
+            );
+            Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
+            return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
         }
+    }
+
+    /**
+     * Node-stable identity of the row-interpretation-affecting {@code WITH} config — the same
+     * canonical string {@link SchemaCacheKey#buildFormatConfig} stores on the cache key, so a data
+     * node's contribution and the coordinator's entry compare equal across JVMs. Derived from the
+     * canonical config rather than the resolved schema (which is projection-dependent and would
+     * differ between a coordinator's full-schema resolution and a data node's projected read).
+     */
+    private String computeConfigFingerprint() {
+        return canonicalConfig;
     }
 
     /**
@@ -371,6 +443,29 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         List<Attribute> effectiveSchema = context.readSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
             : mergeBoundWithProjection(context.readSchema(), resolvedSchema);
+        // Whole-file read: first + last split, no parallel slicing. See CsvFormatReader.read for the
+        // rationale. mtime is pinned here at open-time so a mid-scan file replacement cannot pair a
+        // new mtime with old data.
+        boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
+        boolean chunkMode = context.recordAligned();
+        boolean cacheable = wholeFileRead || chunkMode;
+        long pinnedMtimeMillis = -1L;
+        if (cacheable) {
+            try {
+                Instant openMtime = object.lastModified();
+                if (openMtime != null) {
+                    pinnedMtimeMillis = openMtime.toEpochMilli();
+                } else {
+                    cacheable = false;
+                    chunkMode = false;
+                }
+            } catch (IOException e) {
+                cacheable = false;
+                chunkMode = false;
+            }
+        }
+        // Fingerprint is computed lazily in the iterator's close hook once the decoder has resolved
+        // its projected attributes — schema resolution can lag past iterator construction.
         return new NdJsonPageIterator(
             object,
             context.projectedColumns(),
@@ -381,6 +476,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             trimLastPartialLine,
             effectiveSchema,
             errorPolicy,
+            cacheable ? object : null,
+            pinnedMtimeMillis,
+            // The fingerprint is the node-stable canonical config; the iterator's schema arg is ignored.
+            cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
+            chunkMode,
             counters,
             context.maxRecordBytes(),
             datetimeFormatter
@@ -412,7 +512,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     /**
      * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the {@code segment_size}
-     * key in the per-query {@code WITH (...)} config. Defaults to {@link #DEFAULT_SEGMENT_SIZE}.
+     * key in the per-query {@code WITH {...}} config. Defaults to {@link #DEFAULT_SEGMENT_SIZE}.
      */
     @Override
     public long minimumSegmentSize() {
@@ -427,6 +527,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     @Override
     public List<String> fileExtensions() {
         return List.of(".ndjson", ".jsonl", ".json");
+    }
+
+    @Override
+    public org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport aggregatePushdownSupport() {
+        return new org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport();
     }
 
     @Override

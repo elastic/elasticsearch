@@ -581,7 +581,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             clusterService,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(RecoveryPlannerService.class),
-            RecoveryMetricsCollector.NOOP
+            new CompositeRecoverySchedulingListener()
         );
     }
 

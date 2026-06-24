@@ -170,6 +170,37 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> predicateColumnPaths,
         BufferAllocator allocator
     ) {
+        return preload(reader, storageObject, predicateColumnPaths, null, null, allocator);
+    }
+
+    /**
+     * Variant that additionally restricts which columns contribute ColumnIndex and OffsetIndex
+     * byte-range fetches. The page indexes are only consumed by a subset of plans:
+     * <ul>
+     *   <li>ColumnIndex: predicate columns (page-level {@code RowRanges} computation) and the
+     *       dynamic-threshold / top-N sort column (page skipping).</li>
+     *   <li>OffsetIndex: the above, plus projected columns when a filter is active (filtered reads
+     *       skip non-surviving pages via the offset index).</li>
+     * </ul>
+     * For a full scan with no filter and no threshold, no plan consumes the page indexes, so the
+     * caller passes empty sets and zero index ranges are fetched.
+     *
+     * <p>A {@code null} set means "unrestricted" — fetch the index for every column. This preserves
+     * the legacy behavior for callers (and tests) that cannot enumerate the consuming columns.
+     *
+     * @param columnIndexPaths dot-string paths of columns whose ColumnIndex should be fetched, or
+     *            {@code null} to fetch for all columns
+     * @param offsetIndexPaths dot-string paths of columns whose OffsetIndex should be fetched, or
+     *            {@code null} to fetch for all columns
+     */
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        BufferAllocator allocator
+    ) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return empty();
@@ -177,7 +208,15 @@ final class PreloadedRowGroupMetadata implements Releasable {
 
         if (storageObject != null) {
             try {
-                return preloadCoalesced(reader, rowGroups, storageObject, predicateColumnPaths, allocator);
+                return preloadCoalesced(
+                    reader,
+                    rowGroups,
+                    storageObject,
+                    predicateColumnPaths,
+                    columnIndexPaths,
+                    offsetIndexPaths,
+                    allocator
+                );
             } catch (Exception e) {
                 logger.debug("Coalesced metadata preload failed, falling back to sequential: {}", e.getMessage());
             }
@@ -206,6 +245,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
         List<BlockMetaData> rowGroups,
         StorageObject storageObject,
         Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
         BufferAllocator allocator
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
@@ -215,23 +256,31 @@ final class PreloadedRowGroupMetadata implements Releasable {
         for (int rgIdx = 0; rgIdx < rowGroups.size(); rgIdx++) {
             BlockMetaData block = rowGroups.get(rgIdx);
             for (ColumnChunkMetaData col : block.getColumns()) {
+                String path = col.getPath().toDotString();
                 IndexReference ciRef = col.getColumnIndexReference();
-                if (ciRef != null && ciRef.getLength() > 0) {
+                // A null path set means "unrestricted"; otherwise only fetch the index for columns
+                // a plan will actually consume (predicate / threshold for ColumnIndex; plus
+                // projected columns for OffsetIndex). Full scans pass empty sets -> zero ranges.
+                if (ciRef != null && ciRef.getLength() > 0 && (columnIndexPaths == null || columnIndexPaths.contains(path))) {
                     addRange(ranges, rangeMetas, ciRef.getOffset(), ciRef.getLength(), rgIdx, col, RangeKind.COLUMN_INDEX);
                 }
                 IndexReference oiRef = col.getOffsetIndexReference();
-                if (oiRef != null && oiRef.getLength() > 0) {
+                if (oiRef != null && oiRef.getLength() > 0 && (offsetIndexPaths == null || offsetIndexPaths.contains(path))) {
                     addRange(ranges, rangeMetas, oiRef.getOffset(), oiRef.getLength(), rgIdx, col, RangeKind.OFFSET_INDEX);
                 }
-                if (fetchPreWarm && predicateColumnPaths.contains(col.getPath().toDotString())) {
+                if (fetchPreWarm && predicateColumnPaths.contains(path)) {
                     addDictionaryRange(ranges, rangeMetas, rgIdx, col);
                     addBloomFilterRange(ranges, rangeMetas, rgIdx, col);
                 }
             }
         }
 
+        // No byte ranges to fetch. For a full scan this is the expected, optimized outcome (no
+        // plan consumes the page indexes), so return empty metadata directly rather than falling
+        // back to the sequential reader — that fallback would re-fetch every column's indexes
+        // synchronously, defeating the gating.
         if (ranges.isEmpty()) {
-            return preloadSequential(reader, rowGroups);
+            return new PreloadedRowGroupMetadata(Map.of(), Map.of(), reader.getFileMetaData().getSchema());
         }
 
         logger.debug("Coalesced metadata preload: [{}] ranges across [{}] row groups", ranges.size(), rowGroups.size());

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
@@ -21,27 +23,58 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * Supports authentication modes:
  * <ul>
  *   <li>Service account JSON credentials (inline)</li>
+ *   <li>Short-lived OAuth2 access token</li>
+ *   <li>Workload identity federation via {@code jwt_audience}, {@code sts_audience}, and
+ *       {@code service_account_impersonation_url}</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>Application Default Credentials (ADC) when no explicit credentials are provided</li>
+ *   <li>{@code auth=workload_identity} to use the node's own GCE/GKE metadata-server credentials,
+ *       gated by the {@code esql.datasource.workload_identity.enabled} cluster setting</li>
  * </ul>
+ * Apart from {@code auth=workload_identity}, a data source must carry its own credentials, since the node may run
+ * in a different cloud than the bucket it targets. {@code auth=workload_identity} is the deliberate exception: it
+ * is intended for single-cloud, single-tenant deployments where the node's metadata-server credentials are the
+ * intended identity, which is why it is disabled by default.
  */
 public class GcsConfiguration extends FileDataSourceConfiguration {
 
     private static final DataSourceConfigDefinition CREDENTIALS = secret("credentials");
+    private static final DataSourceConfigDefinition ACCESS_TOKEN = secret("access_token");
     private static final DataSourceConfigDefinition PROJECT_ID = plaintext("project_id");
     private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
     private static final DataSourceConfigDefinition TOKEN_URI = plaintext("token_uri");
+    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asKeylessAuth();
+    private static final DataSourceConfigDefinition STS_AUDIENCE = plaintext("sts_audience").asKeylessAuth();
+    private static final DataSourceConfigDefinition SERVICE_ACCOUNT_IMPERSONATION_URL = plaintext("service_account_impersonation_url")
+        .asKeylessAuth();
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         CREDENTIALS,
+        ACCESS_TOKEN,
         PROJECT_ID,
         ENDPOINT,
         TOKEN_URI,
+        JWT_AUDIENCE,
+        STS_AUDIENCE,
+        SERVICE_ACCOUNT_IMPERSONATION_URL,
         AUTH
     );
 
     private GcsConfiguration(Map<String, Object> raw) {
         super(raw, FIELDS);
+    }
+
+    @Override
+    protected void validateCredentials(ValidationException errors) {
+        // service_account_impersonation_url is optional: direct workload-identity federation maps the
+        // federated identity straight to a principal without impersonating a service account.
+        if (hasKeylessAuth()) {
+            if (jwtAudience() == null) {
+                errors.addValidationError("jwt_audience is required when keyless authentication settings are configured");
+            }
+            if (stsAudience() == null) {
+                errors.addValidationError("sts_audience is required when keyless authentication settings are configured");
+            }
+        }
     }
 
     public static GcsConfiguration fromMap(Map<String, Object> raw) {
@@ -72,6 +105,19 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         String tokenUri,
         String auth
     ) {
+        return fromFields(serviceAccountCredentials, projectId, endpoint, tokenUri, auth, null, null, null);
+    }
+
+    public static GcsConfiguration fromFields(
+        String serviceAccountCredentials,
+        String projectId,
+        String endpoint,
+        String tokenUri,
+        String auth,
+        String jwtAudience,
+        String stsAudience,
+        String serviceAccountImpersonationUrl
+    ) {
         var raw = buildRawMap(
             CREDENTIALS,
             serviceAccountCredentials,
@@ -81,6 +127,12 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
             endpoint,
             TOKEN_URI,
             tokenUri,
+            JWT_AUDIENCE,
+            jwtAudience,
+            STS_AUDIENCE,
+            stsAudience,
+            SERVICE_ACCOUNT_IMPERSONATION_URL,
+            serviceAccountImpersonationUrl,
             AUTH,
             auth
         );
@@ -89,6 +141,10 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
 
     public String serviceAccountCredentials() {
         return get(CREDENTIALS.name());
+    }
+
+    public String accessToken() {
+        return get(ACCESS_TOKEN.name());
     }
 
     public String projectId() {
@@ -103,7 +159,30 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         return get(TOKEN_URI.name());
     }
 
+    /**
+     * Audience passed to the workload-identity issuer {@code IssueTokenRequest} when minting a JWT.
+     */
+    public String jwtAudience() {
+        return get(JWT_AUDIENCE.name());
+    }
+
+    /**
+     * Audience configured on {@code com.google.auth.oauth2.IdentityPoolCredentials} when exchanging
+     * the workload-identity JWT with Google STS.
+     */
+    public String stsAudience() {
+        return get(STS_AUDIENCE.name());
+    }
+
+    /**
+     * Optional service account impersonation URL configured on {@code com.google.auth.oauth2.IdentityPoolCredentials}.
+     * When {@code null}, the federated identity maps directly to a principal without impersonating a service account.
+     */
+    public String serviceAccountImpersonationUrl() {
+        return get(SERVICE_ACCOUNT_IMPERSONATION_URL.name());
+    }
+
     public boolean hasCredentials() {
-        return serviceAccountCredentials() != null;
+        return Strings.hasText(serviceAccountCredentials()) || Strings.hasText(accessToken());
     }
 }

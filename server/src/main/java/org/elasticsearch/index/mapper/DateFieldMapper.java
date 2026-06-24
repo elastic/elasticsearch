@@ -257,19 +257,16 @@ public final class DateFieldMapper extends FieldMapper {
         return (DateFieldMapper) in;
     }
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        true
-    );
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
+        boolean multiValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
+            || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
+    }
 
     public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.of(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -320,6 +317,10 @@ public final class DateFieldMapper extends FieldMapper {
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.docValuesParameters = DocValuesParameter.of(
+                defaultDocValuesParameters(indexSettings),
+                m -> toType(m).docValuesParameters()
+            );
             this.ignoreMalformed = Parameter.boolParam(
                 "ignore_malformed",
                 true,
@@ -419,13 +420,21 @@ public final class DateFieldMapper extends FieldMapper {
             }
         }
 
+        /**
+         * Determines the appropriate {@link IndexType} for the given field name based on index settings,
+         * index creation version, index mode, and other parameters.
+         */
         private IndexType indexType(String fullFieldName) {
-            if (shouldUseDocValuesSkipper(indexSettings, docValuesParameters.getValue().enabled(), fullFieldName)) {
-                return IndexType.skippers();
-            }
-            if (index.get() == false && docValuesParameters.get().enabled()) {
-                if (indexSettings.useDocValuesSkipper()
-                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+            if (indexSettings.useDocValuesSkipper() && docValuesParameters.getValue().enabled()) {
+                // If not indexed, then always use skippers for date fields:
+                if (index.get() == false && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
+                // Otherwise if field name @timestamp and it is part of index sorting and index mode is either logsdb and tsdb use skippers:
+                if ((indexSettings.getMode() == IndexMode.TIME_SERIES || indexSettings.getMode() == IndexMode.LOGSDB)
+                    && indexSettings.getIndexSortConfig() != null
+                    && indexSettings.getIndexSortConfig().hasSortOnField(fullFieldName)
+                    && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName)) {
                     return IndexType.skippers();
                 }
             }
@@ -1012,8 +1021,9 @@ public final class DateFieldMapper extends FieldMapper {
                 throw new UnsupportedOperationException("function fusing only supported for doc values");
             }
 
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
@@ -1198,28 +1208,6 @@ public final class DateFieldMapper extends FieldMapper {
         this.offsetsFieldName = offsetsFieldName;
     }
 
-    /**
-     * Determines whether the doc values skipper (sparse index) should be used for the {@code @timestamp} field.
-     * <p>
-     * The doc values skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
-     * the index was created on or after {@link IndexVersions#SKIPPERS_ENABLED_BY_DEFAULT}, and the
-     * field has doc values enabled. Additionally, the index mode must be columnar, and the index sorting
-     * configuration must include the {@code @timestamp} field.
-     *
-     * @param indexSettings  The index settings of the parent index
-     * @param hasDocValues   Whether the field has doc values enabled.
-     * @param fullFieldName  The full name of the field being checked, expected to be {@code @timestamp}.
-     * @return {@code true} if the doc values skipper should be used, {@code false} otherwise.
-     */
-    private static boolean shouldUseDocValuesSkipper(IndexSettings indexSettings, boolean hasDocValues, final String fullFieldName) {
-        return indexSettings.useDocValuesSkipper()
-            && hasDocValues
-            && (indexSettings.getMode() == IndexMode.TIME_SERIES || indexSettings.getMode() == IndexMode.LOGSDB)
-            && indexSettings.getIndexSortConfig() != null
-            && indexSettings.getIndexSortConfig().hasSortOnField(fullFieldName)
-            && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
-    }
-
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(leafName(), resolution, null, scriptCompiler, indexSettings).init(this);
@@ -1339,12 +1327,7 @@ public final class DateFieldMapper extends FieldMapper {
         if (fieldType().hasDocValuesSkipper()) {
             dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed && docValuesParameters.enabled()) {
-            context.doc()
-                .add(
-                    docValuesParameters.multiValue()
-                        ? new LongField(fieldType().name(), timestamp, Field.Store.NO)
-                        : new SingleValuedLongField(fieldType().name(), timestamp)
-                );
+            context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));
         } else if (docValuesParameters.enabled()) {
             dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed) {

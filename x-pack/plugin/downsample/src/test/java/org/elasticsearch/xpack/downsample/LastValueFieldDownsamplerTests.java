@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.internal.hppc.IntArrayList;
-import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.downsample.FormattedDocValuesTestUtils.DocValuesType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -27,16 +29,36 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.downsample.FormattedDocValuesTestUtils.trackingWithDocIdIterator;
+import static org.elasticsearch.xpack.downsample.FormattedDocValuesTestUtils.withDocIdIterator;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
 
+    private final DocValuesType docValuesType;
+
+    public LastValueFieldDownsamplerTests(DocValuesType docValuesType) {
+        this.docValuesType = docValuesType;
+    }
+
+    @ParametersFactory(shuffle = false)
+    public static List<Object[]> iteratorTypes() {
+        return List.of(new Object[] { DocValuesType.WITH_ITERATOR }, new Object[] { DocValuesType.WITHOUT_ITERATOR });
+    }
+
+    private FormattedDocValues getValues(IntArrayList docIdBuffer, Object[] values) {
+        return switch (docValuesType) {
+            case WITH_ITERATOR -> withDocIdIterator(docIdBuffer, values);
+            case WITHOUT_ITERATOR -> FormattedDocValuesTestUtils.createValuesInstance(docIdBuffer, values);
+        };
+    }
+
     public void testLastValueKeyword() throws IOException {
         LastValueFieldDownsampler lastValueFieldProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
-        var values = createValuesInstance(docIdBuffer, new String[] { "aaa", "bbb", "ccc" });
+        var values = getValues(docIdBuffer, new String[] { "aaa", "bbb", "ccc" });
         lastValueFieldProducer.collect(values, docIdBuffer);
         assertThat(lastValueFieldProducer.lastValue(), equalTo("aaa"));
         assertThat(lastValueFieldProducer.isDone(), equalTo(true));
@@ -49,7 +71,7 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         LastValueFieldDownsampler lastValueFieldProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
-        var values = createValuesInstance(docIdBuffer, new Double[] { 10.20D, 17.30D, 12.60D });
+        var values = getValues(docIdBuffer, new Double[] { 10.20D, 17.30D, 12.60D });
         lastValueFieldProducer.collect(values, docIdBuffer);
         assertThat(lastValueFieldProducer.lastValue(), equalTo(10.20D));
         assertThat(lastValueFieldProducer.isDone(), equalTo(true));
@@ -62,7 +84,7 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         LastValueFieldDownsampler lastValueFieldProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
-        var values = createValuesInstance(docIdBuffer, new Integer[] { 10, 17, 12 });
+        var values = getValues(docIdBuffer, new Integer[] { 10, 17, 12 });
         lastValueFieldProducer.collect(values, docIdBuffer);
         assertThat(lastValueFieldProducer.lastValue(), equalTo(10));
         assertThat(lastValueFieldProducer.isDone(), equalTo(true));
@@ -75,7 +97,7 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         LastValueFieldDownsampler lastValueFieldProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
-        var values = createValuesInstance(docIdBuffer, new Long[] { 10L, 17L, 12L });
+        var values = getValues(docIdBuffer, new Long[] { 10L, 17L, 12L });
         lastValueFieldProducer.collect(values, docIdBuffer);
         assertThat(lastValueFieldProducer.lastValue(), equalTo(10L));
         assertThat(lastValueFieldProducer.isDone(), equalTo(true));
@@ -88,7 +110,7 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         LastValueFieldDownsampler lastValueFieldProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
-        var values = createValuesInstance(docIdBuffer, new Boolean[] { true, false, false });
+        var values = getValues(docIdBuffer, new Boolean[] { true, false, false });
         lastValueFieldProducer.collect(values, docIdBuffer);
         assertThat(lastValueFieldProducer.lastValue(), equalTo(true));
         assertThat(lastValueFieldProducer.isDone(), equalTo(true));
@@ -100,7 +122,7 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
     public void testLastValueMultiValue() throws IOException {
         var docIdBuffer = IntArrayList.from(0);
         Boolean[] multiValue = new Boolean[] { true, false };
-        var values = new FormattedDocValues() {
+        var innerValues = new FormattedDocValues() {
 
             Iterator<Boolean> iterator = Arrays.stream(multiValue).iterator();
 
@@ -120,13 +142,15 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
             }
         };
 
-        values.iterator = Arrays.stream(multiValue).iterator();
+        var values = docValuesType == DocValuesType.WITH_ITERATOR ? withDocIdIterator(docIdBuffer, innerValues) : innerValues;
+
+        innerValues.iterator = Arrays.stream(multiValue).iterator();
         LastValueFieldDownsampler multiLastValueProducer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(multiLastValueProducer.lastValue(), nullValue());
         multiLastValueProducer.collect(values, docIdBuffer);
         assertThat(multiLastValueProducer.lastValue(), equalTo(multiValue));
         // Ensure we read all the available values
-        assertThat(values.iterator.hasNext(), equalTo(false));
+        assertThat(innerValues.iterator.hasNext(), equalTo(false));
         multiLastValueProducer.reset();
         assertThat(multiLastValueProducer.lastValue(), nullValue());
     }
@@ -139,7 +163,7 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         assertEquals(1, fieldCounts.formattedValueFields());
 
         var bytes = List.of("a\0value_a", "b\0value_b", "c\0value_c", "d\0value_d");
-        var docValues = new FormattedDocValues() {
+        var innerDocValues = new FormattedDocValues() {
 
             Iterator<String> iterator = bytes.iterator();
 
@@ -158,6 +182,10 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
                 return iterator.next();
             }
         };
+
+        var docValues = docValuesType == DocValuesType.WITH_ITERATOR
+            ? withDocIdIterator(IntArrayList.from(1), innerDocValues)
+            : innerDocValues;
 
         downsampler.collect(docValues, IntArrayList.from(1));
         assertFalse(downsampler.isEmpty());
@@ -178,29 +206,39 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         assertNull(downsampler.lastValue());
     }
 
-    static <T> FormattedDocValues createValuesInstance(IntArrayList docIdBuffer, T[] values) {
-        return new FormattedDocValues() {
+    public void testLastValueWithDocIdIterator() throws IOException {
+        assumeTrue("This test is relevant only for doc values with iterator", docValuesType == DocValuesType.WITH_ITERATOR);
+        var producer = new LastValueFieldDownsampler(randomAlphanumericOfLength(10), null, null);
+        var docIdBuffer = IntArrayList.from(0, 1, 2, 3, 4, 5);
+        var valuesInstance = trackingWithDocIdIterator(IntArrayList.from(1, 4), new String[] { "value_1", "value_4" });
+        producer.collect(valuesInstance, docIdBuffer);
 
-            final IntObjectHashMap<T> docIdToValue = IntObjectHashMap.from(docIdBuffer.toArray(), values);
+        assertThat(producer.isDone(), equalTo(true));
+        assertThat(producer.lastValue(), equalTo("value_1"));
+        assertThat(valuesInstance.advanceCalls(), equalTo(1));
+        assertThat(valuesInstance.advanceExactCalls(), equalTo(0));
 
-            int currentDocId = -1;
+        // A reset should not influence an exhausted leaf
+        boolean isReset = randomBoolean();
+        if (isReset) {
+            producer.reset();
+        }
+        assertThat(producer.isEmpty(), equalTo(isReset));
 
-            @Override
-            public boolean advanceExact(int target) throws IOException {
-                currentDocId = target;
-                return docIdToValue.containsKey(target);
-            }
+        producer.collect(valuesInstance, IntArrayList.from(6, 7));
+        assertThat(valuesInstance.advanceCalls(), equalTo(1));
+        assertThat(valuesInstance.advanceExactCalls(), equalTo(0));
+        assertThat(producer.isEmpty(), equalTo(isReset));
 
-            @Override
-            public T nextValue() throws IOException {
-                return docIdToValue.get(currentDocId);
-            }
+        producer.reset();
+        // A second leaf should be processed separetely
+        var secondLeafValues = trackingWithDocIdIterator(IntArrayList.from(4), new String[] { "value_4" });
+        producer.collect(secondLeafValues, IntArrayList.from(4, 5));
 
-            @Override
-            public int docValueCount() {
-                return 1;
-            }
-        };
+        assertFalse(producer.isEmpty());
+        assertThat(producer.lastValue(), equalTo("value_4"));
+        assertEquals(1, secondLeafValues.advanceCalls());
+        assertEquals(0, secondLeafValues.advanceExactCalls());
     }
 
     private static MappedFieldType createDummyFlattenedFieldType() {

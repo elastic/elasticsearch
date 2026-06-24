@@ -1308,9 +1308,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         boolean useLegacyFormat,
         InferenceStats inferenceStats
     ) {
-        MockLicenseState licenseState = MockLicenseState.createMock();
-        when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
-        return createFilter(threadPool, modelMap, indexingPressure, useLegacyFormat, licenseState, inferenceStats);
+        return createFilter(
+            threadPool,
+            modelMap,
+            indexingPressure,
+            useLegacyFormat,
+            inferenceStats,
+            INDICES_INFERENCE_MAX_BASE64_INPUT_SIZE.getDefault(Settings.EMPTY)
+        );
     }
 
     private static ShardBulkInferenceActionFilter createFilter(

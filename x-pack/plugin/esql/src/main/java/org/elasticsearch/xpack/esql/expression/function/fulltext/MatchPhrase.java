@@ -166,7 +166,10 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new MatchPhrase(source, field, query, null, queryBuilder);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+        return new MatchPhrase(source, field, query, options, queryBuilder);
     }
 
     @Override
@@ -175,6 +178,10 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override

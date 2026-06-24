@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
@@ -97,6 +98,8 @@ public abstract class FullTextFunction extends Function
         PostOptimizationVerificationAware,
         RewriteableAware,
         PostOptimizationPlanVerificationAware {
+
+    public static final TransportVersion ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS = TransportVersion.fromName("esql_options_for_search_functions");
 
     private final Expression query;
     private final QueryBuilder queryBuilder;

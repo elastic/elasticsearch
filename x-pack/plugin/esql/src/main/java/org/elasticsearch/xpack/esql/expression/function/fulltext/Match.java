@@ -158,6 +158,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         entry(PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
         entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), KEYWORD)
     );
+
     private static final String CONTENT_FIELD = "content_field";
 
     private final Configuration configuration;
@@ -329,7 +330,11 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         Configuration configuration = ((PlanStreamInput) in).configuration();
-        return new Match(source, field, query, null, queryBuilder, configuration);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+
+        return new Match(source, field, query, options, queryBuilder, configuration);
     }
 
     // This is not meant to be overriden by MatchOperator - MatchOperator should be serialized to Match
@@ -339,6 +344,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -431,7 +439,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     protected boolean isRuntimeSearch() {
-        return EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled()
+        return EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH_V1.isEnabled()
             && configuration.pragmas().runtimeLexicalSearch()
             && fieldAsFieldAttribute() == null;
     }

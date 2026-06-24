@@ -318,7 +318,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     /**
      * Batch variant of assertNoSeqNumberConflict
-     * Explode decodes batch into one operation per entry and the assertion is then forwarded to the
+     * Explode decodes the batch into one operation per entry and the assertion is then forwarded to the
      * single operation variant.
      */
     private synchronized boolean assertNoSeqNumberConflict(Translog.IndexBatch batch) throws IOException {

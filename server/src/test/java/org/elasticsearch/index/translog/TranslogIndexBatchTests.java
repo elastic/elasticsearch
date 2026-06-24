@@ -439,7 +439,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
         translog.add(batchA);
     }
 
-    public void testSeqNumberConflictAssertsSemanticInEquality() throws IOException {
+    public void testSeqNumberConflictAssertsSemanticInequality() throws IOException {
         final long term = primaryTerm.get();
         final Translog.Index op0 = new Translog.Index(Uid.encodeId("solo-0"), 0, term, 1L, new BytesArray("{\"k\":\"v1\"}"), null, -1L);
         translog.add(op0);

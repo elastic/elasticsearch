@@ -347,7 +347,10 @@ public class IpFieldMapperTests extends MapperTestCase {
     private static class IpSyntheticSourceSupport implements SyntheticSourceSupport {
         private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
         private final boolean ignoreMalformed;
-        private final boolean extendedDocValues = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        private final IndexMode indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
+            ? randomFrom(IndexMode.STANDARD, IndexMode.COLUMNAR)
+            : IndexMode.STANDARD;
+        private final boolean extendedDocValues = indexMode.isStrictColumnar() && randomBoolean();
         private final boolean enforceSingleValue = extendedDocValues && randomBoolean();
 
         private IpSyntheticSourceSupport(boolean ignoreMalformed) {
@@ -356,12 +359,12 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         @Override
         public boolean enforcesSingleValue() {
-            return enforceSingleValue && indexMode().isStrictColumnar();
+            return enforceSingleValue;
         }
 
         @Override
         public IndexMode indexMode() {
-            return enforceSingleValue ? IndexMode.COLUMNAR : IndexMode.STANDARD;
+            return indexMode;
         }
 
         @Override

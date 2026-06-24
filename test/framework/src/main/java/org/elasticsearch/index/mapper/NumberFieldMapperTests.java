@@ -397,7 +397,10 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
         private final boolean docValues = randomBoolean();
-        private final boolean enforceSingleValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        private final IndexMode indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
+            ? randomFrom(IndexMode.STANDARD, IndexMode.COLUMNAR)
+            : IndexMode.STANDARD;
+        private final boolean enforceSingleValue = indexMode.isStrictColumnar() && randomBoolean();
 
         private final Function<Number, Number> round;
         private final boolean ignoreMalformed;
@@ -416,12 +419,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
         @Override
         public boolean enforcesSingleValue() {
-            return enforceSingleValue && indexMode().isStrictColumnar();
+            return enforceSingleValue;
         }
 
         @Override
         public IndexMode indexMode() {
-            return enforceSingleValue ? IndexMode.COLUMNAR : IndexMode.STANDARD;
+            return indexMode;
         }
 
         @Override

@@ -171,6 +171,17 @@ public class EsqlSessionTests extends ESTestCase {
                 equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote-1", "remote-2"))
             );
         }
+        {
+            // joining same lookup from differently scoped subqueries
+            var plan = TEST_PARSER.parseQuery("""
+                FROM (FROM remote-1:data | LOOKUP JOIN lookup ON key),
+                     (FROM remote-2:data | LOOKUP JOIN lookup ON key)
+                | KEEP key, cluster, location
+                | SORT key
+                """);
+            var resolution = createIndexResolution("remote-1:data", "remote-2:data");
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote-1", "remote-2")));
+        }
     }
 
     private static Map<IndexPattern, IndexResolution> createIndexResolution(String... indices) {

@@ -466,10 +466,12 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
                 plaintextKeys.put(entry.getKey(), new KeyEntry(plaintext, entry.getValue().generatedAt()));
             }
         } catch (RuntimeException e) {
-            logger.error(() ->
-                String.format("failed to unwrap project encryption key [passwordId=%s] from disk; node starting in degraded state."
-                    + " To recover: fix the password and restart, or call POST /_encryption/_reset?accept_data_loss=true",
-                parsed.passwordId),
+            logger.error(
+                () -> String.format(
+                    "failed to unwrap project encryption key [passwordId=%s] from disk; node starting in degraded state."
+                        + " To recover: fix the password and restart, or call POST /_encryption/_reset?accept_data_loss=true",
+                    parsed.passwordId
+                ),
                 e
             );
             return degraded(parsed.activeKeyId, parsed.passwordId, pekEncryption, e.getMessage());

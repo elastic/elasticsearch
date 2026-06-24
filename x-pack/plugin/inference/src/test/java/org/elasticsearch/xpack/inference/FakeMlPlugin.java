@@ -14,7 +14,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
-import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
+import org.elasticsearch.xpack.ml.action.trainedmodel.TransportCoordinatedInferenceAction;
 
 import java.util.Collection;
 import java.util.List;

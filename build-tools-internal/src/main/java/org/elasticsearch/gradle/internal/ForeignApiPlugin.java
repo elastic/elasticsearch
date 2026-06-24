@@ -26,11 +26,15 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.process.CommandLineArgumentProvider;
 
 import java.io.File;
 import java.util.Collections;
 import java.util.List;
+
+import javax.inject.Inject;
 
 /**
  * Configures a project to use the {@code java.lang.foreign} API without {@code --enable-preview}
@@ -51,6 +55,13 @@ public class ForeignApiPlugin implements Plugin<Project> {
 
     private static final String EXTRACT_FOREIGN_API_TASK_NAME = "extractForeignApiJar";
 
+    private final JavaToolchainService javaToolchains;
+
+    @Inject
+    public ForeignApiPlugin(JavaToolchainService javaToolchains) {
+        this.javaToolchains = javaToolchains;
+    }
+
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
@@ -58,21 +69,27 @@ public class ForeignApiPlugin implements Plugin<Project> {
         BuildParameterExtension buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
         int minRuntime = Integer.parseInt(buildParams.getMinimumRuntimeVersion().getMajorVersion());
 
-        TaskProvider<ExtractForeignApiTask> extractTask = project.getTasks()
-            .register(EXTRACT_FOREIGN_API_TASK_NAME, ExtractForeignApiTask.class, t -> {
-                t.getOutputJar().set(project.getLayout().getBuildDirectory().file("jdk21-foreign-api.jar"));
-                t.onlyIf("JDK 21 required for preview API stubs", task -> minRuntime == 21);
+        if (minRuntime == 21) {
+            // Register the extraction task and wire it into compilation only when the project
+            // targets JDK 21. On JDK 22+ the Foreign Function & Memory API is standard, so neither
+            // the stub JAR nor the --patch-module flag is needed and the task must not appear in
+            // the task graph at all.
+            TaskProvider<ExtractForeignApiTask> extractTask = project.getTasks()
+                .register(EXTRACT_FOREIGN_API_TASK_NAME, ExtractForeignApiTask.class, t -> {
+                    t.getOutputJar().set(project.getLayout().getBuildDirectory().file("jdk21-foreign-api.jar"));
+                    t.getJdk21Launcher().set(
+                        javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(21)))
+                    );
+                });
+
+            Provider<RegularFile> jarFile = extractTask.flatMap(ExtractForeignApiTask::getOutputJar);
+
+            project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
+                var provider = new ForeignAccessArgumentProvider(jarFile, compileTask.getOptions().getRelease());
+                compileTask.getOptions().getCompilerArgumentProviders().add(provider);
             });
 
-        Provider<RegularFile> jarFile = extractTask.flatMap(ExtractForeignApiTask::getOutputJar);
-
-        project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
-            var provider = new ForeignAccessArgumentProvider(jarFile, compileTask.getOptions().getRelease());
-            compileTask.getOptions().getCompilerArgumentProviders().add(provider);
-        });
-
-        project.getTasks().withType(Javadoc.class).configureEach(javadocTask -> {
-            if (minRuntime == 21) {
+            project.getTasks().withType(Javadoc.class).configureEach(javadocTask -> {
                 javadocTask.dependsOn(extractTask);
                 javadocTask.doFirst(t -> {
                     File jar = jarFile.get().getAsFile();
@@ -81,10 +98,14 @@ public class ForeignApiPlugin implements Plugin<Project> {
                         options.addStringOption("-patch-module", "java.base=" + jar.getAbsolutePath());
                     }
                 });
-            }
-        });
+            });
 
-        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> { t.checkForeignApiUsage(jarFile, minRuntime); });
+            project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(jarFile, 21));
+        } else {
+            // JDK 22+: foreign API is standard. No stub JAR is needed; pass null for the jar
+            // parameter — checkForeignApiUsage only uses it when targetVersion == 21.
+            project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(null, minRuntime));
+        }
     }
 
     /**

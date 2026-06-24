@@ -13,28 +13,24 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 
-import static org.junit.Assume.assumeFalse
-import static org.junit.Assume.assumeTrue
-
 class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends Plugin> pluginClassUnderTest = ForeignApiPlugin
 
     def setup() {
+        // Extend the toolchain discovery environment list to include JAVA21_HOME so that a locally
+        // installed JDK 21 is found without requiring an auto-provisioning download.
+        propertiesFile << "org.gradle.java.installations.fromEnv=" +
+            "JAVA_HOME,RUNTIME_JAVA_HOME,JAVA21_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME\n"
+
         buildFile << """
             apply plugin: 'java'
         """.stripIndent()
     }
 
-    private static boolean isJdk21() {
-        return Runtime.version().feature() == 21
-    }
-
     // --- ExtractForeignApiTask tests ---
 
     def "extractForeignApiJar task is registered and produces output"() {
-        assumeTrue("Requires JDK 21", isJdk21())
-
         given:
         clazz('org.acme.Dummy')
 
@@ -47,8 +43,6 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     }
 
     def "extractForeignApiJar is up-to-date on second run"() {
-        assumeTrue("Requires JDK 21", isJdk21())
-
         given:
         clazz('org.acme.Dummy')
 
@@ -61,8 +55,6 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     }
 
     def "extractForeignApiJar is loaded from build cache after clean"() {
-        assumeTrue("Requires JDK 21", isJdk21())
-
         given:
         clazz('org.acme.Dummy')
 
@@ -75,7 +67,8 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         result.task(":extractForeignApiJar").outcome == TaskOutcome.FROM_CACHE
     }
 
-    def "extractForeignApiJar is skipped when minimumRuntimeVersion is not 21"() {
+    def "extractForeignApiJar is not registered when minimumRuntimeVersion is not 21"() {
+        // The task must be absent from the task graph entirely, not merely skipped.
         given:
         buildFile.text = buildFile.text.replace(
             "plugins.apply(ForeignApiPlugin)",
@@ -83,13 +76,12 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
             bp.setMinimumRuntimeVersion(JavaVersion.VERSION_22)
             plugins.apply(ForeignApiPlugin)"""
         )
-        clazz('org.acme.Dummy')
 
         when:
-        def result = gradleRunner('extractForeignApiJar', '-g', gradleUserHome).build()
+        def result = gradleRunner('extractForeignApiJar', '-g', gradleUserHome).buildAndFail()
 
         then:
-        result.task(":extractForeignApiJar").outcome == TaskOutcome.SKIPPED
+        result.output.contains("Task 'extractForeignApiJar' not found")
     }
 
     // --- ForeignAccessArgumentProvider / --patch-module tests ---
@@ -124,9 +116,7 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         result.output.contains("error") == false
     }
 
-    def "compileJava passes --patch-module on JDK 21"() {
-        assumeTrue("Requires JDK 21", isJdk21())
-
+    def "compileJava passes --patch-module on JDK 21 minimum runtime"() {
         given:
         clazz('org.acme.Dummy')
         buildFile << """
@@ -159,18 +149,65 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         result.task(":compileJava").outcome == TaskOutcome.UP_TO_DATE
     }
 
+    def "compileJava does not get --patch-module when minimum runtime is not JDK 21"() {
+        // Override minimumRuntimeVersion to the current daemon JDK (always != 21 in the standard
+        // build environment). The extractForeignApiJar onlyIf condition then evaluates false, the
+        // task is skipped, no stub JAR is produced, and ForeignAccessArgumentProvider returns an
+        // empty argument list — so --patch-module must not appear in the compiler args.
+        given:
+        buildFile.text = buildFile.text.replace(
+            "plugins.apply(ForeignApiPlugin)",
+            """def bp = project.getExtensions().getByType(BuildParameterExtension)
+            bp.setMinimumRuntimeVersion(JavaVersion.current())
+            plugins.apply(ForeignApiPlugin)"""
+        )
+        clazz('org.acme.Dummy')
+        buildFile << """
+            tasks.named('compileJava') {
+                doLast {
+                    def args = it.options.allCompilerArgs
+                    def idx = args.indexOf('--patch-module')
+                    assert idx == -1 : "must NOT get --patch-module when minimum runtime is not 21, but got: \${args}"
+                }
+            }
+        """.stripIndent()
+
+        when:
+        def result = gradleRunner('compileJava', '-g', gradleUserHome).build()
+
+        then:
+        result.task(":compileJava").outcome == TaskOutcome.SUCCESS
+    }
+
     // --- CheckForbiddenApisTask tests ---
 
-    private void setupForbiddenApiBuild() {
+    /**
+     * Builds a project that applies the full foreign-API + forbidden-API stack.
+     *
+     * @param jdk21Target {@code true} (default) — target JDK 21 (minimumRuntimeVersion=21, uses
+     *                    {@code jdk-foreign-signatures}).  {@code false} — target the current
+     *                    daemon JDK (always != 21 in the standard build environment) so that the
+     *                    JDK 22+ signature file is selected and no stub JAR is produced.
+     */
+    private void setupForbiddenApiBuild(boolean jdk21Target = true) {
         buildFile.text = ""
         internalBuild()
-        def sigFile = isJdk21() ? 'jdk-foreign-signatures' : 'jdk-foreign-signatures22'
+        def sigFile = jdk21Target ? 'jdk-foreign-signatures' : 'jdk-foreign-signatures22'
         buildFile << """
             import org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
             import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
             apply plugin: 'java'
             apply plugin: ForbiddenApisPrecommitPlugin
+        """.stripIndent()
+        if (jdk21Target == false) {
+            // Drive the plugin into JDK 22+ mode without needing the daemon itself to be JDK 22+.
+            buildFile << """
+                def bp = project.getExtensions().getByType(org.elasticsearch.gradle.internal.info.BuildParameterExtension)
+                bp.setMinimumRuntimeVersion(JavaVersion.current())
+            """.stripIndent()
+        }
+        buildFile << """
             apply plugin: 'elasticsearch.foreign-api'
 
             tasks.withType(CheckForbiddenApisTask).configureEach {
@@ -180,8 +217,6 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     }
 
     def "forbiddenApisMain rejects direct use of JDK 21 foreign API methods"() {
-        assumeTrue("Requires JDK 21 for preview API method names", isJdk21())
-
         given:
         setupForbiddenApiBuild()
         file("src/main/java/org/acme/BadForeignUser.java") << """
@@ -201,10 +236,8 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     }
 
     def "forbiddenApisMain rejects direct use of JDK 22+ foreign API methods"() {
-        assumeFalse("Requires JDK 22+", isJdk21())
-
         given:
-        setupForbiddenApiBuild()
+        setupForbiddenApiBuild(false)
         file("src/main/java/org/acme/BadForeignUser.java") << """
             package org.acme;
             import java.lang.foreign.MemorySegment;
@@ -219,29 +252,5 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         then:
         result.task(":forbiddenApisMain").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, "Use MemorySegmentAdapter.getString() instead")
-    }
-
-    // --- Per-task release version tests (mrjar + foreign-api) ---
-
-    def "compileJava does not get --patch-module when release is above 21"() {
-        assumeFalse("Requires JDK 22+", isJdk21())
-
-        given:
-        clazz('org.acme.Dummy')
-        buildFile << """
-            tasks.named('compileJava') {
-                doLast {
-                    def args = it.options.allCompilerArgs
-                    def idx = args.indexOf('--patch-module')
-                    assert idx == -1 : "must NOT get --patch-module when release > 21, but got: \${args}"
-                }
-            }
-        """.stripIndent()
-
-        when:
-        def result = gradleRunner('compileJava', '-g', gradleUserHome).build()
-
-        then:
-        result.task(":compileJava").outcome == TaskOutcome.SUCCESS
     }
 }

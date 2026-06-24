@@ -715,6 +715,54 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    /// Verifies that {@link SharedBlobCacheService#resetAccessCounts} moves reset regions to the freq-0 head
+    /// so they are evicted before higher-frequency entries.
+    ///
+    /// This uses regions still at frequency 1 rather than decaying them to frequency 0 first:
+    /// {@code resetAccessCounts} skips entries that are already at frequency 0, so a post-decay setup
+    /// would not exercise {@code pushEntryToFront}.
+    public void testResetAccessCountsMovesRegionsToFrontForEviction() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(300)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final ShardId protectedShard = randomShardId();
+            final ShardId victimShard = randomShardId();
+            final var protectedKey = randomTestCacheKey(protectedShard);
+            final var victimKey = randomTestCacheKey(victimShard);
+
+            final var protectedRegion0 = cacheService.get(protectedKey, size(250), 0);
+            final var protectedRegion1 = cacheService.get(protectedKey, size(250), 1);
+            final var victimRegion0 = cacheService.get(victimKey, size(250), 0);
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+            assertEquals(1, cacheService.getFreq(protectedRegion0));
+            assertEquals(1, cacheService.getFreq(victimRegion0));
+
+            // Without a reset, eviction scans the empty freq-0 list then evicts the freq-1 head (protectedRegion0).
+            assertEquals(1, cacheService.resetAccessCounts(victimShard));
+            assertEquals(0, cacheService.getFreq(victimRegion0));
+
+            assertThat(cacheService.maybeEvictLeastUsed(randomTestCacheKey(randomShardId()), size(250), 0), is(true));
+            assertTrue(victimRegion0.isEvicted());
+            assertFalse(protectedRegion0.isEvicted());
+            assertFalse(protectedRegion1.isEvicted());
+        }
+    }
+
     public void testDecay() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);

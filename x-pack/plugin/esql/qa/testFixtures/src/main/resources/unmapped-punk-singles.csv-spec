@@ -1,123 +1,7 @@
-// This file covers single-type partially-unmapped non-keyword fields (PUNKs) used WITHOUT an explicit cast.
-// Under unmapped_fields="load", such a field has a single mapped type and is unmapped (or absent) in the other indices.
-// When referenced without a cast it either auto-casts to its single mapped type (for types convertible from KEYWORD,
-// e.g. long/double) or nullifies the unmapped rows (for non-convertible types, e.g. aggregate_metric_double).
-// Casted single-type PUNKs and genuine multi-type union conflicts live in unmapped-type-conflicts.csv-spec.
-
-#####################################
-# auto-casting of two-legged PUNKS  #
-#####################################
-
-autocast two-legged long punk
-required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped, k8s_retyped METADATA _index
-# for determinism and keeping output size in check
-| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
-| EVAL 
-    x = network.cost::double,
-    y = sqrt(network.cost)
-;
-
-# notes
-# network.cost: A free floating two-legged PUNK is always auto-cast to the mapped typed (LONG in this case).
-#            x: A two-legged PUNKs inside a convert function is never auto-cast. It is read directly from _source. This
-#                   is why some [x] values show more decimal points; no loss of precision! 
-#            y: A two-legged PUNKs inside a non-convert function (math in this case) is always auto-cast to the mapped 
-#                   type, but sqrt(LONG) is always a DOUBLE, hence the column type.
-network.cost:long | x:double | y:double
-9                 | 9.0      | 3.0
-9                 | 9.375    | 3.0
-1                 | 1.0      | 1.0
-1                 | 1.25     | 1.0
-9                 | 9.0      | 3.0
-;
-
-autocast two-legged double punk
-required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped, k8s METADATA _index
-# for determinism and keeping output size in check
-| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
-| EVAL 
-    x = network.cost::double,
-    y = sqrt(network.cost)
-;
-
-# notes
-# network.cost: A free floating two-legged PUNK is always auto-cast to the mapped typed (LONG in this case).
-#            x: A two-legged PUNKs inside a convert function is never auto-cast. It is read directly from _source.
-#            y: A two-legged PUNKs inside a non-convert function (math in this case) is always auto-cast to the mapped 
-#               type, but sqrt(LONG) is always a DOUBLE, hence the column type.
-network.cost:double | x:double | y:double
-9.375               | 9.375    | 3.0618621784789726
-9.375               | 9.375    | 3.0618621784789726
-1.25                | 1.25     | 1.118033988749895 
-1.25                | 1.25     | 1.118033988749895 
-9.25                | 9.25     | 3.0413812651491097
-;
-
-autocast two-legged punk in WHERE
-required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped, k8s_retyped METADATA _index
-| WHERE network.cost >= 1
-# for determinism and keeping output size in check
-| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
-;
-
-# [network.cost] is LONG in k8s_retyped, unmapped in k8s_unmapped
-network.cost:long
-9
-9
-1
-1
-9
-;
-
-autocast two-legged punk in EVAL
-required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped, k8s_retyped METADATA _index
-# for determinism and keeping output size in check
-| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
-| EVAL x = network.cost + 1
-;
-
-# [network.cost] is LONG in k8s_retyped, unmapped in k8s_unmapped
-network.cost:long | x:long
-9                 | 10
-9                 | 10
-1                 | 2
-1                 | 2
-9                 | 10
-;
-
-autocast two-legged punk in STATS
-required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped, k8s_retyped
-| STATS avg_cost = AVG(network.cost), max_cost = MAX(network.cost), min_cost = MIN(network.cost)
-;
-
-# [network.cost] is LONG in k8s_retyped, unmapped in k8s_unmapped
-avg_cost:double | max_cost:long | min_cost:long
-6.245           | 13            | 0
-;
-
-#####################################
-# aggregate_metric_double PUNKs     #
-#####################################
+// Single-type partially-unmapped non-keyword fields (PUNKs) with no KEYWORD converter (e.g. aggregate_metric_double),
+// used WITHOUT an explicit cast. Under unmapped_fields="load" they fall back to their mapped type and nullify the
+// unmapped rows, matching the default (no-load) behavior.
+// Auto-cast PUNKs (convertible types), casted PUNKs, and multi-type union conflicts live in unmapped-type-conflicts.csv-spec.
 
 // network.eth0.tx is aggregate_metric_double in k8s-downsampled and unmapped in k8s_unmapped.
 // Under load mode, function application should keep mapped rows and nullify unmapped ones.
@@ -153,7 +37,7 @@ avg_tx:double     | sum_tx:double | tx_count:long | rows:long
 575.8033707865169 | 102493.0      | 178           | 229
 ;
 
-// Same trio grouped by _index: the mapped index keeps real aggregates while the unmapped and non-existent indices nullify.
+// Same trio grouped by _index
 aggregateMetricDoubleUnmappedStatsNoCastByIndex
 required_capability: optional_fields_fix_load_partially_mapped
 required_capability: aggregate_metric_double_v0
@@ -166,51 +50,40 @@ FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
 
 avg_tx:double     | sum_tx:double | tx_count:long | rows:long | _index:keyword
 575.8033707865169 | 102493.0      | 178           | 27        | k8s-downsampled
-null              | null          | null          | 2         | k8s_nonexistent
-null              | null          | null          | 200       | k8s_unmapped
+null              | null          | 0             | 2         | k8s_nonexistent
+null              | null          | 0             | 200       | k8s_unmapped
 ;
 
-#####################################
-# reproducers from CI failures      #
-#####################################
-
-issue-146036-longer-reproducer
-required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// A single-type aggregate_metric_double PUNK has no KEYWORD converter, so under load it falls back to its mapped type and may be renamed.
+// The renamed field behaves exactly as the default setting: real aggregates where mapped, null metrics and 0 COUNT where unmapped.
+aggregateMetricDoubleUnmappedRenameNoCast
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: aggregate_metric_double_v0
 
 SET unmapped_fields="load"\;
-FROM dense_vector_arithmetic, no_mapping_s*
-| keep id, client_ip, env 
-| rename id AS language_name
-| stats client_ip = first(greatest(language_name, 4, -72), null)
+FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent
+| RENAME network.eth0.tx AS renamed_tx
+| STATS avg_tx = AVG(renamed_tx), sum_tx = SUM(renamed_tx), tx_count = COUNT(renamed_tx), rows = COUNT(*)
 ;
 
-client_ip:long
-4
+avg_tx:double     | sum_tx:double | tx_count:long | rows:long
+575.8033707865169 | 102493.0      | 178           | 229
 ;
 
-issue-146036-shorter-reproducer
-required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Same rename grouped by _index: matches aggregateMetricDoubleUnmappedStatsNoCastByIndex, confirming the rename is transparent.
+aggregateMetricDoubleUnmappedRenameNoCastByIndex
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: aggregate_metric_double_v0
 
 SET unmapped_fields="load"\;
-FROM dense_vector_arithmetic, no_mapping_sample_data
-| KEEP id
-| RENAME id AS language_name
-| EVAL x = GREATEST(language_name, 4, -72)
+FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
+| RENAME network.eth0.tx AS renamed_tx
+| STATS avg_tx = AVG(renamed_tx), sum_tx = SUM(renamed_tx), tx_count = COUNT(renamed_tx), rows = COUNT(*) BY _index
+| SORT _index
 ;
-ignoreOrder:true
 
-language_name:long | x:long
-0                  | 4
-1                  | 4
-2                  | 4
-3                  | 4
-null               | null
-null               | null
-null               | null
-null               | null
-null               | null
-null               | null
-null               | null
+avg_tx:double     | sum_tx:double | tx_count:long | rows:long | _index:keyword
+575.8033707865169 | 102493.0      | 178           | 27        | k8s-downsampled
+null              | null          | 0             | 2         | k8s_nonexistent
+null              | null          | 0             | 200       | k8s_unmapped
 ;

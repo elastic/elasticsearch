@@ -1285,23 +1285,24 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * A partially unmapped non-keyword field that cannot be auto-cast (TEXT has no KEYWORD converter) falls back to its mapped type,
-     * but renaming it is still rejected under {@code unmapped_fields="load"}.
+     * A partially unmapped non-keyword field that cannot be auto-cast (TEXT has no KEYWORD converter) falls back to its mapped type and may
+     * be renamed under {@code unmapped_fields="load"}, behaving exactly as it does without {@code load}.
      */
-    public void testDisallowLoadWithPartiallyMappedNonKeywordInRename() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+    public void testLoadWithPartiallyMappedNonKeywordInRenameFallsBack() {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED.isEnabled()
+        );
 
         var partialText = new EsField("partial_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
         var esIndex = partialIndex(Map.of("partial_text", partialText, "common", keywordField("common")), Set.of("partial_text"));
         var analyzer = analyzer().addIndex(esIndex);
 
-        assertUnmappedLoadError(analyzer, "FROM idx* | RENAME partial_text AS pt", partiallyUnmappedNonKeywordError("partial_text"));
+        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | RENAME partial_text AS pt"));
+        assertOutputContainsType(plan, "pt", DataType.TEXT);
 
-        assertUnmappedLoadError(
-            analyzer,
-            "FROM idx* | RENAME common as c, partial_text AS pt",
-            partiallyUnmappedNonKeywordError("partial_text")
-        );
+        plan = analyzer.statement(setUnmappedLoad("FROM idx* | RENAME common as c, partial_text AS pt"));
+        assertOutputContainsType(plan, "pt", DataType.TEXT);
     }
 
     public void testLoadWithPartiallyMappedNonKeywordInSortAutoCast() {
@@ -1445,8 +1446,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * With {@code unmapped_fields=load}, referencing a partially unmapped non-KEYWORD field only in {@code FROM} (not downstream)
-     * must succeed — the check fires only when the field is used outside the source relation.
+     * With {@code unmapped_fields=load}, a partially unmapped non-KEYWORD field present in the index but not referenced downstream of
+     * {@code FROM} imposes no constraints and must analyze cleanly.
      */
     public void testPartiallyUnmappedNonKeywordIsAllowedWithLoad_WhenNotReferenced() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
@@ -1654,10 +1655,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 );
             }
         }
-    }
-
-    private static Matcher<String> partiallyUnmappedNonKeywordError(String fieldName) {
-        return containsString("RENAME of partially unmapped non-KEYWORD field [" + fieldName + "]");
     }
 
     private static void assertSingleOutputType(LogicalPlan plan, String fieldName, DataType dataType) {

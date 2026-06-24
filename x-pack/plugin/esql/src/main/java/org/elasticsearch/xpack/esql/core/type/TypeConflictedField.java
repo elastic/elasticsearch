@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
@@ -16,18 +17,34 @@ import java.util.Map;
 import java.util.Set;
 
 public abstract sealed class TypeConflictedField extends EsField permits InvalidMappedField, CompactInvalidMappedField {
+    /**
+     * For a potentially-unmapped field with a single mapped type, the original mapped field as resolved without {@code load} semantics.
+     * Lets the analyzer's null-fallback restore the field verbatim (preserving e.g. aggregatability), so an unloadable PUNK behaves
+     * exactly as it would without {@code unmapped_fields="load"}. Null for multi-type conflicts and for instances built without it.
+     */
+    @Nullable
+    private final EsField mappedField;
+
     public TypeConflictedField(
         String name,
         DataType esDataType,
         Map<String, EsField> properties,
         boolean aggregatable,
-        TimeSeriesFieldType timeSeriesFieldType
+        TimeSeriesFieldType timeSeriesFieldType,
+        @Nullable EsField mappedField
     ) {
         super(name, esDataType, properties, aggregatable, timeSeriesFieldType);
+        this.mappedField = mappedField;
     }
 
     public TypeConflictedField(StreamInput in) throws IOException {
         super(in);
+        this.mappedField = null;
+    }
+
+    @Nullable
+    public EsField mappedField() {
+        return mappedField;
     }
 
     @Override

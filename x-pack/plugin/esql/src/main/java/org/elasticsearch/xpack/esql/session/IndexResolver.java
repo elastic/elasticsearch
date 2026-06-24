@@ -578,6 +578,9 @@ public class IndexResolver {
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
         @Nullable Map<Set<String>, Set<String>> indexDedupCache
     ) {
+        // Single-type PUNK: keep the original mapped field so the analyzer's null-fallback can restore it verbatim. A field that's already
+        // a type conflict has no single original to preserve.
+        EsField mappedField = field instanceof TypeConflictedField ? null : field;
         return switch (field.getDataType()) {
             // OBJECT fields are containers for subfields, not leaf fields that get queried directly.
             // Wrapping them would break downstream code that doesn't expect OBJECT as a data type in InvalidMappedField.
@@ -588,9 +591,10 @@ public class IndexResolver {
                 ? CompactInvalidMappedField.potentiallyUnmapped(
                     name,
                     partiallyUnmappedTypesByDataType(field, mappedIndices),
-                    indexDedupCache
+                    indexDedupCache,
+                    mappedField
                 )
-                : InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices));
+                : InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices), mappedField);
         };
     }
 

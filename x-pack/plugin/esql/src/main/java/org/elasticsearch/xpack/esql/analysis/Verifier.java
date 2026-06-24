@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -21,11 +20,9 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -33,10 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
-import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
@@ -47,8 +41,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -73,7 +65,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -129,14 +120,6 @@ public class Verifier {
         checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
-
-        // Temporary guard before we implement https://github.com/elastic/elasticsearch/issues/141995.
-        // PUNK usage is allowed in expressions under LOAD, but renaming a PUNK that fell back to its mapped type is still rejected.
-        // This check runs before the bail-out so that a query with both an UnsupportedAttribute and an illegal
-        // PUNK rename produces both errors in one batch.
-        if (unmappedResolution == UnmappedResolution.LOAD) {
-            checkPartiallyUnmappedNonKeywordRenaming(plan, failures, context);
-        }
 
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
@@ -536,75 +519,6 @@ public class Verifier {
         }
 
         return names;
-    }
-
-    /**
-     * Reject renaming partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}. PUNK expression usage is allowed
-     * (values are loaded where mapped, and null where unmapped) and convertible PUNKs that auto-cast to a {@link UnionTypeEsField} may be
-     * renamed; only non-convertible PUNKs that fell back to their mapped type are rejected.
-     */
-    private static void checkPartiallyUnmappedNonKeywordRenaming(LogicalPlan plan, Failures failures, AnalyzerContext context) {
-        final String errorMessage = "RENAME of partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
-
-        AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
-        plan.forEachUp(p -> {
-            if (p instanceof Project project) {
-                for (NamedExpression projection : project.projections()) {
-                    if (projection instanceof Alias alias && alias.child() instanceof FieldAttribute fa && punks.contains(fa)) {
-                        failures.add(fail(fa, errorMessage, fa.fieldName().string()));
-                    }
-                }
-            }
-        });
-    }
-
-    /**
-     * Walks the plan's {@link EsRelation} nodes and collects partially unmapped non-keyword attributes.
-     */
-    private static AttributeSet partiallyUnmappedNonKeywords(LogicalPlan plan, Map<IndexPattern, IndexResolution> indexResolutions) {
-        AttributeSet.Builder punks = AttributeSet.builder();
-
-        plan.forEachUp(EsRelation.class, relation -> {
-            IndexResolution indexResolution = indexResolutions.get(new IndexPattern(relation.source(), relation.indexPattern()));
-            if (indexResolution != null && indexResolution.isValid() && indexResolution.get().mapping().isEmpty() == false) {
-                Set<String> punkFieldNames = collectPotentiallyUnmappedNonKeywords(indexResolution.get().mapping());
-                for (Attribute attr : relation.output()) {
-                    // A PUNK that resolved to a UnionTypeEsField is properly typed and may be renamed: this covers both explicit casts
-                    // (e.g. punk_field::long) and auto-cast convertible two-legged PUNKs (e.g. a double field). Only non-convertible PUNKs
-                    // that fell back to their mapped type are rejected by the rename guard.
-                    if (attr instanceof FieldAttribute fa
-                        && punkFieldNames.contains(fa.fieldName().string())
-                        && fa.field() instanceof UnionTypeEsField == false) {
-                        punks.add(fa);
-                    }
-                }
-            }
-        });
-
-        return punks.build();
-    }
-
-    private static Set<String> collectPotentiallyUnmappedNonKeywords(Map<String, EsField> mapping) {
-        HashSet<String> result = new HashSet<>();
-        collectPotentiallyUnmappedNonKeywords(mapping, null, result);
-        return result;
-    }
-
-    private static void collectPotentiallyUnmappedNonKeywords(
-        Map<String, EsField> mapping,
-        @Nullable String prefix,
-        Set<String> aggregator
-    ) {
-        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-            String name = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
-            EsField field = entry.getValue();
-            if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped()) {
-                aggregator.add(name);
-            }
-            if (field.getProperties() != null && field.getProperties().isEmpty() == false) {
-                collectPotentiallyUnmappedNonKeywords(field.getProperties(), name, aggregator);
-            }
-        }
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

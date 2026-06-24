@@ -37,7 +37,7 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         Map<DataType, Set<String>> typesToIndices,
         Map<Set<String>, Set<String>> indexDedupCache
     ) {
-        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), false);
+        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), false, null);
     }
 
     public static CompactInvalidMappedField potentiallyUnmapped(
@@ -45,7 +45,19 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         Map<DataType, Set<String>> typesToIndices,
         Map<Set<String>, Set<String>> indexDedupCache
     ) {
-        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), true);
+        return potentiallyUnmapped(name, typesToIndices, indexDedupCache, null);
+    }
+
+    /**
+     * @param mappedField for a single-type PUNK, the original mapped field (see {@link TypeConflictedField#mappedField()}); null otherwise.
+     */
+    public static CompactInvalidMappedField potentiallyUnmapped(
+        String name,
+        Map<DataType, Set<String>> typesToIndices,
+        Map<Set<String>, Set<String>> indexDedupCache,
+        EsField mappedField
+    ) {
+        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), true, mappedField);
     }
 
     private static Set<String> truncate(Set<String> indices) {
@@ -54,8 +66,13 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return Collections.unmodifiableSet(truncated);
     }
 
-    private CompactInvalidMappedField(String name, Map<DataType, TruncatedIndices> typesToIndices, boolean isPotentiallyUnmapped) {
-        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, TimeSeriesFieldType.UNKNOWN);
+    private CompactInvalidMappedField(
+        String name,
+        Map<DataType, TruncatedIndices> typesToIndices,
+        boolean isPotentiallyUnmapped,
+        EsField mappedField
+    ) {
+        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, TimeSeriesFieldType.UNKNOWN, mappedField);
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }

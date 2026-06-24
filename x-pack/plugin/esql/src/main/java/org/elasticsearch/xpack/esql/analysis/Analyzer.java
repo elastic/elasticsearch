@@ -3199,15 +3199,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
                         DataType mappedType = tcf.types().iterator().next();
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
-                        if (convertFactory == null) {
-                            // Skip implicit casting: no such converter function exists
+                        ConvertFunction convert = convertFactory == null
+                            ? null
+                            : convertFactory.apply(fa.source(), fa, context.configuration());
+                        // We can only load an unmapped field from _source as KEYWORD, so we need a converter accepting KEYWORD input to
+                        // auto-cast. Without one, fall back to the mapped type so the field behaves exactly as it does without
+                        // unmapped_fields="load": null where unmapped.
+                        // Explicit casts handle their own conversion, so leave those untouched.
+                        if (convert == null || convert.supportedTypes().contains(KEYWORD) == false) {
                             return explicitlyCastedFieldNames.contains(fa.name()) ? fa : fallbackToMappedType(fa, tcf);
-                        }
-                        ConvertFunction convert = convertFactory.apply(fa.source(), fa, context.configuration());
-                        if (convert.supportedTypes().contains(KEYWORD) == false) {
-                            // Skip implicit casting: converter exists but does not accept KEYWORD input.
-                            // Keep the original field to preserve existing no-cast semantics for this type.
-                            return fa;
                         }
 
                         Map<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
@@ -3271,13 +3271,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         if (tcf.types().size() != 1) {
             throw new IllegalStateException("Expected exactly one mapped type for [" + tcf.getName() + "], got " + tcf.types());
         }
-        DataType type = tcf.types().iterator().next().widenSmallNumeric();
+        EsField mapped = tcf.mappedField();
+        EsField resolvedField;
+        if (mapped != null) {
+            DataType widened = mapped.getDataType().widenSmallNumeric();
+            resolvedField = widened == mapped.getDataType()
+                ? mapped
+                : new EsField(
+                    mapped.getName(),
+                    widened,
+                    mapped.getProperties(),
+                    mapped.isAggregatable(),
+                    mapped.isAlias(),
+                    mapped.getTimeSeriesFieldType()
+                );
+        } else {
+            DataType type = tcf.types().iterator().next().widenSmallNumeric();
+            resolvedField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
+        }
         return new FieldAttribute(
             fieldAttribute.source(),
             fieldAttribute.parentName(),
             fieldAttribute.qualifier(),
             fieldAttribute.name(),
-            new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType()),
+            resolvedField,
             fieldAttribute.nullable(),
             fieldAttribute.id(),
             fieldAttribute.synthetic()

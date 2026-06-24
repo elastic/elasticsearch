@@ -4219,6 +4219,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan) {
         return plan.transformUp(Project.class, p -> {
+            // Skip Projects whose projections are not yet resolved (e.g. an unexpanded KEEP wildcard sitting above a still-unresolved
+            // union-typed field reference). Their output cannot be computed yet — calling p.output() would throw UnresolvedException.
+            // Such Projects are revisited in a later analyzer iteration once they resolve.
+            if (p.expressionsResolved() == false) {
+                return p;
+            }
             List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
             for (Attribute attr : p.inputSet()) {
                 if (attr.synthetic() && p.outputSet().contains(attr) == false) {

@@ -212,7 +212,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 currentMetadata = Map.copyOf(updated);
                 assert filesRemoved;
 
-                if (filesRemoved && cacheService.isCacheBoostEnabled()) {
+                if (filesRemoved && cacheService.isCacheBoostPreferenceEnabled()) {
                     maybeScheduleObsoleteRegionsEviction();
                 }
             } finally {

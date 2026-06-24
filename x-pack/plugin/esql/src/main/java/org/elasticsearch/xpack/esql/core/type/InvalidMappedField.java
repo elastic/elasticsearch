@@ -33,11 +33,11 @@ public final class InvalidMappedField extends TypeConflictedField {
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
         // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
-        this(name, new TreeMap<>(), typesToIndices, false, null);
+        this(name, new TreeMap<>(), typesToIndices, false);
     }
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices, Map<String, EsField> properties) {
-        this(name, properties, typesToIndices, false, null);
+        this(name, properties, typesToIndices, false);
     }
 
     /**
@@ -46,25 +46,17 @@ public final class InvalidMappedField extends TypeConflictedField {
      * unmapped fields as {@link DataType#KEYWORD}.
      */
     public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
-        return potentiallyUnmapped(name, typesToIndices, null);
-    }
-
-    /**
-     * @param mappedField for a single-type PUNK, the original mapped field (see {@link TypeConflictedField#mappedField()}); null otherwise.
-     */
-    public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices, EsField mappedField) {
         // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
-        return new InvalidMappedField(name, new TreeMap<>(), typesToIndices, true, mappedField);
+        return new InvalidMappedField(name, new TreeMap<>(), typesToIndices, true);
     }
 
     private InvalidMappedField(
         String name,
         Map<String, EsField> properties,
         Map<String, Set<String>> typesToIndices,
-        boolean isPotentiallyUnmapped,
-        EsField mappedField
+        boolean isPotentiallyUnmapped
     ) {
-        super(name, DataType.UNSUPPORTED, properties, false, TimeSeriesFieldType.UNKNOWN, mappedField);
+        super(name, DataType.UNSUPPORTED, properties, false, TimeSeriesFieldType.UNKNOWN);
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }

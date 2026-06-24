@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -3039,9 +3040,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * This is a temporary solution until https://github.com/elastic/elasticsearch/issues/141995 is implemented.
          */
         private static Attribute cleanTypeConflicts(FieldAttribute fa) {
-            EsField field = fa.field();
-            if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                return fallbackToMappedType(fa, tcf);
+            if (fa.field() instanceof PotentiallyUnmappedSingleTypeField punk) {
+                return fallbackToMappedType(fa, punk);
             }
             return fa.flagTypeConflicts();
         }
@@ -3196,8 +3196,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 return esRelation.transformExpressionsOnly(FieldAttribute.class, fa -> {
                     // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
-                    if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                        DataType mappedType = tcf.types().iterator().next();
+                    if (fa.field() instanceof PotentiallyUnmappedSingleTypeField punk) {
+                        DataType mappedType = punk.types().iterator().next();
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         ConvertFunction convert = convertFactory == null
                             ? null
@@ -3207,22 +3207,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         // unmapped_fields="load": null where unmapped.
                         // Explicit casts handle their own conversion, so leave those untouched.
                         if (convert == null || convert.supportedTypes().contains(KEYWORD) == false) {
-                            return explicitlyCastedFieldNames.contains(fa.name()) ? fa : fallbackToMappedType(fa, tcf);
+                            return explicitlyCastedFieldNames.contains(fa.name()) ? fa : fallbackToMappedType(fa, punk);
                         }
 
                         Map<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                        typeResolutions(convert, mappedType, fa, tcf, typeResolutions);
+                        typeResolutions(convert, mappedType, fa, punk, typeResolutions);
 
                         Expression potentiallyUnmappedConversion = ResolveUnionTypes.typeSpecificConvert(
                             convert,
                             fa.source(),
                             KEYWORD,
-                            tcf
+                            punk
                         );
 
                         EsField resolvedField = ResolveUnionTypes.resolvedUnionTypeFields(
                             fa,
-                            tcf,
+                            punk,
                             typeResolutions,
                             potentiallyUnmappedConversion,
                             context
@@ -3267,28 +3267,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         typeResolutions.put(key, concreteConvert);
     }
 
-    private static FieldAttribute fallbackToMappedType(FieldAttribute fieldAttribute, TypeConflictedField tcf) {
-        if (tcf.types().size() != 1) {
-            throw new IllegalStateException("Expected exactly one mapped type for [" + tcf.getName() + "], got " + tcf.types());
-        }
-        EsField mapped = tcf.mappedField();
-        EsField resolvedField;
-        if (mapped != null) {
-            DataType widened = mapped.getDataType().widenSmallNumeric();
-            resolvedField = widened == mapped.getDataType()
-                ? mapped
-                : new EsField(
-                    mapped.getName(),
-                    widened,
-                    mapped.getProperties(),
-                    mapped.isAggregatable(),
-                    mapped.isAlias(),
-                    mapped.getTimeSeriesFieldType()
-                );
-        } else {
-            DataType type = tcf.types().iterator().next().widenSmallNumeric();
-            resolvedField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
-        }
+    private static FieldAttribute fallbackToMappedType(FieldAttribute fieldAttribute, PotentiallyUnmappedSingleTypeField punk) {
+        // Restore the original mapped field (widening small numerics) so the field behaves exactly as it does without
+        // unmapped_fields="load": loaded where mapped, null where unmapped.
+        EsField mapped = punk.mappedField();
+        DataType widened = mapped.getDataType().widenSmallNumeric();
+        EsField resolvedField = widened == mapped.getDataType()
+            ? mapped
+            : new EsField(
+                mapped.getName(),
+                widened,
+                mapped.getProperties(),
+                mapped.isAggregatable(),
+                mapped.isAlias(),
+                mapped.getTimeSeriesFieldType()
+            );
         return new FieldAttribute(
             fieldAttribute.source(),
             fieldAttribute.parentName(),

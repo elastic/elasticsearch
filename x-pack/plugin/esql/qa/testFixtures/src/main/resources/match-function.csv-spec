@@ -1984,3 +1984,255 @@ a:unsigned_long
 [100, 200]
 [200, 300]
 ;
+
+matchOnRuntimeTextWithFuzziness
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithOperatorAnd
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "quick fox", {"operator": "AND"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithMinimumShouldMatch
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox", "the lazy dog", "the quick lazy cat"])
+| MV_EXPAND content
+| WHERE match(content, "quick lazy fox", {"minimum_should_match": "2"})
+| SORT content
+;
+
+content:text
+the quick brown fox
+the quick lazy cat
+;
+
+matchOnRuntimeTextWithZeroTermsQueryNone
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "", {"zero_terms_query": "none"})
+;
+
+content:text
+;
+
+matchOnRuntimeTextWithZeroTermsQueryAll
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "", {"zero_terms_query": "all"})
+| SORT content
+;
+
+content:text
+the lazy dog
+the quick brown fox
+;
+
+matchOnRuntimeTextWithPrefixLength
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "prefix_length": "1"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyTranspositionsEnabled
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "brwon", {"fuzziness": "1", "fuzzy_transpositions": "true"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyTranspositionsDisabled
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "brwon", {"fuzziness": "1", "fuzzy_transpositions": "false"})
+;
+
+content:text
+;
+
+matchOnRuntimeTextWithMaxExpansions
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "max_expansions": "10"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyRewrite
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "fuzzy_rewrite": "constant_score"})
+;
+
+content:text
+the quick brown fox
+;
+
+testRuntimeMatchWithIndexAndOptionsPrefixLength
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+from books
+| where match(title, "Rigns", {"fuzziness": 1, "prefix_length": 1})
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+2675            | The Lord of the Rings - Boxed Set
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndOptionsFuzzyTranspositionsEnabled
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Rigns", {"fuzziness": 1, "fuzzy_transpositions": "true"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndFuzzyTranspositionsDisabled
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Rigns", {"fuzziness": 1, "fuzzy_transpositions": "false"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+;
+
+testRuntimeMatchWithIndexAndOptionsMaxExpansions
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Pings", {"fuzziness": 1, "max_expansions": 10})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndOptionsFuzzyRewrite
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Pings", {"fuzziness": 1, "fuzzy_rewrite": "constant_score"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;

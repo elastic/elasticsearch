@@ -266,4 +266,16 @@ public interface FormatReader extends Closeable {
         return null;
     }
 
+    /**
+     * Returns this reader's {@link RowPositionStrategy} — the dispatcher applies it polymorphically
+     * to wrap (or pass through) the reader's emitted page iterator so each page has the
+     * {@code _rowPosition} slot populated. Every reader must explicitly declare a strategy:
+     * a {@link PassThroughRowPositionStrategy} when the reader natively fills the slot in its own
+     * iterator (parquet-mr, ORC, CSV, NDJSON), a {@link NullSpliceRowPositionStrategy} when the
+     * reader has no row-position channel and the slot must surface NULL (parquet-rs), or a future
+     * strategy that injects the column from per-page reader state. There is no default — readers
+     * that "don't care" still participate, by returning {@link PassThroughRowPositionStrategy}.
+     */
+    RowPositionStrategy rowPositionStrategy();
+
 }

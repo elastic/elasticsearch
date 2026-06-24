@@ -13,6 +13,8 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 
+import static org.junit.Assume.assumeTrue
+
 
 class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
@@ -207,6 +209,14 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     }
 
     def "forbiddenApisMain rejects direct use of JDK 22+ foreign API methods"() {
+        // CheckForbiddenApisTask runs noIsolation() in the Gradle daemon. For JDK 22+ signatures
+        // the checker resolves method descriptors from the daemon's own bootclasspath; on JDK 21
+        // MemorySegment#getString(long) does not exist there and the checker throws
+        // "IO problem while reading files with API signatures". There is no toolchain escape
+        // hatch for a noIsolation() worker, so this test requires a JDK 22+ daemon.
+        assumeTrue("Requires JDK 22+ daemon for forbidden-apis bootclasspath resolution",
+            Runtime.version().feature() >= 22)
+
         given:
         setupForbiddenApiBuild(false)
         file("src/main/java/org/acme/BadForeignUser.java") << """

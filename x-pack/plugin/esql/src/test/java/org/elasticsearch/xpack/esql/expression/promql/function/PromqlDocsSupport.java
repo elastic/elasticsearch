@@ -216,7 +216,7 @@ public final class PromqlDocsSupport {
 
     public static void entrypoint(DocsV3Support.Callbacks callbacks) throws Exception {
         var functions = PromqlFunctionRegistry.INSTANCE.allFunctions();
-        Map<DocCategory, SortedSet<String>> byCategory = new EnumMap<>(DocCategory.class);
+        Map<FunctionDocCategory, SortedSet<String>> byCategory = new EnumMap<>(FunctionDocCategory.class);
         Map<String, PromqlFunctionDefinition> byName = new HashMap<>();
         for (var def : functions) {
             genFunctionDocs(def, callbacks);
@@ -324,7 +324,7 @@ public final class PromqlDocsSupport {
      */
     private static void genCategoryLists(
         int functionCount,
-        Map<DocCategory, SortedSet<String>> byCategory,
+        Map<FunctionDocCategory, SortedSet<String>> byCategory,
         DocsV3Support.Callbacks callbacks
     ) throws Exception {
         int categorized = byCategory.values().stream().mapToInt(SortedSet::size).sum();
@@ -334,7 +334,7 @@ public final class PromqlDocsSupport {
             );
         }
         Path dir = snippetsFunctionsDir().resolve("lists");
-        for (DocCategory category : DocCategory.values()) {
+        for (FunctionDocCategory category : FunctionDocCategory.values()) {
             SortedSet<String> names = byCategory.getOrDefault(category, new TreeSet<>());
             List<String> blocks = new ArrayList<>();
             blocks.add(MD_WARNING);
@@ -366,12 +366,12 @@ public final class PromqlDocsSupport {
      * byte-for-byte in CI.
      */
     private static void genFunctionOverviewLists(
-        Map<DocCategory, SortedSet<String>> byCategory,
+        Map<FunctionDocCategory, SortedSet<String>> byCategory,
         Map<String, PromqlFunctionDefinition> byName,
         DocsV3Support.Callbacks callbacks
     ) throws Exception {
         Path dir = snippetsFunctionsDir().resolve("lists");
-        for (DocCategory category : DocCategory.values()) {
+        for (FunctionDocCategory category : FunctionDocCategory.values()) {
             SortedSet<String> names = byCategory.getOrDefault(category, new TreeSet<>());
             List<String> blocks = new ArrayList<>();
             blocks.add(MD_WARNING);
@@ -420,7 +420,7 @@ public final class PromqlDocsSupport {
      * Absolute docs link to a function's section on its category page, for example
      * {@code /reference/query-languages/promql/functions/math.md#promql-fn-abs}.
      */
-    private static String functionPageLink(DocCategory category, String name) {
+    private static String functionPageLink(FunctionDocCategory category, String name) {
         return DOCS_ROOT + "/functions/" + category.slug + ".md#" + functionAnchor(name);
     }
 
@@ -446,20 +446,20 @@ public final class PromqlDocsSupport {
      * the two {@code SCALAR}-typed functions ({@code pi}, {@code time}) that belong with math / date-time. Throws on
      * any function that does not map to a category, forcing a deliberate decision when a new function is added.
      */
-    private static DocCategory categoryOf(PromqlFunctionDefinition def) {
+    private static FunctionDocCategory categoryOf(PromqlFunctionDefinition def) {
         if (def.name().equals("pi")) {
-            return DocCategory.MATH;
+            return FunctionDocCategory.MATH;
         }
         if (def.name().equals("time")) {
-            return DocCategory.DATE_TIME;
+            return FunctionDocCategory.DATE_TIME;
         }
         return switch (def.functionType()) {
-            case WITHIN_SERIES_AGGREGATION -> DocCategory.RANGE_VECTOR;
-            case ACROSS_SERIES_AGGREGATION -> DocCategory.AGGREGATION;
-            case HISTOGRAM -> DocCategory.HISTOGRAM;
-            case VALUE_TRANSFORMATION -> DocCategory.MATH;
-            case TIME_EXTRACTION -> DocCategory.DATE_TIME;
-            case VECTOR_CONVERSION, SCALAR_CONVERSION -> DocCategory.CONVERSION;
+            case WITHIN_SERIES_AGGREGATION -> FunctionDocCategory.RANGE_VECTOR;
+            case ACROSS_SERIES_AGGREGATION -> FunctionDocCategory.AGGREGATION;
+            case HISTOGRAM -> FunctionDocCategory.HISTOGRAM;
+            case VALUE_TRANSFORMATION -> FunctionDocCategory.MATH;
+            case TIME_EXTRACTION -> FunctionDocCategory.DATE_TIME;
+            case VECTOR_CONVERSION, SCALAR_CONVERSION -> FunctionDocCategory.CONVERSION;
             case SCALAR, METADATA_MANIPULATION -> throw new IllegalStateException(
                 "PromQL function ["
                     + def.name()
@@ -620,7 +620,7 @@ public final class PromqlDocsSupport {
      * Documentation categories for grouping PromQL functions into reference pages. The declaration order is the order
      * categories appear in the docs; {@code slug} is both the list-snippet filename and the category page filename.
      */
-    enum DocCategory {
+    enum FunctionDocCategory {
         RANGE_VECTOR("range-vector"),
         AGGREGATION("aggregation"),
         HISTOGRAM("histogram"),
@@ -630,7 +630,7 @@ public final class PromqlDocsSupport {
 
         final String slug;
 
-        DocCategory(String slug) {
+        FunctionDocCategory(String slug) {
             this.slug = slug;
         }
     }

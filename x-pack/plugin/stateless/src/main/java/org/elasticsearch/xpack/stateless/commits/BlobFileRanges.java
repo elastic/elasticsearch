@@ -252,11 +252,14 @@ public class BlobFileRanges implements Writeable {
 
     @Override
     public String toString() {
-        return "BlobFileRanges{" +
-            "blobLocation=" + blobLocation +
-            ", replicatedRanges=" + replicatedRanges +
-            ", timestampRange=" + timestampRange +
-            '}';
+        return "BlobFileRanges{"
+            + "blobLocation="
+            + blobLocation
+            + ", replicatedRanges="
+            + replicatedRanges
+            + ", timestampRange="
+            + timestampRange
+            + '}';
     }
 
     // for tests only

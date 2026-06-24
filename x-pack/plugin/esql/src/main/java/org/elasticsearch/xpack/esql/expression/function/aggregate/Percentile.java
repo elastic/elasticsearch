@@ -61,6 +61,8 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         )
         .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values across the input vector.")
         .example("quantile(0.9, http_request_duration_seconds)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.QUANTILE_NOTE)
         .name("quantile");
 
     private final Expression percentile;

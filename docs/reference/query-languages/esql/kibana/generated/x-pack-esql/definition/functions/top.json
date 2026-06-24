@@ -266,6 +266,36 @@
         },
         {
           "name" : "outputField",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
           "type" : "long",
           "optional" : true,
           "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
@@ -273,6 +303,36 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "text",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -481,6 +541,36 @@
         },
         {
           "name" : "outputField",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
           "type" : "long",
           "optional" : true,
           "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
@@ -488,6 +578,36 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "text",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -696,6 +816,36 @@
         },
         {
           "name" : "outputField",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
           "type" : "long",
           "optional" : true,
           "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
@@ -703,6 +853,36 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "text",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -818,6 +998,186 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "date",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "double",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "long",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "text",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "long",
           "optional" : false,
           "description" : "The field to collect the top values for."
@@ -1021,6 +1381,36 @@
         },
         {
           "name" : "outputField",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
           "type" : "long",
           "optional" : true,
           "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
@@ -1028,6 +1418,36 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "text",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -1079,6 +1499,186 @@
               "desc"
             ]
           }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "date",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "double",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "long",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+        },
+        {
+          "name" : "outputField",
+          "type" : "text",
+          "optional" : true,
+          "description" : "The extra field that, if present, will be the output of the TOP call instead of `field`."
         }
       ],
       "variadic" : false,

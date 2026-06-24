@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Locale;
+import java.util.OptionalInt;
 
 import static fixture.gcs.TestUtils.createServiceAccount;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
@@ -119,6 +120,7 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
             service,
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
+            OptionalInt.empty(),
             BackoffPolicy.noBackoff(),
             new GcsRepositoryStatsCollector(),
             dataStorageClass,

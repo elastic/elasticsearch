@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -63,13 +64,14 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         boolean isCi = loadBuildParams(project).get().getCi();
 
-        project.getDependencies().add("compileOnly", project.project(":server"));
-        project.getDependencies().add("compileOnly", project.project(":x-pack:plugin:esql-core"));
-        project.getDependencies().add("compileOnly", project.project(":x-pack:plugin:core"));
+        var dependencies = project.getDependencies();
+        dependencies.add("compileOnly", dependencies.project(Map.of("path", ":server")));
+        dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:esql-core")));
+        dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:core")));
         if (project.getPath().equals(":x-pack:plugin:esql") == false) {
-            project.getDependencies().add("compileOnly", project.project(":x-pack:plugin:esql"));
-            project.getDependencies().add("testImplementation", project.project(":x-pack:plugin:esql"));
-            project.getDependencies().add("testImplementation", project.project(":x-pack:plugin:esql:qa:testFixtures"));
+            dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:esql")));
+            dependencies.add("testImplementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql")));
+            dependencies.add("testImplementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:qa:testFixtures")));
         }
         /*
          * The main esql plugin bundles compute as {@code implementation} so that it is included in
@@ -81,17 +83,17 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
          * double-bundled.
          */
         if (project.getPath().equals(":x-pack:plugin:esql")) {
-            project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql:compute"));
+            dependencies.add("implementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute")));
         } else {
-            project.getDependencies().add("compileOnly", project.project(":x-pack:plugin:esql:compute"));
+            dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute")));
         }
-        project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql:compute:ann"));
-        project.getDependencies().add("annotationProcessor", project.project(":x-pack:plugin:esql:compute:gen"));
-        project.getDependencies().add("testImplementation", project.project(":test:framework"));
+        dependencies.add("implementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute:ann")));
+        dependencies.add("annotationProcessor", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute:gen")));
+        dependencies.add("testImplementation", dependencies.project(Map.of("path", ":test:framework")));
         Project coreProject = project.project(":x-pack:plugin:core");
-        ProjectDependency coreTestDep = (ProjectDependency) project.getDependencies().create(coreProject);
+        ProjectDependency coreTestDep = (ProjectDependency) dependencies.project(Map.of("path", coreProject.getPath()));
         coreTestDep.capabilities(caps -> caps.requireCapability(coreProject.getGroup() + ":" + coreTestDep.getName() + "-test-artifacts"));
-        project.getDependencies().add("testImplementation", coreTestDep);
+        dependencies.add("testImplementation", coreTestDep);
 
         String generatedPath = "src/main/generated";
         Directory generatedSourceDir = project.getLayout().getProjectDirectory().dir(generatedPath);

@@ -692,6 +692,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("can_remain_on_current_node", parser.currentName());
             parser.nextToken();
             assertEquals(AllocationDecision.YES.toString(), parser.text());
+            if (includeYesDecisions) {
+                parser.nextToken();
+                assertEquals("can_remain_decisions", parser.currentName());
+                verifyDeciders(parser, AllocationDecision.YES);
+            }
             parser.nextToken();
             assertEquals("can_rebalance_cluster", parser.currentName());
             parser.nextToken();

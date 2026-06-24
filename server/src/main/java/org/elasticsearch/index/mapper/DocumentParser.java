@@ -52,6 +52,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB;
 
 /**
  * A parser for documents
@@ -852,7 +853,10 @@ public final class DocumentParser {
      */
     private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName, int arraySize) {
         // cheap/free early return checks
-        if (arraySize < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+        final int minDims = context.indexSettings().getMode() == IndexMode.VECTORDB_DOCUMENT
+            ? MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB
+            : MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+        if (arraySize < minDims
             || arraySize > MAX_DIMS_COUNT
             || context.indexSettings().getIndexVersionCreated().before(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
             return;

@@ -296,6 +296,78 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "The search field"

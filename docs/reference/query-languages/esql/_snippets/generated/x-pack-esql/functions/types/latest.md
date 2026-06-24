@@ -8,6 +8,7 @@
 | date | date |
 | date_nanos | date_nanos |
 | double | double |
+| geo_point {applies_to}`stack: ga 9.5.0` | geo_point |
 | integer | integer |
 | ip | ip |
 | keyword | keyword |

@@ -56,6 +56,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "The search field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_point"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "The search field"

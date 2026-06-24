@@ -725,3 +725,14 @@ ROW rows = [
 last_v:version
 3.0.0
 ;
+
+Test last aggregation on geo_point type
+required_capability: last_agg_extended_types
+
+FROM k8s
+| STATS last_geo_pt = LAST(event_city, @timestamp)
+;
+
+last_geo_pt:geo_point
+POINT (35.932799968868494 31.949699968099594)
+;

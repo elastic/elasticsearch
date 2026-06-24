@@ -208,6 +208,9 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
+        new TestDataset("k8s_nonexistent", "k8s-mappings.json", "k8s_nonexistent.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
         new TestDataset("k8s_retyped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(Map.of("network.bytes_in", "double", "network.cost", "long")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
@@ -260,9 +263,9 @@ public class CsvTestsDataLoader {
         new TestDataset("text_state_mapped", "mapping-text_state_mapped.json", "text_state_unmapped.csv").withIndex("text_state_unmapped")
             .withTypeMapping(removeFields("txt"))
             .withDynamic("false"),
-        new TestDataset("text_state_mapped", "mapping-text_state_mapped.json", "text_state_nonexistent.csv").withIndex("text_state_nonexistent")
-            .withTypeMapping(removeFields("txt"))
-            .withDynamic("false"),
+        new TestDataset("text_state_mapped", "mapping-text_state_mapped.json", "text_state_nonexistent.csv").withIndex(
+            "text_state_nonexistent"
+        ).withTypeMapping(removeFields("txt")).withDynamic("false"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
         new TestDataset("dense_vector_text"),

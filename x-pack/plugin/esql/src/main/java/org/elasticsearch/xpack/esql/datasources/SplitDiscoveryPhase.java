@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -39,6 +40,26 @@ public final class SplitDiscoveryPhase {
 
     private SplitDiscoveryPhase() {}
 
+    /**
+     * Post-prune "scanned" accounting collected while resolving splits, surfaced at the root of the
+     * query profile. The counts reflect what survived coordinator-side pruning and is handed to the
+     * runtime, before any later split coalescing.
+     *
+     * @param plan          the split-enriched physical plan
+     * @param filesScanned  distinct files contributing splits (file-based sources only; {@code 0} otherwise)
+     * @param splitsScanned total number of discovered splits across all external sources
+     * @param bytesScanned  sum of {@link ExternalSplit#estimatedSizeInBytes()} over the discovered splits,
+     *                      ignoring splits that report an unknown ({@code < 0}) size
+     */
+    public record Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {}
+
+    /** Mutable accumulator threaded through the recursive walk. */
+    private static final class ScanStats {
+        private int filesScanned;
+        private int splitsScanned;
+        private long bytesScanned;
+    }
+
     public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
         return resolveExternalSplits(
             plan,
@@ -52,17 +73,32 @@ public final class SplitDiscoveryPhase {
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes
     ) {
-        return resolveRecursive(plan, List.of(), sourceFactories, maxRecordBytes);
+        return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes).plan();
+    }
+
+    /**
+     * Like {@link #resolveExternalSplits}, but also returns the post-prune scanned counts aggregated
+     * across every {@link ExternalSourceExec} in the plan.
+     */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes
+    ) {
+        ScanStats stats = new ScanStats();
+        PhysicalPlan resolved = resolveRecursive(plan, List.of(), sourceFactories, maxRecordBytes, stats);
+        return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned);
     }
 
     private static PhysicalPlan resolveRecursive(
         PhysicalPlan plan,
         List<Expression> ancestorFilters,
         Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes
+        int maxRecordBytes,
+        ScanStats stats
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes);
+            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats);
         }
 
         List<Expression> filtersForChildren = ancestorFilters;
@@ -82,7 +118,7 @@ public final class SplitDiscoveryPhase {
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes);
+            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes, stats);
             if (resolved != child) {
                 changed = true;
             }
@@ -103,7 +139,8 @@ public final class SplitDiscoveryPhase {
         ExternalSourceExec exec,
         List<Expression> ancestorFilters,
         Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes
+        int maxRecordBytes,
+        ScanStats stats
     ) {
         ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
@@ -131,9 +168,9 @@ public final class SplitDiscoveryPhase {
             maxRecordBytes
         );
 
-        List<ExternalSplit> splits;
+        SplitDiscoveryResult result;
         try {
-            splits = splitProvider.discoverSplits(context);
+            result = splitProvider.discoverSplits(context);
         } catch (ElasticsearchException e) {
             throw e;
         } catch (Exception e) {
@@ -144,8 +181,17 @@ public final class SplitDiscoveryPhase {
                 exec.sourceType()
             );
         }
+        List<ExternalSplit> splits = result.splits();
         if (splits.isEmpty()) {
             return exec;
+        }
+        stats.filesScanned += result.filesScanned();
+        stats.splitsScanned += splits.size();
+        for (ExternalSplit split : splits) {
+            long sizeInBytes = split.estimatedSizeInBytes();
+            if (sizeInBytes > 0) {
+                stats.bytesScanned += sizeInBytes;
+            }
         }
         return exec.withSplits(splits);
     }

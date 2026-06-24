@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.Split
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -187,10 +188,10 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     @Override
-    public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
+    public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
         FileList fileList = context.fileList();
         if (fileList == null || fileList.isResolved() == false) {
-            return List.of();
+            return SplitDiscoveryResult.EMPTY;
         }
 
         PartitionMetadata partitionInfo = context.partitionInfo();
@@ -302,7 +303,7 @@ public class FileSplitProvider implements SplitProvider {
         }
 
         if (tasks.isEmpty()) {
-            return List.of();
+            return SplitDiscoveryResult.EMPTY;
         }
 
         // Phase 2: I/O-bound split discovery — parallelize when executor is available.
@@ -335,7 +336,9 @@ public class FileSplitProvider implements SplitProvider {
         for (List<ExternalSplit> fileSplits : perFileSplits) {
             splits.addAll(fileSplits);
         }
-        return List.copyOf(splits);
+        // Each surviving task produces at least one split, so the task count is the number of
+        // distinct files that are actually scanned after coordinator-side pruning.
+        return new SplitDiscoveryResult(splits, tasks.size());
     }
 
     /**

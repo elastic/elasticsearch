@@ -391,10 +391,17 @@ public class ObjectMapper extends Mapper {
             ensureBuilderFlattenable(parentContext, fullName);
             if (parentContext.isStrictColumnar()) {
                 if (dynamic != null) {
-                    collector.merge(fullName, new PrefixProperties(dynamic, null), PrefixProperties::merge);
+                    collector.merge(fullName, new PrefixProperties(dynamic, null, null), PrefixProperties::merge);
                 }
                 if (this instanceof PassThroughObjectMapper.Builder ptBuilder) {
-                    collector.merge(fullName, new PrefixProperties(null, ptBuilder.priority), PrefixProperties::merge);
+                    collector.merge(fullName, new PrefixProperties(null, ptBuilder.priority, null), PrefixProperties::merge);
+                }
+                if (enabled.value() == false) {
+                    // Capture the disabled prefix and skip all children — the entire subtree is
+                    // treated as disabled at both mapping time (no leaf mappers created) and index
+                    // time (resolveDynamic returns Dynamic.FALSE for any field under this prefix).
+                    collector.merge(fullName, new PrefixProperties(null, null, Boolean.FALSE), PrefixProperties::merge);
+                    return;
                 }
             }
             path.add(leafName());
@@ -428,8 +435,13 @@ public class ObjectMapper extends Mapper {
                     "the value of [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + "] is [ " + sourceKeepMode.get() + " ]"
                 );
             }
-            if (enabled.value() == false) {
-                throwAutoFlatteningException(fullName, "the value of [enabled] is [false]");
+            // In strict columnar mode, enabled:false objects are allowed; the prefix is captured in
+            // enabledByPrefix and the subtree is dropped at index time (same as dynamic:false).
+            if (enabled.value() == false && context.isStrictColumnar() == false) {
+                throwAutoFlatteningException(
+                    fullName,
+                    "the value of [enabled] is [false]; no fields with the prefix [" + fullName + "] are allowed"
+                );
             }
             if (subobjects.explicit() && subobjects.value() == Subobjects.ENABLED) {
                 throwAutoFlatteningException(fullName, "the value of [subobjects] is [true]");

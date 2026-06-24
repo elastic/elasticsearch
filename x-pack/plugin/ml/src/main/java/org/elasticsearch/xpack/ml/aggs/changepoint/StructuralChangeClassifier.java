@@ -71,6 +71,12 @@ public class StructuralChangeClassifier {
      */
     List<ChangeType> selectAndClassify(double[] values, double[] weights, int[] structuralCandidates, double offset) {
         int n = values.length;
+        // Quantization noise floor for every BIC on this series: the variance of rounding to the data's
+        // granularity, q^2/12. Caps log(RSS/n) from below so a quantized/near-constant series cannot
+        // manufacture significant steps or trends from sub-quantum (numerically near-zero) residual
+        // variance. Negligible for continuous data.
+        double quantum = Stats.quantizationStep(values, 0, n);
+        this.quantizationVariance = quantum * quantum / 12.0;
         int[] interior = interiorCandidates(structuralCandidates, n);
         int m = interior.length + 2;
         int[] grid = new int[m];
@@ -507,7 +513,8 @@ public class StructuralChangeClassifier {
 
     private double bicFromRss(double rss, int n, int k, double effectiveFactor) {
         double effectiveN = Math.max(effectiveFactor * n, 2.0);
-        return effectiveFactor * n * Math.log(Math.max(rss, 1e-10) / n) + k * Math.log(effectiveN);
+        double flooredRss = Math.max(rss, n * quantizationVariance);
+        return effectiveFactor * n * Math.log(flooredRss / n) + k * Math.log(effectiveN);
     }
 
     /** Fits left/right polynomial models split at the candidate boundary and sums their RSS. */
@@ -580,6 +587,10 @@ public class StructuralChangeClassifier {
     private final int maxDegree;
     private final double pValueThreshold;
     private final double deltaBicThreshold;
+    // Quantization (rounding) noise variance q^2/12 of the current series, the floor on the per-point
+    // variance in the BIC (see bicFromRss). Set per call from the series' first-difference granularity;
+    // ~0 for continuous data.
+    private double quantizationVariance;
     // Fraction of the channel's samples that are statistically independent (1.0 for a raw value channel;
     // stride/window for an overlapping dispersion channel). Discounts the BIC evidence so correlated
     // samples are not over-counted.

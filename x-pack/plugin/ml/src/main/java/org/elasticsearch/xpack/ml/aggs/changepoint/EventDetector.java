@@ -102,8 +102,8 @@ public class EventDetector {
                 int valueIndex = Math.min(values.length - 1, DISPERSION_STRIDE * k);
                 // Percent change in the noise scale across the boundary. The channel holds log1p(scale),
                 // so invert it before differencing and average a few samples either side for stability.
-                double scaleBefore = Math.expm1(meanRange(dispersion, k - magnitudeWindow, k));
-                double scaleAfter = Math.expm1(meanRange(dispersion, k, k + magnitudeWindow));
+                double scaleBefore = Math.expm1(Stats.meanRange(dispersion, k - magnitudeWindow, k));
+                double scaleAfter = Math.expm1(Stats.meanRange(dispersion, k, k + magnitudeWindow));
                 double floor = Math.max(0.1 * typicalScale, 1e-10);
                 double magnitudePercent = 100.0 * (scaleAfter - scaleBefore) / Math.max(scaleBefore, floor);
                 events.add(new ChangeType.DistributionChange(e.logPValue(), magnitudePercent, valueIndex));
@@ -133,20 +133,6 @@ public class EventDetector {
         return events.stream()
             .map(e -> e.isChange() ? e.remapChangePoint(sampledBucketValues.getBucketIndex(e.changePoint())) : e)
             .toList();
-    }
-
-    /** Mean of {@code a} over {@code [lo, hi)}, clamped to the array bounds; 0 if the clamped range is empty. */
-    private static double meanRange(double[] a, int lo, int hi) {
-        lo = Math.max(0, lo);
-        hi = Math.min(a.length, hi);
-        if (hi <= lo) {
-            return 0.0;
-        }
-        double sum = 0.0;
-        for (int i = lo; i < hi; i++) {
-            sum += a[i];
-        }
-        return sum / (hi - lo);
     }
 
     /**

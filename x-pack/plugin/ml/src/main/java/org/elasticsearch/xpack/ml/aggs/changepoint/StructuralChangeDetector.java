@@ -320,17 +320,26 @@ public class StructuralChangeDetector {
         // dominated by its neighbours). Floored at the rolling-median half-window so it is never degenerately
         // small.
         int scaleHalfWindow = Math.max(WEIGHT_HALF_WINDOW, minSegmentLength / 2);
+        // The local scale is floored by a fraction of the global scale (and the data's quantization step).
+        // Flooring stops the local MAD collapsing in a quiet stretch, which would otherwise make ordinary
+        // fluctuations read as many local sigma and be spuriously down-weighted, while still letting the
+        // scale grow to track a genuinely high-variance regime. The first-difference granularity floors it
+        // from below for integer data.
+        double globalFloor = SCALE_FLOOR_FRACTION * globalScale;
+        double quantum = Stats.quantizationStep(values, 0, n);
+        double scaleFloor = Math.max(globalFloor, quantum);
         for (int i = 0; i < n; i++) {
             int lo = Math.max(0, i - scaleHalfWindow);
             int hi = Math.min(n, i + scaleHalfWindow + 1);
             double scale = Math.min(globalScale, Stats.localRobustScale(residuals, lo, hi, maxAbs));
             double u = Math.abs(residuals[i]) / scale;
-            if (u >= TUKEY_C) {
-                weights[i] = MIN_WEIGHT;
-            } else {
-                double t = 1.0 - (u / TUKEY_C) * (u / TUKEY_C);
-                weights[i] = Math.max(MIN_WEIGHT, t * t);
-            }
+            // Cauchy weight loss rho = log(1 + (u/c)^2) grows only logarithmically, so a gross excursion's
+            // contribution to the segment cost saturates rather than dominating it. That is what we want on
+            // heavy-tailed data: a frequent large-residual population is discounted, not hard-rejected
+            // (hard rejection collapses the effective sample and destabilises the fit). True point spikes
+            // are owned by the pulse stream regardless.
+            double z = u / CAUCHY_C;
+            weights[i] = Math.max(MIN_WEIGHT, 1.0 / (1.0 + z * z));
         }
         return weights;
     }
@@ -395,13 +404,18 @@ public class StructuralChangeDetector {
     // Default scaling of the BIC complexity penalty beta used by PELT. >1 makes candidate generation
     // more conservative (fewer proposed boundaries).
     private static final double BETA_MULTIPLIER = 1.0;
-    // Local-deviation weighting: down-weight short excursions relative to a rolling-median baseline
-    // with a redescending Tukey biweight, so genuine regimes (small local residuals) keep full weight
-    // while spikes and dips lose influence on the structural fit. Robustness is local, not relative
-    // to a global median.
-    private static final double TUKEY_C = 4.685;
+    // The local scale is floored by this fraction of the global composite scale (and by the quantization
+    // step), so it adapts upward to a high-variance regime but cannot collapse on a quiet/quantized stretch.
+    private static final double SCALE_FLOOR_FRACTION = 0.5;
+    // Local-deviation weighting: down-weight excursions relative to a rolling-median baseline with
+    // a Cauchy M-estimator weight, so genuine regimes (small local residuals) keep full weight while
+    // large residuals are progressively discounted on the structural fit and cost. Robustness is local,
+    // not relative to a global median. Cauchy weight scale (in robust-sigma units). ~2.385 is the
+    // classic 95%-efficiency tuning for the Cauchy/Lorentzian loss; residuals beyond a few sigma are
+    // heavily but never fully discounted.
+    private static final double CAUCHY_C = 2.385;
+    private static final double MIN_WEIGHT = 1e-4;
     private static final int WEIGHT_HALF_WINDOW = 4;
-    private static final double MIN_WEIGHT = 1e-3;
     // Boundary window for the robust line used to residual the first/last WEIGHT_HALF_WINDOW points
     // (see applyBoundaryLineResiduals): wide enough for a stable Theil-Sen slope, local enough to
     // track the boundary.

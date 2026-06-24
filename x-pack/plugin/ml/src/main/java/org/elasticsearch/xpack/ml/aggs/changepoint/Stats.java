@@ -21,6 +21,20 @@ public class Stats {
         return sum / Math.max(values.length, 1);
     }
 
+    /** Mean of {@code a} over {@code [start, end)}, clamped to the array bounds; 0 if the clamped range is empty. */
+    public static double meanRange(double[] a, int start, int end) {
+        start = Math.max(0, start);
+        end = Math.min(a.length, end);
+        if (end <= start) {
+            return 0.0;
+        }
+        double sum = 0.0;
+        for (int i = start; i < end; i++) {
+            sum += a[i];
+        }
+        return sum / (end - start);
+    }
+
     public static double median(double[] values) {
         if (values.length == 0) {
             return 0.0;
@@ -31,10 +45,8 @@ public class Stats {
         return n % 2 == 0 ? (tmp[n / 2 - 1] + tmp[n / 2]) / 2.0 : tmp[n / 2];
     }
 
-    /**
-     * Linear-interpolation quantile of an already-sorted array.
-     */
-    private static double quantile(double[] sorted, double q) {
+    /** Linear-interpolation quantile of an already-sorted array. */
+    public static double quantile(double[] sorted, double q) {
         int n = sorted.length;
         if (n == 1) {
             return sorted[0];
@@ -45,9 +57,20 @@ public class Stats {
         return sorted[lo] + (pos - lo) * (sorted[hi] - sorted[lo]);
     }
 
-    /**
-     * Returns weighted mean over a range with non-negative weights.
-     */
+    /** Range (max - min) of {@code values}; 0 for an empty or constant array. */
+    public static double range(double[] values) {
+        if (values.length == 0) {
+            return 0.0;
+        }
+        double min = values[0];
+        double max = values[0];
+        for (double v : values) {
+            min = Math.min(min, v);
+            max = Math.max(max, v);
+        }
+        return max - min;
+    }
+
     public static double weightedMean(double[] values, double[] weights, int start, int end) {
         double weightedSum = 0.0;
         double weightTotal = 0.0;
@@ -63,7 +86,7 @@ public class Stats {
     }
 
     /**
-     * Returns weighted RSS around a single weighted mean for a half-window.
+     * Weighted RSS around a single weighted mean for a window.
      */
     public static double weightedRss(double[] values, double[] weights, int start, int end) {
         double mean = weightedMean(values, weights, start, end);
@@ -98,33 +121,9 @@ public class Stats {
      * The numerical floor keeps the scale strictly positive.
      */
     public static double compositeScale(double[] residuals, double magnitude) {
-        return Math.max(Math.max(madScale(residuals), interdecileScale(residuals)), residualNumericalScaleFloor(magnitude));
-    }
-
-    /** Robust scale of residuals: 1.4826 * median(|r - median(r)|). */
-    private static double madScale(double[] residuals) {
-        int n = residuals.length;
-        double[] tmp = Arrays.copyOf(residuals, n);
-        Arrays.sort(tmp);
-        double med = tmp[n / 2];
-        for (int i = 0; i < n; i++) {
-            tmp[i] = Math.abs(residuals[i] - med);
-        }
-        Arrays.sort(tmp);
-        return 1.4826 * tmp[n / 2];
-    }
-
-    /** Inter-decile (Q90 - Q10) scale, converted to sigma units; holds up until more than ~90% are identical. */
-    private static double interdecileScale(double[] residuals) {
-        int n = residuals.length;
-        if (n < 2) {
-            return 0.0;
-        }
-        double[] tmp = Arrays.copyOf(residuals, n);
-        Arrays.sort(tmp);
-        double q10 = tmp[(int) Math.floor(0.10 * (n - 1))];
-        double q90 = tmp[(int) Math.ceil(0.90 * (n - 1))];
-        return Math.max(0.0, (q90 - q10) / 2.5631);
+        double mad = madScale(residuals, 0, residuals.length);
+        double interdecile = interdecileScale(residuals, 0, residuals.length);
+        return Math.max(Math.max(mad, interdecile), residualNumericalScaleFloor(magnitude));
     }
 
     /**
@@ -134,6 +133,12 @@ public class Stats {
      * change, so the estimate reflects the local regime's noise rather than being inflated by the other side.
      */
     public static double localRobustScale(double[] residuals, int start, int end, double magnitude) {
+        double mad = madScale(residuals, start, end);
+        return Math.max(mad, residualNumericalScaleFloor(magnitude));
+    }
+
+    /** Robust scale of residuals: 1.4826 * median(|r - median(r)|). */
+    private static double madScale(double[] residuals, int start, int end) {
         int n = end - start;
         double[] tmp = new double[n];
         System.arraycopy(residuals, start, tmp, 0, n);
@@ -143,7 +148,21 @@ public class Stats {
             tmp[i] = Math.abs(residuals[start + i] - med);
         }
         Arrays.sort(tmp);
-        return Math.max(1.4826 * tmp[n / 2], residualNumericalScaleFloor(magnitude));
+        return 1.4826 * tmp[n / 2];
+    }
+
+    /** Inter-decile scale: (Q90 - Q10) / 2.5631. */
+    private static double interdecileScale(double[] residuals, int start, int end) {
+        int n = end - start;
+        if (n < 2) {
+            return 0.0;
+        }
+        double[] tmp = new double[n];
+        System.arraycopy(residuals, start, tmp, 0, n);
+        Arrays.sort(tmp);
+        double q10 = tmp[(int) Math.floor(0.10 * (n - 1))];
+        double q90 = tmp[(int) Math.ceil(0.90 * (n - 1))];
+        return Math.max(0.0, (q90 - q10) / 2.5631);
     }
 
     /**
@@ -155,15 +174,20 @@ public class Stats {
     }
 
     /**
-     * The data's quantization step over {@code [start, end)}: a low percentile ({@link #QUANTIZATION_STEP_PERCENTILE})
-     * of the positive magnitudes among the first differences, or 0 if the segment is exactly constant. This is the
-     * finest level difference the series resolves — 1 for integer counts, the tick size for a rounded metric, a
-     * negligible float gap for genuinely continuous data. It lets a noise-scale test refuse to claim a variance change
-     * below the measurement granularity, where the IQR of a discrete first-difference distribution is unstable (a 4/5
-     * integer oscillation can read as a spurious variance step purely from how its {0, +/-1} differences fall across
-     * the quartiles). A low percentile rather than the strict minimum is deliberate: an almost-always-integer series
-     * with the odd smaller difference (a rare fractional value) would otherwise collapse the step to that lone small
-     * gap and defeat the floor, so we ignore the smallest couple of percent and recover the bulk granularity.
+     * The data's quantization step over {@code [start, end)}: the smallest first-difference magnitude that recurs,
+     * or 0 if no magnitude recurs. This is the finest level difference the series resolves — 1 for integer counts,
+     * the tick size for a rounded metric, ~0 for genuinely continuous data. It lets a noise-scale test refuse to
+     * claim a variance change below the measurement granularity, where the IQR of a discrete first-difference
+     * distribution is unstable (a 4/5 integer oscillation can read as a spurious variance step purely from how its
+     * {0, +/-1} differences fall across the quartiles).
+     *
+     * <p>Recurrence is the key. Genuine quantization produces many differences of size ~q; an isolated step jump
+     * on an otherwise-clean series shows up as a handful of large, distinct differences whose smallest is a step,
+     * not a granularity. Returning that step would floor away the very signal we want to detect. So we require the
+     * smallest magnitude to appear at least {@link #QUANTIZATION_MIN_RECURRENCE} times (within a small relative
+     * tolerance) before treating it as the quantization step; otherwise the nonzero differences are structure,
+     * not noise, and we return 0 (no floor). This also makes the estimate robust to the odd lone small difference
+     * (a rare fractional value among integers), which does not recur and is skipped.
      */
     public static double quantizationStep(double[] values, int start, int end) {
         int count = 0;
@@ -172,7 +196,7 @@ public class Stats {
                 count++;
             }
         }
-        if (count == 0) {
+        if (count < QUANTIZATION_MIN_RECURRENCE) {
             return 0.0;
         }
         double[] positiveDiffs = new double[count];
@@ -184,7 +208,12 @@ public class Stats {
             }
         }
         Arrays.sort(positiveDiffs);
-        return quantile(positiveDiffs, QUANTIZATION_STEP_PERCENTILE);
+        for (int i = 0; i + QUANTIZATION_MIN_RECURRENCE - 1 < positiveDiffs.length; i++) {
+            if (positiveDiffs[i + QUANTIZATION_MIN_RECURRENCE - 1] <= positiveDiffs[i] * (1.0 + QUANTIZATION_TOLERANCE)) {
+                return positiveDiffs[i];
+            }
+        }
+        return 0.0;
     }
 
     /**
@@ -311,9 +340,22 @@ public class Stats {
      * constant or too-small) background, which {@link #kdeTailProbability} handles as an empirical step.
      */
     public static double kdeBandwidth(double[] background) {
+        return kdeBandwidth(background, 0.0);
+    }
+
+    /**
+     * As {@link #kdeBandwidth(double[])}, but the result is floored at {@code minBandwidth}. On a degenerate
+     * (constant, e.g. flat-integer) background the estimated spread collapses to ~0, so the KDE tail falls
+     * back to an empirical step that, Bonferroni-corrected over the series, cannot call any point significant
+     * and a clear outlier is missed. A positive floor keeps a minimal, well-defined kernel width so an outlier
+     * still registers. The caller sets the floor from a scale that does not itself collapse (a small multiple
+     * of the residual range), so this only engages when the bandwidth would otherwise vanish; on a well-spread
+     * background Silverman's value dominates.
+     */
+    public static double kdeBandwidth(double[] background, double minBandwidth) {
         int m = background.length;
         if (m < 2) {
-            return 0.0;
+            return Math.max(minBandwidth, 0.0);
         }
         double backgroundMean = mean(background);
         double variance = 0.0;
@@ -327,7 +369,7 @@ public class Stats {
         Arrays.sort(sorted);
         double iqr = quantile(sorted, 0.75) - quantile(sorted, 0.25);
         double spread = iqr > 0.0 ? Math.min(std, iqr / 1.349) : std;
-        return SILVERMAN_FACTOR * spread * Math.pow(m, -0.2);
+        return Math.max(SILVERMAN_FACTOR * spread * Math.pow(m, -0.2), Math.max(minBandwidth, 0.0));
     }
 
     /**
@@ -340,10 +382,10 @@ public class Stats {
     }
 
     /**
-     * Log of {@link #kdeTailProbability}: the same Gaussian-KDE tail, but computed by log-sum-exp over the
-     * kernels so it does not underflow to {@code log(0) = -inf} for a value far in the tail, where every
-     * {@code erfc} term is sub-normal. This is the spike/dip analogue of carrying a structural change's log
-     * p-value.
+     * Log of {@link #kdeTailProbability}: the same Gaussian-KDE tail, but computed by log-sum-exp over
+     * the kernels so it does not underflow to {@code log(0) = -inf} for a value far in the tail, where
+     * every {@code erfc} term is sub-normal. This is the spike/dip analogue of carrying a structural
+     * change's log p-value.
      */
     public static double kdeLogTailProbability(double value, double[] background, double bandwidth, int sign) {
         int m = background.length;
@@ -400,6 +442,23 @@ public class Stats {
     }
 
     /**
+     * The variance-stabilising transform {@code asinh(x / scale)} applied elementwise. It is monotonic, so a
+     * value-based tail gate run in this space still asks "is this magnitude one we see at other times"; it is
+     * odd and finite at zero, so exact zeros and sign changes are handled; and it is linear for |x| much less
+     * than scale and logarithmic for |x| much greater than scale, which turns a multiplicative (magnitude-
+     * dependent) spread into a roughly constant one so that a single KDE bandwidth is valid across orders of
+     * magnitude.
+     */
+    public static double[] asinhStabilize(double[] values, double scale) {
+        double s = scale > 0.0 ? scale : 1.0;
+        double[] out = new double[values.length];
+        for (int i = 0; i < values.length; i++) {
+            out[i] = asinh(values[i] / s);
+        }
+        return out;
+    }
+
+    /**
      * asinh(x) = sign(x) * log(|x| + sqrt(x^2 + 1)); Java has no {@code Math.asinh}.
      *
      * Odd and stable for x less than 0.
@@ -436,22 +495,6 @@ public class Stats {
         return mad > 0.0 ? mad / 0.6745 : 1.0;
     }
 
-    /**
-     * The variance-stabilising transform {@code asinh(x / scale)} applied elementwise. It is monotonic, so a
-     * value-based tail gate run in this space still asks "is this magnitude one we see at other times"; it is
-     * odd and finite at zero, so exact zeros and sign changes are handled; and it is linear for |x| &lt;&lt; scale and
-     * logarithmic for |x| &gt;&gt; scale, which turns a multiplicative (magnitude-dependent) spread into a roughly
-     * constant one so that a single KDE bandwidth is valid across orders of magnitude.
-     */
-    public static double[] asinhStabilize(double[] values, double scale) {
-        double s = scale > 0.0 ? scale : 1.0;
-        double[] out = new double[values.length];
-        for (int i = 0; i < values.length; i++) {
-            out[i] = asinh(values[i] / s);
-        }
-        return out;
-    }
-
     // The minimum variance returned by the local noise estimator, to prevent numerical collapse on flat or
     // near-flat segments close to zero.
     private static final double MIN_VARIANCE = 1e-12;
@@ -459,10 +502,15 @@ public class Stats {
     // stabilizeRss): a small regularizer so a near-perfect fit cannot earn an unbounded log-likelihood and
     // dominate the model comparison on numerical noise.
     private static final double VARIANCE_FLOOR_SCALE = 0.01;
-    // Percentile of positive first differences used as the quantization step: low enough to track the true
-    // granularity, high enough to ignore the odd sub-granularity difference (a rare fractional value among
-    // integers).
-    private static final double QUANTIZATION_STEP_PERCENTILE = 0.02;
+    // The quantization step is the smallest first-difference magnitude that recurs at least this many times
+    // (within QUANTIZATION_TOLERANCE, relative). Requiring recurrence stops a clean step series being read
+    // as quantized at the step size (which would floor away the step).
+    private static final int QUANTIZATION_MIN_RECURRENCE = 3;
+    // Near-exact: catches float-rounding on genuinely equal quantized differences (relative error ~1e-15) while
+    // rejecting continuous data, whose smallest differences cluster but are never this close in relative terms
+    // (a looser tolerance would mistake that clustering near the noise mode for quantization and floor at the
+    // noise).
+    private static final double QUANTIZATION_TOLERANCE = 1e-9;
     // Silverman's rule-of-thumb bandwidth on the background, using the robust {@code min(std, IQR/1.349)}
     // spread so a residual heavy tail in the background cannot inflate it.
     private static final double SILVERMAN_FACTOR = 0.9;

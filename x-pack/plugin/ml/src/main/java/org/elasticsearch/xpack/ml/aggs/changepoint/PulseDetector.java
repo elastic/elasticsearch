@@ -94,11 +94,22 @@ public class PulseDetector {
         double stabilizingScale = Stats.asinhScale(backgroundValues);
         double[] stabilizedBackground = Stats.asinhStabilize(backgroundValues, stabilizingScale);
         double[] stabilizedResiduals = Stats.rollingMedianResiduals(Stats.asinhStabilize(values, stabilizingScale), WEIGHT_HALF_WINDOW);
-        double bandwidth = Stats.kdeBandwidth(backgroundExcluding(stabilizedResiduals, excursions, n));
+        // Floor the KDE bandwidth at a small multiple of the stabilized residual range. On a flat (e.g. all-
+        // zero or constant) background the estimated spread collapses to ~0, and the empirical-step fallback
+        // (Bonferroni-corrected over n) cannot call any single point significant so a clear outlier is missed.
+        // A floor tied to the residual range is always well-defined and needs no granularity estimation; we
+        // use the range of the residuals (not the values) so it strips level/step structure (a large step
+        // must not widen the kernel and smear a within-regime spike) while still reflecting the scale of the
+        // excursions being tested. The fraction is small enough that on a well-spread background Silverman's
+        // value dominates and the floor is inert; it only rescues the degenerate case. Working in asinh space
+        // keeps it scale-robust, so a huge spike does not mask a moderate one.
+        double residualRange = Stats.range(stabilizedResiduals);
+        double minBandwidth = BANDWIDTH_RANGE_FLOOR * residualRange;
+        double bandwidth = Stats.kdeBandwidth(backgroundExcluding(stabilizedResiduals, excursions, n), minBandwidth);
+        double logN = Math.log(n);
         List<ChangeType> pulses = new ArrayList<>();
         for (Excursion e : excursions) {
             double stabilizedValue = Stats.asinh(values[e.peak()] / stabilizingScale);
-            // Bonferroni-corrected over the n points scanned to pick the extremes.
             double logPValue = Math.min(
                 0.0,
                 Stats.kdeLogTailProbability(stabilizedValue, stabilizedBackground, bandwidth, e.sign()) + logN
@@ -201,14 +212,18 @@ public class PulseDetector {
     // rolling-median baseline exceeds this many robust sigmas of the residual scale. Generous pre-filter; the
     // significance decision is the KDE gate.
     private static final double PULSE_Z_THRESHOLD = 5.0;
-    // Candidates separated by at most this many buckets (and of the same sign) are one physical excursion and are
-    // merged. We do NOT chain across larger gaps: repeated/recurring excursions are a structural/dispersion matter,
-    // not something the pulse stream should fuse. Set to 1 (strictly adjacent).
+    // Candidates separated by at most this many buckets (and of the same sign) are one physical excursion and
+    // are merged. We do NOT chain across larger gaps: repeated/recurring excursions are a structural/dispersion
+    // matter, not something the pulse stream should fuse. Set to 1 (strictly adjacent).
     private static final int PULSE_MERGE_MAX_GAP = 1;
     // We report at most this many pulses — the highest-z excursions. A small floor plus a slowly-growing fraction
     // of the series length, so a pathological or very noisy series cannot drown the output in spikes.
     private static final int MAX_PULSES_FLOOR = 5;
     private static final double MAX_PULSES_FRACTION = 0.02;
+    // Minimum KDE bandwidth as a fraction of the stabilized residual range, so the kernel width never collapses
+    // to zero on a flat/degenerate background (which would make the empirical-tail gate unable to flag any outlier).
+    // Small enough to be inert on a well-spread background, where Silverman's bandwidth dominates.
+    private static final double BANDWIDTH_RANGE_FLOOR = 0.02;
 
     private final int minSegmentLength;
     private final double pValueThreshold;

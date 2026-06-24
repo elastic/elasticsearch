@@ -18,8 +18,6 @@ setup:
                 type: icu_collation_keyword
                 language: es
                 strength: primary
-                doc_values:
-                  cardinality: high
   - do:
       indices.get_field_mapping:
         index: test_icu_collation_mapping
@@ -28,11 +26,9 @@ setup:
   - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.type: icu_collation_keyword }
   - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.language: es }
   - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.strength: primary }
-  - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.doc_values.cardinality: low }
   - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.type: icu_collation_keyword }
   - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.language: es }
   - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.strength: primary }
-  - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.doc_values.cardinality: high }
 
 
 ---
@@ -49,8 +45,6 @@ setup:
               collate_binary:
                 type: icu_collation_keyword
                 language: en
-                doc_values:
-                  cardinality: high
   - do:
       index:
         refresh: true
@@ -89,8 +83,6 @@ setup:
                 type: icu_collation_keyword
                 language: en
                 ignore_above: 5
-                doc_values:
-                  cardinality: high
   - do:
       index:
         index: test_icu_ignore_above
@@ -137,8 +129,6 @@ setup:
               collate_binary:
                 type: icu_collation_keyword
                 language: en
-                doc_values:
-                  cardinality: high
   - do:
       index:
         index: test_icu_exists
@@ -191,9 +181,6 @@ setup:
                 language: en
                 strength: primary
                 index: false
-                doc_values:
-                  cardinality: high
-
   - do:
       index:
         index: test
@@ -245,8 +232,6 @@ setup:
                 type: icu_collation_keyword
                 language: en
                 numeric: true
-                doc_values:
-                  cardinality: high
   - do:
       index:
         index: test_icu_numeric_sort

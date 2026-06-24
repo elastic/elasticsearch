@@ -850,26 +850,62 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         return sum;
     }
 
+    /*
+     * A byte species with the same number of elements as the preferred 4-byte species (float and int).
+     * Normally the size of the int species /4.
+     *
+     * For 128-bit, there isn't a byte species small enough (panama only goes down to 64-bits),
+     * in which case we're over-reading the bytes and throwing away the second half each iteration,
+     * due to only using the 0th part when converting to ints.
+     *
+     * For real hot paths, it's worth creating separate 128-bit methods that don't do this,
+     * but for other methods it's fine to not quite SIMD all of it and scalar process
+     * the last 8 bytes + any tail
+     */
+    private static final VectorSpecies<Byte> BYTES_FOR_4BYTE_SPECIES;
+
+    static {
+        int byteBitsForInt = INTEGER_SPECIES.vectorBitSize() / Float.BYTES;
+
+        VectorSpecies<Byte> byteSpecies = BYTE_SPECIES; // just specify *something* to fallback on
+        // this may be too small - double size until we get to one we can use
+        while (byteBitsForInt < 1024) { // sanity bounds check to prevent infinite loop if this isn't working as it should
+            try {
+                byteSpecies = VectorSpecies.of(byte.class, VectorShape.forBitSize(byteBitsForInt));
+                break;
+            } catch (IllegalArgumentException e) {
+                byteBitsForInt *= 2;
+            }
+        }
+        BYTES_FOR_4BYTE_SPECIES = byteSpecies;
+    }
+
     @Override
     public float ipFloatByte(float[] q, byte[] d) {
-        if (BYTE_SPECIES_FOR_FLOATS != null && q.length >= FLOAT_SPECIES.length()) {
+        if (q.length >= BYTES_FOR_4BYTE_SPECIES.length()) {
             return ipFloatByteImpl(q, d);
         }
         return DefaultESVectorUtilSupport.ipFloatByteImpl(q, d);
     }
 
-    private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_FLOATS;
+    private static float ipFloatByteImpl(float[] q, byte[] d) {
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        int i = 0;
 
-    static {
-        VectorSpecies<Byte> byteForFloat;
-        try {
-            // calculate vector size to convert from single bytes to 4-byte floats
-            byteForFloat = VectorSpecies.of(byte.class, VectorShape.forBitSize(FLOAT_SPECIES.vectorBitSize() / Float.BYTES));
-        } catch (IllegalArgumentException e) {
-            // can't get a byte vector size small enough, just use default impl
-            byteForFloat = null;
+        for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= q.length; i += FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, q, i);
+            ByteVector bv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, d, i);
+            acc = qv.fma(bv.castShape(FLOAT_SPECIES, 0), acc);
         }
-        BYTE_SPECIES_FOR_FLOATS = byteForFloat;
+
+        float sum = acc.reduceLanes(VectorOperators.ADD);
+
+        // handle the tail
+        for (; i < q.length; i++) {
+            sum += q[i] * d[i];
+        }
+
+        return sum;
     }
 
     @Override
@@ -1033,36 +1069,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         stats[3] = min;
         stats[4] = max;
         stats[5] = centroidDot;
-    }
-
-    /*
-     * A byte species with the same number of elements as the preferred 4-byte species (float and int).
-     * Normally the size of the int species /4.
-     *
-     * For 128-bit, there isn't a byte species small enough (panama only goes down to 64-bits),
-     * in which case we're over-reading the bytes and throwing away the second half,
-     * due to only using the 0th part when converting to ints.
-     *
-     * For real hot paths, it's worth creating separate 128-bit methods that don't do this,
-     * but for other methods it's fine to not quite SIMD all of it and scalar process
-     * the last 8 bytes + any tail
-     */
-    private static final VectorSpecies<Byte> BYTES_FOR_4BYTE_SPECIES;
-
-    static {
-        int byteBitsForInt = INTEGER_SPECIES.vectorBitSize() / Float.BYTES;
-
-        VectorSpecies<Byte> byteSpecies = BYTE_SPECIES; // just specify *something* to fallback on
-        // this may be too small - double size until we get to one we can use
-        while (byteBitsForInt < 1024) { // sanity check to prevent infinite loop if this isn't working as it should
-            try {
-                byteSpecies = VectorSpecies.of(byte.class, VectorShape.forBitSize(byteBitsForInt));
-                break;
-            } catch (IllegalArgumentException e) {
-                byteBitsForInt *= 2;
-            }
-        }
-        BYTES_FOR_4BYTE_SPECIES = byteSpecies;
     }
 
     @Override
@@ -1424,28 +1430,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             proj = Math.fma(diff, originalResidual[i], proj);
         }
         return sqDist + soarLambda * proj * proj / rnorm;
-    }
-
-    public static float ipFloatByteImpl(float[] q, byte[] d) {
-        assert BYTE_SPECIES_FOR_FLOATS != null;
-        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
-        int i = 0;
-
-        int limit = FLOAT_SPECIES.loopBound(q.length);
-        for (; i < limit; i += FLOAT_SPECIES.length()) {
-            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, q, i);
-            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES_FOR_FLOATS, d, i);
-            acc = qv.fma(bv.castShape(FLOAT_SPECIES, 0), acc);
-        }
-
-        float sum = acc.reduceLanes(VectorOperators.ADD);
-
-        // handle the tail
-        for (; i < q.length; i++) {
-            sum += q[i] * d[i];
-        }
-
-        return sum;
     }
 
     @Override
@@ -2570,7 +2554,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
         final FloatVector scaleDestVec = FloatVector.broadcast(FLOAT_SPECIES, scaleDest);
         int i = 0;
-        for (; i < BYTES_FOR_4BYTE_SPECIES.loopBound(other.length); i += FLOAT_SPECIES.length()) {
+        for (; i + BYTES_FOR_4BYTE_SPECIES.length() <= other.length; i += FLOAT_SPECIES.length()) {
             ByteVector bv = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, other, i);
             FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
             FloatVector otherVec = (FloatVector) bv.castShape(FLOAT_SPECIES, 0);

@@ -475,11 +475,13 @@ public class DataSourceModuleTests extends ESTestCase {
 
         StorageProviderRegistry registry = module.storageProviderRegistry();
 
-        // Verify file provider is registered
+        // Verify file provider is registered. file:// now gets the same concurrency guardrail + retry wrapping as
+        // every other scheme (the filesystem can't signal backpressure, so it needs the guardrail), so the
+        // retrieved provider is the outer RetryableStorageProvider, not the raw MockFileStorageProvider.
         assertTrue("File storage provider should be registered", registry.hasProvider("file"));
         StorageProvider fileProvider = registry.provider(StoragePath.of("file:///tmp/test.csv"));
         assertNotNull("File storage provider should be retrievable", fileProvider);
-        assertTrue("File provider should be MockFileStorageProvider", fileProvider instanceof MockFileStorageProvider);
+        assertTrue("File provider should be wrapped with the guardrail", fileProvider instanceof RetryableStorageProvider);
     }
 
     /**

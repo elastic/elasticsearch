@@ -238,9 +238,11 @@ public class StorageProviderRegistry implements Closeable {
     }
 
     private StorageProvider wrapProvider(StorageProvider provider, String scheme) {
-        if ("file".equals(scheme)) {
-            return provider;
-        }
+        // Every scheme — including file:// — gets the node concurrency guardrail. The local filesystem cannot
+        // signal backpressure the way object stores do (no 503 to react to); it just degrades under unbounded
+        // concurrent IO, so it needs the guardrail most. The retry/backoff layer is inert for file:// (local
+        // reads raise plain IOExceptions, never the throttling-typed ExternalUnavailableException it retries on).
+        // See elastic/esql-planning#896.
         ConcurrencyLimiter limiter = limiterForScheme(scheme);
         AdaptiveBackoff backoff = backoffForScheme(scheme);
         RetryPolicy retryPolicy = buildRetryPolicy(backoff);

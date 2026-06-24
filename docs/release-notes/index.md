@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.3.6 [elasticsearch-9.3.6-release-notes]
-```{applies_to}
-stack: ga 9.3.6
-```
 
 ### Features and enhancements [elasticsearch-9.3.6-features-enhancements]
 
@@ -82,6 +79,9 @@ Machine Learning:
 
 Query Languages:
 * EQL/SQL: Enforce max expression depth checks [#150003](https://github.com/elastic/elasticsearch/pull/150003)
+
+Search:
+* Add IT covering search during rolling restart [#149667](https://github.com/elastic/elasticsearch/pull/149667) (issue: [#86927](https://github.com/elastic/elasticsearch/issues/86927))
 
 Security:
 * Make Automatons wildcard code-point aware [#151143](https://github.com/elastic/elasticsearch/pull/151143)

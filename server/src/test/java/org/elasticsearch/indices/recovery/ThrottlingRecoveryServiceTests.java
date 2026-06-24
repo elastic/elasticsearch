@@ -66,7 +66,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     @After
     public void verifyStats() {
         // recovery stats counters should always be back to 0 at the end of tests
-        assertThat(stats, equalTo(new RecoveryStats()));
+        assertTrue(stats.noCurrentRecoveries());
         stats = new RecoveryStats();
     }
 

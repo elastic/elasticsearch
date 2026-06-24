@@ -144,7 +144,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+            try (ThreadContext.StoredContext ignored = threadContext.newEmptySystemContext()) {
                 executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
             }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());

@@ -6,11 +6,12 @@ products:
   - id: elasticsearch
 navigation_title: "Optimize query performance"
 description: "Techniques for writing fast ES|QL queries and operating ES|QL workloads at scale."
+type: how-to
 ---
 
 # Optimize {{esql}} query performance
 
-This guide covers practical techniques for writing fast {{esql}} queries and operating {{esql}} workloads at scale. The first sections focus on writing efficient queries. The later sections cover monitoring and operational tools that help identify slow queries in production.
+This guide covers practical techniques for writing fast {{esql}} queries and operating {{esql}} workloads at scale. It starts with common anti-patterns, then shows how to reduce scanned data, reduce returned data, and avoid expensive operations. It also covers tools for monitoring query performance and investigating slow queries across multiple clusters.
 
 ::::{tip}
 For a quick overview of the most common issues with {{esql}} queries, refer to [Common anti-patterns](#common-anti-patterns).
@@ -27,7 +28,7 @@ This guide serves two audiences:
   - [Reduce what you scan](#reduce-what-you-scan)
   - [Reduce what you return](#reduce-what-you-return)
   - [Avoid expensive operations](#avoid-expensive-operations)
-- If you administer clusters and need to monitor query performance fleet-wide, the following section describes the tools available:
+- If you administer clusters and need to monitor query performance across multiple clusters, the following section describes the tools available:
   - [Monitor query performance](#monitor-query-performance)
 
 ### Check your Elastic Stack version
@@ -35,6 +36,8 @@ This guide serves two audiences:
 If you're not on [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md), check your {{stack}} version. The {{esql}} query engine improves with each release, so upgrading is often one of the highest-impact performance changes you can make.
 
 Some tips on this page require a recent version of the {{stack}}, and individual subsections carry an applicability badge when this is the case. Sections without a version badge apply to all versions where {{esql}} is generally available.
+
+The most important version-specific performance improvements are visible in the table below, including improvements in 9.x for query logging, time series support, query activity, and full-text search functions.
 
 For clusters on a version before 8.17, upgrading provides the largest single performance improvement, because full-text search functions and Lucene pushdowns become available. For clusters on 8.17 but before 8.18, upgrading to 8.18 provides the next largest improvement. That release adds [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) and [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike) pushdown to Lucene and a mapping discovery optimization that reduces overhead on clusters with many indices.
 

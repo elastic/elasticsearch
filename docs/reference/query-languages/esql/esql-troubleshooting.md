@@ -2,7 +2,10 @@
 applies_to:
   stack:
   serverless:
+products:
+  - id: elasticsearch
 navigation_title: "Troubleshooting"
+description: "Resources for troubleshooting ES|QL issues, including query logging, task management, circuit breaker settings, and support case details."
 ---
 
 # Troubleshooting {{esql}} [esql-troubleshooting]

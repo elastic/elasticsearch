@@ -68,6 +68,10 @@
 | text | date_nanos | keyword |
 | text | integer | keyword |
 | text | long | keyword |
+| unsigned_long {applies_to}`stack: ga 9.5.0` | date | unsigned_long |
+| unsigned_long {applies_to}`stack: ga 9.5.0` | date_nanos | unsigned_long |
+| unsigned_long {applies_to}`stack: ga 9.5.0` | integer | unsigned_long |
+| unsigned_long {applies_to}`stack: ga 9.5.0` | long | unsigned_long |
 | version {applies_to}`stack: ga 9.5.0` | date | version |
 | version {applies_to}`stack: ga 9.5.0` | date_nanos | version |
 | version {applies_to}`stack: ga 9.5.0` | integer | version |

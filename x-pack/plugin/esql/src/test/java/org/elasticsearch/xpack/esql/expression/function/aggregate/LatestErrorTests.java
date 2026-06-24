@@ -38,9 +38,7 @@ public class LatestErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 true,
                 validPerPosition,
                 signature,
-                (v, p) -> p == 0
-                    ? "boolean, date, ip, string or numeric except unsigned_long or counter types"
-                    : "int or long or date_nanos or datetime"
+                (v, p) -> p == 0 ? "boolean, date, ip, string or numeric except counter types" : "int or long or date_nanos or datetime"
             )
         );
     }

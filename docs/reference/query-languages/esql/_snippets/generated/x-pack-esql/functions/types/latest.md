@@ -20,5 +20,6 @@
 | keyword | keyword |
 | long | long |
 | text | keyword |
+| unsigned_long {applies_to}`stack: ga 9.5.0` | unsigned_long |
 | version {applies_to}`stack: ga 9.5.0` | version |
 

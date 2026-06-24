@@ -54,7 +54,8 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
             "cartesian_shape",
             "geohash",
             "geotile",
-            "geohex" },
+            "geohex",
+            "unsigned_long" },
         briefSummary = "Returns the latest value of a field sorted by timestamp.",
         description = """
             An alias for [`LAST`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md) where
@@ -83,7 +84,8 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
                 "cartesian_shape",
                 "geohash",
                 "geotile",
-                "geohex" },
+                "geohex",
+                "unsigned_long" },
             description = "The search field"
         ) Expression field,
         Expression timestamp
@@ -129,7 +131,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
                 || dt == DataType.DATE_NANOS
                 || DataType.isString(dt)
                 || dt == DataType.IP
-                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG)
+                || dt.isNumeric()
                 || dt == DataType.VERSION
                 || dt == DataType.GEO_POINT
                 || dt == DataType.GEO_SHAPE
@@ -144,7 +146,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
             "date",
             "ip",
             "string",
-            "numeric except unsigned_long or counter types"
+            "numeric except counter types"
         ).and(
             isType(
                 timestamp,

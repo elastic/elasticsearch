@@ -708,22 +708,23 @@ first_flat:flattened
 "{""k"":""v1""}"
 ;
 
-Test last aggregation on version type
+Test last aggregation on extended scalar types
 required_capability: last_agg_extended_types
 
 ROW rows = [
-"1.0.0 | 1",
-"2.0.0 | 2",
-"3.0.0 | 3"
+"1.0.0 | 100 | 1",
+"2.0.0 | 200 | 2",
+"3.0.0 | 300 | 3"
 ]
 | MV_EXPAND rows
-| DISSECT rows """%{ver} | %{n}"""
-| EVAL v = TO_VERSION(ver), sort = TO_LONG(n)
-| STATS last_v = LAST(v, sort)
-; 
+| DISSECT rows """%{ver} | %{ul} | %{n}"""
+| EVAL v = TO_VERSION(ver), ulong = TO_UNSIGNED_LONG(ul), sort =
+TO_LONG(n)
+| STATS last_v = LAST(v, sort), last_ul = LAST(ulong, sort)
+;
 
-last_v:version
-3.0.0
+last_v:version | last_ul:unsigned_long
+3.0.0          | 300
 ;
 
 Test last aggregation on spatial types

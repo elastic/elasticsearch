@@ -437,23 +437,24 @@ earliest_attrs:flattened
 "{""host.name"":""equal-host""}"
 ;
 
-Test latest aggregation on version type
+Test latest aggregation on extended scalar types
 required_capability: earliest_latest_aggs
 required_capability: last_agg_extended_types
 
 ROW rows = [
-"2025-01-01T00:00:01.000Z | 1.0.0",
-"2025-01-01T00:00:02.000Z | 2.0.0",
-"2025-01-01T00:00:03.000Z | 3.0.0"
+"2025-01-01T00:00:01.000Z | 1.0.0 | 100",
+"2025-01-01T00:00:02.000Z | 2.0.0 | 200",
+"2025-01-01T00:00:03.000Z | 3.0.0 | 300"
 ]
 | MV_EXPAND rows
-| DISSECT rows """%{@timestamp} | %{ver}"""
-| EVAL @timestamp = TO_DATETIME(@timestamp), v = TO_VERSION(ver)
-| STATS last_v = LATEST(v)
-; 
+| DISSECT rows """%{@timestamp} | %{ver} | %{n}"""
+| EVAL @timestamp = TO_DATETIME(@timestamp), v = TO_VERSION(ver), ul =
+TO_UNSIGNED_LONG(n)
+| STATS last_v = LATEST(v), last_ul = LATEST(ul)
+;
 
-last_v:version
-3.0.0
+last_v:version | last_ul:unsigned_long
+3.0.0          | 300
 ;
 
 Test latest aggregation on spatial types

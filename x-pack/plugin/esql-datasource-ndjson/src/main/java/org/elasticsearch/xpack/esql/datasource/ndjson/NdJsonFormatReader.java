@@ -25,7 +25,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -482,6 +484,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
             chunkMode,
             counters,
+            context.splitStartByte(),
             context.maxRecordBytes(),
             datetimeFormatter
         );
@@ -532,6 +535,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     @Override
     public org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport aggregatePushdownSupport() {
         return new org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport();
+    }
+
+    @Override
+    public RowPositionStrategy rowPositionStrategy() {
+        // NdJsonPageDecoder fills the {@code _rowPosition} slot natively from the file-global
+        // byte offset of each record (see {@code NdJsonPageDecoder.recordFileOffset}).
+        return PassThroughRowPositionStrategy.INSTANCE;
     }
 
     @Override

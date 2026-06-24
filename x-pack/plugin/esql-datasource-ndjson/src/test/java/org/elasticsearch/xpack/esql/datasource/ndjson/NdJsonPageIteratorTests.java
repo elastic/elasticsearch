@@ -600,6 +600,69 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code _rowPosition} carries a file-global, split-invariant byte anchor per record — the
+     * substrate {@code _id} is composed from. The anchor is the parser's byte offset captured
+     * right after the record's opening token (record start + 1); the exact anchor is opaque, what
+     * is load-bearing is (a) it is intrinsic to the record's position in the file and (b) the
+     * split fold {@code recordOffsetBase = splitStartByte + skippedPartialLeadingBytes} keeps a
+     * mid-record split emitting the same value the whole-file read emits.
+     */
+    public void testRowPositionIsFileGlobalByteOffset() throws IOException {
+        // Record start bytes: r1 at 0 (9 bytes incl \n), r2 at 9 (10 bytes), r3 at 19.
+        // Emitted anchors are start + 1 (parser position after the opening '{').
+        String data = "{\"id\":1}\n{\"id\":22}\n{\"id\":333}\n";
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        var wholeFile = new BytesStorageObject("file:///offsets.ndjson", bytes);
+        try (
+            var iterator = reader.read(
+                wholeFile,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id", org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor.ROW_POSITION_COLUMN))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.LENIENT)
+                    .firstSplit(true)
+                    .lastSplit(true)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock rowPos = page.getBlock(1);
+            assertEquals(1L, rowPos.getLong(0));
+            assertEquals(10L, rowPos.getLong(1));
+            assertEquals(20L, rowPos.getLong(2));
+        }
+
+        // Split starting mid-r2 at file byte 12: the leading partial line (7 bytes, to the end of
+        // r2) is skipped and folded into the offset base, so r3 still reports the same file-global
+        // anchor the whole-file read emitted (20), not a split-relative one.
+        byte[] tail = Arrays.copyOfRange(bytes, 12, bytes.length);
+        var midRecordSplit = new BytesStorageObject("file:///offsets.ndjson", tail);
+        try (
+            var iterator = reader.read(
+                midRecordSplit,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id", org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor.ROW_POSITION_COLUMN))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.LENIENT)
+                    .firstSplit(false)
+                    .lastSplit(true)
+                    .splitStartByte(12)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            LongBlock rowPos = page.getBlock(1);
+            assertEquals("anchor must be file-global: splitStartByte + skipped partial bytes", 20L, rowPos.getLong(0));
+        }
+    }
+
     public void testSampleData() throws Exception {
         var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));

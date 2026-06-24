@@ -53,7 +53,6 @@ public class NodeDeprecationChecks {
             NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
             NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
             NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
-            NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
             NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
             NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
             NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
@@ -336,7 +335,7 @@ public class NodeDeprecationChecks {
             .collect(Collectors.joining(","));
         final String message = String.format(
             Locale.ROOT,
-            "The [%s] settings are deprecated and will be removed after 8.0",
+            "The [%s] settings are deprecated and will be removed in 10.0",
             concatSettingNames
         );
         final String details = String.format(Locale.ROOT, detailPattern, concatSettingNames);
@@ -395,7 +394,7 @@ public class NodeDeprecationChecks {
 
         final String message = String.format(
             Locale.ROOT,
-            "The [%s] settings are deprecated and will be removed after 8.0",
+            "The [%s] settings are deprecated and will be removed in 10.0",
             groupSettingNames
         );
         final String details = String.format(Locale.ROOT, detailPattern, allSubSettings);
@@ -406,20 +405,20 @@ public class NodeDeprecationChecks {
         return new DeprecationIssue(warningLevel, message, url, details, false, meta);
     }
 
-    private static final String MONITORING_SETTING_DEPRECATION_LINK = "https://ela.st/es-deprecation-7-monitoring-settings";
-    private static final String MONITORING_SETTING_REMOVAL_TIME = "after 8.0";
+    private static final String LEGACY_MONITORING_REMOVAL = "https://ela.st/es-10-legacy-monitoring-removal";
 
     static DeprecationIssue genericMonitoringSetting(
         final ClusterState clusterState,
         final Settings nodeSettings,
         final Setting<?> deprecated
     ) {
-        return checkDeprecatedSetting(
+        return checkRemovedSetting(
             clusterState.metadata().settings(),
             nodeSettings,
             deprecated,
-            MONITORING_SETTING_DEPRECATION_LINK,
-            MONITORING_SETTING_REMOVAL_TIME
+            LEGACY_MONITORING_REMOVAL,
+            "This setting will be removed in 10.0.",
+            DeprecationIssue.Level.CRITICAL
         );
     }
 
@@ -435,8 +434,8 @@ public class NodeDeprecationChecks {
                 (Function<String, Setting<String>>) Setting::simpleString
             ),
             "Remove the following settings: [%s]",
-            MONITORING_SETTING_DEPRECATION_LINK,
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterSettings,
             nodeSettings
         );
@@ -450,8 +449,8 @@ public class NodeDeprecationChecks {
         return deprecatedAffixSetting(
             Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix, k -> SecureSetting.secureString(k, null)),
             "Remove the following settings from the keystore: [%s]",
-            MONITORING_SETTING_DEPRECATION_LINK,
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterSettings,
             nodeSettings
         );
@@ -465,8 +464,8 @@ public class NodeDeprecationChecks {
         return deprecatedAffixGroupedSetting(
             Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix, k -> Setting.groupSetting(k + ".")),
             "Remove the following settings: [%s]",
-            MONITORING_SETTING_DEPRECATION_LINK,
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterSettings,
             nodeSettings
         );
@@ -764,8 +763,8 @@ public class NodeDeprecationChecks {
         return deprecatedAffixSetting(
             MonitoringDeprecatedSettings.USE_INGEST_PIPELINE_SETTING,
             "Remove the following settings: [%s]",
-            "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterState.metadata().settings(),
             settings
         );
@@ -780,8 +779,8 @@ public class NodeDeprecationChecks {
         return deprecatedAffixSetting(
             MonitoringDeprecatedSettings.PIPELINE_CHECK_TIMEOUT_SETTING,
             "Remove the following settings: [%s]",
-            "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting",
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterState.metadata().settings(),
             settings
         );
@@ -796,8 +795,8 @@ public class NodeDeprecationChecks {
         return deprecatedAffixSetting(
             MonitoringDeprecatedSettings.TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING,
             "Remove the following settings: [%s]",
-            "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting",
-            DeprecationIssue.Level.WARNING,
+            LEGACY_MONITORING_REMOVAL,
+            DeprecationIssue.Level.CRITICAL,
             clusterState.metadata().settings(),
             settings
         );

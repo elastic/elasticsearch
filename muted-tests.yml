@@ -725,3 +725,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRestartAfterCompletion
   issue: https://github.com/elastic/elasticsearch/issues/152116
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testSearchPhaseFailureLeak
+  issue: https://github.com/elastic/elasticsearch/issues/152117

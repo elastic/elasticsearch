@@ -85,9 +85,18 @@ abstract class AbstractGradleFuncTest extends Specification {
             "systemProp.javax.xml.transform.TransformerFactory=com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl"
 
         def nativeLibsProject = subProject(":libs:native:native-libraries")
+        // Stub mirrors the real producer: a dedicated `nativeLibs` consumable variant that
+        // carries the platform-native library directory. ElasticsearchJavaBasePlugin requests
+        // exactly this configuration via project(path:..., configuration: 'nativeLibs').
         nativeLibsProject << """
             plugins {
                 id 'base'
+            }
+            configurations {
+                nativeLibs {
+                    canBeConsumed = true
+                    canBeResolved = false
+                }
             }
         """
         def mutedTestsFile = testProjectDir.newFile("muted-tests.yml")

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -46,10 +47,12 @@ public class DatasetResolver {
 
     private final Client client;
     private final Executor executor;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public DatasetResolver(Client client, Executor executor) {
+    public DatasetResolver(Client client, Executor executor, CrossProjectModeDecider crossProjectModeDecider) {
         this.client = client;
         this.executor = executor;
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     /**
@@ -110,6 +113,8 @@ public class DatasetResolver {
                 );
             });
         }
-        chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions)).addListener(listener);
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled))
+            .addListener(listener);
     }
 }

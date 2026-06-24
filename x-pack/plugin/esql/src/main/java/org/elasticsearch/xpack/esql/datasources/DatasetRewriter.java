@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -180,7 +181,8 @@ public final class DatasetRewriter {
             String[] raw = patterns.toArray(String[]::new);
             resolutions.put(r, resolve(raw, raw, projectMetadata, iner));
         });
-        return rewrite(parsed, projectMetadata, resolutions);
+        // Unsecured/test path runs without CPS (single local project): never preserve a wildcard for remote resolution.
+        return rewrite(parsed, projectMetadata, resolutions, false);
     }
 
     static boolean hasRemotePattern(List<String> patterns) {
@@ -207,11 +209,15 @@ public final class DatasetRewriter {
      * @param resolutions per-relation resolution keyed by relation identity (see {@link DatasetResolver}). A relation
      *                    absent from the map (e.g. remote-prefixed, or no pattern could match a dataset name) is left
      *                    unchanged.
+     * @param crossProjectEnabled whether cross-project search (CPS) is active; when {@code true}, a wildcard that
+     *                    matched a dataset is kept alongside the dataset so the remote (linked-project) half still
+     *                    resolves — see {@link #rewriteOne}.
      */
     public static LogicalPlan rewrite(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
-        Map<UnresolvedRelation, DatasetResolution> resolutions
+        Map<UnresolvedRelation, DatasetResolution> resolutions,
+        boolean crossProjectEnabled
     ) {
         if (projectMetadata == null) {
             return parsed;
@@ -226,7 +232,7 @@ public final class DatasetRewriter {
             if (resolution == null) {
                 return r;
             }
-            return rewriteOne(r, datasetMetadata, dataSourceMetadata, resolution);
+            return rewriteOne(r, datasetMetadata, dataSourceMetadata, resolution, crossProjectEnabled);
         });
     }
 
@@ -234,7 +240,8 @@ public final class DatasetRewriter {
         UnresolvedRelation relation,
         DatasetMetadata datasets,
         DataSourceMetadata dataSources,
-        DatasetResolution resolution
+        DatasetResolution resolution,
+        boolean crossProjectEnabled
     ) {
         if (resolution.explicitUnauthorized().isEmpty() == false) {
             // An explicitly-named dataset the caller can't read — same error (and 400) a missing index gives, so an
@@ -297,6 +304,26 @@ public final class DatasetRewriter {
             Literal path = Literal.keyword(relation.source(), dataset.resource());
             children.add(new UnresolvedExternalRelation(relation.source(), path, merged));
         }
+        // Cross-project (CPS): a wildcard that matched a dataset locally may also match indices in linked projects.
+        // Mirror ViewResolver — keep the original wildcard as a sibling UnresolvedRelation so the remote half resolves
+        // at field-caps, instead of the dataset replacing the whole relation and silently dropping the remote indices.
+        // Reached only when the wildcard matched no local non-dataset target (a local index/dataset mix is rejected
+        // above), so the preserved relation contributes only the remote indices the wildcard pulls in.
+        if (crossProjectEnabled) {
+            List<String> remotePatterns = crossProjectPatternsToPreserve(patternsOf(relation));
+            if (remotePatterns.isEmpty() == false) {
+                children.add(
+                    new UnresolvedRelation(
+                        relation.source(),
+                        new IndexPattern(relation.indexPattern().source(), String.join(",", remotePatterns)),
+                        relation.frozen(),
+                        relation.metadataFields(),
+                        relation.indexMode(),
+                        relation.unresolvedMessage()
+                    )
+                );
+            }
+        }
         if (children.size() == 1) {
             return children.get(0);
         }
@@ -345,6 +372,30 @@ public final class DatasetRewriter {
     /** Splits a relation's FROM pattern string into its comma-separated parts. */
     static List<String> patternsOf(UnresolvedRelation relation) {
         return Arrays.asList(Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern()));
+    }
+
+    /**
+     * The patterns to re-emit as an {@link UnresolvedRelation} so cross-project (CPS) resolution can reach indices in
+     * linked projects that a wildcard also matched. Positive wildcards are preserved — an exact dataset name is fully
+     * handled by its external relation and needs no remote pass; exclusions ride along so they still apply to the
+     * remote half. Returns empty when no positive wildcard is present (an exclusion-only relation has nothing to
+     * match). Mirrors the wildcard pass-through in {@code ViewResolver.buildOrderedSubqueries}.
+     */
+    static List<String> crossProjectPatternsToPreserve(List<String> patterns) {
+        List<String> preserved = new ArrayList<>();
+        boolean hasPositiveWildcard = false;
+        for (String pattern : patterns) {
+            if (pattern.isEmpty()) {
+                continue;
+            }
+            if (pattern.charAt(0) == '-') {
+                preserved.add(pattern);
+            } else if (Regex.isSimpleMatchPattern(pattern)) {
+                preserved.add(pattern);
+                hasPositiveWildcard = true;
+            }
+        }
+        return hasPositiveWildcard ? preserved : List.of();
     }
 
     /**

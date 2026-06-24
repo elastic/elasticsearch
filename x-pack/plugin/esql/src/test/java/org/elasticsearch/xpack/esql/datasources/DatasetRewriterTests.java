@@ -284,6 +284,47 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), not(containsString("logs_dataset")));
     }
 
+    public void testWildcardMatchingDatasetUnderCpsPreservesRemoteHalf() {
+        // `FROM logs_*` matches a local dataset and no local index. With CPS on, the same wildcard may also match
+        // indices in linked projects — mirror views: keep the dataset's external relation AND re-emit the original
+        // wildcard as an UnresolvedRelation so the remote half resolves at field-caps (instead of dropping it).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_*"), project, Set.of("logs_dataset"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        assertThat(children, hasSize(2));
+        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(children.get(1), instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) children.get(1)).indexPattern().indexPattern(), equalTo("logs_*"));
+    }
+
+    public void testWildcardMatchingDatasetWithoutCpsNotPreserved() {
+        // Same query, CPS off (the shipped config today): the dataset replaces the relation outright, no remote pass.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
+
+        LogicalPlan rewritten = rewriteWithAuthorized(relationOf("logs_*"), project, Set.of("logs_dataset"));
+
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testExplicitDatasetNameUnderCpsNotPreserved() {
+        // An exact (non-wildcard) dataset name is fully handled by its external relation — there is no wildcard to
+        // expand against linked projects, so nothing is preserved even with CPS on.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_dataset"), project, Set.of("logs_dataset"));
+
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+    }
+
     public void testNonStringSettingsArePreservedThroughCarrier() {
         // Non-secret DataSourceSetting values can be Integer/Long/Boolean — the carrier (Map<String,
         // Object>) should preserve their type. Plugins that read these don't need to parse strings.
@@ -634,7 +675,13 @@ public class DatasetRewriterTests extends ESTestCase {
      */
     private static LogicalPlan rewriteWithAuthorized(UnresolvedRelation relation, ProjectMetadata project, Set<String> authorized) {
         DatasetRewriter.DatasetResolution resolution = resolve(relation.indexPattern().indexPattern(), project, authorized);
-        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution));
+        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), false);
+    }
+
+    /** As {@link #rewriteWithAuthorized}, but with cross-project search (CPS) enabled. */
+    private static LogicalPlan rewriteWithAuthorizedCps(UnresolvedRelation relation, ProjectMetadata project, Set<String> authorized) {
+        DatasetRewriter.DatasetResolution resolution = resolve(relation.indexPattern().indexPattern(), project, authorized);
+        return DatasetRewriter.rewrite(relation, project, Map.of(relation, resolution), true);
     }
 
     /** Engine-side resolve of {@code rawPattern} with {@code authorized} as the (filter-narrowed) request indices. */

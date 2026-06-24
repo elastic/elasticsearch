@@ -149,7 +149,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.clusterService = clusterService;
         this.viewResolver = viewResolver;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
-        this.datasetResolver = new DatasetResolver(client, requestExecutor);
+        this.datasetResolver = new DatasetResolver(client, requestExecutor, crossProjectModeDecider);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(

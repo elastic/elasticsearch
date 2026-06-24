@@ -381,7 +381,7 @@ class DownsampleShardIndexer {
         private final TDigestHistogramFieldDownsampler[] tDigestHistogramDownsamplers;
         private final NumericMetricFieldDownsampler[] numericDownsamplers;
         // Aggregate counter and histogram downsamplers are dealt with separately because
-        // they additionally require timestamps.
+        // they additionally require timestamps when temporality is cumulative.
         private final NumericMetricFieldDownsampler.AggregateCounter[] aggregateCounterDownsamplers;
         private final ExponentialHistogramFieldDownsampler.AggregateHistogram[] aggregateHistogramDownsamplers;
         private long docsProcessed;

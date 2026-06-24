@@ -31,6 +31,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -675,8 +676,9 @@ public class CsvTestsDataLoader {
     }
 
     /**
-     * Waits until every loaded dataset is ready to be queried, combining two complementary checks because neither alone
-     * is sufficient across topologies:
+     * Waits until every loaded dataset is ready to be queried. This means two things, neither of which alone is
+     * sufficient across topologies: shard allocation has settled to green (on multi-node, where a copy may still be
+     * initializing) and a searchable copy actually answers a query. The two complementary checks are:
      * <ul>
      *   <li><b>Stateful multi-node</b>: a distributed LOOKUP JOIN (and any per-node shard request) can route to a
      *       replica copy that is still initializing. {@code createIndex} returns with only {@code wait_for_active_shards=1}
@@ -833,11 +835,19 @@ public class CsvTestsDataLoader {
         }
         // ES|QL RERANK/COMPLETION resolution (GetInferenceModelAction) searches the .inference system index, which
         // also routes only to searchable copies. A PUT /_inference returns once the document is indexed but before
-        // the .inference searchable copy is active, so resolution races with "all shards failed" → VerificationException
+        // the .inference searchable copy is active, so resolution races with a failing search → VerificationException
         // (fail-fast, no retry). Poll GET /_inference/<type>/<id> — the same action ES|QL analysis issues — until the
-        // searchable copy is ready. Mirrors InferenceBaseRestTest.initInferenceIndices() assertBusy pattern.
+        // searchable copy is ready. Unlike the _search probes (which see 503), this probe's transient signal is 500:
+        // GetInferenceModelAction wraps the underlying 503 search failure in a bare ElasticsearchException, whose
+        // status() defaults to 500 — hence INFERENCE_RETRY_STATUSES tolerates both 500 and 503.
+        // Mirrors InferenceBaseRestTest.initInferenceIndices() assertBusy pattern.
         for (InferenceConfig config : created) {
-            awaitSearchable(client, new Request("GET", "/_inference/" + config.type().name() + "/" + config.id()));
+            awaitSearchable(
+                client,
+                new Request("GET", "/_inference/" + config.type().name() + "/" + config.id()),
+                false,
+                INFERENCE_RETRY_STATUSES
+            );
         }
     }
 
@@ -1315,12 +1325,30 @@ public class CsvTestsDataLoader {
 
     private static final int AWAIT_SEARCHABLE_TIMEOUT_SECONDS = 60;
 
-    private static void awaitSearchable(RestClient client, Request probe) throws IOException {
-        awaitSearchable(client, probe, false);
+    // A _search against an index whose copy is not yet active surfaces as 503: NoShardAvailableActionException is
+    // SERVICE_UNAVAILABLE, and SearchPhaseExecutionException#status returns the 503 shard failure with precedence. A
+    // genuine 500 is a real error that we must NOT mask by retrying, so it fast-fails.
+    private static final Set<Integer> SEARCH_RETRY_STATUSES = Set.of(RestStatus.SERVICE_UNAVAILABLE.getStatus());
+
+    // GetInferenceModelAction wraps the underlying (503) .inference search failure in a bare ElasticsearchException
+    // (not an ElasticsearchWrapperException), whose status() defaults to 500 — so the inference probe's transient
+    // "not ready" signal is 500 (and may also be 503). Tolerate both, for this probe only.
+    private static final Set<Integer> INFERENCE_RETRY_STATUSES = Set.of(
+        RestStatus.INTERNAL_SERVER_ERROR.getStatus(),
+        RestStatus.SERVICE_UNAVAILABLE.getStatus()
+    );
+
+    /**
+     * Polls {@code probe} until it succeeds, retrying on the {@code _search}-probe transient statuses
+     * ({@link #SEARCH_RETRY_STATUSES}).
+     */
+    private static void awaitSearchable(RestClient client, Request probe, boolean requireMatchedShards) throws IOException {
+        awaitSearchable(client, probe, requireMatchedShards, SEARCH_RETRY_STATUSES);
     }
 
     /**
-     * Polls {@code probe} until it succeeds, retrying on HTTP 5xx responses that signal a transient shard-unavailability.
+     * Polls {@code probe} until it succeeds, retrying on the HTTP statuses in {@code retryableStatuses} (the transient
+     * "not ready yet" signals for that probe). Any other non-2xx status fast-fails so real errors are not masked.
      * <p>
      * In a stateless cluster ES|QL resolution (field-caps for indices, GetInferenceModelAction for inference endpoints)
      * routes only to searchable shard copies held by search nodes.  A just-created index or inference endpoint can be
@@ -1334,8 +1362,13 @@ public class CsvTestsDataLoader {
      *                             that return 200 while matching zero indices: a not-yet-visible backing index is then
      *                             retried rather than passed. Has no effect on non-{@code _search} probes (e.g.
      *                             {@code GET /_inference/...}), which carry no {@code _shards} and must pass {@code false}.
+     * @param retryableStatuses    the HTTP statuses treated as transient and retried. {@code _search} probes use
+     *                             {@link #SEARCH_RETRY_STATUSES} (503 only); the inference probe uses
+     *                             {@link #INFERENCE_RETRY_STATUSES} (500 and 503) because GetInferenceModelAction
+     *                             reports the unavailable-copy failure as 500.
      */
-    private static void awaitSearchable(RestClient client, Request probe, boolean requireMatchedShards) throws IOException {
+    private static void awaitSearchable(RestClient client, Request probe, boolean requireMatchedShards, Set<Integer> retryableStatuses)
+        throws IOException {
         try {
             ESTestCase.assertBusy(() -> {
                 Response response;
@@ -1359,9 +1392,9 @@ public class CsvTestsDataLoader {
                     }
                     return; // a (possibly warned) success means a searchable copy answered
                 }
-                if (status >= 500 && status <= 599) {
-                    // HTTP 5xx: transient shard unavailability (e.g. NoShardAvailableActionException → 503,
-                    // "all shards failed" → 500). Retry until the searchable copy is active.
+                if (retryableStatuses.contains(status)) {
+                    // Transient shard unavailability (e.g. NoShardAvailableActionException → 503 for _search, or the
+                    // 500 GetInferenceModelAction reports for the inference probe). Retry until the copy is active.
                     throw new AssertionError("[" + probe.getEndpoint() + "] not yet searchable (HTTP " + status + ")");
                 }
                 throw new IOException("unexpected response probing [" + probe.getEndpoint() + "]: HTTP " + status);

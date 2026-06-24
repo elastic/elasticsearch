@@ -122,7 +122,8 @@ public class BooleanFieldMapper extends FieldMapper {
             this.indexSettings = Objects.requireNonNull(indexSettings);
             this.docValuesParameters = DocValuesParameter.of(
                 defaultDocValuesParameters(indexSettings),
-                m -> toType(m).docValuesParameters()
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",

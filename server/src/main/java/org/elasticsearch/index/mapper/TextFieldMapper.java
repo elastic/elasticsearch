@@ -334,7 +334,11 @@ public final class TextFieldMapper extends FieldMapper {
                 boolean enabled = defaultDocValues.enabled()
                     && multiFieldsBuilder.hasColumnarModeCompatibleKeywordDelegate(indexSettings.getMode()) == false;
                 return new DocValuesParameter.Values(enabled, defaultDocValues.cardinality(), defaultDocValues.multiValue());
-            }, defaultDocValuesParameters(indexSettings), m -> ((TextFieldMapper) m).docValuesParameters);
+            },
+                defaultDocValuesParameters(indexSettings),
+                m -> ((TextFieldMapper) m).docValuesParameters,
+                indexSettings.getMode().isStrictColumnar()
+            );
             this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,

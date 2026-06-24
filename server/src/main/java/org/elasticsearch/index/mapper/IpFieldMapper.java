@@ -134,7 +134,8 @@ public class IpFieldMapper extends FieldMapper {
 
             this.docValuesParameters = DocValuesParameter.ofWithCardinality(
                 defaultDocValuesParameters(indexSettings),
-                m -> toType(m).docValuesParameters()
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
             );
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());

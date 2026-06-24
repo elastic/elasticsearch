@@ -1552,46 +1552,59 @@ public abstract class FieldMapper extends Mapper {
 
         public final Optional<Parameter<Values.Cardinality>> cardinalityParameter;
         public final Parameter<Boolean> multiValueParameter;
+        private final boolean isStrictColumnar;
 
         /**
          * Factory for field types that do not expose a user-configurable {@code cardinality} sub-parameter (numerics, dates, booleans, IP,
          * etc.).
          */
-        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(defaultValue, initializer, false);
+        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer, boolean isStrictColumnar) {
+            return new DocValuesParameter(defaultValue, initializer, false, isStrictColumnar);
         }
 
         /**
          * Factory for field types that expose a user-configurable {@code cardinality} sub-parameter (keyword family and text family).
          */
-        public static DocValuesParameter ofWithCardinality(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(defaultValue, initializer, true);
+        public static DocValuesParameter ofWithCardinality(
+            Values defaultValue,
+            Function<FieldMapper, Values> initializer,
+            boolean isStrictColumnar
+        ) {
+            return new DocValuesParameter(defaultValue, initializer, true, isStrictColumnar);
         }
 
         /**
-         * Variant of {@link #ofWithCardinality(Values, Function)} that computes the default value lazily so it can depend on sibling
+         * Variant of {@link #ofWithCardinality(Values, Function, boolean)} that computes the default value lazily so it can depend on sibling
          * multi-fields, which are only known after this parameter is constructed. The {@code subParameterDefaults} provides the
          * {@code cardinality} and {@code multi_value} sub-parameter defaults, which do not vary lazily.
          */
         public static DocValuesParameter ofWithCardinality(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer
+            Function<FieldMapper, Values> initializer,
+            boolean isStrictColumnar
         ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, true);
+            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, true, isStrictColumnar);
         }
 
-        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsCardinality) {
-            this(() -> defaultValue, defaultValue, initializer, supportsCardinality);
+        private DocValuesParameter(
+            Values defaultValue,
+            Function<FieldMapper, Values> initializer,
+            boolean supportsCardinality,
+            boolean isStrictColumnar
+        ) {
+            this(() -> defaultValue, defaultValue, initializer, supportsCardinality, isStrictColumnar);
         }
 
         private DocValuesParameter(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
             Function<FieldMapper, Values> initializer,
-            boolean supportsCardinality
+            boolean supportsCardinality,
+            boolean isStrictColumnar
         ) {
             super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
+            this.isStrictColumnar = isStrictColumnar;
 
             if (supportsCardinality) {
                 cardinalityParameter = Optional.of(
@@ -1636,9 +1649,7 @@ public abstract class FieldMapper extends Mapper {
             if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
                 cardinalityParameter.ifPresent(p -> p.parse(field, context, valueMap.get(p.name)));
                 if (valueMap.containsKey(multiValueParameter.name)) {
-                    Object multiValueObj = valueMap.get(multiValueParameter.name);
-                    boolean multiValue = XContentMapValues.nodeBooleanValue(multiValueObj, multiValueParameter.name);
-                    if (multiValue == false && context.getIndexSettings().getMode().isStrictColumnar() == false) {
+                    if (context.getIndexSettings().getMode().isStrictColumnar() == false) {
                         throw new MapperParsingException(
                             "field ["
                                 + field
@@ -1646,7 +1657,7 @@ public abstract class FieldMapper extends Mapper {
                                 + "this parameter is only available in columnar index modes (columnar, logsdb_columnar)"
                         );
                     }
-                    multiValueParameter.parse(field, context, multiValueObj);
+                    multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
                 }
 
                 setValue(
@@ -1696,7 +1707,7 @@ public abstract class FieldMapper extends Mapper {
                                 }
                             }
                         });
-                        if (includeDefaults || multiValueConfigured) {
+                        if (isStrictColumnar && (includeDefaults || multiValueConfigured)) {
                             builder.field(multiValueParameter.name, value.multiValue);
                         }
                         builder.endObject();

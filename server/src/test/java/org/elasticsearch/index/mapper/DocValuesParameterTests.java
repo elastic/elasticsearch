@@ -197,13 +197,15 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     public void testMultiValueRejectedInNonColumnarMode() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
-            )
-        );
-        assertThat(e.getMessage(), containsString("cannot configure [doc_values.multi_value]"));
-        assertThat(e.getMessage(), containsString("only available in columnar index modes"));
+        for (boolean multiValue : new boolean[] { false, true }) {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", multiValue).endObject())
+                )
+            );
+            assertThat(e.getMessage(), containsString("cannot configure [doc_values.multi_value]"));
+            assertThat(e.getMessage(), containsString("only available in columnar index modes"));
+        }
     }
 }

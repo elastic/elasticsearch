@@ -320,7 +320,8 @@ public final class DateFieldMapper extends FieldMapper {
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.docValuesParameters = DocValuesParameter.of(
                 defaultDocValuesParameters(indexSettings),
-                m -> toType(m).docValuesParameters()
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
             );
             this.ignoreMalformed = Parameter.boolParam(
                 "ignore_malformed",

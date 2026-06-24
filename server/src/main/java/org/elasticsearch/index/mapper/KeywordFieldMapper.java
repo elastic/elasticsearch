@@ -296,7 +296,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.docValuesParameters = DocValuesParameter.ofWithCardinality(
                 defaultDocValuesParameters(indexSettings),
-                m -> toType(m).docValuesParameters()
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
             );
 
             this.dimension = TimeSeriesParams.dimensionParam(

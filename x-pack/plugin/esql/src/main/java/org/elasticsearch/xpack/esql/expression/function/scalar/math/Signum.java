@@ -34,10 +34,12 @@ public class Signum extends UnaryScalarFunction {
         .unaryValueTransformation(Signum::new)
         .description("Returns the sign of the sample values: -1 for negative, 0 for zero, and 1 for positive values.")
         .example("sgn(delta(queue_depth[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("sgn");
 
     @FunctionInfo(
         returnType = { "double" },
+        briefSummary = "Returns the sign of the given number.",
         description = "Returns the sign of the given number.\n"
             + "It returns `-1` for negative numbers, `0` for `0` and `1` for positive numbers.",
         examples = @Example(file = "math", tag = "signum")

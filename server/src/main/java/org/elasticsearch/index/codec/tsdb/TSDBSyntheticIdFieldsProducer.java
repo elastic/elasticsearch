@@ -201,21 +201,45 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             return term();
         }
 
+        private static BytesRef extractTsid(BytesRef id, int tsidLength) {
+            // The synthetic id is Uid-encoded, possibly with a 0xfd escape prefix, so we need to skip that prefix
+            // when extracting the tsid. See TsidExtractingIdFieldMapper#writeSyntheticId
+            if (id.length == 0) {
+                return id;
+            }
+            final int firstByte = Byte.toUnsignedInt(id.bytes[id.offset]);
+            if (firstByte > Uid.BASE64_ESCAPE) {
+                // Synthetic terms never start with 0xFE or 0xFF — those bytes are escaped
+                // with 0xFD, so it's safe and correct to return END.
+                return null;
+            }
+            // A valid escaped synthetic _id is [0xFD, b, ...] where b >= 0xFD, because Uid#encodeBase64Id
+            // only prepends 0xFD when the decoded first byte (i.e., b) is >= 0xFD. If the second byte (b)
+            // is < 0xFD, this is not a valid escape, so we keep the 0xFD in the tsid lookup — so that the
+            // matching term will be [0xFD, 0xFD, b, ...] which is greater than [0xFD, b, ...]. We can't
+            // return END here to keep the seekCeil contract.
+            final int escapeBytes = firstByte == Uid.BASE64_ESCAPE
+                && (id.length > 1 && Byte.toUnsignedInt(id.bytes[id.offset + 1]) >= Uid.BASE64_ESCAPE) ? 1 : 0;
+            int len = id.length - escapeBytes;
+            if (len > Long.BYTES + Integer.BYTES) {
+                len -= (Long.BYTES + Integer.BYTES);
+            }
+            // expand the lookup tsid as close to the tsid length as possible
+            if (len < tsidLength) {
+                len = Math.min(id.length - escapeBytes, tsidLength);
+            }
+            return new BytesRef(id.bytes, id.offset + escapeBytes, len);
+        }
+
         @Override
         public SeekStatus seekCeil(BytesRef id) throws IOException {
             assert id != null;
-
-            int tsIdOrd;
-            if (id != null && id.length > Long.BYTES + Integer.BYTES) {
-                // Extract and lookup the _tsid
-                tsIdOrd = docValues.lookupTsIdTerm(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(id));
-            } else if (id != null) {
-                // Lookup whatever term `id` has been provided
-                tsIdOrd = docValues.lookupTsIdTerm(id);
-            } else {
-                tsIdOrd = -1;
+            BytesRef tsid = extractTsid(id, docValues.getTsidFixedLength());
+            if (tsid == null) {
+                resetDocID(DocIdSetIterator.NO_MORE_DOCS);
+                return SeekStatus.END;
             }
-
+            int tsIdOrd = docValues.lookupTsIdTerm(tsid);
             // _tsid not found
             if (tsIdOrd < 0) {
                 tsIdOrd = -tsIdOrd - 1;

@@ -32,7 +32,7 @@ import java.util.Objects;
  * This is a surrogate logical plan that encapsulates a PromQL function invocation
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
-public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
+public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate, HistogramQuantile,
     ScalarConversionFunction, WithinSeriesAggregate, ValueTransformationFunction, VectorConversionFunction {
     // implements TelemetryAware {
 
@@ -113,7 +113,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
             // PromQL accepts any numeric range vector. ES|QL distinguishes counter from gauge types
             // internally, so plain numerics are wrapped with to_counter() for counter-required
             // functions and counter metrics are wrapped with to_gauge() for gauge-only functions.
-            if (target != null && target.resolved()) {
+            if (target != null && target.resolved() && target.dataType().isHistogram() == false) {
                 var counterSupport = definition.counterSupport();
                 if (counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED && DataType.isCounter(target.dataType()) == false) {
                     target = new ToCounter(source(), target);

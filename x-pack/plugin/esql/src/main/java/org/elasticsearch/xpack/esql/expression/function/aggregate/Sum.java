@@ -62,6 +62,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
         .acrossSeries(Sum::new)
         .description("Calculates the sum of the values across the input vector.")
         .example("sum(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("sum");
 
     public static final TransportVersion ESQL_SUM_LONG_OVERFLOW_FIX = TransportVersion.fromName("esql_sum_long_overflow_fix");
@@ -93,6 +94,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     @FunctionInfo(
         returnType = { "long", "double", "dense_vector" },
+        briefSummary = "Returns the sum of a numeric expression.",
         description = "The sum of a numeric expression.",
         type = FunctionType.AGGREGATE,
         examples = {

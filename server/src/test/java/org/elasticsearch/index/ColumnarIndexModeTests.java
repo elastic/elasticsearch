@@ -46,8 +46,8 @@ public class ColumnarIndexModeTests extends ESTestCase {
     public void testColumnarSerializationFailsOnOlderTransportVersion() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(TransportVersionUtils.getPreviousVersion(IndexMode.COLUMNAR_INDEX_MODES_ADDED));
-            IOException e = expectThrows(IOException.class, () -> IndexMode.writeTo(IndexMode.COLUMNAR, out));
-            assertThat(e.getMessage(), containsString("cannot serialize index mode [columnar]"));
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> IndexMode.writeTo(IndexMode.COLUMNAR, out));
+            assertThat(e.getMessage(), containsString("[columnar] doesn't support serialization with transport version"));
         }
     }
 
@@ -87,10 +87,7 @@ public class ColumnarIndexModeTests extends ESTestCase {
     }
 
     public void testIndexDisabledByDefault() {
-        assumeTrue(
-            "index_disabled_by_default feature flag must be enabled",
-            IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()
-        );
+        assumeTrue("columnar feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = IndexSettingsTests.newIndexMeta(
             "test",
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()

@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.mrjar'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.transport-version-references'
@@ -55,6 +56,13 @@ tasks.named('checkstyleMain').configure {
 tasks.named("test").configure {
   // Needed for Arrow tests
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Bulk aggregation wraps off-heap Arrow buffers as MemorySegments (MemorySegment.reinterpret is a
+  // restricted native-access method). Production grants this via the load_native_libraries entitlement.
+  jvmArgs('--enable-native-access=ALL-UNNAMED')
+  // Run Arrow-using tests under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf fails deterministically with a stack trace at the offending allocation.
+  // Only affects tests that actually create an Arrow allocator; others are unchanged.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
 }
 
 tasks.named("spotlessJava") { dependsOn "stringTemplates" }
@@ -1003,9 +1011,9 @@ tasks.named('stringTemplates').configure {
     }
   }
   // TOP when the sort field and the output field can be *different* fields
-  [intProperties, longProperties, floatProperties, doubleProperties].forEach { props1 ->
+  [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props1 ->
     {
-      [intProperties, longProperties, floatProperties, doubleProperties].forEach { props2 ->
+      [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props2 ->
         {
           template {
             it.properties = propWithExtra(props1, props2, "OutputField")
@@ -1154,7 +1162,7 @@ tasks.named('stringTemplates').configure {
   }
 
   File bucketedSortInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/sort/X-BucketedSort.java.st")
-  [intProperties, longProperties, floatProperties, doubleProperties].forEach { props ->
+  [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props ->
     {
       template {
         it.properties = propWithoutExtra(props, "Extra")
@@ -1164,9 +1172,9 @@ tasks.named('stringTemplates').configure {
     }
   }
   // TOP when the sort field and the output field can be *different* fields
-  [intProperties, longProperties, floatProperties, doubleProperties].forEach { props1 ->
+  [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props1 ->
     {
-      [intProperties, longProperties, floatProperties, doubleProperties].forEach { props2 ->
+      [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props2 ->
         {
           template {
             it.properties = propWithExtra(props1, props2, "Extra")

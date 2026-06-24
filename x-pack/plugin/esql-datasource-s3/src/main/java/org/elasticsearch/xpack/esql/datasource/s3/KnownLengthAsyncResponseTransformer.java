@@ -12,12 +12,15 @@ import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 
 import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An {@link AsyncResponseTransformer} that accumulates the response body into a single, pre-sized
@@ -46,27 +49,39 @@ import java.util.concurrent.CompletableFuture;
  * {@code onNext(ByteBuffer)} chunk directly into the destination at the running offset. That
  * collapses three SDK-internal copies into a single chunk-to-direct-buffer copy.
  *
- * <p><b>Synchronization:</b> the {@link AsyncResponseTransformer} contract guarantees that no two
- * methods on this class or on its {@link Subscriber} are invoked concurrently, so no locking is
- * required.
+ * <p><b>Synchronization:</b> Reactive Streams serializes the {@link Subscriber}'s own signals, but
+ * {@link #exceptionOccurred} is a transformer-level callback outside that ordering and can race the
+ * terminal subscriber signal (e.g. the SDK drops the publisher on a transport error). The shared
+ * destination buffer is therefore an {@link AtomicReference} and the terminal-state fields {@code volatile}.
  *
  * <p><b>Retries:</b> the SDK calls {@link #prepare()} again on each retry, so a fresh destination
  * buffer is allocated for every attempt. Stale state from a previous attempt is not reused.
  *
  * @param <R> the unmarshalled SDK response type (e.g. {@code GetObjectResponse}).
  */
-final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implements AsyncResponseTransformer<R, ByteBuffer> {
+final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implements AsyncResponseTransformer<R, DirectReadBuffer> {
 
     private final int expectedLength;
+    private final DirectBufferFactory factory;
 
     private volatile R response;
-    private volatile CompletableFuture<ByteBuffer> resultFuture;
+    private volatile CompletableFuture<DirectReadBuffer> resultFuture;
+    // Kept so exceptionOccurred() can release the buffer even if the subscriber's onError
+    // is never delivered (e.g. SDK abandons the publisher after a transport error).
+    private volatile ChunkCopyingSubscriber currentSubscriber;
 
-    KnownLengthAsyncResponseTransformer(int expectedLength) {
+    /**
+     * @param expectedLength exact length of the response body in bytes
+     * @param factory factory from which the destination {@link DirectReadBuffer} is obtained; the
+     *     returned buffer is charged against the underlying allocator until {@link DirectReadBuffer#close()}
+     *     is called by the caller
+     */
+    KnownLengthAsyncResponseTransformer(int expectedLength, DirectBufferFactory factory) {
         if (expectedLength < 0) {
             throw new IllegalArgumentException("expectedLength must be non-negative, got: " + expectedLength);
         }
         this.expectedLength = expectedLength;
+        this.factory = factory;
     }
 
     /**
@@ -85,10 +100,10 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
     }
 
     @Override
-    public CompletableFuture<ByteBuffer> prepare() {
+    public CompletableFuture<DirectReadBuffer> prepare() {
         // Allocated lazily here (not in the constructor) because prepare() is invoked again on each
         // retry; the previous attempt's buffer, if any, must be discarded.
-        CompletableFuture<ByteBuffer> bufferFuture = new CompletableFuture<>();
+        CompletableFuture<DirectReadBuffer> bufferFuture = new CompletableFuture<>();
         this.resultFuture = bufferFuture;
         return bufferFuture;
     }
@@ -100,12 +115,25 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     @Override
     public void onStream(SdkPublisher<ByteBuffer> publisher) {
-        publisher.subscribe(new ChunkCopyingSubscriber(resultFuture, expectedLength));
+        ChunkCopyingSubscriber subscriber = new ChunkCopyingSubscriber(resultFuture, expectedLength, factory);
+        this.currentSubscriber = subscriber;
+        publisher.subscribe(subscriber);
     }
 
     @Override
     public void exceptionOccurred(Throwable error) {
-        CompletableFuture<ByteBuffer> f = resultFuture;
+        // Release the buffer if it was allocated in onSubscribe but onError was never
+        // delivered to the subscriber (e.g. SDK abandons the publisher after a transport
+        // error). releaseOnFailure() is idempotent — if onError already fired it is a no-op.
+        ChunkCopyingSubscriber subscriber = currentSubscriber;
+        if (subscriber != null) {
+            // Mark failed before releasing so any in-flight onNext that slips past the
+            // AWS SDK's cancellation guarantee sees the flag and returns early instead of
+            // writing into the already-released buffer.
+            subscriber.failed = true;
+            subscriber.releaseOnFailure();
+        }
+        CompletableFuture<DirectReadBuffer> f = resultFuture;
         if (f != null) {
             f.completeExceptionally(error);
         }
@@ -118,19 +146,24 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
      * response body) or falls short of it on completion.
      */
     private static final class ChunkCopyingSubscriber implements Subscriber<ByteBuffer> {
-        private final CompletableFuture<ByteBuffer> resultFuture;
+        private final CompletableFuture<DirectReadBuffer> resultFuture;
         private final int expectedLength;
+        private final DirectBufferFactory factory;
         // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
         // guarantees serial signals with happens-before, but making the visibility explicit avoids
         // depending on each publisher implementation honoring that subtlety correctly.
+        // destinationBuf uses AtomicReference so releaseOnFailure() is safe when called
+        // concurrently from exceptionOccurred() on the transformer and onError() on the subscriber.
+        private final AtomicReference<DirectReadBuffer> destinationBuf = new AtomicReference<>();
         private volatile ByteBuffer destination;
         private int offset;
         private volatile Subscription subscription;
         private volatile boolean failed;
 
-        ChunkCopyingSubscriber(CompletableFuture<ByteBuffer> resultFuture, int expectedLength) {
+        ChunkCopyingSubscriber(CompletableFuture<DirectReadBuffer> resultFuture, int expectedLength, DirectBufferFactory factory) {
             this.resultFuture = resultFuture;
             this.expectedLength = expectedLength;
+            this.factory = factory;
         }
 
         @Override
@@ -141,17 +174,34 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             this.subscription = s;
-            // Allocate here (rather than the constructor) so a direct-memory OOM is routed through
-            // the result future instead of escaping publisher.subscribe(...) as an Error.
+            // Allocate here (rather than the constructor) so an allocator OOM/breaker trip is
+            // routed through the result future instead of escaping publisher.subscribe(...) as
+            // an Error.
             try {
-                this.destination = ByteBuffer.allocateDirect(expectedLength);
-            } catch (OutOfMemoryError e) {
+                DirectReadBuffer drb = factory.allocate(expectedLength);
+                this.destinationBuf.set(drb);
+                this.destination = drb.buffer();
+                // Guard against exceptionOccurred racing the window between allocate() and set()
+                // above: if it fired first it saw null in destinationBuf and could not release,
+                // so we must release now if the future was already completed exceptionally.
+                if (resultFuture.isDone()) {
+                    releaseOnFailure();
+                    return;
+                }
+            } catch (Exception e) {
                 failed = true;
+                releaseOnFailure();
                 s.cancel();
-                resultFuture.completeExceptionally(new IOException("failed to allocate " + expectedLength + " bytes of direct memory", e));
+                resultFuture.completeExceptionally(e);
                 return;
             }
-            s.request(Long.MAX_VALUE);
+            try {
+                s.request(Long.MAX_VALUE);
+            } catch (RuntimeException e) {
+                failed = true;
+                releaseOnFailure();
+                resultFuture.completeExceptionally(e);
+            }
         }
 
         @Override
@@ -172,6 +222,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                         + destination.capacity()
                 );
                 subscription.cancel();
+                releaseOnFailure();
                 resultFuture.completeExceptionally(error);
                 return;
             }
@@ -185,6 +236,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             failed = true;
+            releaseOnFailure();
             resultFuture.completeExceptionally(error);
         }
 
@@ -194,13 +246,33 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             if (offset != destination.capacity()) {
+                int capacity = destination.capacity();
+                failed = true;
+                releaseOnFailure();
                 resultFuture.completeExceptionally(
-                    new IOException("S3 response body shorter than expected: received=" + offset + ", expected=" + destination.capacity())
+                    new IOException("S3 response body shorter than expected: received=" + offset + ", expected=" + capacity)
                 );
                 return;
             }
             destination.position(0).limit(offset);
-            resultFuture.complete(destination);
+            // Transfer ownership of the buffer to the caller; getAndSet(null) ensures any
+            // concurrent releaseOnFailure (e.g. exceptionOccurred) sees null and does not
+            // double-close. The destination ByteBuffer's position/limit set above is observable
+            // through drb.buffer() since they share the same NIO view.
+            DirectReadBuffer transferred = destinationBuf.getAndSet(null);
+            // If exceptionOccurred raced ahead and already failed the future, complete() returns false and we
+            // hold the buffer's only reference — release it rather than orphan its memory. A null transferred
+            // means releaseOnFailure won that race and already failed the future, so there is nothing to do.
+            if (transferred != null && resultFuture.complete(transferred) == false) {
+                transferred.close();
+            }
+        }
+
+        void releaseOnFailure() {
+            DirectReadBuffer drb = destinationBuf.getAndSet(null);
+            if (drb != null) {
+                drb.close();
+            }
         }
     }
 

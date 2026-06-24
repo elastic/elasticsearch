@@ -10,13 +10,28 @@ package org.elasticsearch.xpack.inference.common.parser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSettingErrorMsg;
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeNonEmptyString;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
 
 public final class StringParser {
+
+    /**
+     * Validates that a required string service setting is present and not empty, throwing an {@link IllegalArgumentException} otherwise.
+     */
+    public static void validateStringIsNotNullOrEmpty(@Nullable String value, String settingName) {
+        if (value == null) {
+            throw new IllegalArgumentException(missingSettingErrorMsg(settingName, ModelConfigurations.SERVICE_SETTINGS));
+        }
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException(mustBeNonEmptyString(settingName, ModelConfigurations.SERVICE_SETTINGS));
+        }
+    }
 
     public static List<String> extractStringList(
         Map<String, Object> map,

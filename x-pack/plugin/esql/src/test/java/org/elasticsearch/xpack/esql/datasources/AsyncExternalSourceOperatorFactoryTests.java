@@ -33,6 +33,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -60,6 +63,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -75,6 +79,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testConstructorValidation() {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         StoragePath path = StoragePath.of("file:///test.csv");
         List<Attribute> attributes = List.of(
             new FieldAttribute(
@@ -141,6 +146,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testDescribeSyncWrapperMode() {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         when(formatReader.formatName()).thenReturn("csv");
         when(formatReader.supportsNativeAsync()).thenReturn(false);
 
@@ -176,6 +182,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testDescribeNativeAsyncMode() {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         when(formatReader.formatName()).thenReturn("parquet");
         when(formatReader.supportsNativeAsync()).thenReturn(true);
 
@@ -209,6 +216,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testAccessors() {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         when(formatReader.formatName()).thenReturn("csv");
 
         StoragePath path = StoragePath.of("file:///test.csv");
@@ -542,6 +550,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         when(formatReader.formatName()).thenReturn("parquet");
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
@@ -745,6 +754,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         when(formatReader.formatName()).thenReturn("parquet");
 
         AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
@@ -2317,7 +2327,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
         byte[] payload = "{\"a\":1}\n".repeat(20).getBytes(StandardCharsets.UTF_8);
-        assertNull(factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT, false, true, null));
+        assertNull(
+            factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT, false, true, null, 0L, null)
+        );
     }
 
     public void testOpenWithParallelismGzipCompressedReturnsIterator() throws IOException {
@@ -2339,6 +2351,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 false,
                 true,
+                null,
+                0L,
                 null
             );
             assertNotNull(iterator);
@@ -2368,7 +2382,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         IOException thrown = expectThrows(
             IOException.class,
-            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, null)
+            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, null, 0L, null)
         );
         assertEquals("decompress failed", thrown.getMessage());
         assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
@@ -2392,6 +2406,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 false,
                 true,
+                null,
+                0L,
                 null
             );
             assertNotNull(iterator);
@@ -2453,29 +2469,20 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
     private static SegmentableFormatReader mockInnerForParallelDescribeAndOpen() throws IOException {
         SegmentableFormatReader inner = mock(SegmentableFormatReader.class);
+        when(inner.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         when(inner.minimumSegmentSize()).thenReturn(1024L);
         when(inner.formatName()).thenReturn("ndjson");
         when(inner.supportsNativeAsync()).thenReturn(false);
         when(inner.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
         when(inner.metadata(any())).thenReturn(null);
         when(inner.read(any(), any())).thenReturn(emptyPageIterator());
-        when(inner.findNextRecordBoundary(any())).thenAnswer(invocation -> {
-            InputStream in = invocation.getArgument(0);
-            long consumed = 0;
-            int b;
-            while ((b = in.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1L;
-        });
+        when(inner.recordSplitter(anyInt())).thenAnswer(invocation -> TestRecordSplitters.newlineSplitter(invocation.getArgument(0)));
         return inner;
     }
 
     private static FormatReader dummyFormatReaderForOpenParallelismTests() {
         FormatReader dummyReader = mock(FormatReader.class);
+        when(dummyReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         when(dummyReader.formatName()).thenReturn("dummy");
         when(dummyReader.supportsNativeAsync()).thenReturn(false);
         when(dummyReader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
@@ -2630,6 +2637,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * assert that every opened iterator is closed exactly once.
      */
     private static class TrackingReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final AtomicInteger readCount;
         private final AtomicInteger closeCount;
@@ -2711,6 +2722,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class PageCountingFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final AtomicInteger readCount;
 
@@ -2764,6 +2779,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class FailOnSecondFileFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final AtomicInteger callCount = new AtomicInteger(0);
 
@@ -2892,6 +2911,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Test sync format reader that returns empty pages.
      */
     private static class TestSyncFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -2927,6 +2950,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Used to verify that RangeStorageObject wrapping and skipFirstLine logic are correct.
      */
     private static class SplitCapturingFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
@@ -2990,21 +3017,17 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that implements SegmentableFormatReader, NoConfigFormatReader and tracks which methods are called.
      */
     private static class TrackingSegmentableFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         final AtomicInteger readCount = new AtomicInteger(0);
         final AtomicInteger readWithFirstSplitFalseCount = new AtomicInteger(0);
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            byte[] buf = new byte[1];
-            int total = 0;
-            while (stream.read(buf) > 0) {
-                total++;
-                if (buf[0] == '\n') {
-                    return total;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -3166,6 +3189,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that always throws on read, for testing error handling.
      */
     private static class AlwaysFailFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -3195,6 +3222,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that returns multiple pages per read, for testing backpressure.
      */
     private static class MultiPageFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final AtomicInteger readCount;
         private final int pagesPerRead;
@@ -3256,6 +3287,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * then throws an IOException on the (N+1)th read. Used to test error-path cleanup.
      */
     private static class FailAfterNReadsFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final AtomicInteger readCount;
         private final int failAfter;
@@ -3313,6 +3348,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class TestAsyncFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {

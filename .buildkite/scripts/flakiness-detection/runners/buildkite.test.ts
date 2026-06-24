@@ -1,12 +1,15 @@
-import { describe, expect, test } from "bun:test";
-import { toBuildkitePipeline } from "./buildkite";
-import { buildCommands } from "../commands";
-import {
+import { describe, expect, test } from "vitest";
+import { toBuildkitePipeline } from "./buildkite.ts";
+import { buildCommands } from "../commands.ts";
+import type {
   ClassifiedTest,
+  RunnableCommand,
+} from "../domain.ts";
+
+import {
   DEFAULT_AGENT_CONFIG,
   DEFAULT_BATCHING_CONFIG,
-  RunnableCommand,
-} from "../domain";
+} from "../domain.ts";
 
 function pipelineFromTests(tests: ClassifiedTest[]) {
   return toBuildkitePipeline(
@@ -40,6 +43,8 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(step.timeout_in_minutes).toBe(60);
     expect(step.agents.provider).toBe("gcp");
     expect(step.agents.machineType).toBe("n4-custom-32-98304");
+    // Smart retry must stay off for flakiness steps even if wrapNeverFail is removed.
+    expect(step.retry).toEqual({ automatic: false });
   });
 
   test("multiple batches use parallelism with env dispatch", () => {
@@ -87,6 +92,9 @@ describe("toBuildkitePipeline end-to-end", () => {
     const analyze = group.steps[1];
     expect(analyze.key).toBe("flakiness-detection:analyze");
     expect(analyze.depends_on).toEqual([{ step: "flakiness-detection:java-rest", allow_failure: true }]);
+    // Both batch and analyze steps opt out of automatic (smart) retries.
+    expect(step.retry).toEqual({ automatic: false });
+    expect(analyze.retry).toEqual({ automatic: false });
   });
 
   test("dispatches default unit-test batches in parallel", () => {
@@ -203,11 +211,10 @@ describe("toBuildkitePipeline", () => {
     // No agents override — analyze inherits the parent pipeline's default
     // (which has npm). The gradle-tuned cfg.agents image does not.
     expect(analyze.agents).toBeUndefined();
-    expect(analyze.command).toContain("npm install -g bun@");
     expect(analyze.command).toContain(
       'buildkite-agent artifact download "**/build/test-results/**/TEST-*.xml" .'
     );
-    expect(analyze.command).toContain("bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
+    expect(analyze.command).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
     // Order: bun install → download → analyzer.
     const installIdx = analyze.command.indexOf("npm install");
     const downloadIdx = analyze.command.indexOf("artifact download");

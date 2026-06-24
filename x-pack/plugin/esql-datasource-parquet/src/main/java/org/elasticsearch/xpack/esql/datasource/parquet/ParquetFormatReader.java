@@ -61,8 +61,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -777,6 +779,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     @Override
+    public RowPositionStrategy rowPositionStrategy() {
+        // The parquet-mr iterator fills the {@code _rowPosition} slot natively from the file-global
+        // row index it tracks through the row-group page reader.
+        return PassThroughRowPositionStrategy.INSTANCE;
+    }
+
+    @Override
     public void close() throws IOException {
         // No resources to close at the reader level
     }
@@ -1158,106 +1167,177 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (predicateColumnPaths != null) {
             counters.addPredicateColumns(predicateColumnPaths);
         }
-        PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, storageObject, predicateColumnPaths);
-        adapter.installPreWarmedChunks(preloadedMetadata.preWarmedChunks());
 
-        List<BlockMetaData> blocks;
-        boolean[] survivingRowGroups;
-        try {
-            blocks = reader.getRowGroups();
-            survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema, counters);
-        } finally {
-            // Detach the pre-warmed chunks from the adapter so subsequent reads on any
-            // WindowedSeekableInputStream skip the cache lookup. The ByteBuffers themselves remain
-            // reachable via preloadedMetadata for the iterator's lifetime, but the data path uses
-            // the async ColumnChunkPrefetcher rather than the sliding-window stream, so they have
-            // no further reader.
-            adapter.installPreWarmedChunks(null);
-        }
-
-        RowRanges[] allRowRanges = null;
-        if (filterPredicate != null) {
-            counters.markPageIndexUsed();
-            allRowRanges = new RowRanges[blocks.size()];
-            long rowsInKept = 0;
-            long rowsAfter = 0;
-            for (int i = 0; i < blocks.size(); i++) {
-                // Row groups dropped by stats/dictionary/bloom filters will never be opened by
-                // the iterator, so there is no need to compute their column-index row ranges.
-                if (survivingRowGroups != null && survivingRowGroups[i] == false) {
-                    continue;
-                }
-                long rgRows = blocks.get(i).getRowCount();
-                rowsInKept += rgRows;
-                allRowRanges[i] = ColumnIndexRowRangesComputer.compute(filterPredicate, preloadedMetadata, i, rgRows);
-                rowsAfter += allRowRanges[i] != null ? allRowRanges[i].selectedRowCount() : rgRows;
-            }
-            counters.addPageIndexRows(rowsInKept, rowsAfter);
-        }
-
-        // The iterator owns the late-mat decision: it gates on the structural prerequisite
-        // hasProjectionOnlyColumns (nothing to defer-decode otherwise) and gates the more expensive
-        // two-phase prefetch on its own predicate-byte-ratio threshold (see
-        // {@link OptimizedParquetColumnIterator#shouldUseTwoPhase} /
-        // {@link OptimizedParquetColumnIterator#TWO_PHASE_PREDICATE_BYTE_RATIO_THRESHOLD}). A second
-        // file-level byte-ratio gate here was a leftover from the Pushability.RECHECK era when every
-        // surviving row paid the predicate cost twice (once in late-mat, once again in FilterExec).
-        // With WildcardLike now pushed as Pushability.YES, FilterExec is dropped for that conjunct,
-        // so suppressing late-mat at the file level would leak unfiltered rows past the source.
-        ParquetPushedExpressions effectivePushed = lateMaterializationEnabled ? pushedExpressions : null;
-        if (effectivePushed != null) {
-            counters.markLateMaterializationUsed();
-        }
-
-        // Reuse the FilterPredicate already resolved at the file level so the trivially-passes
-        // guard sees the same predicate that drove row-group pruning and column-index RowRanges.
-        // Only pass it through when late materialization is actually active; otherwise the
-        // iterator has no use for it.
-        //
-        // Additionally suppress the predicate when any YES conjunct in pushedExpressions did not
-        // translate to a FilterPredicate (today: WildcardLike/Not(WildcardLike) AND'd with a
-        // translatable conjunct). The trivially-passes shortcut would bypass the late-mat
-        // evaluator on the strength of the FilterPredicate alone, but the missing YES conjunct
-        // is no longer in FilterExec to catch the over-inclusion — so dropping the guard here
-        // would silently leak rows that don't match the YES conjunct (e.g. URL LIKE "x*" rows
-        // outside the prefix when AND'd with a stats-trivial status = 200).
-        //
-        // DO NOT REMOVE the hasYesConjunctOutsideFilterPredicate check — it is load-bearing for
-        // correctness of YES-pushed predicates that have no parquet-FilterPredicate translation.
-        // The integration regression test
-        // OptimizedFilteredReaderTests.testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak
-        // and the unit tests in ParquetPushedExpressionsTests cover this contract.
-        MessageType fileSchema = reader.getFileMetaData().getSchema();
-        FilterPredicate triviallyPassesPredicate = effectivePushed != null
-            && filterPredicate != null
-            && (pushedExpressions == null || pushedExpressions.hasYesConjunctOutsideFilterPredicate(fileSchema) == false)
-                ? filterPredicate
-                : null;
-
-        return new OptimizedParquetColumnIterator(
-            reader,
-            projectedSchema,
-            projectedAttributes,
-            batchSize,
-            blockFactory,
-            rowLimit,
-            createdBy,
-            storageObject.path().toString(),
-            columnInfos,
-            preloadedMetadata,
-            storageObject,
-            allRowRanges,
-            survivingRowGroups,
-            rowGroupFirstRowGlobalOverride,
-            codecFactory,
-            effectivePushed,
-            triviallyPassesPredicate,
-            this,
-            fullFooter,
-            dynamicThreshold,
-            resolveDynamicThresholdColumn(fileSchema, dynamicThreshold),
-            counters
+        // Gate ColumnIndex/OffsetIndex prefetch to the columns a plan actually consumes (see
+        // computeIndexColumnPaths). A full scan with no filter and no threshold consumes none of
+        // them, so this emits zero index ranges.
+        IndexColumnPaths indexColumnPaths = computeIndexColumnPaths(
+            FilterCompat.isFilteringRequired(recordFilter),
+            filterPredicate != null,
+            predicateColumnPaths,
+            dynamicThreshold != null ? dynamicThreshold.columnName() : null,
+            projectedSchema
         );
+
+        PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            indexColumnPaths.columnIndexPaths(),
+            indexColumnPaths.offsetIndexPaths(),
+            blockFactory.arrowAllocator()
+        );
+        boolean metadataHandedOff = false;
+        try {
+            adapter.installPreWarmedChunks(preloadedMetadata.preWarmedChunks());
+
+            List<BlockMetaData> blocks;
+            boolean[] survivingRowGroups;
+            try {
+                blocks = reader.getRowGroups();
+                survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema, counters);
+            } finally {
+                // Detach the pre-warmed chunks from the adapter so subsequent reads on any
+                // WindowedSeekableInputStream skip the cache lookup. The ByteBuffers themselves remain
+                // reachable via preloadedMetadata for the iterator's lifetime, but the data path uses
+                // the async ColumnChunkPrefetcher rather than the sliding-window stream, so they have
+                // no further reader.
+                adapter.installPreWarmedChunks(null);
+            }
+
+            RowRanges[] allRowRanges = null;
+            if (filterPredicate != null) {
+                counters.markPageIndexUsed();
+                allRowRanges = new RowRanges[blocks.size()];
+                long rowsInKept = 0;
+                long rowsAfter = 0;
+                for (int i = 0; i < blocks.size(); i++) {
+                    // Row groups dropped by stats/dictionary/bloom filters will never be opened by
+                    // the iterator, so there is no need to compute their column-index row ranges.
+                    if (survivingRowGroups != null && survivingRowGroups[i] == false) {
+                        continue;
+                    }
+                    long rgRows = blocks.get(i).getRowCount();
+                    rowsInKept += rgRows;
+                    allRowRanges[i] = ColumnIndexRowRangesComputer.compute(filterPredicate, preloadedMetadata, i, rgRows);
+                    rowsAfter += allRowRanges[i] != null ? allRowRanges[i].selectedRowCount() : rgRows;
+                }
+                counters.addPageIndexRows(rowsInKept, rowsAfter);
+            }
+
+            // The iterator owns the late-mat decision: it gates on the structural prerequisite
+            // hasProjectionOnlyColumns (nothing to defer-decode otherwise) and gates the more expensive
+            // two-phase prefetch on its own predicate-byte-ratio threshold (see
+            // {@link OptimizedParquetColumnIterator#shouldUseTwoPhase} /
+            // {@link OptimizedParquetColumnIterator#TWO_PHASE_PREDICATE_BYTE_RATIO_THRESHOLD}). A second
+            // file-level byte-ratio gate here was a leftover from the Pushability.RECHECK era when every
+            // surviving row paid the predicate cost twice (once in late-mat, once again in FilterExec).
+            // With WildcardLike now pushed as Pushability.YES, FilterExec is dropped for that conjunct,
+            // so suppressing late-mat at the file level would leak unfiltered rows past the source.
+            ParquetPushedExpressions effectivePushed = lateMaterializationEnabled ? pushedExpressions : null;
+            if (effectivePushed != null) {
+                counters.markLateMaterializationUsed();
+            }
+
+            // Reuse the FilterPredicate already resolved at the file level so the trivially-passes
+            // guard sees the same predicate that drove row-group pruning and column-index RowRanges.
+            // Only pass it through when late materialization is actually active; otherwise the
+            // iterator has no use for it.
+            //
+            // Additionally suppress the predicate when any YES conjunct in pushedExpressions did not
+            // translate to a FilterPredicate (today: WildcardLike/Not(WildcardLike) AND'd with a
+            // translatable conjunct). The trivially-passes shortcut would bypass the late-mat
+            // evaluator on the strength of the FilterPredicate alone, but the missing YES conjunct
+            // is no longer in FilterExec to catch the over-inclusion — so dropping the guard here
+            // would silently leak rows that don't match the YES conjunct (e.g. URL LIKE "x*" rows
+            // outside the prefix when AND'd with a stats-trivial status = 200).
+            //
+            // DO NOT REMOVE the hasYesConjunctOutsideFilterPredicate check — it is load-bearing for
+            // correctness of YES-pushed predicates that have no parquet-FilterPredicate translation.
+            // The integration regression test
+            // OptimizedFilteredReaderTests.testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak
+            // and the unit tests in ParquetPushedExpressionsTests cover this contract.
+            MessageType fileSchema = reader.getFileMetaData().getSchema();
+            FilterPredicate triviallyPassesPredicate = effectivePushed != null
+                && filterPredicate != null
+                && (pushedExpressions == null || pushedExpressions.hasYesConjunctOutsideFilterPredicate(fileSchema) == false)
+                    ? filterPredicate
+                    : null;
+
+            OptimizedParquetColumnIterator iterator = new OptimizedParquetColumnIterator(
+                reader,
+                projectedSchema,
+                projectedAttributes,
+                batchSize,
+                blockFactory,
+                rowLimit,
+                createdBy,
+                storageObject.path().toString(),
+                columnInfos,
+                preloadedMetadata,
+                storageObject,
+                allRowRanges,
+                survivingRowGroups,
+                rowGroupFirstRowGlobalOverride,
+                codecFactory,
+                effectivePushed,
+                triviallyPassesPredicate,
+                this,
+                fullFooter,
+                dynamicThreshold,
+                resolveDynamicThresholdColumn(fileSchema, dynamicThreshold),
+                counters
+            );
+            // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
+            // construction so that a throw inside the constructor does not suppress cleanup.
+            metadataHandedOff = true;
+            return iterator;
+        } finally {
+            if (metadataHandedOff == false) {
+                preloadedMetadata.close();
+            }
+        }
+    }
+
+    /**
+     * The dot-string column paths whose ColumnIndex / OffsetIndex should be prefetched. A
+     * {@code null} set means "unrestricted" — fetch the index for every column (legacy behavior).
+     */
+    record IndexColumnPaths(Set<String> columnIndexPaths, Set<String> offsetIndexPaths) {}
+
+    /**
+     * Restricts page-index prefetch to the columns a plan actually consumes, so a full scan does not
+     * pay for ColumnIndex/OffsetIndex bytes nothing reads. Index ranges are only used when a Parquet
+     * {@link FilterPredicate} drives {@code RowRanges} ({@code pageRangeFilterActive}) or for the
+     * dynamic-threshold sort column. Returns {@code null} sets (unrestricted, legacy behavior) when a
+     * filter is active but its predicate columns can't be enumerated ({@code predicateColumnPaths == null}).
+     */
+    static IndexColumnPaths computeIndexColumnPaths(
+        boolean filteringRequired,
+        boolean pageRangeFilterActive,
+        Set<String> predicateColumnPaths,
+        String thresholdColumn,
+        MessageType projectedSchema
+    ) {
+        if (filteringRequired && predicateColumnPaths == null) {
+            return new IndexColumnPaths(null, null);
+        }
+        Set<String> columnIndexPaths = new HashSet<>();
+        Set<String> offsetIndexPaths = new HashSet<>();
+        if (pageRangeFilterActive && predicateColumnPaths != null) {
+            columnIndexPaths.addAll(predicateColumnPaths);
+            offsetIndexPaths.addAll(predicateColumnPaths);
+        }
+        if (thresholdColumn != null) {
+            columnIndexPaths.add(thresholdColumn);
+            offsetIndexPaths.add(thresholdColumn);
+        }
+        if (pageRangeFilterActive) {
+            for (ColumnDescriptor descriptor : projectedSchema.getColumns()) {
+                offsetIndexPaths.add(String.join(".", descriptor.getPath()));
+            }
+        }
+        return new IndexColumnPaths(columnIndexPaths, offsetIndexPaths);
     }
 
     private static ColumnDescriptor resolveDynamicThresholdColumn(MessageType schema, DynamicThreshold dynamicThreshold) {

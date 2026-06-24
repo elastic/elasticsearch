@@ -65,9 +65,9 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
      * The version at which {@code resolve_datasets} became remotely invocable — its {@link Response} wire-serializable,
      * enabling cross-project dataset detection. The coordinator dispatches the cross-cluster leg to a linked project
      * only when that project's minimum transport version {@code supports} this; below it the remote-dataset path falls
-     * back to today's behaviour (no detection). Generated file: {@code transport/definitions/named/esql_resolve_dataset_remote.csv}.
+     * back to today's behaviour (no detection). Generated file: {@code transport/definitions/referable/esql_resolve_dataset_remote.csv}.
      */
-    static final TransportVersion ESQL_RESOLVE_DATASET_REMOTE = TransportVersion.fromName("esql_resolve_dataset_remote");
+    public static final TransportVersion ESQL_RESOLVE_DATASET_REMOTE = TransportVersion.fromName("esql_resolve_dataset_remote");
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 

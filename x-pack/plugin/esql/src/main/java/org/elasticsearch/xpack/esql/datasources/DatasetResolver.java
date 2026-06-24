@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -48,11 +49,18 @@ public class DatasetResolver {
     private final Client client;
     private final Executor executor;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final DatasetRemoteResolver remoteResolver;
 
-    public DatasetResolver(Client client, Executor executor, CrossProjectModeDecider crossProjectModeDecider) {
+    public DatasetResolver(
+        Client client,
+        Executor executor,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DatasetRemoteResolver remoteResolver
+    ) {
         this.client = client;
         this.executor = executor;
         this.crossProjectModeDecider = crossProjectModeDecider;
+        this.remoteResolver = remoteResolver;
     }
 
     /**
@@ -114,7 +122,45 @@ public class DatasetResolver {
             });
         }
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
+            // CPS Technical Preview: before applying the local rewrite, detect whether any of these relations would also
+            // resolve to a dataset in a LINKED project the caller may read. If so, fail cleanly rather than silently
+            // returning local-only data — GA later flips this fail into a remote read. Local datasets and remote *indices*
+            // still resolve normally; only a detected remote *dataset* trips the guard. The wildcard-preserve for remote
+            // indices stays intact in the no-remote-dataset case below (DatasetRewriter.rewrite, crossProjectEnabled=true).
+            Set<String> linkedAliases = remoteResolver.linkedProjectAliases(projectMetadata.id());
+            if (linkedAliases.isEmpty() == false) {
+                chain = chain.andThen((l, ignored) -> detectRemoteDataset(relations, linkedAliases, l));
+            }
+        }
         chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled))
             .addListener(listener);
+    }
+
+    /**
+     * Checks each candidate relation's raw patterns against the linked projects (sequential, mirroring the local
+     * per-relation chain). Completes {@code listener} normally when no linked project authorizes a dataset, or fails it
+     * with a {@link VerificationException} on the first detected remote dataset. Authorization is enforced on each remote
+     * (the dispatched action is on the {@code indices:data/read/*} family), so the alias set need not be pre-filtered.
+     */
+    private void detectRemoteDataset(List<UnresolvedRelation> relations, Set<String> linkedAliases, ActionListener<Void> listener) {
+        SubscribableListener<Void> remoteChain = SubscribableListener.newForked(l -> l.onResponse(null));
+        for (UnresolvedRelation relation : relations) {
+            String[] rawPatterns = DatasetRewriter.patternsOf(relation).toArray(String[]::new);
+            remoteChain = remoteChain.andThen(
+                (l, ignored) -> remoteResolver.anyLinkedProjectHasDataset(
+                    rawPatterns,
+                    linkedAliases,
+                    new ThreadedActionListener<>(executor, l.delegateFailureAndWrap((delegate, detected) -> {
+                        if (detected) {
+                            delegate.onFailure(new VerificationException("FROM <dataset> is not yet supported with cross-project search"));
+                        } else {
+                            delegate.onResponse(null);
+                        }
+                    }))
+                )
+            );
+        }
+        remoteChain.addListener(listener);
     }
 }

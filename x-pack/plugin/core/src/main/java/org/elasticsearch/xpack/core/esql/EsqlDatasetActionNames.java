@@ -21,4 +21,14 @@ public class EsqlDatasetActionNames {
 
     /** Read-side resolve action for {@code FROM <dataset>}: read-authorizes the dataset names of an ES|QL query. */
     public static final String ESQL_RESOLVE_DATASET_ACTION_NAME = "indices:data/read/esql/resolve_datasets";
+
+    /**
+     * Cross-project (CPS) variant of {@link #ESQL_RESOLVE_DATASET_ACTION_NAME}: the coordinator dispatches it to a linked
+     * project so that project read-authorizes a relation's FROM patterns against its own state and reports whether any
+     * resolve to a dataset the caller may read. Same {@code indices:data/read/*} family, so the {@code read} index privilege
+     * covers it and the receiving node's {@code IndicesRequest.Replaceable} security narrowing applies, exactly as for the
+     * local action. Distinct name because the local action is owned by the node-local action map (no node-to-node transport
+     * handler), whereas this one registers its own transport handler for cross-cluster receipt.
+     */
+    public static final String ESQL_RESOLVE_DATASET_REMOTE_ACTION_NAME = "indices:data/read/esql/resolve_datasets/remote";
 }

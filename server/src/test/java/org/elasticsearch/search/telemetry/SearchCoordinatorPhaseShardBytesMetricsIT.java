@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.TelemetryMetrics;
+package org.elasticsearch.search.telemetry;
 
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -244,7 +244,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
     }
 
     /**
-     * Field collapsing with {@code inner_hits} triggers {@link org.elasticsearch.action.search.ExpandSearchPhase},
+     * Field collapsing with {@code inner_hits} triggers the expand search phase,
      * which fans out one sub-search per collapsed group. Each sub-search is an independent
      * {@link org.elasticsearch.action.search.TransportSearchAction} invocation with its own per-phase
      * byte accumulators, so it records its own histogram observations rather than contributing to

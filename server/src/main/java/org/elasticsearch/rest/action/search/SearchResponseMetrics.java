@@ -129,37 +129,43 @@ public class SearchResponseMetrics {
             "can_match",
             meterRegistry.registerLongHistogram(
                 CAN_MATCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard results received by the coordinator for the can_match phase, per search request, expressed as a histogram",
+                "Total bytes of shard results received by the coordinator for the can_match phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             ),
             "dfs",
             meterRegistry.registerLongHistogram(
                 DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard results received by the coordinator for the dfs phase, per search request, expressed as a histogram",
+                "Total bytes of shard results received by the coordinator for the dfs phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             ),
             "dfs_query",
             meterRegistry.registerLongHistogram(
                 DFS_QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard results received by the coordinator for the dfs_query phase, per search request, expressed as a histogram",
+                "Total bytes of shard results received by the coordinator for the dfs_query phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             ),
             "query",
             meterRegistry.registerLongHistogram(
                 QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard results received by the coordinator for the query phase, per search request, expressed as a histogram",
+                "Total bytes of shard results received by the coordinator for the query phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             ),
             "rank-feature",
             meterRegistry.registerLongHistogram(
                 RANK_FEATURE_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard results received by the coordinator for the rank-feature phase, per search request, expressed as a histogram",
+                "Total bytes of shard results received by the coordinator for the rank-feature phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             ),
             "fetch",
             meterRegistry.registerLongHistogram(
                 FETCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard results received by the coordinator for the fetch phase, per search request, expressed as a histogram",
+                "Total bytes of shard results received by the coordinator for the fetch phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             )
         );
@@ -167,37 +173,43 @@ public class SearchResponseMetrics {
             "can_match",
             meterRegistry.registerLongHistogram(
                 CAN_MATCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard requests sent by the coordinator for the can_match phase, per search request, expressed as a histogram",
+                "Total bytes of shard requests sent by the coordinator for the can_match phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             ),
             "dfs",
             meterRegistry.registerLongHistogram(
                 DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard requests sent by the coordinator for the dfs phase, per search request, expressed as a histogram",
+                "Total bytes of shard requests sent by the coordinator for the dfs phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             ),
             "dfs_query",
             meterRegistry.registerLongHistogram(
                 DFS_QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard requests sent by the coordinator for the dfs_query phase, per search request, expressed as a histogram",
+                "Total bytes of shard requests sent by the coordinator for the dfs_query phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             ),
             "query",
             meterRegistry.registerLongHistogram(
                 QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard requests sent by the coordinator for the query phase, per search request, expressed as a histogram",
+                "Total bytes of shard requests sent by the coordinator for the query phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             ),
             "rank-feature",
             meterRegistry.registerLongHistogram(
                 RANK_FEATURE_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard requests sent by the coordinator for the rank-feature phase, per search request, expressed as a histogram",
+                "Total bytes of shard requests sent by the coordinator for the rank-feature phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             ),
             "fetch",
             meterRegistry.registerLongHistogram(
                 FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME,
-                "Total bytes of shard requests sent by the coordinator for the fetch phase, per search request, expressed as a histogram",
+                "Total bytes of shard requests sent by the coordinator for the fetch phase, " +
+                    "per search request, expressed as a histogram",
                 "bytes"
             )
         );

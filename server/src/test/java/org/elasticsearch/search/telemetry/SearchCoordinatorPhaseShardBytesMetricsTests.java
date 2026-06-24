@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.telemetry.TelemetryMetrics;
+package org.elasticsearch.search.telemetry;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;

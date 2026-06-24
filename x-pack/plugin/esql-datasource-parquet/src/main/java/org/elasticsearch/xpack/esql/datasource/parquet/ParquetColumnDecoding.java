@@ -44,6 +44,15 @@ final class ParquetColumnDecoding {
         return raw;
     }
 
+    /**
+     * Returns the multiplier needed to convert a Parquet TIME_* value to nanoseconds.
+     * TIME_MICROS values are stored as microseconds and must be multiplied by 1_000;
+     * TIME_MILLIS and TIME_NANOS are stored in their final unit (ms handled as INTEGER, ns as-is).
+     */
+    static long timeNanoMultiplier(LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+        return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
+    }
+
     // ---- UUID formatting ----
 
     /**
@@ -114,7 +123,8 @@ final class ParquetColumnDecoding {
             case INTEGER -> readListIntColumn(cr, maxDef, rows, blockFactory);
             case LONG -> {
                 long multiplier = info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
-                    && time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
+                    ? timeNanoMultiplier(time)
+                    : 1L;
                 yield readListLongColumn(cr, maxDef, rows, blockFactory, multiplier);
             }
             case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);

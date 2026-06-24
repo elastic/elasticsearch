@@ -1687,10 +1687,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
-                } else if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
-                    // TIME_MICROS: stored as nanoseconds (×1_000); TIME_NANOS: stored as-is
-                    yield DataType.LONG;
                 }
+                // TIME_MICROS/TIME_NANOS: both map to LONG; readColumnBlock scales TIME_MICROS ×1_000
                 yield DataType.LONG;
             }
             case INT96 -> DataType.DATETIME;
@@ -2117,8 +2115,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 case INTEGER -> readIntColumn(cr, info.maxDefLevel(), rowsToRead);
                 case LONG, UNSIGNED_LONG -> {
                     if (info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
-                        long multiplier = time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
-                        yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, multiplier);
+                        yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, ParquetColumnDecoding.timeNanoMultiplier(time));
                     }
                     var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {

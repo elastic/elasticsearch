@@ -40,6 +40,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,6 +51,7 @@ import java.net.URL;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME;
@@ -236,9 +238,22 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     @Override
     protected void doStop() {
         closed = true;
-        connectionProvider.dispose();
-        eventLoopGroup.shutdownGracefully();
-        Schedulers.resetFactory();
+        // Dispose of the connection provider first and wait for it to complete before we close the event loop.
+        try {
+            connectionProvider.disposeLater().block(Duration.ofSeconds(5));
+        } catch (RuntimeException e) {
+            logger.warn("Error disposing connection provider", e);
+        } finally {
+            // Now it's safe to shut down the event loop
+            try {
+                FutureUtils.get(eventLoopGroup.shutdownGracefully(), 5, TimeUnit.SECONDS);
+            } catch (RuntimeException e) {
+                logger.warn("Error shutting down event loop group", e);
+            } finally {
+                // Now everything is shut down, reset the factory to clear any cached schedulers
+                Schedulers.resetFactory();
+            }
+        }
     }
 
     @Override

@@ -556,9 +556,7 @@ public class TestAnalyzer {
         // one source => a plain UnionAll of those branches. A single view source => the bare View.
         List<LogicalPlan> resolved = Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*")).map(indexPattern -> {
             var view = viewDefinitions.get(indexPattern);
-            return view == null
-                ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
-                : new View(view.source(), indexPattern, view);
+            return view == null ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern)) : new View(view.source(), indexPattern, view);
         }).toList();
         if (resolved.size() == 1) {
             return resolved.get(0);

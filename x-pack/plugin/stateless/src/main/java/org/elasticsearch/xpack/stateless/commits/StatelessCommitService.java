@@ -976,13 +976,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         if (bccUploadSlowLogThresholdMillis <= 0 || uploadResult.totalUploadTimeMs() < bccUploadSlowLogThresholdMillis) {
             return;
         }
+
+        final ShardId shardId = virtualBcc.getShardId();
+        // The BCC has not yet been marked as uploaded so we need to remove one
+        final int generationQueueSize = this.shardsCommitsStates.get(shardId).getPendingUploadCount() - 1;
+
         final var message = new ESLogMessage(
-            "{} batched compound commit [{}] upload took [{}]ms over [{}] attempt(s): {}",
-            virtualBcc.getShardId(),
+            "{} batched compound commit [{}] upload took [{}]ms over [{}] attempt(s): {} ( remaining BCCs in the generation queue: {} )",
+            shardId,
             virtualBcc.getPrimaryTermAndGeneration().generation(),
             uploadResult.totalUploadTimeMs(),
             uploadResult.uploadAttempts(),
-            uploadResult.attemptsToLogString()
+            uploadResult.attemptsToLogString(),
+            generationQueueSize
         ).field("elasticsearch.primary.bcc_upload_time", uploadResult.totalUploadTimeMs())
             .field("elasticsearch.primary.bcc_upload_attempts", uploadResult.uploadAttempts())
             .field("elasticsearch.primary.bcc_generation_queue_time", uploadResult.totalGenerationQueueWaitMs())
@@ -1382,8 +1388,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return shardLocalCommitsTracker;
         }
 
+        public int getPendingUploadCount() {
+            return this.pendingUploadBccGenerations.size();
+        }
+
         public int getBccOnDiskCount() {
-            return (this.currentVirtualBcc == null ? 0 : 1) + this.pendingUploadBccGenerations.size();
+            return (this.currentVirtualBcc == null ? 0 : 1) + getPendingUploadCount();
         }
 
         public long getBccOnDiskSizeInBytes() {
@@ -2111,8 +2121,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (isUpload) {
                     // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
-                    assert removed != null : newBccGeneration + "not found";
-                    pendingUploadTotalSizeInBytes -= removed.getTotalSizeInBytes();
+                    if (removed != null) {
+                        pendingUploadTotalSizeInBytes -= removed.getTotalSizeInBytes();
+                    } else {
+                        assert false : newBccGeneration + "not found";
+                    }
                 }
                 if (generationListeners != null) {
                     List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;

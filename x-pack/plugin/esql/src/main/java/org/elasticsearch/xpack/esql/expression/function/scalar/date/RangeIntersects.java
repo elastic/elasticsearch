@@ -75,7 +75,7 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Returns true if two date ranges or dates overlap.",
         description = "Returns true if the two arguments overlap. The relation is symmetric — argument order does not matter. "
             + "Supports any combination of `date` and `date_range`. "

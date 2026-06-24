@@ -9,7 +9,7 @@
 | cartesian_shape | integer |
 | date | integer |
 | date_nanos | integer |
-| date_range | integer |
+| date_range {applies_to}`stack: preview 9.5.0` | integer |
 | double | integer |
 | geo_point | integer |
 | geo_shape | integer |

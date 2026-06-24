@@ -53,7 +53,7 @@ public class RangeContains extends EsqlScalarFunction implements OnlySurrogateEx
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Returns true if a date range contains a given date or sub-range.",
         description = """
             Returns true if the first argument

@@ -14,6 +14,8 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomList;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvCountTests extends AbstractMultivalueFunctionTestCase {
@@ -62,10 +65,11 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
     }
 
     private static void dateRanges(List<TestCaseSupplier> cases) {
+        FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
         cases.add(new TestCaseSupplier("mv_count(date_range)", List.of(DataType.DATE_RANGE), () -> {
             LongRangeBlockBuilder.LongRange value = TestCaseSupplier.randomDateRange();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(List.of(value), DataType.DATE_RANGE, "field")),
+                List.of(new TestCaseSupplier.TypedData(List.of(value), DataType.DATE_RANGE, "field").withAppliesTo(dateRangeAppliesTo)),
                 "MvCount[field=Attribute[channel=0]]",
                 DataType.INTEGER,
                 equalTo(1)
@@ -74,7 +78,7 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
         cases.add(new TestCaseSupplier("mv_count(<date_ranges>)", List.of(DataType.DATE_RANGE), () -> {
             List<LongRangeBlockBuilder.LongRange> mvData = randomList(1, 10, TestCaseSupplier::randomDateRange);
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(mvData, DataType.DATE_RANGE, "field")),
+                List.of(new TestCaseSupplier.TypedData(mvData, DataType.DATE_RANGE, "field").withAppliesTo(dateRangeAppliesTo)),
                 "MvCount[field=Attribute[channel=0]]",
                 DataType.INTEGER,
                 equalTo(mvData.size())

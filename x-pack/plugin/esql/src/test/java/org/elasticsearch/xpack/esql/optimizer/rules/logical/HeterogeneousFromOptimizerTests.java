@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -456,6 +458,44 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
 
         // Rule must not fire — subquery-shape UnionAll is not eligible
         assertSame(aggregate, result);
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must carry a grouping column through the {@link UnionAll}
+     * even when that column has been pruned from the {@link Aggregate}'s output list. This is the
+     * shape {@link PruneColumns} produces for {@code FROM idx, ds | STATS c = COUNT(*) BY dept | KEEP c}:
+     * {@code dept} is dropped from {@code aggregates()} (unused after KEEP) but kept in
+     * {@code groupings()}.
+     *
+     * <p>Asserts plan validity via the engine's own {@link PlanConsistencyChecker}: every node's
+     * attribute references must be produced by its children.
+     */
+    public void testGroupingPrunedFromOutputProducesConsistentPlan() {
+        ReferenceAttribute unionDept = new ReferenceAttribute(EMPTY, "dept", INTEGER);
+
+        EsRelation esRelation = relation().withAttributes(List.of(getFieldAttribute("dept", INTEGER)));
+        ExternalRelation extRelation = externalRelation(List.of(extAttr("dept", INTEGER)));
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionDept));
+
+        // Post-PruneColumns shape: dept is in groupings() but NOT in aggregates()
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(unionDept), List.of(countAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+    }
+
+    /**
+     * Runs the engine's own {@link PlanConsistencyChecker} over every node in {@code plan}.
+     * Every attribute reference in the plan must be produced by its children — the same invariant
+     * {@code LogicalVerifier} enforces after optimization.
+     */
+    private static void assertValidPlan(LogicalPlan plan) {
+        Failures failures = new Failures();
+        plan.forEachUp(p -> PlanConsistencyChecker.checkPlan(p, failures));
+        assertThat(failures.toString(), failures.hasFailures(), equalTo(false));
     }
 
     private static Attribute extAttr(String name, DataType type) {

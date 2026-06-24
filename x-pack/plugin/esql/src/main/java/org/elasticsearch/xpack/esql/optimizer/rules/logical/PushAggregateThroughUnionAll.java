@@ -99,9 +99,14 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
         LinkedHashMap<NameId, NameId> aggAliasIdToPartialId = new LinkedHashMap<>();
         LinkedHashMap<NameId, String> aggAliasIdToPartialName = new LinkedHashMap<>();
 
+        // Track which grouping IDs appear as explicit passthroughs in aggs. PruneColumns can remove
+        // a grouping from aggregates() while keeping it in groupings() (e.g. STATS c = COUNT(*) BY dept | KEEP c
+        // drops dept from the output). Groupings absent from aggs must still be emitted by each branch
+        // and by the UnionAll so the combiner can group by them.
+        Set<NameId> groupingsInAggs = new HashSet<>();
         for (NamedExpression ne : aggs) {
             if (ne instanceof Attribute attr && groupingAttrIds.contains(attr.id())) {
-                // grouping column passthrough — handled via groupingIdToSharedId
+                groupingsInAggs.add(attr.id());
             } else if (ne instanceof Alias alias && alias.child() instanceof AggregateFunction aggFn) {
                 if (isDecomposable(aggFn) == false) {
                     return aggregate;
@@ -137,6 +142,8 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
             // Build the aggregates list for the inner Aggregate (order mirrors the outer aggs):
             // • aggregate function aliases → Alias(partialName, resolvedAggFn, partialId)
             // • grouping passthroughs → the Alias already created above (looked up by ID)
+            // • groupings absent from aggs (pruned by PruneColumns) → appended so the branch
+            //   still produces the shared grouping ID that the combiner groups by
             List<NamedExpression> branchAggs = new ArrayList<>(aggs.size());
             for (NamedExpression ne : aggs) {
                 if (ne instanceof Attribute attr && groupingAttrIds.contains(attr.id())) {
@@ -148,12 +155,20 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                     branchAggs.add(new Alias(alias.source(), partialName, resolvedAggFn, partialId, true));
                 }
             }
+            for (Expression g : groupings) {
+                Attribute gAttr = (Attribute) g;
+                if (groupingsInAggs.contains(gAttr.id()) == false) {
+                    branchAggs.add(groupingIdToAlias.get(gAttr.id()));
+                }
+            }
 
             newBranches.add(new Aggregate(aggregate.source(), branch, branchGroupings, branchAggs));
         }
 
         // Build the explicit output list for the outer UnionAll.
-        // Order mirrors the aggs list so each branch's output aligns positionally.
+        // Order: aggs-derived columns first (partial agg results + explicit grouping passthroughs),
+        // then any groupings that PruneColumns removed from aggs — they must still be produced so
+        // the combiner can reference them in its groupings().
         List<Attribute> unionOutput = new ArrayList<>(aggs.size());
         for (NamedExpression ne : aggs) {
             if (ne instanceof Attribute attr && groupingAttrIds.contains(attr.id())) {
@@ -164,6 +179,15 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                 String partialName = aggAliasIdToPartialName.get(alias.id());
                 unionOutput.add(
                     new ReferenceAttribute(alias.source(), null, partialName, alias.dataType(), alias.nullable(), partialId, true)
+                );
+            }
+        }
+        for (Expression g : groupings) {
+            Attribute gAttr = (Attribute) g;
+            if (groupingsInAggs.contains(gAttr.id()) == false) {
+                NameId sharedId = groupingIdToSharedId.get(gAttr.id());
+                unionOutput.add(
+                    new ReferenceAttribute(gAttr.source(), null, gAttr.name(), gAttr.dataType(), gAttr.nullable(), sharedId, true)
                 );
             }
         }

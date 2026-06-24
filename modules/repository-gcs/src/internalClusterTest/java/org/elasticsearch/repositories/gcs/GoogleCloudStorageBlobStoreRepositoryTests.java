@@ -244,27 +244,29 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repositoryMetadata)
         );
 
-        // below min (128 KB)
+        // below min
+        final ByteSizeValue belowMinSize = ByteSizeValue.ofBytes(between(1, 1024 * 256 - 1));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             final RepositoryMetadata repoMetadata = new RepositoryMetadata(
                 "repo",
                 GoogleCloudStorageRepository.TYPE,
-                Settings.builder().put("resumable_write_buffer_size", "1kb").build()
+                Settings.builder().put("resumable_write_buffer_size", belowMinSize).build()
             );
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repoMetadata);
         });
-        assertEquals("failed to parse value [1kb] for setting [resumable_write_buffer_size], must be >= [128kb]", e.getMessage());
+        assertThat(e.getMessage(), containsString("setting [resumable_write_buffer_size], must be >= [256kb]"));
 
-        // above max 100 MB
+        // above max
         e = expectThrows(IllegalArgumentException.class, () -> {
+            final ByteSizeValue aboveMaxSize = ByteSizeValue.ofBytes(between(100 * 1024 * 1024 + 1, Integer.MAX_VALUE));
             final RepositoryMetadata repoMetadata = new RepositoryMetadata(
                 "repo",
                 GoogleCloudStorageRepository.TYPE,
-                Settings.builder().put("resumable_write_buffer_size", "101mb").build()
+                Settings.builder().put("resumable_write_buffer_size", aboveMaxSize).build()
             );
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repoMetadata);
         });
-        assertThat(e.getMessage(), containsString("must be <= "));
+        assertThat(e.getMessage(), containsString("setting [resumable_write_buffer_size], must be <= [100mb]"));
     }
 
     public void testResumableWriteBufferInAction() throws Exception {

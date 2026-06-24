@@ -61,7 +61,9 @@ public record SourceOperatorContext(
     int parsingParallelism,
     int maxConcurrentOpenSegments,
     int maxRecordBytes,
-    int parallelism
+    int parallelism,
+    @Nullable String datasetName,
+    boolean deferredExtraction
 ) {
     /**
      * Single source of truth for the {@code max_concurrent_open_segments} default. Lives in this SPI (leaf)
@@ -136,7 +138,9 @@ public record SourceOperatorContext(
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            1
+            1,
+            null,
+            false
         );
     }
 
@@ -175,7 +179,9 @@ public record SourceOperatorContext(
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            1
+            1,
+            null,
+            false
         );
     }
 
@@ -213,7 +219,9 @@ public record SourceOperatorContext(
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            1
+            1,
+            null,
+            false
         );
     }
 
@@ -249,7 +257,9 @@ public record SourceOperatorContext(
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            1
+            1,
+            null,
+            false
         );
     }
 
@@ -283,6 +293,9 @@ public record SourceOperatorContext(
         // overrides it from the max_record_size query pragma.
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private int parallelism = 1;
+        @Nullable
+        private String datasetName;
+        private boolean deferredExtraction;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -405,6 +418,27 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Registered dataset identifier (from {@code FROM <dataset>}), or {@code null} for inline
+         * {@code EXTERNAL}. Consumed by the operator factory's per-file {@code _index} synthesizer
+         * so the column carries the user-facing dataset name rather than the resource path.
+         */
+        public Builder datasetName(@Nullable String datasetName) {
+            this.datasetName = datasetName;
+            return this;
+        }
+
+        /**
+         * Whether the plan pairs this source with an {@code ExternalFieldExtractExec} consuming
+         * deferred-encoded columns. The operator factory keys deferred extraction off this flag,
+         * not off {@code _rowPosition} presence in the projection — the latter is also produced
+         * for plain {@code _id} composition with no extract operator downstream.
+         */
+        public Builder deferredExtraction(boolean deferredExtraction) {
+            this.deferredExtraction = deferredExtraction;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -428,7 +462,9 @@ public record SourceOperatorContext(
                 parsingParallelism,
                 maxConcurrentOpenSegments,
                 maxRecordBytes,
-                parallelism
+                parallelism,
+                datasetName,
+                deferredExtraction
             );
         }
     }

@@ -118,6 +118,13 @@ dependencies {
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
   internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }
+  // NOTE: esql-datasource-orc is intentionally NOT added here. Its plugin jar ships a same-FQN
+  // org.apache.commons.lang3.StringUtils stub (src/main/java/org/apache/commons/lang3) as a
+  // production classloader-isolation trick, which collides with the real commons-lang3 that
+  // parquet/hadoop already pull onto this flat internalClusterTest classpath — the test JVM's
+  // JarHell check aborts boot. There is no Gradle exclusion that strips a class from inside a
+  // module's own jar, so the ORC reader cannot share this classpath; ORC is therefore omitted
+  // from AbstractExternalMetadataMatrixIT's per-format subclasses.
 }
 
 tasks.named('compileInternalClusterTestJava').configure {

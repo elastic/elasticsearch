@@ -138,6 +138,75 @@ public class WKBTests extends ESTestCase {
         return randomBoolean() ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
     }
 
+    public void testFromWKTPoint() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomPoint(randomBoolean()));
+    }
+
+    public void testFromWKTMultiPoint() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomMultiPoint(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyMultiPoint() throws Exception {
+        assertFromWKT(MultiPoint.EMPTY);
+    }
+
+    public void testFromWKTLine() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomLine(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyLine() throws Exception {
+        assertFromWKT(Line.EMPTY);
+    }
+
+    public void testFromWKTMultiLine() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomMultiLine(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyMultiLine() throws Exception {
+        assertFromWKT(MultiLine.EMPTY);
+    }
+
+    public void testFromWKTPolygon() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomPolygon(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyPolygon() throws Exception {
+        assertFromWKT(Polygon.EMPTY);
+    }
+
+    public void testFromWKTMultiPolygon() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomMultiPolygon(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyMultiPolygon() throws Exception {
+        assertFromWKT(MultiPolygon.EMPTY);
+    }
+
+    public void testFromWKTGeometryCollection() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomGeometryCollection(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyGeometryCollection() throws Exception {
+        assertFromWKT(GeometryCollection.EMPTY);
+    }
+
+    public void testFromWKTCircle() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomCircle(randomBoolean()));
+    }
+
+    public void testFromWKTRectangle() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomRectangle());
+    }
+
+    /** Verifies that WellKnownBinary.fromWKT produces the same WKB as the Geometry-based path. */
+    private void assertFromWKT(Geometry geometry) throws Exception {
+        final ByteOrder byteOrder = randomByteOrder();
+        final String wkt = WellKnownText.toWKT(geometry);
+        final byte[] expected = WellKnownBinary.toWKB(geometry, byteOrder);
+        final byte[] actual = WellKnownBinary.fromWKT(wkt, byteOrder, false);
+        assertArrayEquals("fromWKT result mismatch for: " + wkt, expected, actual);
+    }
+
     private void assertWKB(Geometry geometry) {
         final boolean hasZ = geometry.hasZ();
         final ByteOrder byteOrder = randomByteOrder();

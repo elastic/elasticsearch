@@ -2333,7 +2333,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testNullabilityFalseAcceptsValue() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
@@ -2344,7 +2344,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testNullabilityFalseRejectsNull() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
@@ -2355,7 +2355,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testNullabilityFalseRejectsMissingField() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);

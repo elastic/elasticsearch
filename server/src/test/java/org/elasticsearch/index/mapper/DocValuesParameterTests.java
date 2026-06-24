@@ -46,7 +46,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testNullabilityWithoutOtherSubParametersUsesDefault() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
         );
@@ -195,7 +195,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * resolves to non-nullable.
      */
     public void testIndexSettingFalseDefaultsKeywordToNonNullable() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword")));
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
@@ -210,7 +210,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * resolves to non-nullable.
      */
     public void testIndexSettingFalseDefaultsNumberToNonNullable() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "long")));
         NumberFieldMapper mapper = (NumberFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
@@ -224,7 +224,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * A field-level {@code doc_values.nullability: true} overrides the index setting of {@code false}, keeping the field nullable.
      */
     public void testFieldLevelTrueOverridesIndexSettingFalseForNullability() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -239,7 +239,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * even though the index-wide default would allow nulls.
      */
     public void testFieldLevelFalseOverridesIndexSettingTrueForNullability() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), true).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
             b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject();
@@ -253,7 +253,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * setting is rejected with an {@link IllegalArgumentException} wrapped in {@link DocumentParsingException}.
      */
     public void testIndexSettingFalseEnforcesRejectionOfNullValue() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
         DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
         DocumentParsingException e = expectThrows(
@@ -264,7 +264,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testIndexSettingFalseMultiValueContainsNullDoesntReject() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
         DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
         mapper.parse(source(b -> b.array("field", "asdf", (Object) null)));
@@ -275,7 +275,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * accepted normally.
      */
     public void testFieldOverrideAllowsNullValueWhenIndexSettingIsFalse() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -290,7 +290,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * override the setting is rejected with an {@link IllegalArgumentException} wrapped in {@link DocumentParsingException}.
      */
     public void testIndexSettingFalseEnforcesRejectionOfNullValueForNumber() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
         DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "long"))).documentMapper();
         DocumentParsingException e = expectThrows(
@@ -305,7 +305,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * a null value for a keyword field is rejected with an {@link IllegalArgumentException} wrapped in {@link DocumentParsingException}.
      */
     public void testFieldLevelFalseEnforcesRejectionOfNullValue() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createMapperService(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
         ).documentMapper();

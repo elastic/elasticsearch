@@ -267,7 +267,7 @@ public final class TextFieldMapper extends FieldMapper {
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         boolean multiValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
             || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false
+        boolean nullability = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
             || FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
         // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.
         boolean enabled = indexSettings.getMode().isStrictColumnar();

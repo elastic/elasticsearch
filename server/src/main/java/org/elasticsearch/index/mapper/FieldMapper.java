@@ -98,7 +98,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Index-level default for the {@code doc_values.nullability} field mapping parameter. When {@code false}, all fields in the index
      * default to requiring non-null values (rejecting documents that don't supply a value), unless a field explicitly sets its own
-     * {@code doc_values.nullability}. Only honoured when {@link DocValuesParameter#EXTENDED_DOC_VALUES_PARAMS_FF} is enabled.
+     * {@code doc_values.nullability}. Only honoured when {@link IndexMode#COLUMNAR_FEATURE_FLAG} is enabled.
      */
     public static final Setting<Boolean> DOC_VALUES_NULLABILITY_SETTING = Setting.boolSetting(
         "index.mapping.doc_values.nullabilty",

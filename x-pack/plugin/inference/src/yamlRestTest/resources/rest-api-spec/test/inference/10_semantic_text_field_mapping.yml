@@ -1867,3 +1867,19 @@ setup:
 
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "/.*use_legacy_format.*legacy.semantic.text.format.is.not.supported.for.new.indices.*/" }
+
+---
+"Field caps reports semantic_text fields as inference fields":
+  - requires:
+      cluster_features: "field_caps.inference_field"
+      reason: "field_caps inference flag"
+
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - match: { fields.sparse_field.text.inference: true }
+  - match: { fields.dense_field.text.inference: true }

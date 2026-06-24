@@ -181,34 +181,44 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
         List<String> nonSearchableIndices = new ArrayList<>();
         List<String> nonAggregatableIndices = new ArrayList<>();
+        List<String> nonInferenceIndices = new ArrayList<>();
         List<String> nonDimensionIndices = new ArrayList<>();
 
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
         for (int i = 0; i < indices.length;) {
             int bulkSize = randomIntBetween(1, indices.length - i);
             String[] groupIndices = ArrayUtil.copyOfSubArray(indices, i, i + bulkSize);
+
             final boolean searchable = randomBoolean();
             if (searchable == false) {
                 nonSearchableIndices.addAll(Arrays.asList(groupIndices));
             }
+
             final boolean aggregatable = randomBoolean();
             if (aggregatable == false) {
                 nonAggregatableIndices.addAll(Arrays.asList(groupIndices));
             }
+
+            final boolean isInference = randomBoolean();
+            if (isInference == false) {
+                nonInferenceIndices.addAll(Arrays.asList(groupIndices));
+            }
+
             final boolean isDimension = randomBoolean();
             if (isDimension == false) {
                 nonDimensionIndices.addAll(Arrays.asList(groupIndices));
             }
 
-            // TODO: Randomize isInference value
-            builder.add(groupIndices, false, searchable, aggregatable, false, isDimension, null, Map.of());
+            builder.add(groupIndices, false, searchable, aggregatable, isInference, isDimension, null, Map.of());
             i += bulkSize;
         }
+
         boolean withIndices = randomBoolean();
         FieldCapabilities fieldCaps = builder.build(withIndices);
         if (withIndices) {
             assertThat(fieldCaps.indices(), equalTo(indices));
         }
+
         // search
         if (nonSearchableIndices.isEmpty()) {
             assertTrue(fieldCaps.isSearchable());
@@ -221,6 +231,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 assertThat(fieldCaps.nonSearchableIndices(), equalTo(nonSearchableIndices.toArray(String[]::new)));
             }
         }
+
         // aggregate
         if (nonAggregatableIndices.isEmpty()) {
             assertTrue(fieldCaps.isAggregatable());
@@ -233,6 +244,20 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
                 assertThat(fieldCaps.nonAggregatableIndices(), equalTo(nonAggregatableIndices.toArray(String[]::new)));
             }
         }
+
+        // inference
+        if (nonInferenceIndices.isEmpty()) {
+            assertTrue(fieldCaps.isInference());
+            assertNull(fieldCaps.nonInferenceIndices());
+        } else {
+            assertFalse(fieldCaps.isInference());
+            if (nonInferenceIndices.size() == indices.length) {
+                assertThat(fieldCaps.nonInferenceIndices(), equalTo(null));
+            } else {
+                assertThat(fieldCaps.nonInferenceIndices(), equalTo(nonInferenceIndices.toArray(String[]::new)));
+            }
+        }
+
         // dimension
         if (nonDimensionIndices.isEmpty()) {
             assertTrue(fieldCaps.isDimension());

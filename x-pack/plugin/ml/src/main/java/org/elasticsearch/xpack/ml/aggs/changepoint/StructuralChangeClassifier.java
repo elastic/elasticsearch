@@ -143,7 +143,7 @@ public class StructuralChangeClassifier {
 
         // No surviving boundary: report the whole series as stationary or non-stationary, as verifyAndClassify does.
         if (verified.isEmpty()) {
-            Bic constant = constantBic(intervalRss[0][m - 1][0], grid[m - 1] - grid[0], intervalNoise[0][m - 1]);
+            Bic constant = calculateConstantBic(intervalRss[0][m - 1][0], grid[m - 1] - grid[0], intervalNoise[0][m - 1]);
             Bic noChange = bestNoChangeBic(intervalRss[0][m - 1], grid[m - 1] - grid[0], intervalNoise[0][m - 1]);
             if (noChange.degree() == 0) {
                 verified.add(new ChangeType.Stationary());
@@ -279,6 +279,7 @@ public class StructuralChangeClassifier {
 
         Bic noChange = bestNoChangeBic(intervalRss[leftIdx][rightIdx], windowLength, localNoiseVariance);
         Bic change = symmetricSplit(intervalRss, leftIdx, cpIdx, rightIdx, windowLength, localNoiseVariance);
+        double meanGain = noChange.bic() - change.bic();
 
         if (toPValue(meanGain) < pValueThreshold) {
             // A mean change (level or trend).
@@ -295,13 +296,13 @@ public class StructuralChangeClassifier {
             double levelAfter = right[0] + offset;
             if (change.degree() == 0) {
                 double stepPercent = 100.0 * (levelAfter - levelBefore) / Math.max(Math.abs(levelBefore), floor);
-                return new ChangeType.StepChange(logPValue, cp, stepPercent);
+                return new ChangeType.StepChange(logPValue, stepPercent, cp);
             }
             double noChangeRss = Math.max(noChange.rss(), VAR_FLOOR * windowLength);
             double r2 = Math.max(0.0, Math.min(1.0, 1.0 - (change.rss() / noChangeRss)));
             double levelAtChange = 0.5 * (levelBefore + levelAfter);
             double gradientPercent = 100.0 * (right[1] - left[1]) / Math.max(Math.abs(levelAtChange), floor);
-            return new ChangeType.TrendChange(logPValue, r2, cp, gradientPercent);
+            return new ChangeType.TrendChange(logPValue, gradientPercent, r2, cp);
         }
 
         if (detectVarianceShifts) {
@@ -339,17 +340,18 @@ public class StructuralChangeClassifier {
             double noChangeBic = bicFromRss(varWindow * windowLength, windowLength, 1, varianceEffectiveFactor);
             double bicLeft = bicFromRss(varLeft * nLeft, nLeft, 1, varianceEffectiveFactor);
             double bicRight = bicFromRss(varRight * nRight, nRight, 1, varianceEffectiveFactor);
-            double splitBic = bicLeft + bicRight;
-            double varianceGain = noChangeBic - splitBic;
+            double varianceGain = noChangeBic - (bicLeft + bicRight);
             if (toPValue(varianceGain) < pValueThreshold) {
                 double logPValue = -0.5 * Math.max(varianceGain, 0.0);
                 double scaleBefore = Math.sqrt(varLeft);
                 double scaleAfter = Math.sqrt(varRight);
                 double scaleFloor = Math.max(Math.sqrt(Math.max(localNoiseVariance, 0.0)), SCALE_FLOOR);
                 double magnitudePercent = 100.0 * (scaleAfter - scaleBefore) / Math.max(scaleBefore, scaleFloor);
-                return new ChangeType.DistributionChange(logPValue, cp, magnitudePercent);
+                return new ChangeType.DistributionChange(logPValue, magnitudePercent, cp);
             }
         }
+
+        return null;
     }
 
     /**

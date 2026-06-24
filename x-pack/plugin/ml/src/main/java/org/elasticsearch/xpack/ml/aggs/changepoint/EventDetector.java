@@ -91,7 +91,7 @@ public class EventDetector {
             double typicalScale = Math.expm1(Stats.median(dispersion));
             int magnitudeWindow = Math.max(1, dispersionMinSegment);
             for (ChangeType e : detectorForDispersions.detect(dispersion)) {
-                if (e.isChangePoint() == false) {
+                if (e.isChange() == false) {
                     continue;
                 }
                 int k = e.changePoint();

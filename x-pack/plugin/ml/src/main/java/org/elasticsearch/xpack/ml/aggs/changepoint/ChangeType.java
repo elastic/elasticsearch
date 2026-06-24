@@ -40,7 +40,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         return 1.0;
     }
 
-    default double logPvalue() {
+    default double logPValue() {
         return Math.log(pValue());
     }
 
@@ -65,7 +65,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
-        public double logPvalue() {
+        public double logPValue() {
             return logPValue;
         }
 
@@ -259,7 +259,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
-        public double logPvalue() {
+        public double logPValue() {
             return logPValue;
         }
 
@@ -323,7 +323,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public ChangeType remapChangePoint(int changePoint) {
-            return new DistributionChange(logPValue, magnitudePercent, changePoint);
+            return new DistributionChange(logPValue(), magnitudePercent(), changePoint);
         }
 
         @Override
@@ -348,7 +348,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public ChangeType remapChangePoint(int changePoint) {
-            return new StepChange(logPValue, magnitudePercent, changePoint);
+            return new StepChange(logPValue(), magnitudePercent(), changePoint);
         }
 
         @Override
@@ -363,6 +363,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     class TrendChange implements ChangeType {
         public static final String NAME = "trend_change";
         private final double logPValue;
+        private final double magnitudePercent;
         private final double rValue;
         private final int changePoint;
 
@@ -393,16 +394,14 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
-        public double logPvalue() {
+        public double logPValue() {
             return logPValue;
         }
 
-        @Override
         public double rValue() {
             return rValue;
         }
 
-        @Override
         public double magnitudePercent() {
             return magnitudePercent;
         }
@@ -479,7 +478,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public ChangeType remapChangePoint(int changePoint) {
-            return new Spike(logPValue, magnitudePercent, changePoint);
+            return new Spike(logPValue(), magnitudePercent(), changePoint);
         }
 
         @Override
@@ -504,7 +503,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public ChangeType remapChangePoint(int changePoint) {
-            return new Dip(logPValue, magnitudePercent, changePoint);
+            return new Dip(logPValue(), magnitudePercent(), changePoint);
         }
 
         @Override

@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -65,9 +66,11 @@ import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.datastreams.DownsamplingOperations;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleIndexExecutor;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
@@ -145,6 +148,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
 
+    public static final int DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM = 10;
+
+    public static final Setting<Integer> DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING = Setting.intSetting(
+        "data_streams.lifecycle.downsampling.max_indices_in_progress",
+        DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleService.class);
     /**
      * Name constant for the job that schedules the data stream lifecycle
@@ -170,6 +183,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     final ResultDeduplicator<Tuple<ProjectId, String>, Void> clusterStateChangesDeduplicator;
     private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DownsamplingOperations downsamplingOperations;
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -185,6 +199,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final MasterServiceTaskQueue<MarkIndicesForFrozenTask> markIndicesForFrozenQueue;
     private volatile ByteSizeValue targetMergePolicyFloorSegment;
     private volatile int targetMergePolicyFactor;
+    private volatile int maxDownsamplingIndicesInProgress;
     /**
      * The number of retries for a particular index and error after which DSL will emmit a signal (e.g. log statement)
      */
@@ -222,7 +237,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycleErrorStore errorStore,
         AllocationService allocationService,
         DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DownsamplingOperations downsamplingOperations
     ) {
         this.settings = settings;
         this.client = client;
@@ -234,10 +250,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.nowSupplier = nowSupplier;
         this.errorStore = errorStore;
         this.globalRetentionSettings = globalRetentionSettings;
+        this.downsamplingOperations = downsamplingOperations;
         this.scheduledJob = null;
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
         this.targetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(settings);
+        this.maxDownsamplingIndicesInProgress = DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING.get(settings);
         this.signallingErrorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings()
             .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
@@ -276,6 +294,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             .addSettingsUpdateConsumer(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING, this::updateMergePolicyFactor);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING,
+                this::updateMaxDownsamplingIndicesInProgress
+            );
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING, this::updateMergePolicyFloorSegment);
         clusterService.getClusterSettings()
@@ -391,6 +414,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         int affectedIndices = 0;
         int affectedDataStreams = 0;
         final Set<Index> indicesForFrozenConversion = new HashSet<>();
+        Set<Index> activelyDownsampled = downsamplingOperations.getActivelyDownsampledIndexNames(project);
         for (DataStream dataStream : project.dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(project, dataStream);
             var dataLifecycleEnabled = dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled();
@@ -470,12 +494,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
             }
 
+            int activeDownsamplingCount = 0;
+            if (dataLifecycleEnabled && dataStream.getDataLifecycle().downsamplingRounds() != null) {
+                Set<Index> indicesBeingDownsampled = Sets.intersection(new HashSet<>(dataStream.getIndices()), activelyDownsampled);
+                activeDownsamplingCount += indicesBeingDownsampled.size();
+                indicesToExcludeForRemainingRun.addAll(indicesBeingDownsampled);
+            }
             try {
                 indicesToExcludeForRemainingRun.addAll(
                     maybeExecuteDownsampling(
                         projectState,
                         dataStream,
-                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false)
+                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false),
+                        activeDownsamplingCount
                     )
                 );
             } catch (Exception e) {
@@ -666,10 +697,20 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Returns a set of indices that now have in-flight operations triggered by downsampling (it could be marking them as read-only,
      * replacing an index in the data stream, deleting a source index, or downsampling itself) so these indices can be skipped in case
      * there are other operations to be executed by the data stream lifecycle after downsampling.
+     *
+     * At most {@link #DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING} downsampling operations are triggered per data stream
+     * concurrently. {@code activeDownsamplingCount} represents the number of backing indices already being downsampled
+     * (via persistent tasks) and counts against this limit.
      */
-    Set<Index> maybeExecuteDownsampling(ProjectState projectState, DataStream dataStream, List<Index> targetIndices) {
+    Set<Index> maybeExecuteDownsampling(
+        ProjectState projectState,
+        DataStream dataStream,
+        List<Index> targetIndices,
+        int activeDownsamplingCount
+    ) {
         Set<Index> affectedIndices = new HashSet<>();
         final var project = projectState.metadata();
+        int throttledIndexCount = 0;
         for (Index index : targetIndices) {
             IndexMetadata backingIndexMeta = project.index(index);
             assert backingIndexMeta != null : "the data stream backing indices must exist";
@@ -696,12 +737,35 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // - is read-only
                 // So let's wait for an in-progress downsampling operation to succeed or trigger the last matching round
                 var downsamplingMethod = dataStream.getDataLifecycle().downsamplingMethod();
-                affectedIndices.addAll(
-                    waitForInProgressOrTriggerDownsampling(dataStream, backingIndexMeta, downsamplingRounds, downsamplingMethod, project)
+                boolean canTriggerNewDownsampling = activeDownsamplingCount < maxDownsamplingIndicesInProgress;
+                Index downsamplingIndex = waitForInProgressOrTriggerDownsampling(
+                    dataStream,
+                    backingIndexMeta,
+                    downsamplingRounds,
+                    downsamplingMethod,
+                    project,
+                    canTriggerNewDownsampling
                 );
+                if (downsamplingIndex != null) {
+                    affectedIndices.add(downsamplingIndex);
+                    if (canTriggerNewDownsampling) {
+                        activeDownsamplingCount++;
+                    } else {
+                        throttledIndexCount++;
+                    }
+                }
             }
         }
 
+        if (throttledIndexCount > 0) {
+            logger.debug(
+                "Data stream lifecycle delayed downsampling for [{}] indices of [{}] because [{}] downsampling "
+                    + "operations are already in progress. The remaining indices will be downsampled in a future run.",
+                throttledIndexCount,
+                dataStream.getName(),
+                activeDownsamplingCount
+            );
+        }
         return affectedIndices;
     }
 
@@ -709,23 +773,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Iterate over the matching downsampling rounds for the backing index (if any) and either wait for an early round to complete,
      * add an early completed downsampling round to the data stream, or otherwise trigger the last matching downsampling round.
      *
-     * Returns the indices for which we triggered an action/operation.
+     * Returns the index for which we triggered an action/operation, null otherwise
      */
-    private Set<Index> waitForInProgressOrTriggerDownsampling(
+    @Nullable
+    private Index waitForInProgressOrTriggerDownsampling(
         DataStream dataStream,
         IndexMetadata backingIndex,
         List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
         DownsampleConfig.SamplingMethod downsamplingMethod,
-        ProjectMetadata project
+        ProjectMetadata project,
+        boolean canTriggerNewDownsampling
     ) {
         assert dataStream.getIndices().contains(backingIndex.getIndex())
             : "the provided backing index must be part of data stream:" + dataStream.getName();
         assert downsamplingRounds.isEmpty() == false : "the index should be managed and have matching downsampling rounds";
-        Set<Index> affectedIndices = new HashSet<>();
         DataStreamLifecycle.DownsamplingRound lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
 
-        Index index = backingIndex.getIndex();
-        String indexName = index.getName();
+        Index sourceIndex = backingIndex.getIndex();
         for (DataStreamLifecycle.DownsamplingRound round : downsamplingRounds) {
             // the downsample index name for each round is deterministic
             String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
@@ -737,7 +801,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             boolean targetDownsampleIndexExists = targetDownsampleIndexMeta != null;
 
             if (targetDownsampleIndexExists) {
-                Set<Index> downsamplingNotComplete = evaluateDownsampleStatus(
+                Index downsamplingNotComplete = evaluateDownsampleStatus(
                     project.id(),
                     dataStream,
                     INDEX_DOWNSAMPLE_STATUS.get(targetDownsampleIndexMeta.getSettings()),
@@ -747,20 +811,32 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     backingIndex,
                     targetDownsampleIndexMeta.getIndex()
                 );
-                if (downsamplingNotComplete.isEmpty() == false) {
-                    affectedIndices.addAll(downsamplingNotComplete);
-                    break;
+                if (downsamplingNotComplete != null) {
+                    return sourceIndex;
                 }
             } else {
                 if (round.equals(lastRound)) {
-                    // no maintenance needed for previously started downsampling actions and we are on the last matching round so it's time
-                    // to kick off downsampling
-                    affectedIndices.add(index);
-                    downsampleIndexOnce(round, downsamplingMethod, project.id(), backingIndex, downsampleIndexName);
+                    // no maintenance needed for previously started downsampling actions and we are on the last matching round, so it's time
+                    // to kick off downsampling if possible
+                    String sourceIndexName = sourceIndex.getName();
+                    if (canTriggerNewDownsampling) {
+                        ErrorEntry error = errorStore.getError(project.id(), sourceIndexName);
+                        if (ThrottledDownsampledIndexWarning.isThrottledDownsampledIndexWarning(error)) {
+                            errorStore.clearRecordedError(project.id(), sourceIndexName);
+                        }
+                        downsampleIndexOnce(round, downsamplingMethod, project.id(), backingIndex, downsampleIndexName);
+                    } else {
+                        errorStore.recordError(
+                            project.id(),
+                            sourceIndexName,
+                            new ThrottledDownsampledIndexWarning(sourceIndexName, dataStream.getName(), maxDownsamplingIndicesInProgress)
+                        );
+                    }
+                    return sourceIndex;
                 }
             }
         }
-        return affectedIndices;
+        return null;
     }
 
     /**
@@ -816,7 +892,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Depending on the status, we'll either error (if it's UNKNOWN and we've reached the last round), wait for it to complete (if it's
      * STARTED), or replace the backing index with the downsample index in the data stream (if the status is SUCCESS).
      */
-    private Set<Index> evaluateDownsampleStatus(
+    private Index evaluateDownsampleStatus(
         ProjectId projectId,
         DataStream dataStream,
         IndexMetadata.DownsampleTaskStatus downsampleStatus,
@@ -826,7 +902,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         IndexMetadata backingIndex,
         Index downsampleIndex
     ) {
-        Set<Index> affectedIndices = new HashSet<>();
         String indexName = backingIndex.getIndex().getName();
         String downsampleIndexName = downsampleIndex.getName();
         return switch (downsampleStatus) {
@@ -850,40 +925,36 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         signallingErrorRetryInterval
                     );
                 }
-                yield affectedIndices;
+                yield null;
             }
             case STARTED -> {
-                // we'll wait for this round to complete
-                // TODO add support for cancelling a current in-progress operation if another, later, round matches
+                // Being here means that we have a downsampled index created, but there is no persistent task yet (otherwise
+                // we would have skipped the index).
+                // There could be at least two things here at play:
+                // - the downsampling request is in progress, it has created the downsampling target, but it hasn't kick-started the
+                // persistent task yet. In this case, the deduplicator will stop this from being re-executed.
+                // - there was a disruption while the downsampling request was in progress, for example, master failover or a failure.
+                // In this case, we re-issue the downsample request to capture the error.
+                // This part is not protected by the floodgate on purpose. It is possible that if DLM runs are very close to each other
+                // we might miss counting this in-progress request, but there has been an error we prefer to surface it asap.
                 logger.trace(
-                    "Data stream lifecycle service waits for index [{}] to be downsampled. Current status is [{}] and the "
-                        + "downsample index name is [{}]",
-                    indexName,
+                    "Data stream lifecycle service detected [{}] with status [{}], it's either that source index [{}] just started"
+                        + " downsampling or something interfered and downsampling failed",
+                    downsampleIndex,
                     STARTED,
-                    downsampleIndexName
+                    indexName
                 );
-                // this request here might seem weird, but hear me out:
-                // if we triggered a downsample operation, and then had a master failover (so DSL starts from scratch)
-                // we can't really find out if the downsampling persistent task failed (if it was successful, no worries, the next case
-                // SUCCESS branch will catch it and we will cruise forward)
-                // if the downsampling persistent task failed, we will find out only via re-issuing the downsample request (and we will
-                // continue to re-issue the request until we get SUCCESS)
-
-                // NOTE that the downsample request is made through the deduplicator so it will only really be executed if
-                // there isn't one already in-flight. This can happen if a previous request timed-out, failed, or there was a
-                // master failover and data stream lifecycle needed to restart
                 downsampleIndexOnce(currentRound, downsamplingMethod, projectId, backingIndex, downsampleIndexName);
-                affectedIndices.add(backingIndex.getIndex());
-                yield affectedIndices;
+                yield backingIndex.getIndex();
             }
             case SUCCESS -> {
                 if (dataStream.getIndices().contains(downsampleIndex) == false) {
                     // at this point the source index is part of the data stream and the downsample index is complete but not
                     // part of the data stream. we need to replace the source index with the downsample index in the data stream
-                    affectedIndices.add(backingIndex.getIndex());
                     replaceBackingIndexWithDownsampleIndexOnce(projectId, dataStream, indexName, downsampleIndexName);
+                    yield downsampleIndex;
                 }
-                yield affectedIndices;
+                yield null;
             }
         };
     }
@@ -1623,6 +1694,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.targetMergePolicyFactor = newFactor;
     }
 
+    private void updateMaxDownsamplingIndicesInProgress(int newMax) {
+        this.maxDownsamplingIndicesInProgress = newMax;
+    }
+
     public void updateSignallingRetryThreshold(int retryThreshold) {
         this.signallingErrorRetryInterval = retryThreshold;
     }
@@ -1779,4 +1854,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         );
     }
 
+    static final class ThrottledDownsampledIndexWarning extends Exception {
+        private static final String IDENTIFYING_SUBSTRING = "] has reached the maximum number of downsampling operations [";
+
+        ThrottledDownsampledIndexWarning(String indexName, String dataStreamName, int limit) {
+            super(
+                "Downsampling index ["
+                    + indexName
+                    + "] cannot be started because data stream ["
+                    + dataStreamName
+                    + IDENTIFYING_SUBSTRING
+                    + limit
+                    + "]"
+            );
+        }
+
+        public static boolean isThrottledDownsampledIndexWarning(ErrorEntry errorEntry) {
+            return errorEntry != null && errorEntry.error().contains(IDENTIFYING_SUBSTRING);
+        }
+    }
 }

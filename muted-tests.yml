@@ -683,9 +683,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalParquetStringTopNSideChannelIT
   method: testNullsFirstEarlyTermination
   issue: https://github.com/elastic/elasticsearch/issues/152038
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=indices.refresh/10_basic/Indices refresh test _all}
-  issue: https://github.com/elastic/elasticsearch/issues/152039
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:views.mixedIndexWithViewRowInFromSubquery}
   issue: https://github.com/elastic/elasticsearch/issues/152040

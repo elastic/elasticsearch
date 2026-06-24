@@ -13,9 +13,11 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.ArrayDeque;
@@ -46,6 +48,7 @@ public final class ThrottlingRecoveryService implements Closeable {
     );
 
     private final Executor executor;
+    private final ThreadContext threadContext;
     private final CompositeRecoverySchedulingListener schedulingListeners;
 
     private int maxConcurrentRecoveries;
@@ -55,11 +58,12 @@ public final class ThrottlingRecoveryService implements Closeable {
     private boolean closed;
 
     public ThrottlingRecoveryService(
-        Executor executor,
+        ThreadPool threadPool,
         ClusterService clusterService,
         CompositeRecoverySchedulingListener schedulingListeners
     ) {
-        this.executor = executor;
+        this.executor = threadPool.generic();
+        this.threadContext = threadPool.getThreadContext();
         this.schedulingListeners = schedulingListeners;
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
@@ -140,7 +144,9 @@ public final class ThrottlingRecoveryService implements Closeable {
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
+            try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+                executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
+            }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }

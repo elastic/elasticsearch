@@ -929,7 +929,7 @@ class NodeConstruction {
 
         final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
-            threadPool.generic(),
+            threadPool,
             clusterService,
             recoverySchedulingListeners
         );

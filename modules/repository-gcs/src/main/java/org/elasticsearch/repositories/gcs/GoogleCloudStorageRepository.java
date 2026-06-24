@@ -157,7 +157,16 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.metadataStorageClass = METADATA_STORAGE_CLASS.get(metadata.settings());
         validateStorageClassIfSpecified(metadata.name(), DATA_STORAGE_CLASS.getKey(), this.dataStorageClass);
         validateStorageClassIfSpecified(metadata.name(), METADATA_STORAGE_CLASS.getKey(), this.metadataStorageClass);
-        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
+        logger.debug(
+            "using bucket [{}], base_path [{}], chunk_size [{}],{} compress [{}]",
+            bucket,
+            basePath(),
+            chunkSize,
+            this.resumableWriteBufferSize.isEmpty()
+                ? ""
+                : Strings.format(" resumable_write_buffer_size [%s],", ByteSizeValue.ofBytes(this.resumableWriteBufferSize.getAsInt())),
+            isCompress()
+        );
     }
 
     /**

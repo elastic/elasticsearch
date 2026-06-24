@@ -25,26 +25,18 @@ public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
     private final APMLoggingService loggingService;
-    private final long flushTimeoutMillis;
 
     public APMTelemetryProvider(Settings settings, Path diskBufferPath) {
         apmMeterService = new APMMeterService(settings, diskBufferPath);
         apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
         loggingService = new APMLoggingService(settings);
-        flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
     }
 
     // visible for testing: pre-built service/tracer instances with stubbed suppliers
-    public APMTelemetryProvider(
-        APMMeterService apmMeterService,
-        APMTracer apmTracer,
-        APMLoggingService loggingService,
-        long flushTimeoutMillis
-    ) {
+    public APMTelemetryProvider(APMMeterService apmMeterService, APMTracer apmTracer, APMLoggingService loggingService) {
         this.apmMeterService = apmMeterService;
         this.apmTracer = apmTracer;
         this.loggingService = loggingService;
-        this.flushTimeoutMillis = flushTimeoutMillis;
     }
 
     @Override
@@ -66,7 +58,8 @@ public class APMTelemetryProvider implements TelemetryProvider {
         CompletableResultCode metrics = apmMeterService.attemptFlushMetrics();
         CompletableResultCode traces = apmTracer.attemptFlushTraces();
         CompletableResultCode logs = loggingService.forceFlush();
-        CompletableResultCode.ofAll(List.of(metrics, traces, logs)).join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
+        CompletableResultCode.ofAll(List.of(metrics, traces, logs))
+            .join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
     }
 
     public APMLoggingService getLoggingService() {

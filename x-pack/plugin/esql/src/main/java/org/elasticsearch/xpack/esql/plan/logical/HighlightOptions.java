@@ -57,16 +57,20 @@ public record HighlightOptions(String preTag, String postTag, String encoder, in
     }
 
     /**
-     * Reads a string option. Tags may be given as a single string ({@code "pre_tags": "<b>"}) or a single-element list
-     * ({@code "pre_tags": ["<b>"]}); for a list we take the first element.
+     * Reads a string option. Tags may be given as a single string ({@code "pre_tags": "<b>"}) or a list.
      */
-    // TODO: support multiple pre_tags/post_tags (Query DSL rotates through the list per match) instead of only the first.
+    // TODO: support multiple pre_tags/post_tags (Query DSL rotates through the list per match) instead of rejecting them.
     private static String string(Expression value, FoldContext foldContext, String defaultValue) {
         if (value == null) {
             return defaultValue;
         }
         Object folded = value.fold(foldContext);
         if (folded instanceof List<?> list) {
+            if (list.size() > 1) {
+                throw new IllegalArgumentException(
+                    "HIGHLIGHT does not support multiple tags yet, but got [" + list.size() + "]; provide a single tag"
+                );
+            }
             return list.isEmpty() ? defaultValue : BytesRefs.toString(list.getFirst());
         }
         return BytesRefs.toString(folded);

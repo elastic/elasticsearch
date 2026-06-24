@@ -148,7 +148,6 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         // One scratch BytesRef is reused across every field and every row of this page; the operator is single-threaded
         // per driver and the scratch is never retained past process().
         BytesRef scratch = new BytesRef();
-        boolean success = false;
         try {
             for (int f = 0; f < fieldEvaluators.length; f++) {
                 try (Block block = fieldEvaluators[f].eval(page)) {
@@ -161,13 +160,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                     }
                 }
             }
-            Page result = page.appendBlocks(highlightedBlocks);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(highlightedBlocks);
-            }
+            return page.appendBlocks(highlightedBlocks);
+        } catch (Exception e) {
+            // If we highlighted some fields but failed before appending them, we need to release them.
+            Releasables.closeExpectNoException(highlightedBlocks);
+            throw e;
         }
     }
 

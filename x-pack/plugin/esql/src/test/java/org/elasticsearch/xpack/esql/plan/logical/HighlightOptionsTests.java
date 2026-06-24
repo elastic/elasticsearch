@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -43,6 +44,14 @@ public class HighlightOptionsTests extends ESTestCase {
     public void testTagAsSingleElementList() {
         HighlightOptions options = HighlightOptions.from(map(Highlight.PRE_TAGS, keywordList("<b>")), FoldContext.small());
         assertThat(options.preTag(), equalTo("<b>"));
+    }
+
+    public void testMultipleTagsAreRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightOptions.from(map(Highlight.PRE_TAGS, keywordList("<b>", "<i>")), FoldContext.small())
+        );
+        assertThat(e.getMessage(), containsString("does not support multiple tags yet"));
     }
 
     public void testHtmlEncoder() {
@@ -97,8 +106,8 @@ public class HighlightOptionsTests extends ESTestCase {
         return Literal.keyword(Source.EMPTY, value);
     }
 
-    private static Literal keywordList(String value) {
-        return new Literal(Source.EMPTY, List.of(BytesRefs.toBytesRef(value)), KEYWORD);
+    private static Literal keywordList(String... values) {
+        return new Literal(Source.EMPTY, Arrays.stream(values).map(BytesRefs::toBytesRef).toList(), KEYWORD);
     }
 
     private static Literal integer(int value) {

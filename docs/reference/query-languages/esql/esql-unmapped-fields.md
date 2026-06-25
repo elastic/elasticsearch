@@ -12,7 +12,7 @@ description: How ES|QL queries fields that aren't in the index mapping, using th
 
 An unmapped field is a field that a query references but that the mapping does not define. By default, {{esql}} returns an error for it.
 
-Without it, you need to reindex your data so the field is mapped before you can query it. On a large dataset, that reindex can take hours.
+Without this capability, the usual fix is to add the field to your mapping and reindex your data before you can query it. On a large dataset, that reindex can take hours.
 
 ## Use cases [esql-unmapped-fields-use-cases]
 

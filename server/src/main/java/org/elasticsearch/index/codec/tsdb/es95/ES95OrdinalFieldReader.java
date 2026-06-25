@@ -20,11 +20,11 @@ import java.io.IOException;
 /**
  * {@link OrdinalFieldReader} implementation for the ES95 TSDB format.
  *
- * <p>{@link #readFieldEntry} delegates to {@link TSDBDocValuesBlockReader} with a
- * per-field metadata callback that reads the {@code blockShift} byte written by
- * {@link ES95OrdinalFieldWriter} and sets {@link NumericEntry#blockSize} from it.
- * {@link #decoder(int)} creates a {@link TSDBDocValuesEncoder} sized to that block size,
- * so the decoder is always correctly sized for the field it was encoded with.
+ * <p>{@link #readFieldEntry} delegates to {@link TSDBDocValuesBlockReader} with a per-field
+ * metadata callback that reads the {@code blockShift} byte written by {@link ES95OrdinalFieldWriter}
+ * and sets {@link NumericEntry#blockSize} from it. {@link #decoder(int)} creates a
+ * {@link TSDBDocValuesEncoder} sized to that block size so the decoder is always correctly sized
+ * for the field it was encoded with.
  */
 final class ES95OrdinalFieldReader implements OrdinalFieldReader {
 

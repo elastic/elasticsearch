@@ -25,6 +25,7 @@ import org.elasticsearch.index.codec.tsdb.SortedFieldObserver;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig.TermsDictConfig;
+import org.elasticsearch.index.codec.tsdb.TSDBOrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
@@ -34,11 +35,11 @@ import java.io.IOException;
 
 /**
  * ES95 TSDB doc values format. Uses pipeline-based encoding for numeric fields via
- * {@link ES95NumericCodec} and per-field block size encoding for ordinals via
- * {@link ES95OrdinalCodec}. Non-numeric field types are handled identically to
- * ES819 by the shared abstract base classes. Each numeric field writes a self-describing
- * {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor} so decoders
- * reconstruct themselves from segment metadata.
+ * {@link ES95NumericCodec} and shared ordinal encoding via
+ * {@link org.elasticsearch.index.codec.tsdb.TSDBOrdinalBlockCodec}. Non-numeric field types
+ * are handled identically to ES819 by the shared abstract base classes. Each numeric field
+ * writes a self-describing {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor}
+ * so decoders reconstruct themselves from segment metadata.
  */
 public class ES95TSDBDocValuesFormat extends DocValuesFormat {
 
@@ -161,7 +162,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             numericCodecFactory,
             fallbackDecoderFactory
         );
-        final OrdinalBlockCodec ordinalBlockCodec = new ES95OrdinalCodec(PIPELINE_CONFIG_RESOLVER, fieldContextResolver);
+        final OrdinalBlockCodec ordinalBlockCodec = new TSDBOrdinalBlockCodec();
         return new ES95TSDBDocValuesConsumer(
             state,
             enableOptimizedMerge,
@@ -191,7 +192,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             numericCodecFactory,
             fallbackDecoderFactory
         );
-        final OrdinalBlockCodec ordinalBlockCodec = new ES95OrdinalCodec(PIPELINE_CONFIG_RESOLVER, fieldContextResolver);
+        final OrdinalBlockCodec ordinalBlockCodec = new TSDBOrdinalBlockCodec();
         return new ES95TSDBDocValuesProducer(
             state,
             DATA_CODEC,

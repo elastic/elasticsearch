@@ -289,4 +289,53 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals(13000L, result.get(SourceStatisticsSerializer.columnSizeBytesKey("age")));
         assertEquals(25000L, result.get(SourceStatisticsSerializer.columnSizeBytesKey("name")));
     }
+
+    /**
+     * Reproduces the production double-merge of the warm multi-file path: each file's whole-file map is
+     * itself the result of {@code mergeStatistics} over that file's stripes, carrying the non-{@code _stats.columns.*}
+     * keying fields (mtime, fingerprint, per-stripe entry maps). The dataset-wide merge then folds the N
+     * per-file maps, and the optimizer reads the result through {@link SplitStats#of}. Asserts the column
+     * min/max survives both hops and the {@link SplitStats} round-trip across many files (the single-file
+     * fold ITs never exercise this).
+     */
+    public void testDoubleMergeManyFilesPreservesColumnMinMax() {
+        int fileCount = 25;
+        int stripesPerFile = 4;
+        long rowsPerStripe = 10_000L;
+        List<Map<String, Object>> perFileMaps = new ArrayList<>(fileCount);
+        long globalRow = 0;
+        for (int f = 0; f < fileCount; f++) {
+            List<Map<String, Object>> stripeMaps = new ArrayList<>(stripesPerFile);
+            for (int s = 0; s < stripesPerFile; s++) {
+                Map<String, Object> stripe = new HashMap<>();
+                stripe.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowsPerStripe);
+                stripe.put(SourceStatisticsSerializer.columnNullCountKey("EventDate"), 0L);
+                stripe.put(SourceStatisticsSerializer.columnMinKey("EventDate"), globalRow);
+                stripe.put(SourceStatisticsSerializer.columnMaxKey("EventDate"), globalRow + rowsPerStripe - 1);
+                globalRow += rowsPerStripe;
+                stripeMaps.add(stripe);
+            }
+            Map<String, Object> wholeFile = SourceStatisticsSerializer.mergeStatistics(stripeMaps);
+            assertNotNull(wholeFile);
+            // Re-attach the keying fields the real cache entry carries (these must NOT corrupt the merge).
+            wholeFile.put("_stats.file_mtime_millis", 1_700_000_000_000L + f);
+            wholeFile.put("_stats.config_fingerprint", "fp");
+            wholeFile.put("_stats.stripe.0", Map.of("inner", "ignored"));
+            perFileMaps.add(wholeFile);
+        }
+        long totalRows = globalRow;
+
+        Map<String, Object> dataset = SourceStatisticsSerializer.mergeStatistics(perFileMaps);
+        assertNotNull(dataset);
+        assertEquals(totalRows, ((Number) dataset.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertEquals(0L, dataset.get(SourceStatisticsSerializer.columnMinKey("EventDate")));
+        assertEquals(totalRows - 1, dataset.get(SourceStatisticsSerializer.columnMaxKey("EventDate")));
+
+        // The optimizer reads the merged dataset stats through SplitStats.of; min/max must survive that hop.
+        SplitStats stats = SplitStats.of(dataset);
+        assertNotNull(stats);
+        assertEquals(totalRows, stats.rowCount());
+        assertEquals(0L, stats.columnMin("EventDate"));
+        assertEquals(totalRows - 1, stats.columnMax("EventDate"));
+    }
 }

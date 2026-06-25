@@ -104,32 +104,37 @@ public final class MergedSplitStats implements org.elasticsearch.xpack.esql.data
      * Returns the minimum of children's min values for the named column under the SPI's
      * "implicit nulls" contract:
      * <ul>
-     *   <li>A child with {@code columnNullCount(name) == child.rowCount()} contributes no candidate
-     *       min — the column is either absent from that file or its rows are all null. We
-     *       <b>skip</b> that child rather than poison.</li>
-     *   <li>A child with {@code columnNullCount(name) < 0} represents the rare "present but stats
-     *       unknown" case (Parquet stats disabled) and <b>poisons</b> the aggregate; we cannot
-     *       know whether that child has a smaller value than the running min.</li>
-     *   <li>A child with a known, finite null count and a non-null min participates in the merge
-     *       via {@link SplitStats#mergedMin}; incompatible numeric types poison defensively.</li>
+     *   <li>A child that reports a <b>known min value</b> contributes it to the merge via
+     *       {@link SplitStats#mergedMin}, <b>regardless of its null count</b>. A min stat is the
+     *       minimum of the column's non-null values, so it is a valid extremum candidate even when
+     *       the child's null count is unknown ({@code columnNullCount(name) < 0}) — null count only
+     *       bears on {@code COUNT}, never on {@code MIN}/{@code MAX}. This is the multi-FILE case
+     *       where a per-file {@code SplitStats} carries a folded min/max but its null_count was
+     *       poison-dropped during that file's own multi-stripe fold.</li>
+     *   <li>A child with <b>no min value</b> is then classified by its null count:
+     *       {@code columnNullCount(name) == child.rowCount()} means the column is absent or all-null,
+     *       so the child has no candidate and is <b>skipped</b>; {@code columnNullCount(name) < 0}
+     *       (present but stats unknown — e.g. Parquet stats disabled) <b>poisons</b> the aggregate
+     *       because the child may hold a smaller value we cannot see; a finite null count below the
+     *       row count with no min is an inconsistent reader output and poisons defensively.</li>
      * </ul>
-     * Returns {@code null} when poisoned or when no child contributes a value.
+     * Incompatible numeric types across known mins poison the aggregate. Returns {@code null} when
+     * poisoned or when no child contributes a value.
      */
     @Override
     @Nullable
     public Object columnMin(String name) {
         Object result = null;
         for (org.elasticsearch.xpack.esql.datasources.spi.SplitStats child : children) {
-            long nc = child.columnNullCount(name);
-            if (nc < 0) {
-                return null;
-            }
-            if (nc == child.rowCount()) {
-                continue;
-            }
             Object childMin = child.columnMin(name);
             if (childMin == null) {
-                // Present, not all-null, but reader produced no min — inconsistent; poison defensively.
+                long nc = child.columnNullCount(name);
+                if (nc == child.rowCount()) {
+                    // Column absent or all-null in this child — no candidate value, skip it.
+                    continue;
+                }
+                // Present (or stats-unknown) but the reader produced no min — we cannot rule out a
+                // smaller value in this child, so poison rather than ignore.
                 return null;
             }
             result = SplitStats.mergedMin(result, childMin);
@@ -143,24 +148,21 @@ public final class MergedSplitStats implements org.elasticsearch.xpack.esql.data
 
     /**
      * Returns the maximum of children's max values for the named column under the SPI's
-     * "implicit nulls" contract. Mirrors {@link #columnMin} — children whose null count equals
-     * their row count have no max value to contribute and are skipped; only an explicit
-     * unknown ({@code columnNullCount &lt; 0}) poisons the aggregate.
+     * "implicit nulls" contract. Mirrors {@link #columnMin} — a child with a known max contributes
+     * it regardless of its null count (null count bears only on {@code COUNT}); a child with no max
+     * is skipped when the column is absent/all-null and otherwise poisons defensively.
      */
     @Override
     @Nullable
     public Object columnMax(String name) {
         Object result = null;
         for (org.elasticsearch.xpack.esql.datasources.spi.SplitStats child : children) {
-            long nc = child.columnNullCount(name);
-            if (nc < 0) {
-                return null;
-            }
-            if (nc == child.rowCount()) {
-                continue;
-            }
             Object childMax = child.columnMax(name);
             if (childMax == null) {
+                long nc = child.columnNullCount(name);
+                if (nc == child.rowCount()) {
+                    continue;
+                }
                 return null;
             }
             result = SplitStats.mergedMax(result, childMax);

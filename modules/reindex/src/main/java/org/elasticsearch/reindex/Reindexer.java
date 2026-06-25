@@ -126,14 +126,6 @@ public class Reindexer {
 
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
-    /// Allows setting the system property `es.reindex.disable_pit_search` as an escape hatch to disable the use of PIT-based search, and
-    /// force the use of the legacy scroll-based search.
-    // TODO(#2715): Remove this when we're confident the PIT version works
-    private static final boolean DISABLE_PIT_SEARCH = Booleans.parseBooleanLenient(
-        System.getProperty("es.reindex.disable_pit_search"),
-        false
-    );
-
     private final ClusterService clusterService;
     private final ReindexSettings reindexSettings;
     private final ProjectResolver projectResolver;
@@ -255,7 +247,7 @@ public class Reindexer {
         Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, responseListener);
 
         // Point-in-time searching is disabled, so default to scroll
-        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false || DISABLE_PIT_SEARCH) {
+        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false) {
             executePaginatedSearch(task, request, responseListener, workerAction, null);
         }
         /**

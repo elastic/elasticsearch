@@ -144,6 +144,24 @@ public class PushQueriesFieldExtractIT extends ESRestTestCase {
     }
 
     /**
+     * EVAL over field_extract followed by a WHERE condition on the evaluated alias must push
+     * the same candidate Lucene query as the inline version and retain the recheck filter.
+     */
+    public void testEqualityPushedFromEval() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        String value = randomAlphaOfLengthBetween(1, 16);
+        String otherValue = randomValueOtherThan(value, () -> randomAlphaOfLengthBetween(1, 16));
+        indexDocs(List.of(value, otherValue));
+
+        runAndAssert(String.format(Locale.ROOT, """
+            FROM test
+            | EVAL ext = field_extract(%s, "%s")
+            | WHERE ext == "%s"
+            | KEEP id
+            """, FLATTENED_ROOT, SUBKEY, value), equalTo(expectedEqualityQuery(value)), ComputeSignature.FILTER_FROM_EVAL, 1);
+    }
+
+    /**
      * {@code field_extract(...) != "v"} must push a candidate negated {@code TermQuery} against the
      * keyed sub-field, with the {@code FilterOperator} retained for the recheck. Lucene renders the
      * pure-negative bool as {@code #*:* -<inner>} (match-all filter + must-not).
@@ -310,6 +328,27 @@ public class PushQueriesFieldExtractIT extends ESRestTestCase {
     }
 
     /**
+     * A closed range over an EVAL field_extract alias must push the same candidate range as the
+     * inline version and retain the recheck filter.
+     */
+    public void testBetweenPushedFromEval() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        indexDocs(List.of("aaa", "mmm", "zzz"));
+
+        runAndAssert(
+            String.format(Locale.ROOT, """
+                FROM test
+                | EVAL ext = field_extract(%s, "%s")
+                | WHERE ext >= "b" AND ext <= "y"
+                | KEEP id
+                """, FLATTENED_ROOT, SUBKEY),
+            equalTo(expectedRangeQuery("b", true, "y", true)),
+            ComputeSignature.FILTER_FROM_EVAL,
+            1
+        );
+    }
+
+    /**
      * Expected printed form of a closed {@code field_extract} range pushed to the keyed sub-field.
      * The two single-sided comparators are merged into one {@code RangeQuery} by the logical
      * {@code CombineBinaryComparisons} rule before pushdown. Under RECHECK the range is bare (no
@@ -381,6 +420,16 @@ public class PushQueriesFieldExtractIT extends ESRestTestCase {
         FILTER_IN_COMPUTE(
             matchesList().item("LuceneSourceOperator")
                 .item("ValuesSourceReaderOperator")
+                .item("FilterOperator")
+                .item("LimitOperator")
+                .item("ValuesSourceReaderOperator")
+                .item("ProjectOperator")
+                .item("ExchangeSinkOperator")
+        ),
+        FILTER_FROM_EVAL(
+            matchesList().item("LuceneSourceOperator")
+                .item("ValuesSourceReaderOperator")
+                .item("EvalOperator")
                 .item("FilterOperator")
                 .item("LimitOperator")
                 .item("ValuesSourceReaderOperator")

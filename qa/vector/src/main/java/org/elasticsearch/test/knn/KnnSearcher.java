@@ -1074,7 +1074,18 @@ public class KnnSearcher {
                     var bitSet = segmentDocs[context.ord];
                     var cardinality = cardinalities[context.ord];
                     final DocIdSetIterator bitSetIterator = new BitSetIterator(bitSet, cardinality);
-                    final DocIdSetIterator iterator = filterCached ? bitSetIterator : new FilterDocIdSetIterator(bitSetIterator);
+                    final DocIdSetIterator iterator = filterCached ? bitSetIterator : new FilterDocIdSetIterator(bitSetIterator) {
+
+                        @Override
+                        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                            bitSetIterator.intoBitSet(upTo, bitSet, offset);
+                        }
+
+                        @Override
+                        public int docIDRunEnd() throws IOException {
+                            return bitSetIterator.docIDRunEnd();
+                        }
+                    };
 
                     var scorer = new ConstantScoreScorer(score(), scoreMode, iterator);
                     return new ScorerSupplier() {

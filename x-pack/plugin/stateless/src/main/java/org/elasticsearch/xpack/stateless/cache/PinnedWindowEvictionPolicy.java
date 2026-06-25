@@ -22,12 +22,12 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
- * Eviction policy that does not evict locally allocated cache regions whose content timestamp
+ * Eviction policy that does not evict cache regions for locally open shards whose content timestamp
  * falls within a configurable pinned window.
  * <p>
- * Regions for locally allocated shards with {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} are
- * also protected from eviction until a content timestamp is available. This avoids evicting data
- * whose age relative to the pinned window cannot yet be determined.
+ * Regions for locally open shards with {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} are also
+ * protected from eviction until a content timestamp is available. This avoids evicting data whose
+ * age relative to the pinned window cannot yet be determined.
  */
 public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
@@ -55,7 +55,7 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     }
 
     /**
-     * For test subclasses that override {@link #isShardLocallyAllocated(ShardId)} and optionally {@link #currentTimeMillis()}.
+     * For test subclasses that override {@link #isShardLocallyOpen(ShardId)} and optionally {@link #currentTimeMillis()}.
      */
     protected PinnedWindowEvictionPolicy(ThreadPool threadPool, Predicate<ShardId> locallyOpenShard, TimeValue pinnedWindowDuration) {
         this.locallyOpenShard = Objects.requireNonNull(locallyOpenShard);
@@ -70,7 +70,7 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     /**
      * Returns {@code true} if the shard is open on this node.
      */
-    protected boolean isShardLocallyAllocated(ShardId shardId) {
+    protected boolean isShardLocallyOpen(ShardId shardId) {
         return locallyOpenShard.test(shardId);
     }
 
@@ -90,11 +90,11 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
         final long pinnedWindowCutoffMillis = currentTimeMillis() - pinnedWindowDuration.getMillis();
         return region -> {
-            if (isShardLocallyAllocated(region.key().shardId()) == false) {
+            if (isShardLocallyOpen(region.key().shardId()) == false) {
                 return true;
             }
             final long timestampMillis = region.timestampMillis();
-            // Protect locally allocated regions until their content age can be evaluated.
+            // Protect locally open regions until their content age can be evaluated.
             // Also protect shards without timestamps.
             if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
                 return false;

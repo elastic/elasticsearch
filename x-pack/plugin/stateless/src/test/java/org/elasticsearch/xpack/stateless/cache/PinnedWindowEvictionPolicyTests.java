@@ -88,7 +88,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         assertThat(policy.getPinnedWindowDuration(), equalTo(TimeValue.timeValueHours(6)));
     }
 
-    public void testCannotEvictLocallyAllocatedRegionWithinPinnedWindow() {
+    public void testCannotEvictLocallyOpenRegionWithinPinnedWindow() {
         final long now = randomLongBetween(TimeValue.timeValueDays(365).millis(), TimeValue.timeValueDays(365 * 50).millis());
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
         final long timestampMillis = now - randomLongBetween(0, PINNED_WINDOW_DURATION.millis() - 1);
@@ -96,14 +96,14 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         assertFalse(canEvict(fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardId), region(shardId, timestampMillis)));
     }
 
-    public void testCannotEvictLocallyAllocatedRegionWithUnknownTimestamp() {
+    public void testCannotEvictLocallyOpenRegionWithUnknownTimestamp() {
         final long now = randomLongBetween(1, Long.MAX_VALUE);
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
 
         assertFalse(canEvict(fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardId), region(shardId, UNKNOWN_TIMESTAMP)));
     }
 
-    public void testCanEvictLocallyAllocatedRegionOutsidePinnedWindow() {
+    public void testCanEvictLocallyOpenRegionOutsidePinnedWindow() {
         final long now = randomLongBetween(TimeValue.timeValueDays(365).millis(), TimeValue.timeValueDays(365 * 50).millis());
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
         final long timestampMillis = now - PINNED_WINDOW_DURATION.millis() - randomLongBetween(1, TimeValue.timeValueDays(30).millis());
@@ -111,7 +111,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         assertTrue(canEvict(fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardId), region(shardId, timestampMillis)));
     }
 
-    public void testCanEvictWhenShardNotLocallyAllocated() {
+    public void testCanEvictWhenShardNotLocallyOpen() {
         final long now = randomLongBetween(TimeValue.timeValueDays(365).millis(), TimeValue.timeValueDays(365 * 50).millis());
         final ShardId localShard = new ShardId("local", randomUUID(), 0);
         final ShardId remoteShard = new ShardId("remote", randomUUID(), 0);

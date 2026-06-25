@@ -16,6 +16,7 @@ apply plugin: 'elasticsearch.foreign-api'
 dependencies {
   api project(':libs:core')
   api project(':libs:logging')
+  api project(':libs:foreign-adapter')
 
   testImplementation buildLibs.junit
 }

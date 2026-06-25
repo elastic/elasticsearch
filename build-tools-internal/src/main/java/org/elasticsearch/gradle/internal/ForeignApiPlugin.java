@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.gradle.api.Named;
 import org.gradle.api.Plugin;
@@ -35,6 +34,8 @@ import java.util.Collections;
 import java.util.List;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Configures a project to use the {@code java.lang.foreign} API without {@code --enable-preview}
@@ -66,7 +67,7 @@ public class ForeignApiPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
 
-        BuildParameterExtension buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
+        var buildParams = loadBuildParams(project).get();
         int minRuntime = Integer.parseInt(buildParams.getMinimumRuntimeVersion().getMajorVersion());
 
         if (minRuntime == 21) {

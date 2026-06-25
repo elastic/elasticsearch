@@ -110,6 +110,10 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
             .submit(ExtractionWorkAction.class, params -> params.getOutputJar().set(getOutputJar()));
     }
 
+    static byte[] createStub(InputStream classStream) throws IOException {
+        return ExtractionWorkAction.createStub(classStream);
+    }
+
     // -------------------------------------------------------------------------
     // Worker parameters
     // -------------------------------------------------------------------------
@@ -186,7 +190,7 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
             }
         }
 
-        private static byte[] createStub(InputStream classStream) throws IOException {
+        static byte[] createStub(InputStream classStream) throws IOException {
             ClassReader reader = new ClassReader(classStream);
             ClassNode cn = new ClassNode();
             reader.accept(cn, 0);

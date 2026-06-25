@@ -38,7 +38,7 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         clazz('org.acme.Dummy')
 
         when:
-        def result = gradleRunner('extractForeignApiJar', '-g', gradleUserHome).build()
+        def result = gradleRunner('assemble').build()
 
         then:
         result.task(":extractForeignApiJar").outcome == TaskOutcome.SUCCESS
@@ -50,8 +50,8 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         clazz('org.acme.Dummy')
 
         when:
-        gradleRunner('extractForeignApiJar', '-g', gradleUserHome).build()
-        def result = gradleRunner('extractForeignApiJar', '-g', gradleUserHome).build()
+        gradleRunner('assemble').build()
+        def result = gradleRunner('assemble').build()
 
         then:
         result.task(":extractForeignApiJar").outcome == TaskOutcome.UP_TO_DATE
@@ -62,9 +62,9 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         clazz('org.acme.Dummy')
 
         when:
-        gradleRunner('extractForeignApiJar', '--build-cache', '-g', gradleUserHome).build()
-        gradleRunner('clean', '-g', gradleUserHome).build()
-        def result = gradleRunner('extractForeignApiJar', '--build-cache', '-g', gradleUserHome).build()
+        gradleRunner('assemble', '--build-cache').build()
+        gradleRunner('clean').build()
+        def result = gradleRunner('extractForeignApiJar', '--build-cache').build()
 
         then:
         result.task(":extractForeignApiJar").outcome == TaskOutcome.FROM_CACHE
@@ -81,10 +81,10 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         )
 
         when:
-        def result = gradleRunner('extractForeignApiJar', '-g', gradleUserHome).buildAndFail()
+        def result = gradleRunner('assemble').buildAndFail()
 
         then:
-        result.output.contains("Task 'extractForeignApiJar' not found")
+        result.task(":extractForeignApiJar") == null
     }
 
     // --- ForeignAccessArgumentProvider / --patch-module tests ---
@@ -94,7 +94,7 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         clazz('org.acme.Dummy')
 
         when:
-        def result = gradleRunner('compileJava', '-g', gradleUserHome).build()
+        def result = gradleRunner('assemble').build()
 
         then:
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
@@ -111,7 +111,7 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         """.stripIndent()
 
         when:
-        def result = gradleRunner('compileJava', '-g', gradleUserHome).build()
+        def result = gradleRunner('assemble').build()
 
         then:
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
@@ -134,7 +134,7 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         """.stripIndent()
 
         when:
-        def result = gradleRunner('compileJava', '-g', gradleUserHome).build()
+        def result = gradleRunner('assemble').build()
 
         then:
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
@@ -145,14 +145,60 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         clazz('org.acme.Dummy')
 
         when:
-        gradleRunner('compileJava', '-g', gradleUserHome).build()
-        def result = gradleRunner('compileJava', '-g', gradleUserHome).build()
+        gradleRunner('assemble').build()
+        def result = gradleRunner('assemble').build()
 
         then:
         result.task(":compileJava").outcome == TaskOutcome.UP_TO_DATE
     }
 
-    // --- CheckForbiddenApisTask tests ---
+    def "forbiddenApisMain rejects direct use of JDK 21 foreign API methods"() {
+        given:
+        setupForbiddenApiBuild()
+        file("src/main/java/org/acme/BadForeignUser.java") << """
+            package org.acme;
+            import java.lang.foreign.MemorySegment;
+            public class BadForeignUser {
+                public String bad(MemorySegment s) { return s.getUtf8String(0); }
+            }
+        """.stripIndent()
+
+        when:
+        def result = gradleRunner('forbiddenApisMain').buildAndFail()
+
+        then:
+        result.task(":forbiddenApisMain").outcome == TaskOutcome.FAILED
+        assertOutputContains(result.output, "Use MemorySegmentAdapter.getString() instead")
+    }
+
+    def "forbiddenApisMain rejects direct use of JDK 22+ foreign API methods"() {
+        // CheckForbiddenApisTask runs noIsolation() in the Gradle daemon. For JDK 22+ signatures
+        // the checker resolves method descriptors from the daemon's own bootclasspath; on JDK 21
+        // MemorySegment#getString(long) does not exist there and the checker throws
+        // "IO problem while reading files with API signatures". There is no toolchain escape
+        // hatch for a noIsolation() worker, so this test requires a JDK 22+ daemon.
+        assumeTrue("Requires JDK 22+ daemon for forbidden-apis bootclasspath resolution",
+            Runtime.version().feature() >= 22)
+
+        given:
+        setupForbiddenApiBuild(false)
+        file("src/main/java/org/acme/BadForeignUser.java") << """
+            package org.acme;
+            import java.lang.foreign.MemorySegment;
+            public class BadForeignUser {
+                public String bad(MemorySegment s) { return s.getString(0); }
+            }
+        """.stripIndent()
+
+        when:
+        def result = gradleRunner('forbiddenApisMain').buildAndFail()
+
+        then:
+        result.task(":forbiddenApisMain").outcome == TaskOutcome.FAILED
+        assertOutputContains(result.output, "Use MemorySegmentAdapter.getString() instead")
+    }
+
+     // --- CheckForbiddenApisTask tests ---
 
     /**
      * Builds a project that applies the full foreign-API + forbidden-API stack.
@@ -189,49 +235,4 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         """.stripIndent()
     }
 
-    def "forbiddenApisMain rejects direct use of JDK 21 foreign API methods"() {
-        given:
-        setupForbiddenApiBuild()
-        file("src/main/java/org/acme/BadForeignUser.java") << """
-            package org.acme;
-            import java.lang.foreign.MemorySegment;
-            public class BadForeignUser {
-                public String bad(MemorySegment s) { return s.getUtf8String(0); }
-            }
-        """.stripIndent()
-
-        when:
-        def result = gradleRunner('forbiddenApisMain', '-g', gradleUserHome).buildAndFail()
-
-        then:
-        result.task(":forbiddenApisMain").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.output, "Use MemorySegmentAdapter.getString() instead")
-    }
-
-    def "forbiddenApisMain rejects direct use of JDK 22+ foreign API methods"() {
-        // CheckForbiddenApisTask runs noIsolation() in the Gradle daemon. For JDK 22+ signatures
-        // the checker resolves method descriptors from the daemon's own bootclasspath; on JDK 21
-        // MemorySegment#getString(long) does not exist there and the checker throws
-        // "IO problem while reading files with API signatures". There is no toolchain escape
-        // hatch for a noIsolation() worker, so this test requires a JDK 22+ daemon.
-        assumeTrue("Requires JDK 22+ daemon for forbidden-apis bootclasspath resolution",
-            Runtime.version().feature() >= 22)
-
-        given:
-        setupForbiddenApiBuild(false)
-        file("src/main/java/org/acme/BadForeignUser.java") << """
-            package org.acme;
-            import java.lang.foreign.MemorySegment;
-            public class BadForeignUser {
-                public String bad(MemorySegment s) { return s.getString(0); }
-            }
-        """.stripIndent()
-
-        when:
-        def result = gradleRunner('forbiddenApisMain', '-g', gradleUserHome).buildAndFail()
-
-        then:
-        result.task(":forbiddenApisMain").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.output, "Use MemorySegmentAdapter.getString() instead")
-    }
 }

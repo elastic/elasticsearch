@@ -41,7 +41,7 @@ class JdkMacCLibrary implements MacCLibrary {
 
         @Override
         public String toString() {
-            return MemorySegmentUtil.getString(deref().reinterpret(Long.MAX_VALUE), 0);
+            return MemorySegmentAdapter.getString(deref().reinterpret(Long.MAX_VALUE), 0);
         }
     }
 

@@ -280,6 +280,27 @@ public class ViewGraphTests extends AbstractStatementParserTests {
         check("FROM view10"); // depth 10 is allowed — must not throw
     }
 
+    /**
+     * Graph-level analogue of {@code InSubqueryFailureIT#testMaxViewDepthClusterSettingWithInSubquery}: a view that is
+     * reachable from its parent <b>only</b> through an {@code IN} subquery body still contributes a graph edge, so it is
+     * counted toward depth. {@code in_3 -> in_2 -> in_1} are chained purely via {@code WHERE id IN (FROM <view>)} — no
+     * top-level {@code FROM} references them — yet the depth-2 graph rejects {@code FROM in_3} with the depth chain that
+     * descends through the IN-subquery edges. Proves the shared {@code ViewResolver#forEachViewRelation} walk wires
+     * IN-subquery references into the graph.
+     */
+    public void testViewReachableOnlyThroughInSubqueryContributesEdge() {
+        addView("in_1", "FROM emp | WHERE emp_no IN (FROM emp | KEEP emp_no)");
+        addView("in_2", "FROM emp | WHERE emp_no IN (FROM in_1 | KEEP emp_no)");
+        addView("in_3", "FROM emp | WHERE emp_no IN (FROM in_2 | KEEP emp_no)");
+
+        // maxViewDepth = 2: in_3 -> in_2 -> in_1 (depth 3) overflows; the chain follows the IN-subquery-only edges.
+        ViewGraph graphDepth2 = graph(2);
+        VerificationException e = expectThrows(VerificationException.class, () -> graphDepth2.check(expander.expand(List.of("in_3"))));
+        assertThat(e.getMessage(), equalTo("The maximum allowed view depth of 2 has been exceeded: in_3 -> in_2 -> in_1"));
+
+        graph(2).check(expander.expand(List.of("in_2"))); // in_2 -> in_1 is depth 2 — must not throw
+    }
+
     public void testModifiedViewDepth() {
         addView("view1", "FROM emp");
         addView("view2", "FROM view1");

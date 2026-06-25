@@ -203,7 +203,6 @@ public class ViewResolver {
             parser,
             viewQueries,
             hasInSubquery,
-            0,
             listener.delegateFailureAndWrap(
                 (l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get()))
             )
@@ -225,7 +224,7 @@ public class ViewResolver {
      */
     private List<String> collectEntryViews(LogicalPlan plan) {
         List<String> entryViews = new ArrayList<>();
-        forEachUnresolvedRelation(plan, ur -> {
+        forEachViewRelation(plan, ur -> {
             List<String> patterns = Arrays.asList(ur.indexPattern().indexPattern().split(","));
             for (String name : expandViewNames(patterns)) {
                 if (entryViews.contains(name) == false) {
@@ -237,18 +236,23 @@ public class ViewResolver {
     }
 
     /**
-     * Pre-order walk over every {@link UnresolvedRelation} in {@code plan}, descending into the subplans of
-     * {@link InSubquery} expressions that sit in a {@link Filter} condition — exactly the IN subqueries the substitution
-     * walk lifts into joins and resolves (others are rejected later by {@code InSubqueryResolver#verify}, so the eager
-     * DFS never policed views inside them either).
+     * Pre-order walk over every view-reference {@link UnresolvedRelation} in {@code plan}, descending into the subplans
+     * of {@link InSubquery} expressions that sit in a {@link Filter} condition — exactly the IN subqueries the
+     * substitution walk lifts into joins and resolves (others are rejected later by {@code InSubqueryResolver#verify}, so
+     * the eager DFS never policed views inside them either).
+     * <p>
+     * This is the single source of truth for "which relations the resolver's substitution walk reaches": both the
+     * up-front {@link #collectEntryViews} expansion and {@link ViewGraph}'s edge computation drive their traversal
+     * through here, so the graph's edge set is, by construction, exactly the relations the resolver substitutes — the two
+     * can never drift apart and re-introduce the IN-subquery-edge gap they once had.
      */
-    private static void forEachUnresolvedRelation(LogicalPlan plan, Consumer<UnresolvedRelation> action) {
+    static void forEachViewRelation(LogicalPlan plan, Consumer<UnresolvedRelation> action) {
         plan.forEachDown(p -> {
             if (p instanceof UnresolvedRelation ur) {
                 action.accept(ur);
             }
             if (p instanceof Filter filter) {
-                filter.condition().forEachDown(InSubquery.class, in -> forEachUnresolvedRelation(in.subquery(), action));
+                filter.condition().forEachDown(InSubquery.class, in -> forEachViewRelation(in.subquery(), action));
             }
         });
     }
@@ -288,21 +292,20 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        int depth,
         ActionListener<LogicalPlan> listener
     ) {
         switch (plan) {
-            case Fork fork -> replaceViewsFork(fork, projectRouting, parser, viewQueries, hasInSubquery, depth, listener);
+            case Fork fork -> replaceViewsFork(fork, projectRouting, parser, viewQueries, hasInSubquery, listener);
             case Filter filter -> {
                 LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
                 if (resolved == filter) {
                     // No InSubquery in this filter — resolve view references in its children.
-                    replaceViewsChildren(filter, projectRouting, parser, viewQueries, hasInSubquery, depth, listener);
+                    replaceViewsChildren(filter, projectRouting, parser, viewQueries, hasInSubquery, listener);
                 } else {
                     // InSubquery rewritten to SemiJoin/AntiJoin/MarkJoin — record it for telemetry, then resolve any view
                     // references introduced in the subquery plans.
                     hasInSubquery.set(true);
-                    replaceViews(resolved, projectRouting, parser, viewQueries, hasInSubquery, depth, listener);
+                    replaceViews(resolved, projectRouting, parser, viewQueries, hasInSubquery, listener);
                 }
             }
             case AbstractSubqueryJoin subqueryJoin -> replaceViewsSubqueryJoin(
@@ -311,19 +314,10 @@ public class ViewResolver {
                 parser,
                 viewQueries,
                 hasInSubquery,
-                depth,
                 listener
             );
-            case UnresolvedRelation ur -> replaceViewsUnresolvedRelation(
-                ur,
-                projectRouting,
-                parser,
-                viewQueries,
-                hasInSubquery,
-                depth,
-                listener
-            );
-            default -> replaceViewsChildren(plan, projectRouting, parser, viewQueries, hasInSubquery, depth, listener);
+            case UnresolvedRelation ur -> replaceViewsUnresolvedRelation(ur, projectRouting, parser, viewQueries, hasInSubquery, listener);
+            default -> replaceViewsChildren(plan, projectRouting, parser, viewQueries, hasInSubquery, listener);
         }
     }
 
@@ -338,7 +332,6 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        int depth,
         ActionListener<LogicalPlan> listener
     ) {
         List<LogicalPlan> children = plan.children();
@@ -358,7 +351,6 @@ public class ViewResolver {
                     parser,
                     viewQueries,
                     hasInSubquery,
-                    depth,
                     l.delegateFailureAndWrap((sl, newChild) -> {
                         if (newChild.equals(child) == false) {
                             if (updated.get() == null) {
@@ -380,7 +372,6 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        int depth,
         ActionListener<LogicalPlan> listener
     ) {
         var currentSubplans = fork.children();
@@ -395,7 +386,6 @@ public class ViewResolver {
                     parser,
                     viewQueries,
                     hasInSubquery,
-                    depth + 1,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan.equals(subplan) == false) {
                             var updatedSubplansInner = updatedSubplans;
@@ -425,7 +415,6 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        int depth,
         ActionListener<LogicalPlan> listener
     ) {
         LogicalPlan origLeft = subqueryJoin.left();
@@ -437,7 +426,6 @@ public class ViewResolver {
                 parser,
                 viewQueries,
                 hasInSubquery,
-                depth + 1,
                 l.delegateFailureAndWrap((sl, newLeft) -> sl.onResponse(newLeft))
             )
         );
@@ -448,7 +436,6 @@ public class ViewResolver {
                 parser,
                 viewQueries,
                 hasInSubquery,
-                depth + 1,
                 l.delegateFailureAndWrap((sl, newRight) -> {
                     if (newLeft.equals(origLeft) == false || newRight.equals(origRight) == false) {
                         sl.onResponse(subqueryJoin.replaceChildren(newLeft, newRight));
@@ -466,7 +453,6 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        int depth,
         ActionListener<LogicalPlan> listener
     ) {
         String[] patterns = unresolvedRelation.indexPattern().indexPattern().split(",");
@@ -534,7 +520,6 @@ public class ViewResolver {
                         parser,
                         viewQueries,
                         hasInSubquery,
-                        depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
                             resolvedViews.put(view.name(), viewPlan);
@@ -559,7 +544,7 @@ public class ViewResolver {
                 if (subqueries.size() == 1) {
                     return subqueries.getFirst().plan();
                 }
-                return buildPlanFromBranches(unresolvedRelation, subqueries, depth);
+                return buildPlanFromBranches(unresolvedRelation, subqueries);
             }).addListener(listener);
         }));
     }
@@ -787,7 +772,7 @@ public class ViewResolver {
 
     record ViewPlan(String name, LogicalPlan plan) {}
 
-    private LogicalPlan buildPlanFromBranches(UnresolvedRelation ur, List<ViewPlan> subqueries, int depth) {
+    private LogicalPlan buildPlanFromBranches(UnresolvedRelation ur, List<ViewPlan> subqueries) {
         // Each branch node carries its own identity: a View (for a kept view body), an EsRelation-to-be
         // (a bare UnresolvedRelation for an index or a compactable single-pattern view), or a linked
         // UnresolvedRelation (CPS shadow). The View boundary is what prevents a view body from being
@@ -803,7 +788,7 @@ public class ViewResolver {
         if (branches.size() == 1) {
             return branches.getFirst();
         }
-        traceUnionAllBranches(depth, branches);
+        traceUnionAllBranches(branches);
         return new UnionAll(ur.source(), branches, List.of());
     }
 
@@ -878,16 +863,14 @@ public class ViewResolver {
         );
     }
 
-    private void traceUnionAllBranches(int depth, List<LogicalPlan> branches) {
+    private void traceUnionAllBranches(List<LogicalPlan> branches) {
         if (log.isTraceEnabled() == false) {
             return;
         }
-        String tab = "    ".repeat(depth);
-        log.trace("{}  creating UnionAll with {} branches:", tab, branches.size());
-        String branchPrefix = "      " + tab;
+        log.trace("creating UnionAll with {} branches:", branches.size());
         for (int i = 0; i < branches.size(); i++) {
             LogicalPlan p = branches.get(i);
-            log.trace("{}    branch plan[{}]=\n{}{}", tab, branchPrefix, i, p.toString().replace("\n", "\n" + branchPrefix));
+            log.trace("  branch plan[{}]=\n{}", i, p.toString());
         }
     }
 

@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
@@ -21,7 +19,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -148,7 +145,10 @@ public final class ViewGraph {
         // matching how the resolver issues one EsqlResolveViewAction request per UnresolvedRelation. The walk descends
         // into IN-subquery bodies (in WHERE conditions) too, since those are resolved — and so policed — by the resolver,
         // so a view reachable only through an IN subquery is still a graph edge.
-        forEachRelation(body, ur -> {
+        // Descend through the same relation walk the resolver's substitution pass uses (including IN-subquery bodies in
+        // WHERE conditions), so the graph's edges cover exactly the view references the resolver reaches — sharing the
+        // single ViewResolver#forEachViewRelation walk keeps the two from ever drifting.
+        ViewResolver.forEachViewRelation(body, ur -> {
             List<String> patterns = Arrays.asList(ur.indexPattern().indexPattern().split(","));
             for (String matched : wildcardExpander.apply(patterns)) {
                 if (referencedViews.contains(matched) == false) {
@@ -157,22 +157,5 @@ public final class ViewGraph {
             }
         });
         return referencedViews;
-    }
-
-    /**
-     * Pre-order walk over every {@link UnresolvedRelation} in {@code plan}, descending into the subplans of
-     * {@link InSubquery} expressions that sit in a {@link Filter} condition (the IN subqueries the resolver lifts into
-     * joins and resolves). Mirrors {@code ViewResolver#forEachUnresolvedRelation}, so the graph's edges cover exactly the
-     * view references the substitution walk reaches.
-     */
-    private static void forEachRelation(LogicalPlan plan, Consumer<UnresolvedRelation> action) {
-        plan.forEachDown(p -> {
-            if (p instanceof UnresolvedRelation ur) {
-                action.accept(ur);
-            }
-            if (p instanceof Filter filter) {
-                filter.condition().forEachDown(InSubquery.class, in -> forEachRelation(in.subquery(), action));
-            }
-        });
     }
 }

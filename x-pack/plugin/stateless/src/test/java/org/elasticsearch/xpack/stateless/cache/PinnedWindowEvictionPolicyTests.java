@@ -148,9 +148,9 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     /**
-      * Fills the cache with a random mix of unknown-timestamp and outside-window regions, then inserts
-      * inside-window regions and verifies that only outside-window regions are evicted to make room.
-      */
+     * Fills the cache with a random mix of unknown-timestamp and outside-window regions, then inserts
+     * inside-window regions and verifies that only outside-window regions are evicted to make room.
+     */
     public void testPinnedWindowEvictionPolicyEvictsOutsideWindowDataInCache() throws IOException {
         final int numRegions = randomIntBetween(4, 100);
         final int unknownTimestampRegionCount = randomIntBetween(0, numRegions - 1);

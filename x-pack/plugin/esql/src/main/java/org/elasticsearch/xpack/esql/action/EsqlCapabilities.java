@@ -3210,6 +3210,11 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
 
         /**
+         * Support for PromQL {@code histogram_quantile()} over exponential (native) histograms.
+         */
+        PROMQL_HISTOGRAM_QUANTILE_EXPONENTIAL,
+
+        /**
          * Fix for PromQL {@code without} and ES|QL {@code TS_WITHOUT}: passthrough alias names (e.g. OTel
          * {@code cpu} for the concrete dimension {@code attributes.cpu}) are now correctly resolved in the
          * {@code _timeseries} block loader so excluded labels are actually removed from the series key.

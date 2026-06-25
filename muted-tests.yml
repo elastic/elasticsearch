@@ -686,9 +686,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleRound
   issue: https://github.com/elastic/elasticsearch/issues/152063
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/152081
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testOutageBuffersToDiskAndDrainsOnRecovery
   issue: https://github.com/elastic/elasticsearch/issues/152087
@@ -701,9 +698,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/152113
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  method: testEsqlTermsAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/152114
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
@@ -752,3 +746,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:in_subquery.textInKeyword}
   issue: https://github.com/elastic/elasticsearch/issues/152139
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.sparklineWithWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152159
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.avgAndSparklineWithWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152160
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.weightedAvgAndTwoSparklinesWithSameWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152161
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.weightedAvgAndSparklineWithSameWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152162

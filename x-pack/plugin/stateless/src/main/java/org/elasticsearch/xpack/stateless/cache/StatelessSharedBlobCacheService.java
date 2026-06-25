@@ -131,18 +131,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         ClusterService clusterService,
-        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
-    ) {
-        this(environment, settings, threadPool, blobCacheMetrics, clusterService, (IndicesService) null, metricsHolder);
-    }
-
-    // for tests
-    public StatelessSharedBlobCacheService(
-        NodeEnvironment environment,
-        Settings settings,
-        ThreadPool threadPool,
-        BlobCacheMetrics blobCacheMetrics,
-        ClusterService clusterService,
+        IndicesService indicesService,
         LongSupplier relativeTimeInNanosSupplier,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
@@ -151,7 +140,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             settings,
             threadPool,
             blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService),
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
             relativeTimeInNanosSupplier,
             metricsHolder
         );

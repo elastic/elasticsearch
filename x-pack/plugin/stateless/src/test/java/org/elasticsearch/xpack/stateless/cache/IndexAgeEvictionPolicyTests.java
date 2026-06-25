@@ -26,6 +26,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -40,6 +41,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
@@ -148,6 +151,8 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), ProjectId.DEFAULT);
+        final IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.clusterService()).thenReturn(clusterService);
         ClusterServiceUtils.setState(
             clusterService,
             ClusterState.builder(ClusterName.DEFAULT)
@@ -162,6 +167,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
                 taskQueue.getThreadPool(),
                 BlobCacheMetrics.NOOP,
                 clusterService,
+                indicesService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {

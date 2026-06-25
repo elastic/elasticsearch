@@ -90,6 +90,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
                 threadPool,
                 blobCacheMetrics,
                 clusterService,
+                indicesService,
                 threadPool::relativeTimeInNanos,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );

@@ -214,6 +214,26 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * The service passes briefly through {@link Lifecycle.State#STOPPED} on its way to {@code CLOSED}. Enqueueing an upload during that
+     * window must be treated the same as enqueueing after close: the liveness check considers the service not running and notifies the
+     * listener rather than letting the upload proceed against a service that is shutting down.
+     */
+    public void testEnqueueWhileStoppedNotifiesListener() throws IOException {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
+            final var objectStoreService = testHarness.objectStoreService;
+
+            objectStoreService.stop();
+            assertThat(objectStoreService.lifecycleState(), equalTo(Lifecycle.State.STOPPED));
+
+            final var future = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), future);
+
+            final var e = expectThrows(IllegalStateException.class, future::actionGet);
+            assertThat(e.getMessage(), startsWith("Object store service is not running"));
+        }
+    }
+
     public void testStartingShardRetrievesSegmentsFromOneCommit() throws IOException {
         final var mergesEnabled = randomBoolean();
         final var indexWriterConfig = mergesEnabled

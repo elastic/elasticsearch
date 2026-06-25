@@ -244,7 +244,7 @@ public final class DocumentParser {
     }
 
     private static Mapper.SourceKeepMode getSourceKeepMode(DocumentParserContext context, Optional<Mapper.SourceKeepMode> mapperMode) {
-        return mapperMode.orElseGet(context::sourceKeepModeFromIndexSettings);
+        return mapperMode.isPresent() ? mapperMode.get() : context.sourceKeepModeFromIndexSettings();
     }
 
     private static void throwNotAtEnd(XContentParser.Token token) {

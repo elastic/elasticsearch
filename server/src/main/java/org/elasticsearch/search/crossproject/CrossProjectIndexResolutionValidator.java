@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -94,6 +95,9 @@ public class CrossProjectIndexResolutionValidator {
         for (Exception remoteEx : remoteExceptions.values()) {
             if (ExceptionsHelper.unwrapCause(remoteEx) instanceof RemoteViewNotSupportedException viewException) {
                 return viewException;
+            }
+            if (ExceptionsHelper.unwrapCause(remoteEx) instanceof RemoteDatasetNotSupportedException datasetException) {
+                return datasetException;
             }
         }
 
@@ -347,6 +351,11 @@ public class CrossProjectIndexResolutionValidator {
             if (remoteExceptions.containsKey(projectAlias)) {
                 if (ExceptionsHelper.unwrapCause(remoteExceptions.get(projectAlias)) instanceof RemoteViewNotSupportedException viewEx) {
                     return viewEx;
+                }
+                if (ExceptionsHelper.unwrapCause(
+                    remoteExceptions.get(projectAlias)
+                ) instanceof RemoteDatasetNotSupportedException datasetEx) {
+                    return datasetEx;
                 }
                 return new IndexNotFoundException(remoteExpression);
             } else {

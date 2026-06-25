@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -53,6 +55,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     private final TransportFieldCapabilitiesAction fieldCapsAction;
     private final ClusterService clusterService;
     private final ViewResolutionService viewResolutionService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ProjectResolver projectResolver;
 
     @Inject
@@ -69,6 +72,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         this.fieldCapsAction = fieldCapsAction;
         this.clusterService = clusterService;
         this.viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.projectResolver = projectResolver;
     }
 
@@ -87,6 +91,17 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
             }
         }
 
+        // During CCS/CPS, resolveDatasets is only set on a request from the originating cluster and is therefore only true on a
+        // remote cluster. A linked project that has a dataset the caller may read matching the (security-narrowed) pattern fails
+        // the query — datasets ride the same remote-detect rail as views (#974).
+        if (request.indicesOptions().indexAbstractionOptions().resolveDatasets()) {
+            Set<String> datasetsLocalToRemoteCluster = getDatasets(request.indices(), request.indicesOptions());
+            if (datasetsLocalToRemoteCluster.isEmpty() == false) {
+                listener.onFailure(remoteDatasetDetectedException(request.clusterAlias(), datasetsLocalToRemoteCluster));
+                return;
+            }
+        }
+
         fieldCapsAction.executeRequest(task, request, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
             public void executeRemoteRequest(
@@ -100,6 +115,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                         .indexAbstractionOptions(
                             IndicesOptions.IndexAbstractionOptions.builder(remoteRequest.indicesOptions().indexAbstractionOptions())
                                 .resolveViews(true)
+                                .resolveDatasets(true)
                         )
                         .build()
                 );
@@ -138,5 +154,25 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     private RemoteViewNotSupportedException remoteViewDetectedException(String clusterAlias, Set<String> detectedViews) {
         List<String> qualifiedViews = detectedViews.stream().sorted().map(v -> clusterAlias + ":" + v).toList();
         return new RemoteViewNotSupportedException(qualifiedViews);
+    }
+
+    private Set<String> getDatasets(String[] indices, IndicesOptions indicesOptions) {
+        var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        return Set.copyOf(indexNameExpressionResolver.datasets(projectMetadata, indicesOptions, new IndicesRequest() {
+            @Override
+            public String[] indices() {
+                return indices;
+            }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return indicesOptions;
+            }
+        }));
+    }
+
+    private RemoteDatasetNotSupportedException remoteDatasetDetectedException(String clusterAlias, Set<String> detectedDatasets) {
+        List<String> qualifiedDatasets = detectedDatasets.stream().sorted().map(d -> clusterAlias + ":" + d).toList();
+        return new RemoteDatasetNotSupportedException(qualifiedDatasets);
     }
 }

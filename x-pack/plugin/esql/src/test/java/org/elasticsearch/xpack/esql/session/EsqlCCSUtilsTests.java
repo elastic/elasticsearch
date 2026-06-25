@@ -11,6 +11,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -638,6 +639,50 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
         {
             EsqlCCSUtils.checkForViewErrors(Map.of());
+        }
+    }
+
+    public void testCheckForDatasetErrors() {
+        {
+            var datasetEx = new RemoteDatasetNotSupportedException(List.of("r1:d"));
+            var wrapped = new RemoteTransportException("test failure", datasetEx);
+            List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            expectThrows(
+                RemoteDatasetNotSupportedException.class,
+                containsString(
+                    "ES|QL queries with remote datasets are not supported. Matched [r1:d]."
+                        + " Remove them from the query pattern or exclude them with [r1:-d] if matched by a wildcard."
+                ),
+                () -> EsqlCCSUtils.checkForDatasetErrors(grouped)
+            );
+        }
+        {
+            var datasetEx1 = new RemoteDatasetNotSupportedException(List.of("r1:d1"));
+            var datasetEx2 = new RemoteDatasetNotSupportedException(List.of("r2:d2"));
+            var wrapped1 = new RemoteTransportException("test failure", datasetEx1);
+            var wrapped2 = new RemoteTransportException("test failure", datasetEx2);
+            List<FieldCapabilitiesFailure> failures = List.of(
+                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped1),
+                new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, wrapped2)
+            );
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            RemoteDatasetNotSupportedException ex = expectThrows(
+                RemoteDatasetNotSupportedException.class,
+                () -> EsqlCCSUtils.checkForDatasetErrors(grouped)
+            );
+            assertThat(ex.getMessage(), containsString("ES|QL queries with remote datasets are not supported."));
+            assertThat(ex.getMetadata("es.esql.dataset.names"), containsInAnyOrder("r1:d1", "r2:d2"));
+        }
+        {
+            List<FieldCapabilitiesFailure> failures = List.of(
+                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RuntimeException("some other error"))
+            );
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            EsqlCCSUtils.checkForDatasetErrors(grouped);
+        }
+        {
+            EsqlCCSUtils.checkForDatasetErrors(Map.of());
         }
     }
 

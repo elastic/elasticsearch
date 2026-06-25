@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -209,6 +210,26 @@ public class EsqlCCSUtils {
                 Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
                 if (cause instanceof RemoteViewNotSupportedException viewEx) {
                     merged = merged == null ? viewEx : RemoteViewNotSupportedException.merge(merged, viewEx);
+                }
+            }
+        }
+        if (merged != null) {
+            throw merged;
+        }
+    }
+
+    /**
+     * Check per-cluster failures for dataset detection errors thrown by remote clusters. Datasets are not yet supported in CCS
+     * (TP), so any such error must fail the entire query regardless of whether other clusters succeeded. Mirrors
+     * {@link #checkForViewErrors}: collects all dataset errors across all clusters and merges them into a single exception.
+     */
+    static void checkForDatasetErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
+        RemoteDatasetNotSupportedException merged = null;
+        for (var entry : failures.entrySet()) {
+            for (FieldCapabilitiesFailure failure : entry.getValue()) {
+                Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
+                if (cause instanceof RemoteDatasetNotSupportedException datasetEx) {
+                    merged = merged == null ? datasetEx : RemoteDatasetNotSupportedException.merge(merged, datasetEx);
                 }
             }
         }

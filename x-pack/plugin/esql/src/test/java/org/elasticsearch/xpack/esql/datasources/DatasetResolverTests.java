@@ -24,7 +24,6 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -32,28 +31,26 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Covers the cross-project (CPS) detect-and-fail path of {@link DatasetResolver#replaceDatasets}: when CPS is enabled and a
- * FROM relation would resolve to a dataset in a linked project, the query must fail cleanly; otherwise the local rewrite
- * proceeds unchanged. The remote dispatch is exercised through a {@link DatasetRemoteResolver} test subclass that overrides
- * {@link DatasetRemoteResolver#anyLinkedProjectHasDataset} so no live transport is needed (documented at the subclass).
+ * Covers {@link DatasetResolver#replaceDatasets}: the local read-authorization dispatch and rewrite of {@code FROM <dataset>}.
+ * Cross-project remote-dataset detection no longer lives here — it rides the field-caps remote-detect rail (see
+ * {@code EsqlResolveFieldsAction} + {@code RemoteDatasetNotSupportedException}); this resolver only performs the local rewrite
+ * and, under CPS, preserves a wildcard sibling so the remote half reaches field-caps (exercised in {@code DatasetRewriterTests}).
  */
 public class DatasetResolverTests extends ESTestCase {
 
     private static final String DATASET_NAME = "logs";
-    private static final String LINKED_PROJECT_ALIAS = "_linked";
 
     private ThreadPool threadPool;
 
@@ -69,54 +66,68 @@ public class DatasetResolverTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testCrossProjectFailsWhenLinkedProjectHasDataset() {
-        AtomicInteger remoteCalls = new AtomicInteger();
-        DatasetResolver resolver = resolver(crossProjectEnabled(true), remoteResolver(Set.of(LINKED_PROJECT_ALIAS), true, remoteCalls));
-
-        VerificationException e = expectThrows(VerificationException.class, () -> replaceDatasets(resolver, relationOf(DATASET_NAME)));
-        assertThat(e.getMessage(), containsString("FROM <dataset> is not yet supported with cross-project search"));
-        assertEquals("remote leg must be consulted exactly once for the single relation", 1, remoteCalls.get());
-    }
-
-    public void testCrossProjectProceedsWhenNoLinkedProjectHasDataset() {
-        AtomicInteger remoteCalls = new AtomicInteger();
-        DatasetResolver resolver = resolver(crossProjectEnabled(true), remoteResolver(Set.of(LINKED_PROJECT_ALIAS), false, remoteCalls));
+    public void testLocalDatasetRewrittenWhenCrossProjectEnabled() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls);
 
         LogicalPlan rewritten = replaceDatasets(resolver, relationOf(DATASET_NAME));
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
-        assertEquals(1, remoteCalls.get());
+        assertEquals("local read-authz dispatch runs once for the single relation", 1, localCalls.get());
     }
 
-    public void testCrossProjectWithNoLinkedProjectsSkipsRemoteLeg() {
-        AtomicInteger remoteCalls = new AtomicInteger();
-        // No linked projects registered (e.g. CPS on but nothing linked): the remote leg short-circuits and never runs.
-        DatasetResolver resolver = resolver(crossProjectEnabled(true), remoteResolver(Set.of(), true, remoteCalls));
+    public void testLocalDatasetRewrittenWhenCrossProjectDisabled() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(false), localCalls);
 
         LogicalPlan rewritten = replaceDatasets(resolver, relationOf(DATASET_NAME));
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
-        assertEquals(0, remoteCalls.get());
+        assertEquals(1, localCalls.get());
     }
 
-    public void testNonCrossProjectSkipsRemoteLeg() {
-        AtomicInteger remoteCalls = new AtomicInteger();
-        DatasetResolver resolver = resolver(crossProjectEnabled(false), remoteResolver(Set.of(LINKED_PROJECT_ALIAS), true, remoteCalls));
+    public void testWildcardMatchingDatasetUnderCpsPreservesRemoteHalf() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls);
 
-        // CPS disabled: the remote leg is never consulted, so even a "would-detect" remote stub does not fail the query.
-        LogicalPlan rewritten = replaceDatasets(resolver, relationOf(DATASET_NAME));
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
-        assertEquals("remote leg must not run when CPS is disabled", 0, remoteCalls.get());
+        // Under CPS a wildcard matching a local dataset keeps the original wildcard as a sibling UnresolvedRelation so the
+        // remote half (and the field-caps remote-detect) is reached, alongside the local UnresolvedExternalRelation.
+        LogicalPlan rewritten = replaceDatasets(resolver, relationOf("log*"));
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll unionAll = (UnionAll) rewritten;
+        assertEquals(2, unionAll.children().size());
+        assertTrue(
+            "a local external relation must be present",
+            unionAll.children().stream().anyMatch(c -> c instanceof UnresolvedExternalRelation)
+        );
+        assertTrue(
+            "the wildcard must be preserved as a sibling UnresolvedRelation",
+            unionAll.children().stream().anyMatch(c -> c instanceof UnresolvedRelation)
+        );
+    }
+
+    public void testNoDatasetsRegisteredLeavesPlanUnchanged() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls);
+
+        UnresolvedRelation relation = relationOf(DATASET_NAME);
+        LogicalPlan rewritten = replaceDatasets(resolver, relation, ProjectMetadata.builder(ProjectId.DEFAULT).build());
+        assertSame(relation, rewritten);
+        assertEquals("no datasets registered → no dispatch", 0, localCalls.get());
     }
 
     // --- harness ---
 
     private LogicalPlan replaceDatasets(DatasetResolver resolver, UnresolvedRelation relation) {
+        return replaceDatasets(resolver, relation, project());
+    }
+
+    private LogicalPlan replaceDatasets(DatasetResolver resolver, UnresolvedRelation relation, ProjectMetadata project) {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        resolver.replaceDatasets(relation, project(), future);
+        resolver.replaceDatasets(relation, project, future);
         return future.actionGet();
     }
 
-    private DatasetResolver resolver(CrossProjectModeDecider decider, DatasetRemoteResolver remoteResolver) {
-        return new DatasetResolver(localActionClient(), EsExecutors.DIRECT_EXECUTOR_SERVICE, decider, remoteResolver);
+    private DatasetResolver resolver(CrossProjectModeDecider decider, AtomicInteger localCalls) {
+        return new DatasetResolver(localActionClient(localCalls), EsExecutors.DIRECT_EXECUTOR_SERVICE, decider);
     }
 
     private static CrossProjectModeDecider crossProjectEnabled(boolean enabled) {
@@ -124,35 +135,11 @@ public class DatasetResolverTests extends ESTestCase {
     }
 
     /**
-     * A {@link DatasetRemoteResolver} that skips transport-handler registration (no live
-     * {@link org.elasticsearch.transport.TransportService} in a unit test), reports {@code aliases} as the registered linked
-     * projects, and answers the remote detection from {@code hasRemoteDataset} — recording how many times it ran.
-     */
-    private DatasetRemoteResolver remoteResolver(Set<String> aliases, boolean hasRemoteDataset, AtomicInteger calls) {
-        return new DatasetRemoteResolver(null, null, null, null, false) {
-            @Override
-            public Set<String> linkedProjectAliases(ProjectId originProjectId) {
-                return aliases;
-            }
-
-            @Override
-            public void anyLinkedProjectHasDataset(
-                String[] rawPatterns,
-                Collection<String> linkedProjectAliases,
-                ActionListener<Boolean> listener
-            ) {
-                calls.incrementAndGet();
-                assertEquals(aliases, Set.copyOf(linkedProjectAliases));
-                listener.onResponse(hasRemoteDataset);
-            }
-        };
-    }
-
-    /**
      * A client whose only registered behaviour is the local {@link EsqlResolveDatasetAction}: it reports the requested
-     * dataset as authorized, so the no-detection path rewrites the relation into an {@link UnresolvedExternalRelation}.
+     * dataset as authorized, so the rewrite turns the relation into an {@link UnresolvedExternalRelation}. Counts the
+     * dispatches so a test can assert the per-relation round-trip ran.
      */
-    private Client localActionClient() {
+    private Client localActionClient(AtomicInteger localCalls) {
         return new AbstractClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             @SuppressWarnings("unchecked")
@@ -164,6 +151,7 @@ public class DatasetResolverTests extends ESTestCase {
                     ActionListener<Response> listener
                 ) {
                 assertSame(EsqlResolveDatasetAction.TYPE, action);
+                localCalls.incrementAndGet();
                 listener.onResponse((Response) new EsqlResolveDatasetAction.Response(Set.of(DATASET_NAME), false, Set.of()));
             }
         };

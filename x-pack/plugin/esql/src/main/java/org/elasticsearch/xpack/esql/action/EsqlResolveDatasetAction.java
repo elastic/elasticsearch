@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -15,6 +14,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
 import org.elasticsearch.cluster.ProjectState;
@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -60,14 +59,6 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
     EsqlResolveDatasetAction.Response> {
     public static final String NAME = EsqlDatasetActionNames.ESQL_RESOLVE_DATASET_ACTION_NAME;
     public static final ActionType<EsqlResolveDatasetAction.Response> TYPE = new ActionType<>(NAME);
-
-    /**
-     * The version at which {@code resolve_datasets} became remotely invocable — its {@link Response} wire-serializable,
-     * enabling cross-project dataset detection. The coordinator dispatches the cross-cluster leg to a linked project
-     * only when that project's minimum transport version {@code supports} this; below it the remote-dataset path falls
-     * back to today's behaviour (no detection). Generated file: {@code transport/definitions/referable/esql_resolve_dataset_remote.csv}.
-     */
-    public static final TransportVersion ESQL_RESOLVE_DATASET_REMOTE = TransportVersion.fromName("esql_resolve_dataset_remote");
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
@@ -186,16 +177,6 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             this.explicitUnauthorized = explicitUnauthorized;
         }
 
-        /**
-         * Cross-cluster (CPS) leg: a linked project resolves the dataset names against its own state and streams this
-         * response back, so the coordinator can detect a remote dataset. The local path constructs it directly (above).
-         */
-        public Response(StreamInput in) throws IOException {
-            this.datasets = in.readCollectionAsImmutableSet(StreamInput::readString);
-            this.hasNonDatasetTargets = in.readBoolean();
-            this.explicitUnauthorized = in.readCollectionAsImmutableSet(StreamInput::readString);
-        }
-
         /** Dataset names the caller is authorized to read, post pattern expansion. */
         public Set<String> datasets() {
             return datasets;
@@ -216,9 +197,7 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(datasets);
-            out.writeBoolean(hasNonDatasetTargets);
-            out.writeStringCollection(explicitUnauthorized);
+            TransportAction.localOnly();
         }
     }
 }

@@ -534,9 +534,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
                 IndexSortConfig sortConfig = indexSettings.getIndexSortConfig();
                 String fullFieldName = context.buildFullName(leafName());
-                boolean isIndexSortField = sortConfig != null
-                    && sortConfig.hasIndexSort()
-                    && sortConfig.hasSortOnField(fullFieldName);
+                boolean isIndexSortField = sortConfig != null && sortConfig.hasIndexSort() && sortConfig.hasSortOnField(fullFieldName);
                 if (isIndexSortField == false) {
                     this.arrayOrderBinaryDocValues = true;
                     this.offsetsFieldName = null;

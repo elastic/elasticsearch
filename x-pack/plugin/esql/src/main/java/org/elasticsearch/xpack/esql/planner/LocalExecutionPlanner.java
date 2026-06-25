@@ -31,6 +31,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
+import org.elasticsearch.compute.operator.BucketIntervalMetadata;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
@@ -143,6 +144,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -2025,7 +2027,12 @@ public class LocalExecutionPlanner {
             .stream()
             .map(g -> getAttributeChannel(g, layout, "CHANGE_POINT BY expression must be an attribute"))
             .toList();
-        return source.with(new ChangePointOperator.Factory(valueChannel, groupingChannels, changePoint.source()), layout);
+        BucketIntervalMetadata keyBucketMeta = BucketColumnMetadata.findBucketMetadataForAttribute(
+            changePoint.child(),
+            changePoint.key().id(),
+            context.foldCtx()
+        );
+        return source.with(new ChangePointOperator.Factory(valueChannel, groupingChannels, changePoint.source(), keyBucketMeta), layout);
     }
 
     private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {

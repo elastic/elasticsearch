@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -49,10 +50,18 @@ public class ChangePointOperator implements Operator {
     private static final Logger logger = LogManager.getLogger(ChangePointOperator.class);
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
 
-    public record Factory(int channel, List<Integer> groupingChannels, WarningSourceLocation source) implements OperatorFactory {
+    public record Factory(
+        int channel,
+        List<Integer> groupingChannels,
+        WarningSourceLocation source,
+        @Nullable BucketIntervalMetadata keyBucketMetadata
+    ) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
+            if (keyBucketMetadata != null) {
+                logger.debug("CHANGE_POINT key bucket metadata: {}", keyBucketMetadata);
+            }
             int[] channels = groupingChannels.stream().mapToInt(Integer::intValue).toArray();
             return new ChangePointOperator(driverContext, channel, channels, source);
         }

@@ -49,7 +49,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -79,7 +82,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -109,7 +115,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -139,7 +148,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -169,7 +181,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -199,7 +214,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -229,7 +247,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -259,7 +280,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -289,7 +313,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -319,7 +346,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -349,7 +379,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -379,7 +412,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -409,7 +445,10 @@
           "name" : "from",
           "type" : "text",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -439,7 +478,10 @@
           "name" : "from",
           "type" : "text",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -469,7 +511,10 @@
           "name" : "from",
           "type" : "text",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -499,7 +544,10 @@
           "name" : "from",
           "type" : "text",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -529,7 +577,10 @@
           "name" : "from",
           "type" : "text",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -559,7 +610,10 @@
           "name" : "from",
           "type" : "text",
           "optional" : true,
-          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter."
+          "description" : "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",

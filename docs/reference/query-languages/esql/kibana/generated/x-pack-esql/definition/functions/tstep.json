@@ -19,7 +19,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -49,7 +52,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -79,7 +85,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -109,7 +118,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -139,7 +151,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -169,7 +184,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -199,7 +217,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -229,7 +250,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -259,7 +283,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -289,7 +316,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -319,7 +349,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -349,7 +382,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -379,7 +415,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -409,7 +448,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -439,7 +481,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -469,7 +514,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -499,7 +547,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -529,7 +580,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -559,7 +613,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -589,7 +646,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -619,7 +679,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -649,7 +712,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -679,7 +745,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -709,7 +778,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -739,7 +811,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -769,7 +844,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -799,7 +877,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -829,7 +910,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -859,7 +943,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -889,7 +976,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -919,7 +1009,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -949,7 +1042,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -979,7 +1075,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1009,7 +1108,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1039,7 +1141,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1069,7 +1174,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1129,7 +1237,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1159,7 +1270,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1189,7 +1303,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1219,7 +1336,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1249,7 +1369,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1279,7 +1402,10 @@
           "name" : "from",
           "type" : "date",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1309,7 +1435,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1339,7 +1468,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1369,7 +1501,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1399,7 +1534,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1429,7 +1567,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1459,7 +1600,10 @@
           "name" : "from",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1489,7 +1633,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1519,7 +1666,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1549,7 +1699,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1579,7 +1732,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1609,7 +1765,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
@@ -1639,7 +1798,10 @@
           "name" : "from",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Start of the time range that anchors the step grid. Required together with `to`."
+          "description" : "Start of the time range that anchors the step grid. Required together with `to`.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",

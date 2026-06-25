@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -167,6 +168,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -262,6 +264,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveTable(),
             new ResolveViewShadow(),
             new ViewCompactionPostIndexResolution(),
+            new ResolveDatasetShadow(),
+            new StripDatasetShadowRelations(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
@@ -564,6 +568,86 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             return ViewCompaction.postIndexResolution(plan);
+        }
+    }
+
+    /**
+     * Resolves {@link DatasetShadowRelation} nodes against {@link AnalyzerContext#linkedResolution()}.
+     * The dataset analog of {@link ResolveViewShadow}.
+     * <p>
+     * Each {@code DatasetShadowRelation} represents a "if a linked project has an index with this
+     * dataset's name, treat it as if the user wrote a remote index reference at this position" lookup
+     * (CPS Principle 1). {@code EsqlSession.preAnalyzeLinkedIndices} populates {@code linkedResolution},
+     * keyed by the shadow's {@link DatasetShadowRelation#linkedIndexPattern()} (dataset name + applicable
+     * exclusions). The remote field-caps fan-out carries {@code resolveDatasets(true)} +
+     * {@code resolveViews(true)}, so a linked project that has a <em>dataset/view</em> of the same name has
+     * already failed the query before this rule runs; a linked project with an <em>index</em> of the same
+     * name produces a valid resolution here. This rule:
+     * <ul>
+     *   <li>If a valid {@link IndexResolution} is present for the shadow's
+     *       {@link DatasetShadowRelation#linkedIndexPattern()}, replaces the shadow with an
+     *       {@link EsRelation} built from the resolved {@link EsIndex} (same shape as
+     *       {@link ResolveTable}'s {@code resolveIndex} for a strict UR).</li>
+     *   <li>Otherwise leaves the shadow unresolved. {@link StripDatasetShadowRelations} (which runs
+     *       immediately after this rule) strips any unresolved shadow.</li>
+     * </ul>
+     */
+    private static class ResolveDatasetShadow extends ParameterizedAnalyzerRule<DatasetShadowRelation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(DatasetShadowRelation shadow, AnalyzerContext context) {
+            IndexResolution resolution = context.linkedResolution().get(shadow.linkedIndexPattern());
+            if (resolution == null || resolution.isValid() == false) {
+                // No linked index found (or lookup didn't run yet) — leave the shadow alone for
+                // StripDatasetShadowRelations to remove.
+                return shadow;
+            }
+            EsIndex esIndex = resolution.get();
+            var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
+            return new EsRelation(
+                shadow.source(),
+                esIndex.name(),
+                IndexMode.STANDARD,
+                esIndex.originalIndices(),
+                esIndex.concreteIndices(),
+                esIndex.indexNameWithModes(),
+                attributes.isEmpty() ? NO_FIELDS : attributes
+            );
+        }
+    }
+
+    /**
+     * Strips any {@link DatasetShadowRelation} that {@link ResolveDatasetShadow} did not fold into a
+     * sibling {@code EsRelation}. The dataset analog of {@code ViewCompaction.stripViewShadowRelations},
+     * but over the plain {@link UnionAll} the {@code DatasetRewriter} builds rather than a
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll}. Runs right after
+     * {@link ResolveDatasetShadow} in the Initialize batch.
+     * <p>
+     * Delegates to {@link UnionAll#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
+     * (now an {@code EsRelation}) survives alongside the dataset's external relation as separate
+     * {@code UnionAll} branches (Strategy A — no merging into a single combined relation). A single-survivor
+     * union collapses to its lone child, so {@code FROM ds} with no remote match returns to exactly the bare
+     * {@code UnresolvedExternalRelation} shape the non-CPS path produces.
+     */
+    private static class StripDatasetShadowRelations extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformDown(UnionAll.class, unionAll -> {
+                // Operate only on the plain UnionAll the DatasetRewriter builds — never a ViewUnionAll
+                // (its shadows are handled by ViewCompaction, and its single-child wrappers are a view
+                // semantic this rule must not collapse).
+                if (unionAll instanceof ViewUnionAll) {
+                    return unionAll;
+                }
+                LogicalPlan pruned = unionAll.pruneEmptyBranches(child -> child instanceof DatasetShadowRelation);
+                if (pruned instanceof UnionAll prunedUnion
+                    && prunedUnion instanceof ViewUnionAll == false
+                    && prunedUnion.children().size() == 1) {
+                    return prunedUnion.children().getFirst();
+                }
+                return pruned;
+            });
         }
     }
 

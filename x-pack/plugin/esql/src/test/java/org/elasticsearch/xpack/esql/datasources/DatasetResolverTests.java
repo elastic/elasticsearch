@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -70,8 +71,21 @@ public class DatasetResolverTests extends ESTestCase {
         AtomicInteger localCalls = new AtomicInteger();
         DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls);
 
+        // Under CPS an exact dataset name keeps a DatasetShadowRelation sibling next to the local external relation so the
+        // remote half of the exact name reaches field-caps (the exact-name analog of the wildcard-preserve path). The
+        // shadow is later stripped by the analyzer when no linked index matches, returning to the bare external shape.
         LogicalPlan rewritten = replaceDatasets(resolver, relationOf(DATASET_NAME));
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll unionAll = (UnionAll) rewritten;
+        assertEquals(2, unionAll.children().size());
+        assertTrue(
+            "a local external relation must be present",
+            unionAll.children().stream().anyMatch(c -> c instanceof UnresolvedExternalRelation)
+        );
+        assertTrue(
+            "an exact-name dataset shadow must be emitted",
+            unionAll.children().stream().anyMatch(c -> c instanceof DatasetShadowRelation)
+        );
         assertEquals("local read-authz dispatch runs once for the single relation", 1, localCalls.get());
     }
 

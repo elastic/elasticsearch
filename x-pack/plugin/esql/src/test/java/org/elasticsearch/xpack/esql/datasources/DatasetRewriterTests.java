@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -320,16 +321,94 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testExplicitDatasetNameUnderCpsNotPreserved() {
-        // An exact (non-wildcard) dataset name is fully handled by its external relation — there is no wildcard to
-        // expand against linked projects, so nothing is preserved even with CPS on.
+    public void testExplicitDatasetNameUnderCpsEmitsShadow() {
+        // An exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half would never reach
+        // field-caps. Under CPS the rewriter emits a DatasetShadowRelation sibling next to the dataset's external
+        // relation (inside a plain UnionAll) so the lenient linked pass can federate a remote index of the same name —
+        // the dataset analog of ViewResolver's OPTIONAL-shadow branch. The unmatched shadow is later stripped by the
+        // analyzer, returning to the bare external shape; matched, it survives as a sibling EsRelation.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_dataset"), project, Set.of("logs_dataset"));
 
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        assertThat(children, hasSize(2));
+        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(children.get(1), instanceOf(DatasetShadowRelation.class));
+        DatasetShadowRelation shadow = (DatasetShadowRelation) children.get(1);
+        assertThat(shadow.datasetName(), equalTo("logs_dataset"));
+        assertThat(shadow.linkedIndexPattern().pattern().indexPattern(), equalTo("logs_dataset"));
+    }
+
+    public void testExplicitDatasetNameWithoutCpsEmitsNoShadow() {
+        // Same query, CPS off (the shipped config today): the dataset replaces the relation outright, no shadow.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
+
+        LogicalPlan rewritten = rewriteWithAuthorized(relationOf("logs_dataset"), project, Set.of("logs_dataset"));
+
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testExplicitDatasetShadowCarriesTrailingExclusions() {
+        // The shadow's pattern is the exact name plus the relation's trailing exclusions, so the remote half honors the
+        // same exclusions the local FROM did — mirroring ViewResolver.collectExclusionsAfterPosition.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_a,-stale-*"), project, Set.of("logs_a"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        // external(logs_a) + shadow(logs_a,-stale-*); the exclusion-only relation has no positive wildcard so no
+        // UnresolvedRelation is preserved.
+        assertThat(children, hasSize(2));
+        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        DatasetShadowRelation shadow = (DatasetShadowRelation) children.get(1);
+        assertThat(shadow.linkedIndexPattern().pattern().indexPattern(), equalTo("logs_a,-stale-*"));
+    }
+
+    public void testMultipleExactDatasetNamesUnderCpsEmitShadowEach() {
+        // FROM ds1,ds2 (both exact) under CPS: two externals + two shadows in one UnionAll.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds1,ds2"), project, Set.of("ds1", "ds2"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        assertThat(children, hasSize(4));
+        long externalCount = children.stream().filter(c -> c instanceof UnresolvedExternalRelation).count();
+        long shadowCount = children.stream().filter(c -> c instanceof DatasetShadowRelation).count();
+        assertThat(externalCount, equalTo(2L));
+        assertThat(shadowCount, equalTo(2L));
+    }
+
+    public void testInterleavedExclusionAppliesPositionallyToShadows() {
+        // FROM ds1,-x,ds2 — exclusions are positional (ES applies them left-to-right): -x precedes ds2, so only ds1's
+        // shadow carries it. (A global sweep would wrongly narrow ds2's shadow with -x too.)
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds1,-x,ds2"), project, Set.of("ds1", "ds2"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        Set<String> shadowPatterns = rewritten.children()
+            .stream()
+            .filter(c -> c instanceof DatasetShadowRelation)
+            .map(c -> ((DatasetShadowRelation) c).linkedIndexPattern().pattern().indexPattern())
+            .collect(java.util.stream.Collectors.toSet());
+        assertThat(shadowPatterns, equalTo(Set.of("ds1,-x", "ds2")));
     }
 
     public void testNonStringSettingsArePreservedThroughCarrier() {

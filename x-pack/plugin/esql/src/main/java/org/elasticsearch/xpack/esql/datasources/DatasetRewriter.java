@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -305,6 +307,23 @@ public final class DatasetRewriter {
             // _index with the user-facing identifier rather than the underlying resource path.
             children.add(new UnresolvedExternalRelation(relation.source(), path, merged, relation.metadataFields(), name));
         }
+        // Friendly cap on the matched LOCAL datasets, checked before the CPS siblings are appended so the message
+        // reports the real dataset count rather than the bookkeeping siblings. A sibling's branch contribution is
+        // non-deterministic here: a wildcard-preserve relation or an exact-name DatasetShadowRelation becomes a branch
+        // only if it resolves to a remote index (an unmatched shadow strips to nothing). Those resolved branches are
+        // bounded separately by Fork's own MAX_BRANCHES cap post-resolution; counting them here would over-reject the
+        // common case where they strip away.
+        if (Fork.exceedsMaxBranches(children.size())) {
+            throw new VerificationException(
+                "FROM ["
+                    + relation.indexPattern().indexPattern()
+                    + "] matched "
+                    + children.size()
+                    + " datasets; current limit is "
+                    + Fork.MAX_BRANCHES
+                    + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
+            );
+        }
         // Cross-project (CPS): a wildcard that matched a dataset locally may also match indices in linked projects.
         // Mirror ViewResolver — keep the original wildcard as a sibling UnresolvedRelation so the remote half resolves
         // at field-caps, instead of the dataset replacing the whole relation and silently dropping the remote indices.
@@ -324,22 +343,17 @@ public final class DatasetRewriter {
                     )
                 );
             }
+            // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit above, so its remote half would never
+            // reach field-caps. Emit a DatasetShadowRelation per exact authorized dataset name — the dataset analog of
+            // ViewResolver's OPTIONAL-shadow branch — so the lenient linked pass federates a remote index of the same
+            // name in, while a remote dataset/view of the same name fails (the detection rail). See
+            // DatasetShadowRelation for the full lifecycle.
+            for (DatasetShadowRelation shadow : crossProjectExactNameShadows(relation, datasetNames)) {
+                children.add(shadow);
+            }
         }
         if (children.size() == 1) {
             return children.get(0);
-        }
-        // UnionAll inherits Fork's branch cap; wrap with a user-facing message instead of the internal
-        // "FORK supports up to N branches" error from Fork's constructor.
-        if (Fork.exceedsMaxBranches(children.size())) {
-            throw new VerificationException(
-                "FROM ["
-                    + relation.indexPattern().indexPattern()
-                    + "] matched "
-                    + children.size()
-                    + " datasets; current limit is "
-                    + Fork.MAX_BRANCHES
-                    + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
-            );
         }
         return new UnionAll(relation.source(), children, List.of());
     }
@@ -397,6 +411,48 @@ public final class DatasetRewriter {
             }
         }
         return hasPositiveWildcard ? preserved : List.of();
+    }
+
+    /**
+     * Builds a {@link DatasetShadowRelation} for each exact (non-wildcard, flat) dataset name in {@code datasetNames}
+     * that the relation named with a concrete pattern, so the remote half of that name reaches the lenient linked pass.
+     * Mirrors {@code ViewResolver}'s OPTIONAL-shadow branch: each shadow's pattern is the exact name followed by the
+     * relation's trailing exclusions, so the remote resolution honors the same exclusions the local FROM did.
+     * <p>
+     * Only exact names produce shadows here — wildcards are already handled by {@link #crossProjectPatternsToPreserve}
+     * (re-emitted as an {@link UnresolvedRelation}, which the strict main pass resolves). A remote-prefixed FROM never
+     * reaches {@code rewriteOne} (see {@link #hasRemotePattern}), so every pattern here is flat.
+     */
+    static List<DatasetShadowRelation> crossProjectExactNameShadows(UnresolvedRelation relation, List<String> datasetNames) {
+        List<String> patterns = patternsOf(relation);
+        Set<String> datasetNameSet = new LinkedHashSet<>(datasetNames);
+        List<DatasetShadowRelation> shadows = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (int i = 0; i < patterns.size(); i++) {
+            String pattern = patterns.get(i);
+            if (pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern)) {
+                continue;
+            }
+            // Resolve date-math so a literal-named dataset with a date suffix matches its authorized name.
+            String name = IndexNameExpressionResolver.resolveDateMathExpression(pattern);
+            if (datasetNameSet.contains(name) == false || seen.add(name) == false) {
+                continue;
+            }
+            // Exclusions are positional (ES applies them left-to-right): only those appearing AFTER this name narrow it.
+            // Mirrors ViewResolver.collectExclusionsAfterPosition.
+            List<String> shadowPattern = new ArrayList<>();
+            shadowPattern.add(name);
+            for (int p = i + 1; p < patterns.size(); p++) {
+                String later = patterns.get(p);
+                if (later.isEmpty() == false && later.charAt(0) == '-') {
+                    shadowPattern.add(later);
+                }
+            }
+            shadows.add(
+                new DatasetShadowRelation(relation.source(), name, LinkedIndexPattern.Kind.OPTIONAL, String.join(",", shadowPattern))
+            );
+        }
+        return shadows;
     }
 
     /**

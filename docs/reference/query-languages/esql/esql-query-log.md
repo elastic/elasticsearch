@@ -17,7 +17,7 @@ The {{esql}} query log allows you to log {{esql}} queries based on their executi
 
 You can use these logs to investigate, analyze or troubleshoot your cluster’s historical {{esql}} performance.
 
-When query logs show slow {{esql}} queries, refer to [Optimize {{esql}} query performance](/reference/query-languages/esql/esql-query-performance.md) for common anti-patterns and remediation steps.
+::::{include} _snippets/common/query-performance-tip.md
 
 {{esql}} query log reports task duration at coordinator level, but might not encompass the full task execution time observed on the client. For example, logs don’t surface HTTP network delays.
 

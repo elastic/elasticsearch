@@ -38,15 +38,13 @@ Both modes are strictly columnar: they reject mapping-level runtime fields and p
 
 ## Enabling columnar mode [enabling-columnar-mode]
 
-Set `index.mode` at index creation time. The setting cannot be changed after the index is created.
+Set `mode` index setting at index creation time. The setting cannot be changed after the index is created.
 
 ```console
 PUT my-index
 {
   "settings": {
-    "index": {
-      "mode": "columnar"
-    }
+    "mode": "columnar"
   }
 }
 ```
@@ -58,9 +56,7 @@ PUT _component_template/logs@custom
 {
   "template": {
     "settings": {
-      "index": {
-        "mode": "logsdb_columnar"
-      }
+      "mode": "logsdb_columnar"
     }
   }
 }
@@ -74,9 +70,7 @@ Or set it directly at index creation:
 PUT my-logs-index
 {
   "settings": {
-    "index": {
-      "mode": "logsdb_columnar"
-    }
+    "mode": "logsdb_columnar"
   }
 }
 ```
@@ -97,11 +91,9 @@ The `columnar` index mode doesn't enable index sorting by default. Let's say you
 PUT my-index
 {
   "settings": {
-    "index": {
-      "mode": "columnar",
-      "sort.field": [ "agent.id", "@timestamp" ],
-      "sort.order": [ "asc", "desc" ]
-    }
+    "mode": "columnar",
+    "sort.field": [ "agent.id", "@timestamp" ],
+    "sort.order": [ "asc", "desc" ]
   }
 }
 ```
@@ -112,11 +104,9 @@ If you query latency is more important than storage efficiency, then only sortin
 PUT my-logs-index
 {
   "settings": {
-    "index": {
-      "mode": "logsdb_columnar",
-      "sort.field": [ "@timestamp" ],
-      "sort.order": [ "desc" ]
-    }
+    "mode": "logsdb_columnar",
+    "sort.field": [ "@timestamp" ],
+    "sort.order": [ "desc" ]
   }
 }
 ```
@@ -136,6 +126,70 @@ The default unmapped field experience is provided by dynamic mappings. Dynamic m
 - **false**: Doesn't automatically map unmapped fields. Meaning that unmapped fields will not be stored at all. Data in unmapped fields will be lost.
 - **strict**: Doesn't automatically map unmapped fields and fails write requests with documents that contain unmapped fields.
 - **runtime**: This is not supported in columnar mode.
+
+## Auto flattening [auto-flattening]
+
+Mappings are always flattened. When defining mappings, any object field mapper is removed and leaf field mappings are created for each field path.
+The same applied with dynamic mapping updates during indexing.
+
+If `object` field mapping are flattened, the `enabled` and `dynamic` settings are preserved.
+For `passthrough` field mappings, the `priority` setting is preserved.
+
+For example, given a mapping with an `attributes` object (`dynamic: false`) and a `labels` passthrough field (`priority: 10`):
+
+```console
+PUT my-index
+{
+  "settings": {
+    "mode": "columnar"
+  },
+  "mappings": {
+    "properties": {
+      "attributes": {
+        "type": "object",
+        "dynamic": false,
+        "properties": {
+          "host": { "type": "keyword" },
+          "ip":   { "type": "ip" }
+        }
+      },
+      "labels": {
+        "type": "passthrough",
+        "priority": 10,
+        "properties": {
+          "env": { "type": "keyword" }
+        }
+      }
+    }
+  }
+}
+```
+
+The processed mapping (`GET my-index/_mapping`) shows the object mappers removed and their settings captured under `prefix_properties`:
+
+```json
+{
+  "my-index": {
+    "mappings": {
+      "prefix_properties": {
+        "attributes": {
+          "dynamic": "false"
+        },
+        "labels": {
+          "passthrough": 10
+        }
+      },
+      "properties": {
+        "attributes.host": { "type": "keyword" },
+        "attributes.ip":   { "type": "ip" },
+        "labels.env":      { "type": "keyword" }
+      }
+    }
+  }
+}
+```
+
+The `attributes` and `labels` object mappers are gone from `properties`; only the flat dotted-path leaf fields remain. The `dynamic: false` from `attributes` is preserved under `prefix_properties.attributes.dynamic`, preventing new fields under `attributes.*` from being auto-mapped at index time. The `priority: 10` from `labels` is preserved under `prefix_properties.labels.passthrough`.
 
 ## Limitations [columnar-limitations]
 

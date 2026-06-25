@@ -77,7 +77,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         return sliceAcceptDocsCache;
     }
 
-    private static BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
+    static BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
         int threshold = maxDoc >> 7; // same as BitSet#of
         if (iterator.cost() >= threshold) {
             FixedBitSet bitSet = new FixedBitSet(maxDoc);
@@ -96,7 +96,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
-    private static BitSet createSliceBitSet(DocIdSetIterator iterator, Bits liveDocs, SliceAcceptDocs acceptDocs) throws IOException {
+    static BitSet createSliceBitSet(DocIdSetIterator iterator, Bits liveDocs, SliceAcceptDocs acceptDocs) throws IOException {
         FixedBitSet bitSet = new FixedBitSet(acceptDocs.length());
         if (iterator.docID() < acceptDocs.startDoc()) {
             iterator.advance(acceptDocs.startDoc());
@@ -444,59 +444,59 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             int approxCost = acceptBitSet == null ? (int) costSupplier.getAsLong() : acceptBitSet.approximateCardinality();
             return Math.min(approxCost, maxCost);
         }
+    }
 
-        private static class SliceBitSetIterator extends AbstractDocIdSetIterator {
+    static class SliceBitSetIterator extends AbstractDocIdSetIterator {
 
-            private final BitSet bits;
-            private final SliceAcceptDocs acceptDocs;
-            private final long cost;
+        private final BitSet bits;
+        private final SliceAcceptDocs acceptDocs;
+        private final long cost;
 
-            public SliceBitSetIterator(BitSet bits, long cost, SliceAcceptDocs acceptDocs) {
-                assert cost >= 0;
-                assert acceptDocs.length() == bits.length();
-                this.bits = bits;
-                this.cost = cost;
-                this.acceptDocs = acceptDocs;
+        SliceBitSetIterator(BitSet bits, long cost, SliceAcceptDocs acceptDocs) {
+            assert cost >= 0;
+            assert acceptDocs.length() == bits.length();
+            this.bits = bits;
+            this.cost = cost;
+            this.acceptDocs = acceptDocs;
+        }
+
+        @Override
+        public int nextDoc() {
+            return advance(doc + 1);
+        }
+
+        @Override
+        public int advance(int target) {
+            if (target >= acceptDocs.endDoc) {
+                return doc = NO_MORE_DOCS;
             }
-
-            @Override
-            public int nextDoc() {
-                return advance(doc + 1);
+            target = Math.max(target - acceptDocs.startDoc, 0);
+            doc = bits.nextSetBit(target);
+            if (doc != NO_MORE_DOCS) {
+                doc += acceptDocs.startDoc();
+                assert doc < acceptDocs.endDoc();
             }
+            return doc;
+        }
 
-            @Override
-            public int advance(int target) {
-                if (target >= acceptDocs.endDoc) {
-                    return doc = NO_MORE_DOCS;
-                }
-                target = Math.max(target - acceptDocs.startDoc, 0);
-                doc = bits.nextSetBit(target);
-                if (doc != NO_MORE_DOCS) {
-                    doc += acceptDocs.startDoc();
-                    assert doc < acceptDocs.endDoc();
-                }
-                return doc;
+        @Override
+        public long cost() {
+            return cost;
+        }
+
+        @Override
+        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            if (upTo > doc && bits instanceof FixedBitSet fixedBits) {
+                int actualUpto = Math.min(upTo, acceptDocs.endDoc());
+                // The destination bit set may be shorter than this bit set. This is only legal if all bits
+                // beyond offset + bitSet.length() are clear. If not, the below call to `super.intoBitSet`
+                // will throw an exception.
+                actualUpto = MathUtil.unsignedMin(actualUpto, offset + acceptDocs.endDoc());
+                FixedBitSet.orRange(fixedBits, doc - acceptDocs.startDoc(), bitSet, doc - offset, actualUpto - doc);
+                advance(actualUpto); // set the current doc
             }
+            super.intoBitSet(upTo, bitSet, offset);
 
-            @Override
-            public long cost() {
-                return cost;
-            }
-
-            @Override
-            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-                if (upTo > doc && bits instanceof FixedBitSet fixedBits) {
-                    int actualUpto = Math.min(upTo, acceptDocs.endDoc());
-                    // The destination bit set may be shorter than this bit set. This is only legal if all bits
-                    // beyond offset + bitSet.length() are clear. If not, the below call to `super.intoBitSet`
-                    // will throw an exception.
-                    actualUpto = MathUtil.unsignedMin(actualUpto, offset + acceptDocs.endDoc());
-                    FixedBitSet.orRange(fixedBits, doc - acceptDocs.startDoc(), bitSet, doc - offset, actualUpto - doc);
-                    advance(actualUpto); // set the current doc
-                }
-                super.intoBitSet(upTo, bitSet, offset);
-
-            }
         }
     }
 }

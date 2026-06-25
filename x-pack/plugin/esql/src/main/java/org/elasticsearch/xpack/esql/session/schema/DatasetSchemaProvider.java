@@ -81,8 +81,13 @@ final class DatasetSchemaProvider implements AbstractionSchemaProvider {
      * An explicitly-named dataset the caller cannot read surfaces as {@code Unknown index} (400), the same error a
      * missing index gives — existence-hiding, not a 403.
      */
-    void resolveDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
-        datasetResolver.replaceDatasets(parsed, projectMetadata, listener);
+    void resolveDatasets(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        DatasetResolver.DatasetConfigResolver configResolver,
+        ActionListener<LogicalPlan> listener
+    ) {
+        datasetResolver.replaceDatasets(parsed, projectMetadata, configResolver, listener);
     }
 
     /**

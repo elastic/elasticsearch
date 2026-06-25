@@ -137,9 +137,41 @@ public final class SchemaService {
     /**
      * Authorize and rewrite {@code FROM <dataset>} targets into external relations so analysis treats them like the
      * inline {@code EXTERNAL} command. Only datasets the caller can {@code read} are rewritten.
+     *
+     * <p>The authorized datasets' configs are produced through the singular {@link #resolveSchema} dispatch — this is
+     * the first production call site of the unified schema-discovery front. Each authorized dataset name routes to the
+     * dataset provider's {@code resolveSchema} arm, which returns a {@link ResolvedSchema.Dataset} carrying the merged
+     * external-source config; the dataset rewrite consumes that config instead of recomputing it inline. The merged
+     * config is byte-identical to the inline path, so routing it through the umbrella is behaviour-identical.
      */
     public void resolveDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
-        datasetProvider.resolveDatasets(parsed, projectMetadata, listener);
+        datasetProvider.resolveDatasets(parsed, projectMetadata, this::resolveDatasetConfigs, listener);
+    }
+
+    /**
+     * Resolve each authorized dataset name to its merged external-source config through the singular
+     * {@link #resolveSchema} dispatch. The dispatch routes each name to the dataset provider's schema arm; we pull the
+     * {@link ResolvedSchema.Dataset} config out of each result and key it by name for the rewrite.
+     */
+    private void resolveDatasetConfigs(
+        ProjectMetadata projectMetadata,
+        List<String> names,
+        ActionListener<Map<String, Map<String, Object>>> listener
+    ) {
+        SchemaContext ctx = null; // the dataset schema arm reads no SchemaContext fields
+        resolveSchema(ctx, projectMetadata, names, listener.map(resolved -> {
+            Map<String, Map<String, Object>> configs = new LinkedHashMap<>();
+            for (ResolvedSchema schema : resolved) {
+                if (schema instanceof ResolvedSchema.Dataset dataset) {
+                    configs.put(dataset.name(), dataset.config());
+                } else {
+                    throw new IllegalStateException(
+                        "expected a dataset schema for [" + schema.name() + "] but got [" + schema.getClass().getSimpleName() + "]"
+                    );
+                }
+            }
+            return configs;
+        }));
     }
 
     /** Resolve the schema of external sources (Iceberg tables / Parquet files) referenced by the query. */

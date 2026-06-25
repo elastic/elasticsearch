@@ -219,6 +219,25 @@ public final class DatasetRewriter {
         Map<UnresolvedRelation, DatasetResolution> resolutions,
         boolean crossProjectEnabled
     ) {
+        return rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled, null);
+    }
+
+    /**
+     * As {@link #rewrite(LogicalPlan, ProjectMetadata, Map, boolean)}, but consuming dataset configs already resolved
+     * through the schema umbrella. When {@code preResolvedConfigs} is non-null it is the authoritative source of each
+     * authorized dataset's merged external-source config (keyed by dataset name); {@link #rewriteOne} reads it instead
+     * of recomputing the merge inline. The map and the inline {@link #mergeSettings} compute byte-identical config, so
+     * the rewrite is behaviour-identical either way — the umbrella path just moves the config production behind the
+     * singular {@code resolveSchema} dispatch. A {@code null} map keeps the legacy inline computation (the unsecured /
+     * test entries that have no umbrella to call).
+     */
+    public static LogicalPlan rewrite(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        Map<UnresolvedRelation, DatasetResolution> resolutions,
+        boolean crossProjectEnabled,
+        Map<String, Map<String, Object>> preResolvedConfigs
+    ) {
         if (projectMetadata == null) {
             return parsed;
         }
@@ -232,8 +251,21 @@ public final class DatasetRewriter {
             if (resolution == null) {
                 return r;
             }
-            return rewriteOne(r, datasetMetadata, dataSourceMetadata, resolution, crossProjectEnabled);
+            return rewriteOne(r, datasetMetadata, dataSourceMetadata, resolution, crossProjectEnabled, preResolvedConfigs);
         });
+    }
+
+    /**
+     * The set of authorized concrete dataset names across all relation resolutions — the names whose configs the
+     * umbrella resolves up front so {@link #rewrite} can consume them. Mirrors the names {@link #rewriteOne} would
+     * otherwise resolve inline, so resolving exactly these is behaviour-identical.
+     */
+    public static Set<String> authorizedDatasetNames(Map<UnresolvedRelation, DatasetResolution> resolutions) {
+        Set<String> names = new LinkedHashSet<>();
+        for (DatasetResolution resolution : resolutions.values()) {
+            names.addAll(resolution.authorizedDatasets());
+        }
+        return names;
     }
 
     private static LogicalPlan rewriteOne(
@@ -241,7 +273,8 @@ public final class DatasetRewriter {
         DatasetMetadata datasets,
         DataSourceMetadata dataSources,
         DatasetResolution resolution,
-        boolean crossProjectEnabled
+        boolean crossProjectEnabled,
+        Map<String, Map<String, Object>> preResolvedConfigs
     ) {
         if (resolution.explicitUnauthorized().isEmpty() == false) {
             // An explicitly-named dataset the caller can't read — same error (and 400) a missing index gives, so an
@@ -287,15 +320,27 @@ public final class DatasetRewriter {
         List<LogicalPlan> children = new ArrayList<>(datasetNames.size());
         for (String name : datasetNames) {
             Dataset dataset = datasets.get(name);
-            DataSource parent = dataSources.get(dataset.dataSource().getName());
-            // DataSourceService.deleteDataSources rejects (409) on orphans, so a null parent here
-            // means a broken-invariant state (e.g. corrupt cluster-state restore) — throw with context.
-            if (parent == null) {
-                throw new IllegalStateException(
-                    "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
-                );
+            // Config comes from the umbrella's singular resolveSchema dispatch when present (the live production path),
+            // else from the inline merge (the unsecured / test entries). Both compute the same merged config, so the
+            // resulting external relation is identical. The null-parent broken-invariant guard lives in datasetConfig
+            // for the umbrella path and below for the inline path.
+            Map<String, Object> merged;
+            if (preResolvedConfigs != null) {
+                merged = preResolvedConfigs.get(name);
+                if (merged == null) {
+                    throw new IllegalStateException("no resolved config for authorized dataset [" + name + "]");
+                }
+            } else {
+                DataSource parent = dataSources.get(dataset.dataSource().getName());
+                // DataSourceService.deleteDataSources rejects (409) on orphans, so a null parent here
+                // means a broken-invariant state (e.g. corrupt cluster-state restore) — throw with context.
+                if (parent == null) {
+                    throw new IllegalStateException(
+                        "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
+                    );
+                }
+                merged = mergeSettings(parent, dataset);
             }
-            Map<String, Object> merged = mergeSettings(parent, dataset);
             Literal path = Literal.keyword(relation.source(), dataset.resource());
             // Thread the user's METADATA clause through to the external leaf so
             // ResolveExternalRelations binds each requested name to an ExternalMetadataAttribute of

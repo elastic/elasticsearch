@@ -283,6 +283,43 @@ text_state_nonexistent  | nonexistent-1  | null
 text_state_unmapped     | unmapped-1     | null
 ;
 
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/152184
+# A dense_vector PUNK should null-fill where unmapped, but the KEYWORD->dense_vector auto-cast hex-decodes the _source array and fails.
+denseVectorPunkShowsNullUnderLoad-Ignore
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+
+SET unmapped_fields="load"\;
+FROM colors, colors_unmapped METADATA _index
+| WHERE id == 15
+| KEEP _index, color, rgb_vector
+| SORT _index
+;
+
+_index:keyword       | color:text | rgb_vector:dense_vector
+colors               | green      | [0.0, 128.0, 0.0]
+colors_unmapped      | green      | null
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/152196
+# KNN over a partially unmapped dense_vector should null-fill where unmapped, but instead errors that the field does not exist.
+knnOnDenseVectorPunkUnderLoad-Ignore
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: knn_function_v5
+
+SET unmapped_fields="load"\;
+FROM colors, employees METADATA _index, _score
+| WHERE knn(rgb_vector, [0, 128, 0])
+| SORT _score DESC, color ASC
+| KEEP _index, color
+| LIMIT 1
+;
+
+_index:keyword | color:text
+colors         | green
+;
+
 ######################
 # Single index tests #
 ######################

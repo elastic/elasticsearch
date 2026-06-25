@@ -1,0 +1,4 @@
+pr: 152211
+summary: Grant `elastic/fleet-server-remote` write access to Elastic Defend response and diagnostic indices
+area: Authorization
+type: enhancement

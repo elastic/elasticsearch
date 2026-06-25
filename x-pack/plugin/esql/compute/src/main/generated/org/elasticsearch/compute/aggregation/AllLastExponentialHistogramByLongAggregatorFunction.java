@@ -16,18 +16,17 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 /**
- * {@link AggregatorFunction} implementation for {@link LastExponentialHistogramByTimestampAggregator}.
+ * {@link AggregatorFunction} implementation for {@link AllLastExponentialHistogramByLongAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class LastExponentialHistogramByTimestampAggregatorFunction implements AggregatorFunction {
+public final class AllLastExponentialHistogramByLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("timestamps", ElementType.LONG),
+      new IntermediateStateDesc("sortKeys", ElementType.LONG),
       new IntermediateStateDesc("values", ElementType.EXPONENTIAL_HISTOGRAM),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
@@ -37,11 +36,11 @@ public final class LastExponentialHistogramByTimestampAggregatorFunction impleme
 
   private final List<Integer> channels;
 
-  LastExponentialHistogramByTimestampAggregatorFunction(DriverContext driverContext,
+  AllLastExponentialHistogramByLongAggregatorFunction(DriverContext driverContext,
       List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = LastExponentialHistogramByTimestampAggregator.initSingle(driverContext);
+    this.state = AllLastExponentialHistogramByLongAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -66,42 +65,42 @@ public final class LastExponentialHistogramByTimestampAggregatorFunction impleme
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     ExponentialHistogramBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    addRawBlock(valueBlock, timestampBlock, mask);
+    LongBlock sortKeyBlock = page.getBlock(channels.get(1));
+    addRawBlock(valueBlock, sortKeyBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     ExponentialHistogramBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    addRawBlock(valueBlock, timestampBlock);
+    LongBlock sortKeyBlock = page.getBlock(channels.get(1));
+    addRawBlock(valueBlock, sortKeyBlock);
   }
 
-  private void addRawBlock(ExponentialHistogramBlock valueBlock, LongBlock timestampBlock) {
+  private void addRawBlock(ExponentialHistogramBlock valueBlock, LongBlock sortKeyBlock) {
     ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
       int valueValueCount = valueBlock.getValueCount(p);
       if (valueValueCount == 0) {
         continue;
       }
-      int timestampValueCount = timestampBlock.getValueCount(p);
-      if (timestampValueCount == 0) {
+      int sortKeyValueCount = sortKeyBlock.getValueCount(p);
+      if (sortKeyValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
       int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
-        int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampValueCount;
-        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
-          long timestampValue = timestampBlock.getLong(timestampOffset);
-          LastExponentialHistogramByTimestampAggregator.combine(state, valueValue, timestampValue);
+        int sortKeyStart = sortKeyBlock.getFirstValueIndex(p);
+        int sortKeyEnd = sortKeyStart + sortKeyValueCount;
+        for (int sortKeyOffset = sortKeyStart; sortKeyOffset < sortKeyEnd; sortKeyOffset++) {
+          long sortKeyValue = sortKeyBlock.getLong(sortKeyOffset);
+          AllLastExponentialHistogramByLongAggregator.combine(state, valueValue, sortKeyValue);
         }
       }
     }
   }
 
-  private void addRawBlock(ExponentialHistogramBlock valueBlock, LongBlock timestampBlock,
+  private void addRawBlock(ExponentialHistogramBlock valueBlock, LongBlock sortKeyBlock,
       BooleanVector mask) {
     ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
@@ -112,19 +111,19 @@ public final class LastExponentialHistogramByTimestampAggregatorFunction impleme
       if (valueValueCount == 0) {
         continue;
       }
-      int timestampValueCount = timestampBlock.getValueCount(p);
-      if (timestampValueCount == 0) {
+      int sortKeyValueCount = sortKeyBlock.getValueCount(p);
+      if (sortKeyValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
       int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
-        int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampValueCount;
-        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
-          long timestampValue = timestampBlock.getLong(timestampOffset);
-          LastExponentialHistogramByTimestampAggregator.combine(state, valueValue, timestampValue);
+        int sortKeyStart = sortKeyBlock.getFirstValueIndex(p);
+        int sortKeyEnd = sortKeyStart + sortKeyValueCount;
+        for (int sortKeyOffset = sortKeyStart; sortKeyOffset < sortKeyEnd; sortKeyOffset++) {
+          long sortKeyValue = sortKeyBlock.getLong(sortKeyOffset);
+          AllLastExponentialHistogramByLongAggregator.combine(state, valueValue, sortKeyValue);
         }
       }
     }
@@ -134,53 +133,17 @@ public final class LastExponentialHistogramByTimestampAggregatorFunction impleme
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
-    assert timestamps.getPositionCount() == 1;
+    Block sortKeysUncast = page.getBlock(channels.get(0));
+    LongBlock sortKeys = (LongBlock) sortKeysUncast;
+    assert sortKeys.getPositionCount() == 1;
     Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
     ExponentialHistogramBlock values = (ExponentialHistogramBlock) valuesUncast;
     assert values.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(2));
-    if (seenUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    BooleanBlock seen = (BooleanBlock) seenUncast;
     assert seen.getPositionCount() == 1;
     ExponentialHistogramScratch valuesScratch = new ExponentialHistogramScratch();
-    LastExponentialHistogramByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getExponentialHistogram(values.getFirstValueIndex(0), valuesScratch), seen.getBoolean(0));
+    AllLastExponentialHistogramByLongAggregator.combineIntermediate(state, sortKeys.getLong(0), values, seen.getBoolean(0));
   }
 
   @Override
@@ -190,7 +153,7 @@ public final class LastExponentialHistogramByTimestampAggregatorFunction impleme
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = LastExponentialHistogramByTimestampAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = AllLastExponentialHistogramByLongAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

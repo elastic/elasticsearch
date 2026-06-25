@@ -39,7 +39,7 @@ public class LatestErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 validPerPosition,
                 signature,
                 (v, p) -> p == 0
-                    ? "boolean, date, dense_vector, ip, string or numeric except counter types"
+                    ? "boolean, date, dense_vector, exponential_histogram, ip, string or numeric except counter types"
                     : "int or long or date_nanos or datetime"
             )
         );

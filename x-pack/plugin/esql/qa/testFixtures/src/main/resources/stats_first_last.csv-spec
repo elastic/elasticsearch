@@ -788,3 +788,31 @@ FROM colors
 last_rgb:dense_vector
 [255.0, 0.0, 0.0]
 ;
+
+Test last aggregation on exponential_histogram type (NULL sort)
+required_capability: last_agg_extended_types
+
+FROM exp_histo_sample
+| WHERE instance == "dummy-empty"
+| STATS last_hist = LAST(responseTime, NULL)
+;
+
+last_hist:exponential_histogram
+"{""scale"":0}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test last aggregation on exponential_histogram type with grouping (NULL sort)
+required_capability: last_agg_extended_types
+
+FROM exp_histo_sample
+| WHERE instance IN ("dummy-empty", "dummy-zero_threshold_only")
+| STATS last_hist = LAST(responseTime, NULL) BY instance
+| SORT instance
+;
+
+last_hist:exponential_histogram | instance:keyword
+"{""scale"":0}" | dummy-empty
+"{""scale"":0,""zero"":{""threshold"":2.0E-5}}" | dummy-zero_threshold_only
+;

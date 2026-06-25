@@ -526,3 +526,16 @@ FROM colors
 last_rgb:dense_vector
 [255.0, 0.0, 0.0]
 ;
+
+Test latest aggregation on exponential_histogram type
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+
+FROM exp_histo_sample
+| WHERE instance == "dummy-empty"
+| STATS last_hist = LATEST(responseTime)
+;
+
+last_hist:exponential_histogram
+"{""scale"":0}"
+;

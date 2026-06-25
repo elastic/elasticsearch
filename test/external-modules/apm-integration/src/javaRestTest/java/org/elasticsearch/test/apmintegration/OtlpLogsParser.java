@@ -9,43 +9,22 @@
 
 package org.elasticsearch.test.apmintegration;
 
-import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.logs.v1.LogRecord;
-import io.opentelemetry.proto.logs.v1.ResourceLogs;
-import io.opentelemetry.proto.logs.v1.ScopeLogs;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
  * Parses OTLP protobuf log records into the protocol-neutral {@link ReceivedTelemetry.ReceivedLog}.
- * Used by both the HTTP {@code /v1/logs} route and the gRPC {@code LogsServiceImpl} in
- * {@link RecordingApmServer}.
+ * Used by the gRPC {@code LogsServiceImpl} in {@link RecordingApmServer}.
  */
 public final class OtlpLogsParser {
 
     private OtlpLogsParser() {}
-
-    public static List<ReceivedTelemetry> parse(InputStream input) throws IOException {
-        ExportLogsServiceRequest request = ExportLogsServiceRequest.parseFrom(input);
-        List<ReceivedTelemetry> result = new ArrayList<>();
-        for (ResourceLogs resourceLogs : request.getResourceLogsList()) {
-            for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
-                for (LogRecord record : scopeLogs.getLogRecordsList()) {
-                    result.add(toReceivedLog(record));
-                }
-            }
-        }
-        return result;
-    }
 
     static ReceivedTelemetry.ReceivedLog toReceivedLog(LogRecord record) {
         Map<String, Object> attributes = new HashMap<>();

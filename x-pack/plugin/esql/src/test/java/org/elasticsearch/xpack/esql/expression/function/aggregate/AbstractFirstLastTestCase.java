@@ -65,12 +65,8 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         searchFieldTypes.addAll(extraBoth);
         taggedTypes.addAll(extraBoth);
 
-        if (isFirst) {
-            List<DataType> extra = List.of();
-            searchFieldTypes.addAll(extra);
-            taggedTypes.addAll(extra);
-            searchFieldTypes.add(DataType.FLATTENED);
-        }
+        // FLATTENED is supported but intentionally not in @FunctionInfo, so it stays untagged (not in taggedTypes).
+        searchFieldTypes.add(DataType.FLATTENED);
 
         FunctionAppliesTo newIn95 = appliesTo(FunctionAppliesToLifecycle.GA, "9.5.0", "", true);
         List<DataType> sortFieldTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS, DataType.NULL);

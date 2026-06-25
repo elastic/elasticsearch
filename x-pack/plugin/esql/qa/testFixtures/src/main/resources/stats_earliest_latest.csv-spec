@@ -555,3 +555,16 @@ FROM tdigest_standard_index
 last_td:tdigest
 "{""centroids"":[], ""counts"":[]}"
 ;
+
+Test latest aggregation on flattened type
+required_capability: earliest_latest_aggs
+required_capability: flattened_datatype
+required_capability: last_agg_extended_types
+
+FROM flattened_otel_logs
+| STATS latest_attrs = LATEST(resource.attributes)
+; 
+
+latest_attrs:flattened
+"{""agent.id"":""5e7a960a-4653-4973-a000-450130a32a37"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-cpcmv""}"
+;

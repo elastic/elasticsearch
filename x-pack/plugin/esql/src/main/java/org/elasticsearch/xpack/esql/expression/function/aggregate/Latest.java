@@ -148,6 +148,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
                 || dt == DataType.GEOHEX
                 || dt == DataType.DENSE_VECTOR
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.FLATTENED
                 || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
@@ -155,6 +156,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
             "date",
             "dense_vector",
             "exponential_histogram",
+            "flattened",
             "ip",
             "string",
             "tdigest",

@@ -29,21 +29,26 @@ import static java.lang.Math.log;
  * epoch as returned by {@link System#currentTimeMillis}, nanos since an arbitrary origin as returned by {@link System#nanoTime}, or
  * anything else. The only requirement is that the same convention must be used consistently.
  *
+ * <p>For high-concurrency use (e.g. tracking utilisation of a large thread pool), use the constructor that accepts a {@code numStripes}
+ * argument. Increments are partitioned across stripes by the calling thread's identity; {@link #getRate} sums the stripe rates. This is
+ * mathematically exact: the EWMR formula is linear in the increments, so for any partition of the increments the sum of the per-stripe
+ * rates equals the rate that would be obtained from a single instance that received all the increments. Stripes have independent monitors,
+ * so threads routing to different stripes never contend with one another on writes.
+ *
  * <p>This class is thread-safe.
  */
 public class ExponentiallyWeightedMovingRate {
 
     // The maths behind this is explained in section 2 of this document: https://github.com/user-attachments/files/19166625/ewma.pdf
 
-    // This implementation uses synchronization to provide thread safety. The synchronized code is all non-blocking, and just performs a
-    // fixed small number of floating point operations plus some memory reads and writes. If they take somewhere in the region of 10ns each,
-    // we can do up to tens of millions of QPS before the lock risks becoming a bottleneck.
+    // Mutable state lives in Stripe objects, each guarded by its own monitor, so stripes are entirely independent. addIncrement routes to
+    // a stripe selected by the calling thread's identity. With N stripes and T threads, the expected number of threads competing for any
+    // one stripe is T/N, reducing contention by the same factor compared to a single shared lock.
 
     private final double lambda;
     private final long startTime;
-    private double rate;
-    private long lastTime;
-    private boolean waitingForFirstIncrement;
+    private final Stripe[] stripes;
+    private final int stripeMask;
 
     /**
      * Constructor.
@@ -56,16 +61,33 @@ public class ExponentiallyWeightedMovingRate {
      *     of this value must match all other calls to this instance.
      */
     public ExponentiallyWeightedMovingRate(double lambda, long startTime) {
+        this(lambda, startTime, 1);
+    }
+
+    /**
+     * Constructor for high-concurrency use with independent stripes to reduce lock contention.
+     *
+     * @param lambda See {@link #ExponentiallyWeightedMovingRate(double, long)}.
+     * @param startTime See {@link #ExponentiallyWeightedMovingRate(double, long)}.
+     * @param numStripes The number of independent stripes. Must be a positive power of two. Increments are routed to a stripe by the
+     *     calling thread's identity, so a value at least as large as the number of concurrent updater threads eliminates all write
+     *     contention. {@link #getRate} sums all stripe results with cost linear in {@code numStripes}, so reads are unaffected by this
+     *     value beyond that small overhead.
+     */
+    public ExponentiallyWeightedMovingRate(double lambda, long startTime, int numStripes) {
         if (lambda < 0.0) {
             throw new IllegalArgumentException("lambda must be non-negative but was " + lambda);
         }
-        synchronized (this) {
-            this.lambda = lambda;
-            this.rate = Double.NaN; // should never be used
-            this.startTime = startTime;
-            this.lastTime = 0; // should never be used
-            this.waitingForFirstIncrement = true;
+        if (numStripes <= 0 || Integer.bitCount(numStripes) != 1) {
+            throw new IllegalArgumentException("numStripes must be a positive power of 2 but was " + numStripes);
         }
+        this.lambda = lambda;
+        this.startTime = startTime;
+        this.stripes = new Stripe[numStripes];
+        for (int i = 0; i < numStripes; i++) {
+            stripes[i] = new Stripe();
+        }
+        this.stripeMask = numStripes - 1;
     }
 
     /**
@@ -74,21 +96,16 @@ public class ExponentiallyWeightedMovingRate {
      *
      * <p>If there have been no increments yet, this returns zero.
      *
-     * <p>Otherwise, we require the time to be no earlier than the time of the previous increment, i.e. the value of {@code time}
-     * for this call must not be less than the value of {@code time} for the last call to {@link #addIncrement}. If this is not the
-     * case, the method behaves as if it had that minimum value.
+     * <p>Otherwise, we require the time to be no earlier than the time of the most recent increment seen by any stripe, i.e. the value of
+     * {@code time} for this call must not be less than the value of {@code time} for the last call to {@link #addIncrement} on any stripe.
+     * If this is not the case, the method behaves as if it had that minimum value on the stripe(s) which received later increments.
      */
     public double getRate(long time) {
-        synchronized (this) {
-            if (waitingForFirstIncrement) {
-                return 0.0;
-            } else if (time <= lastTime) {
-                return rate;
-            } else {
-                // This is the formula for R(t) given in subsection 2.6 of the document referenced above:
-                return expHelper(lastTime - startTime) * exp(-1.0 * lambda * (time - lastTime)) * rate / expHelper(time - startTime);
-            }
+        double sum = 0.0;
+        for (Stripe stripe : stripes) {
+            sum += stripe.getRate(time);
         }
+        return sum;
     }
 
     /**
@@ -120,32 +137,17 @@ public class ExponentiallyWeightedMovingRate {
      * Updates the rate to reflect that the gauge has been incremented by an amount {@code increment} at a time {@code time}. The unit and
      * offset of the time must match all other calls to this instance. The units of the increment are arbitrary but must also be consistent.
      *
-     * <p>If this is the first increment, we require it to occur after the start time for the rate calculation, i.e. the value of
-     * {@code time} must be greater than {@code startTime} passed to the constructor. If this is not the case, the method behaves as if
-     * {@code time} is {@code startTime + 1} to prevent a division by zero error.
+     * <p>The increment is applied to the stripe selected by the calling thread's identity. The following constraints are per-stripe:
      *
-     * <p>If this is not the first increment, we require it not to occur before the previous increment, i.e. the value of {@code time} for
-     * this call must be greater than or equal to the value for the previous call. If this is not the case, the method behaves as if this
-     * call's {@code time} is the same as the previous call's.
+     * <p>If this is the first increment on the selected stripe, we require it to occur after the start time for the rate calculation, i.e.
+     * the value of {@code time} must be greater than {@code startTime} passed to the constructor. If this is not the case, the method
+     * behaves as if {@code time} is {@code startTime + 1} to prevent a division by zero error.
+     *
+     * <p>If this is not the first increment on the selected stripe, we require it not to occur before the previous increment on that
+     * stripe. If this is not the case, the method behaves as if this call's {@code time} is the same as the previous call's on that stripe.
      */
     public void addIncrement(double increment, long time) {
-        synchronized (this) {
-            if (waitingForFirstIncrement) {
-                if (time <= startTime) {
-                    time = startTime + 1;
-                }
-                // This is the formula for R(t_1) given in subsection 2.6 of the document referenced above:
-                rate = increment / expHelper(time - startTime);
-                waitingForFirstIncrement = false;
-            } else {
-                if (time < lastTime) {
-                    time = lastTime;
-                }
-                // This is the formula for R(t_j+1) given in subsection 2.6 of the document referenced above:
-                rate += (increment - expHelper(time - lastTime) * rate) / expHelper(time - startTime);
-            }
-            lastTime = time;
-        }
+        stripes[(int) (Thread.currentThread().threadId() & stripeMask)].addIncrement(increment, time);
     }
 
     /**
@@ -176,5 +178,50 @@ public class ExponentiallyWeightedMovingRate {
      */
     public double getHalfLife() {
         return log(2.0) / lambda;
+    }
+
+    /**
+     * Holds the mutable EWMR state for one stripe. Each stripe is guarded by its own monitor so stripes never contend with one another.
+     *
+     * <p>The fields are padded to occupy at least 128 bytes so that adjacent Stripe objects in the array do not share a CPU cache line,
+     * avoiding false sharing between threads that route to neighbouring stripes.
+     */
+    private final class Stripe {
+        private double rate;
+        private long lastTime;
+        private boolean waitingForFirstIncrement = true;
+        // Padding to prevent false sharing. The useful fields plus object overhead occupy roughly 40 bytes; these 11 longs bring the
+        // total object size to ~128 bytes, covering both 64-byte and 128-byte cache-line architectures.
+        @SuppressWarnings("unused")
+        private long p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11;
+
+        synchronized void addIncrement(double increment, long time) {
+            if (waitingForFirstIncrement) {
+                if (time <= startTime) {
+                    time = startTime + 1;
+                }
+                // This is the formula for R(t_1) given in subsection 2.6 of the document referenced above:
+                rate = increment / expHelper(time - startTime);
+                waitingForFirstIncrement = false;
+            } else {
+                if (time < lastTime) {
+                    time = lastTime;
+                }
+                // This is the formula for R(t_j+1) given in subsection 2.6 of the document referenced above:
+                rate += (increment - expHelper(time - lastTime) * rate) / expHelper(time - startTime);
+            }
+            lastTime = time;
+        }
+
+        synchronized double getRate(long time) {
+            if (waitingForFirstIncrement) {
+                return 0.0;
+            } else if (time <= lastTime) {
+                return rate;
+            } else {
+                // This is the formula for R(t) given in subsection 2.6 of the document referenced above:
+                return expHelper(lastTime - startTime) * exp(-1.0 * lambda * (time - lastTime)) * rate / expHelper(time - startTime);
+            }
+        }
     }
 }

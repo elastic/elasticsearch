@@ -214,6 +214,36 @@ public class ExponentiallyWeightedMovingRateTests extends ESTestCase {
         assertThrows(IllegalArgumentException.class, () -> new ExponentiallyWeightedMovingRate(-1.0e-6, START_TIME_IN_MILLIS));
     }
 
+    // Directly compares a 1-stripe instance with a 128-stripe instance: the same increments are applied to both from the same threads, so
+    // the striped instance's routing is exercised by real thread IDs. After every round, both instances must produce identical rates.
+    // All increments in a round share one timestamp, which means concurrent updates within a stripe reduce to pure addition (the
+    // E(time - lastTime) term is zero), so the result is independent of serialisation order and the outputs are exactly equal within the
+    // standard numerical tolerance.
+    public void testStripedEwmr_matchesUnstripedUnderConcurrentUpdates() throws InterruptedException {
+        int numStripes = 1 << randomIntBetween(1, 7); // random power of 2 in [2, 128]
+        ExponentiallyWeightedMovingRate singleStripe = new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS, 1);
+        ExponentiallyWeightedMovingRate multiStripe = new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS, numStripes);
+        int numRoundsOfIncrements = 20;
+        long intervalMillis = 10_000;
+        int numThreads = 100;
+        for (int round = 1; round <= numRoundsOfIncrements; round++) {
+            long timeInMillis = START_TIME_IN_MILLIS + round * intervalMillis;
+            double[] incrementsForRound = DoubleStream.generate(() -> randomDoubleBetween(1.0, 100.0, true)).limit(numThreads).toArray();
+            List<Thread> threads = DoubleStream.of(incrementsForRound).mapToObj(increment -> new Thread(() -> {
+                singleStripe.addIncrement(increment, timeInMillis);
+                multiStripe.addIncrement(increment, timeInMillis);
+            })).toList();
+            for (Thread thread : threads) {
+                thread.start();
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            long queryTime = START_TIME_IN_MILLIS + round * intervalMillis;
+            assertThat(multiStripe.getRate(queryTime), closeTo(singleStripe.getRate(queryTime), TOLERANCE));
+        }
+    }
+
     // N.B. This test is not guaranteed to fail even if the implementation is not thread-safe. The operations are fast enough that there is
     // a chance each thread will complete before the next one has started. We use a high thread count to try to get a decent change of
     // hitting a race condition if there is one. This should be run with e.g. -Dtests.iters=20 to test thoroughly.
@@ -352,5 +382,74 @@ public class ExponentiallyWeightedMovingRateTests extends ESTestCase {
     public void testGetHalfLife_lambdaZero() {
         ExponentiallyWeightedMovingRate ewmr = new ExponentiallyWeightedMovingRate(0.0, START_TIME_IN_MILLIS);
         assertThat(ewmr.getHalfLife(), equalTo(Double.POSITIVE_INFINITY));
+    }
+
+    public void testStripedEwmr_invalidNumStripes() {
+        assertThrows(IllegalArgumentException.class, () -> new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS, 0));
+        assertThrows(IllegalArgumentException.class, () -> new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS, -1));
+        assertThrows(IllegalArgumentException.class, () -> new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS, 3));
+        assertThrows(IllegalArgumentException.class, () -> new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS, 100));
+    }
+
+    // Validates the core mathematical property that makes striping correct: the EWMR is linear in its increments, so for any partition of
+    // the increments across independent EWMR instances (with the same lambda and startTime), summing their rates gives the same result as a
+    // single instance that received all the increments. This is the fundamental identity that getRate exploits when combining stripe rates.
+    public void testStripedEwmr_sumOfIndependentStripes() {
+        ExponentiallyWeightedMovingRate s1 = new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS);
+        ExponentiallyWeightedMovingRate s2 = new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS);
+        ExponentiallyWeightedMovingRate s3 = new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS);
+        ExponentiallyWeightedMovingRate s4 = new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS);
+
+        s1.addIncrement(10.0, START_TIME_IN_MILLIS + 1000);
+        s1.addIncrement(5.0, START_TIME_IN_MILLIS + 3000);
+        s2.addIncrement(20.0, START_TIME_IN_MILLIS + 2000);
+        s3.addIncrement(15.0, START_TIME_IN_MILLIS + 1500);
+        s3.addIncrement(8.0, START_TIME_IN_MILLIS + 4000);
+        s4.addIncrement(12.0, START_TIME_IN_MILLIS + 2500);
+
+        // Reference: a single EWMR that received all the same increments, added in time order:
+        ExponentiallyWeightedMovingRate reference = new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS);
+        reference.addIncrement(10.0, START_TIME_IN_MILLIS + 1000);
+        reference.addIncrement(15.0, START_TIME_IN_MILLIS + 1500);
+        reference.addIncrement(20.0, START_TIME_IN_MILLIS + 2000);
+        reference.addIncrement(12.0, START_TIME_IN_MILLIS + 2500);
+        reference.addIncrement(5.0, START_TIME_IN_MILLIS + 3000);
+        reference.addIncrement(8.0, START_TIME_IN_MILLIS + 4000);
+
+        long queryTime = START_TIME_IN_MILLIS + 5000;
+        double sumOfStripes = s1.getRate(queryTime) + s2.getRate(queryTime) + s3.getRate(queryTime) + s4.getRate(queryTime);
+        assertThat(sumOfStripes, closeTo(reference.getRate(queryTime), TOLERANCE));
+    }
+
+    // N.B. This test is not guaranteed to fail even if the implementation is not thread-safe, but uses a high thread count and stripe count
+    // to exercise concurrency across many stripes. Run with e.g. -Dtests.iters=20 to test more thoroughly.
+    public void testStripedEwmr_threadSafe() throws InterruptedException {
+        // Use 128 stripes — a realistic value for a 128-thread pool.
+        ExponentiallyWeightedMovingRate ewmr = new ExponentiallyWeightedMovingRate(LAMBDA, START_TIME_IN_MILLIS, 128);
+        int numRoundsOfIncrements = 100;
+        long intervalMillis = 10_000;
+        // Use enough threads to exercise multiple stripes concurrently.
+        int numThreads = 1000;
+        List<Double> totalIncrementsPerRound = new ArrayList<>();
+        for (int round = 1; round <= numRoundsOfIncrements; round++) {
+            long timeInMillis = START_TIME_IN_MILLIS + round * intervalMillis;
+            double[] incrementsForRound = DoubleStream.generate(() -> randomDoubleBetween(1.0, 100.0, true)).limit(numThreads).toArray();
+            List<Thread> threads = DoubleStream.of(incrementsForRound)
+                .mapToObj(increment -> new Thread(() -> ewmr.addIncrement(increment, timeInMillis)))
+                .toList();
+            for (Thread thread : threads) {
+                thread.start();
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            totalIncrementsPerRound.add(DoubleStream.of(incrementsForRound).sum());
+        }
+        // Since all increments in a round share the same timestamp, the combined rate from all stripes is equivalent to a single EWMR
+        // receiving the total increment for each round at that round's timestamp (increments at the same time accumulate by summing).
+        double expectedEwmr = IntStream.range(0, numRoundsOfIncrements)
+            .mapToDouble(i -> totalIncrementsPerRound.get(i) * exp(-1.0 * LAMBDA * (numRoundsOfIncrements - 1 - i) * intervalMillis))
+            .sum() / ((1.0 - exp(-1.0 * LAMBDA * numRoundsOfIncrements * intervalMillis)) / LAMBDA);
+        assertThat(ewmr.getRate(START_TIME_IN_MILLIS + numRoundsOfIncrements * intervalMillis), closeTo(expectedEwmr, TOLERANCE));
     }
 }

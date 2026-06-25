@@ -275,6 +275,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
         IncrementalBulkService.INCREMENTAL_BULK,
+        IncrementalBulkService.REQUEST_TIMEOUT,
         ShardBatchIndexer.BATCH_INDEXING,
         RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
         RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,

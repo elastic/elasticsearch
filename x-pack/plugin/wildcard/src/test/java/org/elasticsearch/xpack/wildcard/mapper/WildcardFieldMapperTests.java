@@ -1299,27 +1299,20 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 }
             });
 
-            List<String> outList;
-            if (isColumnar) {
-                // columnar mode preserves insertion order and duplicates for doc-values values
-                outList = new ArrayList<>(docValuesValues);
-                // columnar mode stores ignored values in sorted binary doc values
-                List<String> sortedIgnoredValues = new ArrayList<>(new HashSet<>(ignoredValues));
-                Collections.sort(sortedIgnoredValues);
-                outList.addAll(sortedIgnoredValues);
+            // wildcard always uses SORTED_UNIQUE ordering: values are always deduplicated and sorted
+            List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
+            Collections.sort(outList);
+
+            // in columnar mode, ignored values are stored in sorted binary doc values
+            boolean sortIgnored = isColumnar || sortIgnoredValues;
+            if (sortIgnored) {
+                // binary doc values deduplicate and sort values
+                List<String> sortedExtraValues = new ArrayList<>(new HashSet<>(ignoredValues));
+                Collections.sort(sortedExtraValues);
+                outList.addAll(sortedExtraValues);
             } else {
-                // wildcard uses SORTED_UNIQUE ordering: values are always deduplicated and sorted
-                outList = new ArrayList<>(new HashSet<>(docValuesValues));
-                Collections.sort(outList);
-                if (sortIgnoredValues) {
-                    // binary doc values deduplicate and sort values
-                    List<String> sortedExtraValues = new ArrayList<>(new HashSet<>(ignoredValues));
-                    Collections.sort(sortedExtraValues);
-                    outList.addAll(sortedExtraValues);
-                } else {
-                    // stored fields preserve insertion order
-                    outList.addAll(ignoredValues);
-                }
+                // stored fields preserve insertion order
+                outList.addAll(ignoredValues);
             }
 
             Object out = outList.size() == 1 ? outList.get(0) : outList;

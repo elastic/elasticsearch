@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.blobcache.shared.CacheRegion;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
@@ -43,25 +42,32 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
         Setting.Property.NodeScope
     );
 
-    private final IndicesService indicesService;
+    private final Predicate<ShardId> locallyOpenShard;
     private final ThreadPool threadPool;
 
     private volatile TimeValue pinnedWindowDuration = PINNED_WINDOW_DURATION_SETTING.getDefault(Settings.EMPTY);
 
-    public PinnedWindowEvictionPolicy(IndicesService indicesService) {
-        this.indicesService = Objects.requireNonNull(indicesService);
-        this.threadPool = Objects.requireNonNull(indicesService.clusterService().threadPool());
-        indicesService.clusterService()
-            .getClusterSettings()
-            .initializeAndWatchIfRegistered(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value);
+    public PinnedWindowEvictionPolicy(
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        Predicate<ShardId> locallyOpenShard
+    ) {
+        this.locallyOpenShard = Objects.requireNonNull(locallyOpenShard);
+        this.threadPool = Objects.requireNonNull(threadPool);
+        clusterSettings.initializeAndWatchIfRegistered(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value);
     }
 
     /**
      * For test subclasses that override {@link #isShardLocallyAllocated(ShardId)} and optionally {@link #currentTimeMillis()}.
      */
-    protected PinnedWindowEvictionPolicy(IndicesService indicesService, TimeValue pinnedWindowDuration) {
-        this.indicesService = Objects.requireNonNull(indicesService);
-        this.threadPool = Objects.requireNonNull(indicesService.clusterService().threadPool());
+    protected PinnedWindowEvictionPolicy(
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        Predicate<ShardId> locallyOpenShard,
+        TimeValue pinnedWindowDuration
+    ) {
+        this.locallyOpenShard = Objects.requireNonNull(locallyOpenShard);
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.pinnedWindowDuration = pinnedWindowDuration;
     }
 
@@ -71,15 +77,9 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
 
     /**
      * Returns {@code true} if the shard is open on this node.
-     * <p>
-     * We consult {@link IndicesService} rather than cluster-state routing because routing can lag
-     * behind locally open shards during cluster-state application. Once a shard is open here,
-     * {@link IndicesService} reflects that immediately, which is what the pinned window needs.
      */
     protected boolean isShardLocallyAllocated(ShardId shardId) {
-        assert indicesService != null;
-        final IndexService indexService = indicesService.indexService(shardId.getIndex());
-        return indexService != null && indexService.hasShard(shardId.id());
+        return locallyOpenShard.test(shardId);
     }
 
     protected long currentTimeMillis() {

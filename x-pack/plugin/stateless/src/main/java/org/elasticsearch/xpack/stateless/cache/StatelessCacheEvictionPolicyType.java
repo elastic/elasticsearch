@@ -13,11 +13,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING;
@@ -35,7 +38,11 @@ public enum StatelessCacheEvictionPolicyType {
     PINNED_WINDOW {
         @Override
         EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
-            return new PinnedWindowEvictionPolicy(indicesService);
+            return new PinnedWindowEvictionPolicy(
+                clusterService.getClusterSettings(),
+                threadPool,
+                locallyOpenShardPredicate(indicesService)
+            );
         }
     },
     INDEX_AGE {
@@ -46,6 +53,21 @@ public enum StatelessCacheEvictionPolicyType {
     };
 
     abstract EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool);
+
+    /**
+     * Returns a predicate that is {@code true} for shards open on this node.
+     * <p>
+     * We consult {@link IndicesService} rather than cluster-state routing because routing can lag
+     * behind locally open shards during cluster-state application. Once a shard is open here,
+     * {@link IndicesService} reflects that immediately, which is what the pinned window needs.
+     */
+    private static Predicate<ShardId> locallyOpenShardPredicate(IndicesService indicesService) {
+        Objects.requireNonNull(indicesService);
+        return shardId -> {
+            final IndexService indexService = indicesService.indexService(shardId.getIndex());
+            return indexService != null && indexService.hasShard(shardId.id());
+        };
+    }
 
     static StatelessCacheEvictionPolicyType resolveEvictionPolicyFromSettings(Settings settings) {
         if (STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings) == false) {

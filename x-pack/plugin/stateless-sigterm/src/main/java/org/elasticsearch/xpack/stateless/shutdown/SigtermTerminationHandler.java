@@ -212,11 +212,17 @@ public class SigtermTerminationHandler implements TerminationHandler {
             Set<DiscoveryNode> addedNodes = event.nodesDelta().addedNodes().stream().filter(nodeFilter).collect(Collectors.toSet());
             readyChecker.sendReadyChecks(addedNodes);
         };
+
+        // Seed the known node set from the current cluster state *before* registering the listener. The listener fires on the
+        // cluster applier thread while this setup runs on the shutdown thread, so seeding it afterwards would let this (older)
+        // snapshot clobber a fresher node set already published by the listener. That would make maybeSendReadyCheck wrongly
+        // treat a just-added node as gone and silently drop its readiness check, hanging shutdown forever (see #148037).
+        readyChecker.setCurrentNodes(clusterService.state().nodes().stream());
         clusterService.addListener(nodesChangedListener);
 
-        // Immediately check any nodes already in the cluster
+        // Immediately check any nodes already in the cluster. Re-read the state so we don't miss a node that joined between the
+        // snapshot above and registering the listener; pendingNodes dedups against anything the listener also picked up.
         Set<DiscoveryNode> nodes = clusterService.state().nodes().stream().filter(nodeFilter).collect(Collectors.toSet());
-        readyChecker.setCurrentNodes(nodes.stream());
         readyChecker.sendReadyChecks(nodes);
 
         // Now block and wait for the first ready response
@@ -246,10 +252,10 @@ public class SigtermTerminationHandler implements TerminationHandler {
         /**
          * Null indicates we don't yet have information about the nodes in the cluster
          * and should not conclude that we can stop the retry loop for any particular node.
-         * This happens during the brief window after we've registered the cluster state listener
-         * but before we've fetched the node list for the initial round of checks.
-         * We'll set this later, once things have settled, and from then on it can be used reliably
-         * to stop retries on nodes.
+         * This is only briefly the case at construction: we seed it from the current cluster state
+         * before registering the cluster state listener (and thus before any readiness check runs),
+         * so that no check ever observes a stale or missing node set. From then on it can be used
+         * reliably to stop retries on nodes that have left the cluster.
          */
         @Nullable
         private volatile Set<String> currentNodes = null;

@@ -1990,13 +1990,12 @@ required_capability: string_literal_auto_casting
 
 FROM date_extract_fields
 | WHERE date_part == "day_of_month"
-| EVAL dt = TO_DATETIME("1989-06-02T00:00:00.000Z")
-| EVAL df = DATE_FORMAT(format_val, dt)
+| EVAL df = DATE_FORMAT(format_val, date_val)
 | KEEP df
 ;
 
 df:keyword
-1989-06-02
+2022-05-06
 ;
 
 dateParseFormatFieldStringConstant
@@ -2026,13 +2025,12 @@ required_capability: esql_date_unit_count_fn
 
 FROM date_extract_fields
 | WHERE date_part == "day_of_month"
-| EVAL dt = to_datetime("2024-02-15T00:00:00.000Z")
-| EVAL days = DATE_UNIT_COUNT(inner_val, "month", dt)
+| EVAL days = DATE_UNIT_COUNT(inner_val, "month", date_val)
 | KEEP days
 ;
 
 days:long
-29
+31
 ;
 
 dateUnitCountInnerConstantOuterField
@@ -2040,13 +2038,12 @@ required_capability: esql_date_unit_count_fn
 
 FROM date_extract_fields
 | WHERE date_part == "day_of_month"
-| EVAL dt = to_datetime("2024-02-15T00:00:00.000Z")
-| EVAL days = DATE_UNIT_COUNT("day", outer_val, dt)
+| EVAL days = DATE_UNIT_COUNT("day", outer_val, date_val)
 | KEEP days
 ;
 
 days:long
-29
+31
 ;
 
 dateUnitCountInnerFieldOuterField
@@ -2054,11 +2051,10 @@ required_capability: esql_date_unit_count_fn
 
 FROM date_extract_fields
 | WHERE date_part == "day_of_month"
-| EVAL dt = to_datetime("2024-02-15T00:00:00.000Z")
-| EVAL days = DATE_UNIT_COUNT(inner_val, outer_val, dt)
+| EVAL days = DATE_UNIT_COUNT(inner_val, outer_val, date_val)
 | KEEP days
 ;
 
 days:long
-29
+31
 ;

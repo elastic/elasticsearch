@@ -899,7 +899,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
-                case Insist i -> resolveInsist(i, childrenOutput, context);
+                case Insist i -> resolveInsist(i, childrenOutput);
                 case FillNull f -> resolveFillNull(f, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
@@ -1570,7 +1570,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return result;
         }
 
-        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, AnalyzerContext context) {
+        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput) {
             List<Attribute> list = new ArrayList<>();
             for (Attribute a : insist.insistedAttributes()) {
                 list.add(resolveInsistAttribute(a, childrenOutput));

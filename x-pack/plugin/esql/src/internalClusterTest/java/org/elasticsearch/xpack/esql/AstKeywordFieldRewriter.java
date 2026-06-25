@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -79,6 +80,12 @@ import java.util.TreeSet;
  *       {@code EVAL <field> = field_extract(<field>, "v")} before the command &mdash; rebinding it
  *       to the multi-value {@code keyword} that {@code MV_EXPAND} can split into rows &mdash; and
  *       then leaves scope.</li>
+ *   <li>{@code FILLNULL [WITH <value>] <field>...} accepts only bare attributes in its target slot
+ *       and would see a flattened field as a single wrapper object, so an in-scope target is hoisted
+ *       into an {@code EVAL <field> = field_extract(<field>, "v")} before the command &mdash;
+ *       rebinding it to {@code keyword} so {@code FILLNULL} fills and emits {@code keyword} &mdash;
+ *       and then leaves scope. The all-fields form (no targets) references no field and is left to
+ *       tail-end recovery.</li>
  *   <li>{@code ENRICH} and {@code LOOKUP JOIN ... ON ...} accept only bare attributes in their
  *       bodies; in-scope references there are recorded as {@link SkipEvent}s instead of being
  *       wrapped.</li>
@@ -445,6 +452,9 @@ public final class AstKeywordFieldRewriter {
             if (node instanceof MvExpand mvExpand) {
                 return processMvExpand(mvExpand, scope);
             }
+            if (node instanceof FillNull fillNull) {
+                return processFillNull(fillNull, scope);
+            }
             if (node instanceof Enrich enrich) {
                 recordSkips(enrich.expressions(), scope, SkipSite.ENRICH_BODY);
                 return removeAll(scope, namedExpressionNames(enrich.enrichFields()));
@@ -517,6 +527,34 @@ public final class AstKeywordFieldRewriter {
                 return removeAll(scope, hoist);
             }
             return scope;
+        }
+
+        /**
+         * Processes a {@code FILLNULL [WITH <value>] <field>[, <field>]*}. The target-field slot
+         * accepts only a bare attribute, so wrapping an in-scope target in {@code field_extract(...)}
+         * (the default {@code node.expressions()} handling would do exactly that) produces an
+         * unparseable {@code FILLNULL ... field_extract(field, "v")}. Moreover a {@code flattened}
+         * field reaches the command as a single wrapper object, so filling it would neither match
+         * nulls per the spec nor emit the {@code keyword} the expected results declare. Mirroring
+         * {@link #processMvExpand}, each in-scope target is hoisted into an
+         * {@code EVAL <field> = field_extract(<field>, "v")} inserted before the command &mdash;
+         * rebinding it to {@code keyword} so {@code FILLNULL} operates on, and emits, {@code keyword}
+         * &mdash; and then leaves scope. The all-fields form ({@code FILLNULL [WITH <value>]} with no
+         * targets) references no field here, so it is left untouched and any converted column it
+         * passes through is recovered by the end-of-pipeline tail recovery instead.
+         */
+        private Set<String> processFillNull(FillNull fillNull, Set<String> scope) {
+            Set<String> hoist = new HashSet<>();
+            for (var target : fillNull.targetFields()) {
+                if (target instanceof UnresolvedAttribute attr && scope.contains(attr.name())) {
+                    hoist.add(attr.name());
+                }
+            }
+            if (hoist.isEmpty()) {
+                return scope;
+            }
+            hoistBeforeCommand(fillNull.source(), hoist);
+            return removeAll(scope, hoist);
         }
 
         /**

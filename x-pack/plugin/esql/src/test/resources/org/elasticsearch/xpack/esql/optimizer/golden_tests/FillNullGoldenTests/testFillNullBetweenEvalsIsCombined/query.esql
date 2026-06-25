@@ -1,0 +1,5 @@
+FROM employees
+| KEEP emp_no, languages
+| EVAL languages = languages + 1
+| FILLNULL WITH 0 languages
+| EVAL bonus = languages + 10

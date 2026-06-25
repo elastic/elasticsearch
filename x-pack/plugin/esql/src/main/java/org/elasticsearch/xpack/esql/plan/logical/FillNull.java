@@ -47,10 +47,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * <p>
  * The fill aliases are modeled exactly like {@link Eval#fields()}: they are materialized once
  * during analysis (see {@code Analyzer.ResolveRefs#resolveFillNull}) and stored as proper
- * {@link NodeInfo} state. This keeps {@link #output()} a pure schema derivation and lets the
- * standard analyzer transforms (e.g. {@code ResolveUnionTypes}, {@code UnionTypesCleanup}) rewrite
- * the attributes inside the {@link Coalesce} expressions, which is what a hand-rolled lazy cache
- * could not do.
+ * {@link NodeInfo} state.
  */
 public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
 

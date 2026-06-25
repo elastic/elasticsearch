@@ -1,0 +1,3 @@
+FROM employees
+| KEEP emp_no, gender
+| FILLNULL WITH "Unknown" gender

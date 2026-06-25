@@ -44,8 +44,8 @@ public class LongSwissHashTests extends ESTestCase {
             params.add(new Object[] { addType, "small", LongSwissHash.INITIAL_CAPACITY / 2, 0, 1, 1 });
             params.add(new Object[] { addType, "two key pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES, 1, 2, 1 });
             params.add(new Object[] { addType, "two id pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES, 2, 4, 2 });
-            params.add(new Object[] { addType, "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 4, 16, 8 });
-            params.add(new Object[] { addType, "huge", 100_000, 6, 64, 32 });
+            params.add(new Object[] { addType, "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 4, 14, 8 });
+            params.add(new Object[] { addType, "huge", 100_000, 6, 56, 32 });
         }
         return params;
     }
@@ -166,6 +166,67 @@ public class LongSwissHashTests extends ESTestCase {
         });
         assertThat(e.getMessage(), equalTo("over test limit"));
         assertThat(recycler.open, hasSize(0));
+    }
+
+    /**
+     * Drives the batched {@link LongSwissHash#prefetch}/{@link LongSwissHash#addWithHash} loop that
+     * {@code LongBlockHash} uses, across the small-core to big-core transition, and asserts it vends
+     * the same ids and resolves to the same keys as the scalar {@link LongSwissHash#add}/{@code find}
+     * paths. The threshold is lowered so the prefetch path actually engages on a modest table.
+     */
+    public void testPrefetchPath() {
+        int oldThreshold = LongSwissHash.PREFETCH_THRESHOLD;
+        LongSwissHash.PREFETCH_THRESHOLD = between(1, 1024);
+        try {
+            Set<Long> values = randomValues(between(2_000, 8_000)); // exceeds the small core so a big core forms
+            long[] keys = values.stream().mapToLong(Long::longValue).toArray();
+
+            TestRecycler recycler = new TestRecycler();
+            CircuitBreaker breaker = new NoopCircuitBreaker("test");
+            try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
+                assertFalse("empty table is still on the small core", hash.shouldPrefetch());
+
+                int batch = 128;
+                int[] batchHashes = new int[batch];
+                long[] ids = new long[keys.length];
+                boolean reachedPrefetchPath = false;
+                for (int off = 0; off < keys.length; off += batch) {
+                    int size = Math.min(batch, keys.length - off);
+                    if (hash.shouldPrefetch()) {
+                        reachedPrefetchPath = true;
+                        for (int i = 0; i < size; i++) {
+                            batchHashes[i] = LongSwissHash.hash(keys[off + i]);
+                            hash.prefetch(batchHashes[i]); // warms cache lines; the return only matters for the JIT
+                        }
+                        for (int i = 0; i < size; i++) {
+                            ids[off + i] = hash.addWithHash(keys[off + i], batchHashes[i]);
+                        }
+                    } else {
+                        for (int i = 0; i < size; i++) {
+                            ids[off + i] = hash.add(keys[off + i]);
+                        }
+                    }
+                }
+
+                assertTrue("the big table should have crossed the lowered prefetch threshold", reachedPrefetchPath);
+                assertTrue(hash.shouldPrefetch());
+                assertThat(hash.size(), equalTo((long) keys.length));
+
+                for (int i = 0; i < keys.length; i++) {
+                    assertThat("ids are vended in insertion order", ids[i], equalTo((long) i));
+                    assertThat(hash.find(keys[i]), equalTo((long) i));
+                    assertThat(hash.get(i), equalTo(keys[i]));
+                    assertThat(
+                        "re-adding an existing key returns its -1-id encoding",
+                        hash.addWithHash(keys[i], LongSwissHash.hash(keys[i])),
+                        equalTo(-1 - i)
+                    );
+                }
+            }
+            assertThat(recycler.open, hasSize(0));
+        } finally {
+            LongSwissHash.PREFETCH_THRESHOLD = oldThreshold;
+        }
     }
 
     // High-probability bucket collisions. You just need structural patterns that

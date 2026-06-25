@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
@@ -2626,6 +2625,14 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Standard ES metadata columns ({@code _id}, {@code _index}, {@code _version}, {@code _source}, ...)
+         * accepted in the {@code METADATA} clause of external-dataset {@code FROM}. Pre-feature
+         * coordinators reject the names with {@code Unknown column}; tests exercising these columns
+         * gate on this capability.
+         */
+        EXTERNAL_SOURCE_STANDARD_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
          * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
          * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
@@ -2798,14 +2805,14 @@ public class EsqlCapabilities {
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         /**
-         * TSDB Temporality support which is guarded by a feature flag.
+         * TSDB Temporality support.
          */
-        TSDB_TEMPORALITY_SUPPORT_V8(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V8,
 
         /**
          * Support cumulative exponential histograms in _over_time aggregations.
          */
-        TSDB_TEMPORALITY_SUPPORT_V9(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V9,
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -3168,6 +3175,16 @@ public class EsqlCapabilities {
          * Support for PromQL {@code histogram_count()}, {@code histogram_sum()} and {@code histogram_avg()} on native histograms.
          */
         PROMQL_HISTOGRAM_SUM_COUNT_AVG,
+
+        /**
+         * Support for PromQL {@code increase()} on exponential histograms.
+         */
+        PROMQL_INCREASE_ON_HISTOGRAM,
+
+        /**
+         * Support for PromQL {@code sum()} operator on exponential histograms.
+         */
+        PROMQL_SUM_ON_HISTOGRAM,
 
         /**
          * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution

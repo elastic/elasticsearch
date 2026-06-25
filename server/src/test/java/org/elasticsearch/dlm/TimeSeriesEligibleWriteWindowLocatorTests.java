@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,8 +41,15 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
         assertThat(DLM_ONLY.getEligibleWriteWindowStart(dataStream, project, null, randomNonNegativeLong()), equalTo(-1L));
 
         DataStreamLifecycle enabled = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
-        dataStream = dataStream("metrics-test", disabled);
+        dataStream = dataStream("metrics-test", enabled);
         project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        assertThat(DLM_ONLY.getEligibleWriteWindowStart(dataStream, project, null, randomNonNegativeLong()), equalTo(-1L));
+
+        DataStreamLifecycle withRetention = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(30))
+            .build();
+        Index index = new Index(DataStream.getDefaultBackingIndexName("non-tsdb", 1), randomAlphaOfLength(10));
+        dataStream = DataStream.builder("non-tsdb", List.of(index)).setLifecycle(withRetention).build();
         assertThat(DLM_ONLY.getEligibleWriteWindowStart(dataStream, project, null, randomNonNegativeLong()), equalTo(-1L));
     }
 
@@ -131,6 +139,6 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
 
     private static DataStream dataStream(String name, DataStreamLifecycle lifecycle) {
         Index index = new Index(DataStream.getDefaultBackingIndexName(name, 1), randomAlphaOfLength(10));
-        return DataStream.builder(name, List.of(index)).setLifecycle(lifecycle).build();
+        return DataStream.builder(name, List.of(index)).setLifecycle(lifecycle).setIndexMode(IndexMode.TIME_SERIES).build();
     }
 }

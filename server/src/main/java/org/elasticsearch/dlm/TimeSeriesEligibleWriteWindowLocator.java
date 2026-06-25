@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 
 /**
  * This class allows the caller to determine the relative start time of the eligible write window of a time-series data stream.
@@ -54,6 +55,9 @@ public interface TimeSeriesEligibleWriteWindowLocator {
         DataStreamGlobalRetention globalRetention,
         long requestStartTimestamp
     ) {
+        if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
+            return -1;
+        }
         String ilmPolicy = getEffectiveIlmPolicy(dataStream, projectMetadata);
 
         if (ilmPolicy != null) {

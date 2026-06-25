@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
@@ -177,7 +178,7 @@ public class IlmTimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
 
     private static DataStream dataStream(String name, DataStreamLifecycle lifecycle) {
         Index index = new Index(".ds-" + name + "-000001", randomAlphaOfLength(10));
-        return DataStream.builder(name, List.of(index)).setLifecycle(lifecycle).build();
+        return DataStream.builder(name, List.of(index)).setLifecycle(lifecycle).setIndexMode(IndexMode.TIME_SERIES).build();
     }
 
     private static ProjectMetadata projectWithTemplate(String indexPattern, Settings templateSettings) {

@@ -188,9 +188,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.ml.integration.RegressionIT
-  method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
-  issue: https://github.com/elastic/elasticsearch/issues/150857
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/150569
@@ -257,6 +254,9 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/152064
+- class: org.elasticsearch.TransportVersionTests
+  method: testPatchVersionsStillAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/152122
 
 # Examples:
 #

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.Split
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -187,10 +188,10 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     @Override
-    public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
+    public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
         FileList fileList = context.fileList();
         if (fileList == null || fileList.isResolved() == false) {
-            return List.of();
+            return SplitDiscoveryResult.EMPTY;
         }
 
         PartitionMetadata partitionInfo = context.partitionInfo();
@@ -284,7 +285,11 @@ public class FileSplitProvider implements SplitProvider {
                     if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
                         // Fused narrowing: output dimension goes from Unified to Query, read
                         // dimension goes from File to per-file Query projection. See the
-                        // four-schema doc on SchemaReconciliation.
+                        // four-schema doc on SchemaReconciliation. For Hive-partitioned sources
+                        // context.unifiedSchema() is the post-shadow data-only schema (partition
+                        // columns are appended only to the coordinator-facing schema, never here), so
+                        // its width matches each per-file mapping built by shadowPartitionCollisions and
+                        // satisfies pruneToPerFileQuery's unifiedSchema.size() == index.length assertion.
                         mapping = mapping.pruneToPerFileQuery(unifiedSchema, info.fileSchema(), fileBackedQuerySchema);
                     }
                     if (mapping != null && mapping.isIdentity() == false) {
@@ -302,7 +307,7 @@ public class FileSplitProvider implements SplitProvider {
         }
 
         if (tasks.isEmpty()) {
-            return List.of();
+            return SplitDiscoveryResult.EMPTY;
         }
 
         // Phase 2: I/O-bound split discovery — parallelize when executor is available.
@@ -335,7 +340,9 @@ public class FileSplitProvider implements SplitProvider {
         for (List<ExternalSplit> fileSplits : perFileSplits) {
             splits.addAll(fileSplits);
         }
-        return List.copyOf(splits);
+        // Each surviving task produces at least one split, so the task count is the number of
+        // distinct files that are actually scanned after coordinator-side pruning.
+        return new SplitDiscoveryResult(splits, tasks.size());
     }
 
     /**

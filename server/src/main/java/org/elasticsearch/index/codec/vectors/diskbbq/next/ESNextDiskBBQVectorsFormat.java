@@ -99,6 +99,32 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
     public static final int MAX_DIMENSIONS = 4096;
 
+    public enum CentroidIndexFormat {
+        /**
+         * A flat list of centroids, possibly with a second layer of children
+         */
+        FLAT(0);
+
+        private final int id;
+
+        CentroidIndexFormat(int id) {
+            this.id = id;
+        }
+
+        public int id() {
+            return id;
+        }
+
+        public static CentroidIndexFormat fromId(int id) {
+            for (CentroidIndexFormat format : values()) {
+                if (format.id == id) {
+                    return format;
+                }
+            }
+            throw new IllegalArgumentException("Unknown CentroidIndexFormat id: " + id);
+        }
+    }
+
     public enum QuantEncoding {
         ONE_BIT_4BIT_QUERY(0, (byte) 1, (byte) 4) {
             @Override
@@ -338,6 +364,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         }
     }
 
+    private final CentroidIndexFormat centroidIndexFormat = CentroidIndexFormat.FLAT;
     private final QuantEncoding quantEncoding;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
@@ -521,6 +548,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             rawVectorFormat.getName(),
             useDirectIO,
             rawVectorFormat.fieldsWriter(state),
+            centroidIndexFormat,
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,

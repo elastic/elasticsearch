@@ -1879,7 +1879,7 @@ a:unsigned_long
 ;
 
 matchOperatorFunctionOnLhsConcatKeyword
-skip_flattened_rewrite: concat_rejects_flattened
+skip_flattened_rewrite: concat_rejects_flattened_fields
 required_capability: match_operator_colon
 required_capability: match_runtime_search
 required_capability: match_operator_lhs_expression

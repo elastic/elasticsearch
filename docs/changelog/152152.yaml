@@ -1,5 +1,5 @@
 area: Aggregations
-issues: []
+issues: [https://github.com/elastic/elasticsearch/issues/136639]
 pr: 152152
-summary: Fix 136639
+summary: Fix NPE issue caused null value to call toString() in param scripts
 type: bug

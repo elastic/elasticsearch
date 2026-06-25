@@ -87,7 +87,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         assertThat(policy.getPinnedWindowDuration(), equalTo(TimeValue.timeValueHours(6)));
     }
 
-    public void testCannotEvictLocallyOpenRegionWithinPinnedWindow() {
+    public void testCannotEvictHasShardRegionWithinPinnedWindow() {
         final long now = randomLongBetween(TimeValue.timeValueDays(365).millis(), TimeValue.timeValueDays(365 * 50).millis());
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
         final long timestampMillis = now - randomLongBetween(0, PINNED_WINDOW_DURATION.millis() - 1);
@@ -95,14 +95,14 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         assertFalse(canEvict(fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardId), region(shardId, timestampMillis)));
     }
 
-    public void testCannotEvictLocallyOpenRegionWithUnknownTimestamp() {
+    public void testCannotEvictHasShardRegionWithUnknownTimestamp() {
         final long now = randomLongBetween(1, Long.MAX_VALUE);
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
 
         assertFalse(canEvict(fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardId), region(shardId, UNKNOWN_TIMESTAMP)));
     }
 
-    public void testCanEvictLocallyOpenRegionOutsidePinnedWindow() {
+    public void testCanEvictHasShardRegionOutsidePinnedWindow() {
         final long now = randomLongBetween(TimeValue.timeValueDays(365).millis(), TimeValue.timeValueDays(365 * 50).millis());
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
         final long timestampMillis = now - PINNED_WINDOW_DURATION.millis() - randomLongBetween(1, TimeValue.timeValueDays(30).millis());
@@ -110,7 +110,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         assertTrue(canEvict(fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardId), region(shardId, timestampMillis)));
     }
 
-    public void testCanEvictWhenShardNotLocallyOpen() {
+    public void testCanEvictWhenShardNotPresent() {
         final long now = randomLongBetween(TimeValue.timeValueDays(365).millis(), TimeValue.timeValueDays(365 * 50).millis());
         final ShardId localShard = new ShardId("local", randomUUID(), 0);
         final ShardId remoteShard = new ShardId("remote", randomUUID(), 0);
@@ -136,7 +136,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final var policy = new PinnedWindowEvictionPolicy(
             clusterSettings,
             clusterService.threadPool(),
-            openShard -> openShard.equals(shardId)
+            shardIdPredicate -> shardIdPredicate.equals(shardId)
         );
         final var region = region(shardId, timestampMillis);
 
@@ -228,20 +228,20 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         }
     }
 
-    private PinnedWindowEvictionPolicy fixedTimePolicy(long now, TimeValue pinnedWindowDuration, ShardId... openShards) {
-        final Predicate<ShardId> locallyOpenShard = Set.copyOf(Arrays.asList(openShards))::contains;
-        return new FixedTimePinnedWindowEvictionPolicy(clusterService.threadPool(), locallyOpenShard, now, pinnedWindowDuration);
+    private PinnedWindowEvictionPolicy fixedTimePolicy(long now, TimeValue pinnedWindowDuration, ShardId... presentShardIds) {
+        final Predicate<ShardId> hasShardPredicate = Set.copyOf(Arrays.asList(presentShardIds))::contains;
+        return new FixedTimePinnedWindowEvictionPolicy(clusterService.threadPool(), hasShardPredicate, now, pinnedWindowDuration);
     }
 
     private static boolean canEvict(PinnedWindowEvictionPolicy policy, CacheRegion<FileCacheKey> region) {
         return policy.createPredicate(region).test(region);
     }
 
-    private static IndicesService mockIndicesService(ClusterService clusterService, ShardId... openShards) {
+    private static IndicesService mockIndicesService(ClusterService clusterService, ShardId... presentShardIds) {
         final IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.clusterService()).thenReturn(clusterService);
-        final Predicate<ShardId> locallyOpenShard = Set.copyOf(Arrays.asList(openShards))::contains;
-        when(indicesService.hasShardPredicate()).thenReturn(locallyOpenShard);
+        final Predicate<ShardId> hasShardPredicate = Set.copyOf(Arrays.asList(presentShardIds))::contains;
+        when(indicesService.hasShardPredicate()).thenReturn(hasShardPredicate);
         return indicesService;
     }
 
@@ -250,11 +250,11 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
 
         FixedTimePinnedWindowEvictionPolicy(
             ThreadPool threadPool,
-            Predicate<ShardId> locallyOpenShard,
+            Predicate<ShardId> hasShardPredicate,
             long fixedCurrentTimeMillis,
             TimeValue pinnedWindowDuration
         ) {
-            super(threadPool, locallyOpenShard, pinnedWindowDuration);
+            super(threadPool, hasShardPredicate, pinnedWindowDuration);
             this.fixedCurrentTimeMillis = fixedCurrentTimeMillis;
         }
 

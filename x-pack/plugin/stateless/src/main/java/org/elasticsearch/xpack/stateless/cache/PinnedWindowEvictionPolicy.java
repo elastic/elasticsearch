@@ -22,10 +22,10 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
- * Eviction policy that does not evict cache regions for locally open shards whose content timestamp
+ * Eviction policy that does not evict cache regions for shards present on this node whose content timestamp
  * falls within a configurable pinned window.
  * <p>
- * Regions for locally open shards with {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} are also
+ * Regions for shards present on this node with {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} are also
  * protected from eviction until a content timestamp is available. This avoids evicting data whose
  * age relative to the pinned window cannot yet be determined.
  */
@@ -42,23 +42,23 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
         Setting.Property.NodeScope
     );
 
-    private final Predicate<ShardId> locallyOpenShard;
+    private final Predicate<ShardId> hasShardPredicate;
     private final ThreadPool threadPool;
 
     private volatile TimeValue pinnedWindowDuration = PINNED_WINDOW_DURATION_SETTING.getDefault(Settings.EMPTY);
 
-    public PinnedWindowEvictionPolicy(ClusterSettings clusterSettings, ThreadPool threadPool, Predicate<ShardId> locallyOpenShard) {
-        this.locallyOpenShard = Objects.requireNonNull(locallyOpenShard);
+    public PinnedWindowEvictionPolicy(ClusterSettings clusterSettings, ThreadPool threadPool, Predicate<ShardId> hasShardPredicate) {
+        this.hasShardPredicate = Objects.requireNonNull(hasShardPredicate);
         this.threadPool = Objects.requireNonNull(threadPool);
         Objects.requireNonNull(clusterSettings)
             .initializeAndWatchIfRegistered(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value);
     }
 
     /**
-     * For test subclasses that override {@link #isShardLocallyOpen(ShardId)} and optionally {@link #currentTimeMillis()}.
+     * For test subclasses that override {@link #hasShard(ShardId)} and optionally {@link #currentTimeMillis()}.
      */
-    protected PinnedWindowEvictionPolicy(ThreadPool threadPool, Predicate<ShardId> locallyOpenShard, TimeValue pinnedWindowDuration) {
-        this.locallyOpenShard = Objects.requireNonNull(locallyOpenShard);
+    protected PinnedWindowEvictionPolicy(ThreadPool threadPool, Predicate<ShardId> hasShardPredicate, TimeValue pinnedWindowDuration) {
+        this.hasShardPredicate = Objects.requireNonNull(hasShardPredicate);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.pinnedWindowDuration = pinnedWindowDuration;
     }
@@ -68,10 +68,10 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     }
 
     /**
-     * Returns {@code true} if the shard is open on this node.
+     * Returns {@code true} if the shard is present on this node.
      */
-    protected boolean isShardLocallyOpen(ShardId shardId) {
-        return locallyOpenShard.test(shardId);
+    protected boolean hasShard(ShardId shardId) {
+        return hasShardPredicate.test(shardId);
     }
 
     protected long currentTimeMillis() {
@@ -90,11 +90,11 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
         final long pinnedWindowCutoffMillis = currentTimeMillis() - pinnedWindowDuration.getMillis();
         return region -> {
-            if (isShardLocallyOpen(region.key().shardId()) == false) {
+            if (hasShard(region.key().shardId()) == false) {
                 return true;
             }
             final long timestampMillis = region.timestampMillis();
-            // Protect locally open regions until their content age can be evaluated.
+            // Protect regions for shards present on this node until their content age can be evaluated.
             // Also protect shards without timestamps.
             if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
                 return false;

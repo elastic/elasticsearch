@@ -146,7 +146,7 @@ public enum SpatialCoordinateTypes {
 
     public BytesRef wktToWkb(String wkt) {
         try {
-            return new BytesRef(WellKnownBinary.fromWKT(wkt, ByteOrder.LITTLE_ENDIAN, false));
+            return new BytesRef(WellKnownBinary.fromWKT(wkt, ByteOrder.LITTLE_ENDIAN, false, validator()));
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
         }

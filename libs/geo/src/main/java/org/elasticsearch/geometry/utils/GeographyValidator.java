@@ -90,6 +90,13 @@ public class GeographyValidator implements GeometryValidator {
     }
 
     @Override
+    public void validateCoordinate(double x, double y, double z) {
+        checkLongitude(x);
+        checkLatitude(y);
+        checkAltitude(z);
+    }
+
+    @Override
     public void validate(Geometry geometry) {
         geometry.visit(new GeometryVisitor<Void, RuntimeException>() {
 

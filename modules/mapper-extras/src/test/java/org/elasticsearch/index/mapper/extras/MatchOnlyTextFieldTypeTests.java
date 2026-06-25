@@ -62,11 +62,11 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryM
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
@@ -652,8 +652,11 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             )
         );
 
-        // Binary DV: script-backed query
-        assertThat(binary.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldRegexpQuery.class));
+        // Binary DV: SlowCustomBinaryDocValuesRegexpQuery
+        assertThat(
+            binary.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT),
+            Matchers.instanceOf(SlowCustomBinaryDocValuesRegexpQuery.class)
+        );
 
         // Doc-values only, expensive queries disabled
         ElasticsearchException ee = expectThrows(
@@ -669,10 +672,10 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(q, Matchers.instanceOf(RegexpQuery.class));
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
-        // Binary DV → StringScriptFieldRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        // Binary DV → SlowCustomBinaryDocValuesRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
         assertThat(
             binaryDocValuesOnly().regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT),
-            Matchers.instanceOf(StringScriptFieldRegexpQuery.class)
+            Matchers.instanceOf(SlowCustomBinaryDocValuesRegexpQuery.class)
         );
     }
 

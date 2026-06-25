@@ -25,7 +25,12 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
@@ -1291,6 +1296,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.encoding(),
                 options.quoting()
             );
+        // Only the direct-to-block path lets this reader own the stream end to end, so bulk read-ahead
+        // is safe there. The Jackson path skips the header through this reader then resumes on the same
+        // underlying BufferedReader, so it must stay non-buffered (no read-ahead) to avoid swallowing
+        // bytes Jackson still needs.
+        if (useDirectBlock) {
+            recordReader.enableBulkBuffering();
+        }
         // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
         // request like WITH {"error_mode": "skip_row"} also applies to the data path when no
         // upstream caller has built a FormatReadContext with an explicit policy. The planner
@@ -1582,6 +1594,41 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return firstNonWs < cellEnd
             && firstNonWs + commentPrefix.length() <= cellEnd
             && line.regionMatches(firstNonWs, commentPrefix, 0, commentPrefix.length());
+    }
+
+    /**
+     * Zero-{@link String} variant of {@link #isBlankOrCommentFirstCell(String, String, char)} for the
+     * direct-to-block path, operating on the record range {@code buf[from, to)} so blank/comment lines
+     * are filtered without materializing a row String. Semantics are identical to the String overload.
+     */
+    static boolean isBlankOrCommentFirstCell(char[] buf, int from, int to, String commentPrefix, char delim) {
+        int firstNonWs = from;
+        while (firstNonWs < to && buf[firstNonWs] <= ' ') {
+            firstNonWs++;
+        }
+        if (firstNonWs == to) {
+            return true;
+        }
+        if (commentPrefix == null || commentPrefix.isEmpty()) {
+            return false;
+        }
+        int cellEnd = to;
+        for (int k = from; k < to; k++) {
+            if (buf[k] == delim) {
+                cellEnd = k;
+                break;
+            }
+        }
+        int prefixLen = commentPrefix.length();
+        if (firstNonWs >= cellEnd || firstNonWs + prefixLen > cellEnd) {
+            return false;
+        }
+        for (int k = 0; k < prefixLen; k++) {
+            if (buf[firstNonWs + k] != commentPrefix.charAt(k)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -1993,6 +2040,37 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private final int maxFieldChars;
 
+        // Typed per-row staging for the direct-to-block path. A row is parsed into these typed slots
+        // and only flushed to the block builders once it is accepted in full (all-or-nothing), so a
+        // mid-row rejection never leaves a partial row in the builders. Using primitive arrays instead
+        // of an Object[] keeps longs/ints/doubles/booleans off the heap: no per-cell boxing. Each
+        // column writes only the slot matching its element type ({@link #directElements}); the cold
+        // {@code stageObj} slot backs any non-primitive element type (e.g. an all-null column).
+        private ElementType[] directElements;
+        private long[] stageLong;
+        private int[] stageInt;
+        private double[] stageDouble;
+        private boolean[] stageBool;
+        private BytesRef[] stageRef;
+        private Object[] stageObj;
+        private boolean[] stageNull;
+
+        // Current direct-path record view (a range into the record reader's reusable char[]), captured so
+        // the cold error/warning paths can lazily materialize the raw row String without allocating one
+        // on the accepted hot path. Set at the top of splitAndConvertDirect for each row.
+        private char[] directRecBuf;
+        private int directRecFrom;
+        private int directRecTo;
+
+        // Number of data records (blank/comment/cap-skipped records excluded) consumed by the most recent
+        // convertDirectBatchToPage call. Zero distinguishes end of stream from an all-skipped lenient batch.
+        private int directBatchRecordsRead;
+
+        // advanceDirectRecord outcomes: a usable data record, a record to skip (blank/comment/over-cap), end of stream.
+        private static final int DIRECT_DATA = 0;
+        private static final int DIRECT_SKIP = 1;
+        private static final int DIRECT_EOF = 2;
+
         CsvBatchIterator(
             BufferedReader reader,
             CsvLogicalRecordReader recordReader,
@@ -2235,12 +2313,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             if (useDirectBlock) {
                 while (true) {
-                    List<String> lines = new ArrayList<>();
-                    readLogicalLinesPlain(lines, batchSize);
-                    if (lines.isEmpty()) {
+                    Page page = convertDirectBatchToPage(batchSize);
+                    if (directBatchRecordsRead == 0) {
                         return null;
                     }
-                    Page page = convertDirectLinesToPage(lines);
                     if (page != null || modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                         return page;
                     }
@@ -2447,6 +2523,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             if ((directBlockPlain || directBlockQuoted) && columnCount > 0) {
                 keywordScratch = new BytesRef[columnCount];
+                directElements = new ElementType[columnCount];
+                for (int i = 0; i < columnCount; i++) {
+                    directElements[i] = ElementType.fromJava(javaClassForDataType(projectedTypes[i]));
+                }
+                stageLong = new long[columnCount];
+                stageInt = new int[columnCount];
+                stageDouble = new double[columnCount];
+                stageBool = new boolean[columnCount];
+                stageRef = new BytesRef[columnCount];
+                stageObj = new Object[columnCount];
+                stageNull = new boolean[columnCount];
             }
         }
 
@@ -2595,48 +2682,62 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Reads direct-to-block logical records into {@code lines}, skipping blank and comment lines.
-         * Used by both the plain and quoted direct paths; the configured {@link #recordReader} handles
-         * quote/escape-aware record boundaries, so a quoted record may span physical lines. Comment
-         * detection is bounded to the first cell to match Jackson (see {@link #isBlankOrCommentFirstCell}).
+         * Advances {@link #recordReader} to the next direct-path data record, returning a status that
+         * tells the batch loop whether to consume, skip, or stop. Blank and comment records are
+         * {@link #DIRECT_SKIP}ped (Jackson-compatible, first-cell-bounded comment detection on the raw
+         * {@code char[]}, no row String); a per-record size-cap violation is routed through the error
+         * policy and also skipped, mirroring the recovery contract of the String path. The record, when
+         * {@link #DIRECT_DATA}, is exposed via {@code recordReader.recordBuffer()/recordLength()}.
          */
-        private void readLogicalLinesPlain(List<String> lines, int batchSize) throws IOException {
-            String record;
-            while (lines.size() < batchSize && (record = readPlainRecord()) != null) {
-                if (isBlankOrCommentFirstCell(record, options.commentPrefix(), options.delimiter())) {
-                    continue;
-                }
-                lines.add(record);
-            }
-        }
-
-        /**
-         * Reads one plain logical record, routing a per-record size-cap violation through the error
-         * policy (returning an empty placeholder record that the caller skips) instead of aborting
-         * the whole stream, matching the recovery contract of {@link #readBracketAwareRecord()}.
-         */
-        private String readPlainRecord() throws IOException {
+        private int advanceDirectRecord() throws IOException {
             try {
-                return recordReader.readRecord(false);
+                if (recordReader.nextRecord() == false) {
+                    return DIRECT_EOF;
+                }
             } catch (CsvRecordTooLargeException e) {
                 totalRowCount++;
                 onRowError(e.getMessage(), e, EMPTY_ROW, true);
-                return "";
+                return DIRECT_SKIP;
             }
+            if (isBlankOrCommentFirstCell(
+                recordReader.recordBuffer(),
+                0,
+                recordReader.recordLength(),
+                options.commentPrefix(),
+                options.delimiter()
+            )) {
+                return DIRECT_SKIP;
+            }
+            return DIRECT_DATA;
         }
 
         /**
-         * Converts direct-block logical lines into a {@link Page}: the per-line walker
-         * ({@link #splitAndConvertPlain} or {@link #splitAndConvertQuoted}) writes typed values
-         * straight into {@link #rowBuffer}. COUNT(*) (no projected columns) takes the row-count-only
-         * fast path, mirroring {@link #convertRowsToPage}.
+         * Reads and converts one direct-block batch into a {@link Page}, fusing record reading and field
+         * parsing so each record is walked straight out of {@link #recordReader}'s reusable {@code char[]}
+         * with no per-row {@link String}. Walkers ({@link #splitAndConvertPlain} / {@link #splitAndConvertQuoted})
+         * write typed values into the staging slots, flushed to the block builders without boxing (see
+         * {@link #appendStagedRow}). COUNT(*) (no projected columns) takes the row-count-only fast path.
+         *
+         * <p>{@link #directBatchRecordsRead} is set to the number of data records consumed this batch so
+         * the caller can distinguish end of stream (zero) from an all-skipped lenient batch.
+         *
+         * @return the page, or {@code null} when no rows were accepted (end of stream or all rows dropped)
          */
-        private Page convertDirectLinesToPage(List<String> lines) {
+        private Page convertDirectBatchToPage(int batchSize) throws IOException {
+            directBatchRecordsRead = 0;
             if (columnCount == 0) {
                 int acceptedRows = 0;
-                for (String line : lines) {
+                while (directBatchRecordsRead < batchSize) {
+                    int status = advanceDirectRecord();
+                    if (status == DIRECT_EOF) {
+                        break;
+                    }
+                    if (status == DIRECT_SKIP) {
+                        continue;
+                    }
+                    directBatchRecordsRead++;
                     totalRowCount++;
-                    if (splitAndConvertDirect(line)) {
+                    if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
                         acceptedRows++;
                     }
                 }
@@ -2648,16 +2749,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
                         ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
-                        lines.size()
+                        batchSize
                     );
                 }
                 int acceptedRows = 0;
-                for (String line : lines) {
+                while (directBatchRecordsRead < batchSize) {
+                    int status = advanceDirectRecord();
+                    if (status == DIRECT_EOF) {
+                        break;
+                    }
+                    if (status == DIRECT_SKIP) {
+                        continue;
+                    }
+                    directBatchRecordsRead++;
                     totalRowCount++;
-                    if (splitAndConvertDirect(line)) {
-                        for (int i = 0; i < columnCount; i++) {
-                            builders[i].append().accept(rowBuffer[i]);
-                        }
+                    if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
+                        appendStagedRow(builders);
                         acceptedRows++;
                     }
                 }
@@ -2671,6 +2778,102 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return new Page(acceptedRows, blocks);
             } finally {
                 Releasables.closeExpectNoException(builders);
+            }
+        }
+
+        /**
+         * Flushes the typed staging slots of one accepted row into the block builders. Primitive
+         * element types append straight from the typed arrays (no boxing); the rare non-primitive
+         * element type (e.g. an all-null column) falls back to the generic boxed {@code stageObj} slot.
+         */
+        private void appendStagedRow(BlockUtils.BuilderWrapper[] builders) {
+            for (int i = 0; i < columnCount; i++) {
+                Block.Builder builder = builders[i].builder();
+                if (stageNull[i]) {
+                    builder.appendNull();
+                    continue;
+                }
+                switch (directElements[i]) {
+                    case LONG -> ((LongBlock.Builder) builder).appendLong(stageLong[i]);
+                    case INT -> ((IntBlock.Builder) builder).appendInt(stageInt[i]);
+                    case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(stageDouble[i]);
+                    case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(stageBool[i]);
+                    case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(stageRef[i]);
+                    default -> builders[i].append().accept(stageObj[i]);
+                }
+            }
+        }
+
+        private void stageNullValue(int bufIdx) {
+            stageNull[bufIdx] = true;
+        }
+
+        private void stageLongValue(int bufIdx, long value) {
+            stageLong[bufIdx] = value;
+            stageNull[bufIdx] = false;
+        }
+
+        private void stageIntValue(int bufIdx, int value) {
+            stageInt[bufIdx] = value;
+            stageNull[bufIdx] = false;
+        }
+
+        private void stageDoubleValue(int bufIdx, double value) {
+            stageDouble[bufIdx] = value;
+            stageNull[bufIdx] = false;
+        }
+
+        private void stageRefValue(int bufIdx, BytesRef value) {
+            stageRef[bufIdx] = value;
+            stageNull[bufIdx] = false;
+        }
+
+        /**
+         * Stages the result of a (cold) typed string conversion for the direct path, dispatching the
+         * boxed value into the matching typed slot so {@link #appendStagedRow} can append it without a
+         * second boxing. Mirrors {@link #emitConvertedStringField} but targets the direct path's typed
+         * staging instead of the shared {@code rowBuffer}.
+         *
+         * @return {@code true} if the field was accepted, {@code false} if a row-level error was raised
+         */
+        private boolean emitConvertedStageField(String value, int bufIdx, DataType dt) {
+            Object result = tryConvertValue(value, dt);
+            if (lastFieldError != null) {
+                if (modeOrdinal == ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
+                    stageNullValue(bufIdx);
+                    onFieldError(lastFieldError, value, projectedAttrs[bufIdx]);
+                    lastFieldError = null;
+                    return true;
+                } else {
+                    String err = lastFieldError;
+                    lastFieldError = null;
+                    onRowError(err, null, directRawLine(), false);
+                    return false;
+                }
+            }
+            stageConvertedValue(bufIdx, result);
+            return true;
+        }
+
+        /** Routes a converted value into the typed staging slot matching the column's element type. */
+        private void stageConvertedValue(int bufIdx, Object result) {
+            if (result == null) {
+                stageNullValue(bufIdx);
+                return;
+            }
+            switch (directElements[bufIdx]) {
+                case LONG -> stageLongValue(bufIdx, (Long) result);
+                case INT -> stageIntValue(bufIdx, (Integer) result);
+                case DOUBLE -> stageDoubleValue(bufIdx, (Double) result);
+                case BOOLEAN -> {
+                    stageBool[bufIdx] = (Boolean) result;
+                    stageNull[bufIdx] = false;
+                }
+                case BYTES_REF -> stageRefValue(bufIdx, (BytesRef) result);
+                default -> {
+                    stageObj[bufIdx] = result;
+                    stageNull[bufIdx] = false;
+                }
             }
         }
 
@@ -2698,40 +2901,52 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return false;
         }
 
-        /** Dispatches to the plain or quoted walker, routing an unclosed-quote fault through the policy. */
-        private boolean splitAndConvertDirect(String line) {
+        /**
+         * Dispatches to the plain or quoted walker, routing an unclosed-quote fault through the policy.
+         * The record is a {@code [from, to)} range into the reader's reusable {@code char[]}; it is
+         * captured into {@link #directRecBuf}/{@link #directRecFrom}/{@link #directRecTo} so error paths
+         * can lazily build the raw row String without allocating one when the row is accepted.
+         */
+        private boolean splitAndConvertDirect(char[] buf, int from, int to) {
+            directRecBuf = buf;
+            directRecFrom = from;
+            directRecTo = to;
             if (directBlockQuoted) {
                 try {
-                    return splitAndConvertQuoted(line);
+                    return splitAndConvertQuoted(buf, from, to);
                 } catch (MalformedRowException e) {
-                    onRowError(e.getMessage(), e, line, true);
+                    onRowError(e.getMessage(), e, directRawLine(), true);
                     return false;
                 }
             }
-            return splitAndConvertPlain(line);
+            return splitAndConvertPlain(buf, from, to);
+        }
+
+        /** Lazily materializes the current direct-path record as a String, for cold error/warning paths only. */
+        private String directRawLine() {
+            return new String(directRecBuf, directRecFrom, directRecTo - directRecFrom);
         }
 
         /**
          * Direct-to-block field splitting and typed conversion for the plain (unquoted, unescaped,
-         * non-bracket) path. Walks the line once, splitting on the delimiter, and converts each
-         * projected field straight from its character range into {@link #rowBuffer}, with no per-cell
-         * {@link String} for integers, longs, doubles, or keyword/text values.
+         * non-bracket) path. Walks the record range {@code [from, to)} once, splitting on the delimiter,
+         * and converts each projected field straight from its character range into the typed staging
+         * slots, with no per-cell {@link String} for integers, longs, doubles, or keyword/text values.
          *
          * @return {@code true} if the row was accepted, {@code false} if rejected by the error policy
          */
-        private boolean splitAndConvertPlain(String line) {
+        private boolean splitAndConvertPlain(char[] buf, int from, int to) {
             final char delim = options.delimiter();
-            final int len = line.length();
             int fieldIndex = 0;
-            int fieldStart = 0;
-            for (int i = 0; i <= len; i++) {
-                if (i == len || line.charAt(i) == delim) {
+            int fieldStart = from;
+            for (int i = from; i <= to; i++) {
+                if (i == to || buf[i] == delim) {
                     if (fieldIndex < schemaColumnCount && projectedFieldSet.get(fieldIndex)) {
                         int bufIdx = sourceToBufferIndex[fieldIndex];
-                        if (emitPlainField(line, fieldStart, i, bufIdx, projectedTypes[bufIdx]) == false) {
+                        if (emitPlainField(buf, fieldStart, i, bufIdx, projectedTypes[bufIdx]) == false) {
                             return false;
                         }
-                    } else if (checkUnprojectedFieldCap(line, fieldStart, i) == false) {
+                    } else if (checkUnprojectedFieldCap(buf, fieldStart, i) == false) {
                         // Jackson tokenizes every field, so a too-long non-projected (or beyond-schema)
                         // field trips maxStringLength even though we never materialize its value.
                         return false;
@@ -2745,7 +2960,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 onRowError(
                     "CSV row has [" + totalFields + "] columns but schema defines [" + schemaColumnCount + "] columns",
                     null,
-                    line,
+                    directRawLine(),
                     true
                 );
                 return false;
@@ -2753,7 +2968,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // Null-fill projected columns whose source index falls past the row's trailing edge.
             for (int c = 0; c < columnCount; c++) {
                 if (projectedIdx[c] >= totalFields) {
-                    rowBuffer[c] = null;
+                    stageNullValue(c);
                 }
             }
             return true;
@@ -2761,20 +2976,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /**
          * Converts the character range {@code [start, end)} of {@code line} for the given target type
-         * and stores the result in {@code rowBuffer[bufIdx]}. The hot numeric, double, and keyword
-         * types are parsed directly from the character range; the remaining types fall back to the
-         * shared {@link #emitConvertedStringField} path on a (cold) substring so error handling and
-         * value semantics stay identical to the Jackson path.
+         * and stores the result in the typed staging slot {@code bufIdx} (see {@link #appendStagedRow}).
+         * The hot numeric, double, and keyword types are parsed directly from the character range; the
+         * remaining types fall back to the shared {@link #emitConvertedStageField} path on a (cold)
+         * substring so error handling and value semantics stay identical to the Jackson path.
          *
          * @return {@code true} if the field was accepted, {@code false} if a row-level error was
          *         raised (SKIP_ROW / FAIL_FAST)
          */
-        private boolean emitPlainField(String line, int start, int end, int bufIdx, DataType dt) {
+        private boolean emitPlainField(char[] buf, int start, int end, int bufIdx, DataType dt) {
             // Trim leading/trailing whitespace (chars <= ' '), matching Jackson TRIM_SPACES / emitField.
-            while (start < end && line.charAt(start) <= ' ') {
+            while (start < end && buf[start] <= ' ') {
                 start++;
             }
-            while (end > start && line.charAt(end - 1) <= ' ') {
+            while (end > start && buf[end - 1] <= ' ') {
                 end--;
             }
             int len = end - start;
@@ -2786,15 +3001,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // Null classification mirrors tryConvertValue: empty, the literal "null" (any case), or the
             // configured null marker all become null.
             if (len == 0) {
-                rowBuffer[bufIdx] = null;
+                stageNullValue(bufIdx);
                 return true;
             }
-            if (len == 4 && line.regionMatches(true, start, "null", 0, 4)) {
-                rowBuffer[bufIdx] = null;
+            if (len == 4 && regionEqualsIgnoreCase(buf, start, "null")) {
+                stageNullValue(bufIdx);
                 return true;
             }
-            if (hasCustomNullValue && len == nullValueStr.length() && line.regionMatches(start, nullValueStr, 0, len)) {
-                rowBuffer[bufIdx] = null;
+            if (hasCustomNullValue && len == nullValueStr.length() && regionEquals(buf, start, nullValueStr)) {
+                stageNullValue(bufIdx);
                 return true;
             }
             switch (dt) {
@@ -2803,7 +3018,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     boolean neg = false;
                     boolean ok = true;
                     int p = start;
-                    if (line.charAt(p) == '-') {
+                    if (buf[p] == '-') {
                         neg = true;
                         p++;
                     }
@@ -2811,7 +3026,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         ok = false;
                     }
                     for (; p < end; p++) {
-                        char c = line.charAt(p);
+                        char c = buf[p];
                         if (c < '0' || c > '9') {
                             ok = false;
                             break;
@@ -2824,17 +3039,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         acc = nv;
                     }
                     if (ok) {
-                        rowBuffer[bufIdx] = neg ? -acc : acc;
+                        stageLongValue(bufIdx, neg ? -acc : acc);
                         return true;
                     }
-                    return emitConvertedStringField(line.substring(start, end), bufIdx, dt, line);
+                    return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
                 }
                 case INTEGER -> {
                     long acc = 0;
                     boolean neg = false;
                     boolean ok = true;
                     int p = start;
-                    if (line.charAt(p) == '-') {
+                    if (buf[p] == '-') {
                         neg = true;
                         p++;
                     }
@@ -2842,7 +3057,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         ok = false;
                     }
                     for (; p < end; p++) {
-                        char c = line.charAt(p);
+                        char c = buf[p];
                         if (c < '0' || c > '9') {
                             ok = false;
                             break;
@@ -2857,37 +3072,65 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (ok) {
                         long val = neg ? -acc : acc;
                         if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
-                            rowBuffer[bufIdx] = (int) val;
+                            stageIntValue(bufIdx, (int) val);
                             return true;
                         }
                     }
-                    return emitConvertedStringField(line.substring(start, end), bufIdx, dt, line);
+                    return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
                 }
                 case KEYWORD, TEXT -> {
-                    rowBuffer[bufIdx] = keywordRef(bufIdx, line, start, len);
+                    stageRefValue(bufIdx, keywordRef(bufIdx, buf, start, len));
                     return true;
                 }
                 case DOUBLE -> {
-                    // Parse the double straight from the line's char range, skipping the substring.
+                    // Parse the double straight from the record's char range, skipping the substring.
                     // jackson-core's fast parser is bit-identical to Double.parseDouble on accepted
                     // inputs; on rejection we fall back to the shared conversion path, which itself
                     // uses Double.parseDouble, so the accepted/rejected boundary matches the baseline.
-                    if (doubleScratch == null || doubleScratch.length < len) {
-                        doubleScratch = new char[Math.max(len, 32)];
-                    }
-                    line.getChars(start, end, doubleScratch, 0);
                     try {
-                        rowBuffer[bufIdx] = NumberInput.parseDouble(doubleScratch, 0, len, true);
+                        stageDoubleValue(bufIdx, NumberInput.parseDouble(buf, start, len, true));
                         return true;
                     } catch (NumberFormatException e) {
-                        return emitConvertedStringField(line.substring(start, end), bufIdx, dt, line);
+                        return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
                     }
                 }
                 case DATETIME, DATE_NANOS, BOOLEAN, IP, VERSION, NULL -> {
-                    return emitConvertedStringField(line.substring(start, end), bufIdx, dt, line);
+                    return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
                 }
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dt);
             }
+        }
+
+        /** True if {@code buf[start, start+s.length())} equals {@code s} (case-sensitive). Callers ensure the range fits. */
+        private static boolean regionEquals(char[] buf, int start, String s) {
+            for (int k = 0; k < s.length(); k++) {
+                if (buf[start + k] != s.charAt(k)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * Case-insensitive variant of {@link #regionEquals}, used for the literal {@code null} marker.
+         * Mirrors {@link String#regionMatches(boolean, int, String, int, int)} with {@code ignoreCase=true}
+         * (upper- then lower-case fold) so classification matches the Jackson conversion path exactly.
+         */
+        private static boolean regionEqualsIgnoreCase(char[] buf, int start, String s) {
+            for (int k = 0; k < s.length(); k++) {
+                char a = buf[start + k];
+                char b = s.charAt(k);
+                if (a == b) {
+                    continue;
+                }
+                char ua = Character.toUpperCase(a);
+                char ub = Character.toUpperCase(b);
+                if (ua == ub || Character.toLowerCase(ua) == Character.toLowerCase(ub)) {
+                    continue;
+                }
+                return false;
+            }
+            return true;
         }
 
         /**
@@ -2897,14 +3140,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
          *
          * @return {@code true} if within the cap, {@code false} if it was rejected (and the row dropped)
          */
-        private boolean checkUnprojectedFieldCap(String line, int start, int end) {
+        private boolean checkUnprojectedFieldCap(char[] buf, int start, int end) {
             if (end - start <= maxFieldChars) {
                 return true;
             }
-            while (start < end && line.charAt(start) <= ' ') {
+            while (start < end && buf[start] <= ' ') {
                 start++;
             }
-            while (end > start && line.charAt(end - 1) <= ' ') {
+            while (end > start && buf[end - 1] <= ' ') {
                 end--;
             }
             if (end - start > maxFieldChars) {
@@ -2914,13 +3157,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Encodes {@code line[start, start+len)} as UTF-8 into the reusable per-column scratch
-         * {@link BytesRef} and returns it. The caller stages the reference in {@link #rowBuffer} and
+         * Encodes {@code buf[start, start+len)} as UTF-8 into the reusable per-column scratch
+         * {@link BytesRef} and returns it. The caller stages the reference in a typed staging slot and
          * the page builder copies the bytes synchronously on append, so reusing one scratch per column
          * across rows is safe (a distinct scratch per column avoids in-row aliasing between two
          * keyword columns).
          */
-        private BytesRef keywordRef(int bufIdx, String line, int start, int len) {
+        private BytesRef keywordRef(int bufIdx, char[] buf, int start, int len) {
             BytesRef ref = keywordScratch[bufIdx];
             if (ref == null) {
                 ref = new BytesRef();
@@ -2931,7 +3174,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 ref.bytes = new byte[maxBytes];
             }
             ref.offset = 0;
-            ref.length = UnicodeUtil.UTF16toUTF8(line, start, len, ref.bytes);
+            ref.length = UnicodeUtil.UTF16toUTF8(buf, start, len, ref.bytes);
             return ref;
         }
 
@@ -2948,15 +3191,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * @return {@code true} if the row was accepted, {@code false} if rejected by the error policy
          * @throws MalformedRowException if a quoted field is never closed before end of record
          */
-        private boolean splitAndConvertQuoted(String line) {
+        private boolean splitAndConvertQuoted(char[] buf, int from, int to) {
             final char delim = options.delimiter();
             final char quote = options.quoteChar();
             final char esc = options.escapeChar();
             final boolean escapeAware = options.escaping();
-            final int len = line.length();
+            final int len = to;
 
             int fieldIndex = 0;
-            int i = 0;
+            int i = from;
             while (true) {
                 boolean projected = fieldIndex < schemaColumnCount && projectedFieldSet.get(fieldIndex);
                 int bufIdx = projected ? sourceToBufferIndex[fieldIndex] : -1;
@@ -2966,25 +3209,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // skipped even when it is itself a whitespace byte (e.g. a TAB in TSV), so an empty
                 // field before a quoted field is not mistaken for the quoted field.
                 int p = i;
-                while (p < len && line.charAt(p) <= ' ' && line.charAt(p) != delim) {
+                while (p < len && buf[p] <= ' ' && buf[p] != delim) {
                     p++;
                 }
 
                 int next;
                 boolean lastField;
-                if (p < len && line.charAt(p) == quote) {
-                    StringBuilder buf = projected ? resetQuotedBuf() : null;
-                    // Decoded value length, tracked even when unprojected (buf == null) so the field-size
+                if (p < len && buf[p] == quote) {
+                    StringBuilder value = projected ? resetQuotedBuf() : null;
+                    // Decoded value length, tracked even when unprojected (value == null) so the field-size
                     // cap is enforced on every field exactly as Jackson does during tokenization.
                     int decodedLen = 0;
                     int q = p + 1;
                     boolean closed = false;
                     while (q < len) {
-                        char c = line.charAt(q);
+                        char c = buf[q];
                         if (c == quote) {
-                            if (q + 1 < len && line.charAt(q + 1) == quote) {
-                                if (buf != null) {
-                                    buf.append(quote);
+                            if (q + 1 < len && buf[q + 1] == quote) {
+                                if (value != null) {
+                                    value.append(quote);
                                 }
                                 decodedLen++;
                                 q += 2;
@@ -2996,8 +3239,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         }
                         if (escapeAware && c == esc) {
                             if (q + 1 < len) {
-                                if (buf != null) {
-                                    buf.append(decodeEscapeChar(line.charAt(q + 1)));
+                                if (value != null) {
+                                    value.append(decodeEscapeChar(buf[q + 1]));
                                 }
                                 decodedLen++;
                                 q += 2;
@@ -3006,14 +3249,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             }
                             continue;
                         }
-                        if (buf != null) {
-                            buf.append(c);
+                        if (value != null) {
+                            value.append(c);
                         }
                         decodedLen++;
                         q++;
                     }
                     if (closed == false) {
-                        throw MalformedRowException.unclosedQuotedField(line, p);
+                        throw MalformedRowException.unclosedQuotedField(directRawLine(), p - from);
                     }
                     // Jackson checks maxStringLength on the aggregated value right after the closing quote,
                     // before inspecting any trailing content, so the cap precedes the content-after-quote check.
@@ -3024,17 +3267,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // The delimiter itself is never consumed here even when it is a whitespace byte
                     // (e.g. a TAB in TSV), otherwise the field boundary would be lost.
                     int r = q;
-                    while (r < len && line.charAt(r) <= ' ' && line.charAt(r) != delim) {
+                    while (r < len && buf[r] <= ' ' && buf[r] != delim) {
                         r++;
                     }
-                    if (r < len && line.charAt(r) != delim) {
-                        onRowError("CSV row has unexpected content after a closing quote", null, line, true);
+                    if (r < len && buf[r] != delim) {
+                        onRowError("CSV row has unexpected content after a closing quote", null, directRawLine(), true);
                         return false;
                     }
                     if (projected) {
-                        if (buf.length() == 0) {
-                            rowBuffer[bufIdx] = null; // empty quoted field is null
-                        } else if (emitConvertedStringField(buf.toString(), bufIdx, dt, line) == false) {
+                        if (value.length() == 0) {
+                            stageNullValue(bufIdx); // empty quoted field is null
+                        } else if (emitConvertedStageField(value.toString(), bufIdx, dt) == false) {
                             return false;
                         }
                     }
@@ -3045,7 +3288,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     int j = i;
                     boolean hasEsc = false;
                     while (j < len) {
-                        char c = line.charAt(j);
+                        char c = buf[j];
                         if (escapeAware && c == esc) {
                             hasEsc = true;
                             j += 2; // skip the escaped char (even if it is a delimiter)
@@ -3059,17 +3302,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     int fieldEnd = Math.min(j, len);
                     if (projected) {
                         if (hasEsc) {
-                            if (emitUnquotedEscapedField(line, i, fieldEnd, bufIdx, dt) == false) {
+                            if (emitUnquotedEscapedField(buf, i, fieldEnd, bufIdx, dt) == false) {
                                 return false;
                             }
-                        } else if (emitPlainField(line, i, fieldEnd, bufIdx, dt) == false) {
+                        } else if (emitPlainField(buf, i, fieldEnd, bufIdx, dt) == false) {
                             return false;
                         }
                     } else {
                         // Non-projected field is still tokenized by Jackson, so it counts against the cap.
                         boolean within = hasEsc
-                            ? checkUnprojectedEscapedFieldCap(line, i, fieldEnd)
-                            : checkUnprojectedFieldCap(line, i, fieldEnd);
+                            ? checkUnprojectedEscapedFieldCap(buf, i, fieldEnd)
+                            : checkUnprojectedFieldCap(buf, i, fieldEnd);
                         if (within == false) {
                             return false;
                         }
@@ -3090,14 +3333,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 onRowError(
                     "CSV row has [" + totalFields + "] columns but schema defines [" + schemaColumnCount + "] columns",
                     null,
-                    line,
+                    directRawLine(),
                     true
                 );
                 return false;
             }
             for (int c = 0; c < columnCount; c++) {
                 if (projectedIdx[c] >= totalFields) {
-                    rowBuffer[c] = null;
+                    stageNullValue(c);
                 }
             }
             return true;
@@ -3108,38 +3351,38 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * C-style escape decoding into the reused buffer, then routes through the shared string
          * conversion path. A trailing lone escape (no following char) is dropped, matching Jackson.
          */
-        private boolean emitUnquotedEscapedField(String line, int start, int end, int bufIdx, DataType dt) {
-            while (start < end && line.charAt(start) <= ' ') {
+        private boolean emitUnquotedEscapedField(char[] buf, int start, int end, int bufIdx, DataType dt) {
+            while (start < end && buf[start] <= ' ') {
                 start++;
             }
-            while (end > start && line.charAt(end - 1) <= ' ') {
+            while (end > start && buf[end - 1] <= ' ') {
                 end--;
             }
             if (start == end) {
-                rowBuffer[bufIdx] = null;
+                stageNullValue(bufIdx);
                 return true;
             }
             final char esc = options.escapeChar();
-            StringBuilder buf = resetQuotedBuf();
+            StringBuilder value = resetQuotedBuf();
             for (int k = start; k < end; k++) {
-                char c = line.charAt(k);
+                char c = buf[k];
                 if (c == esc) {
                     if (k + 1 < end) {
-                        buf.append(decodeEscapeChar(line.charAt(++k)));
+                        value.append(decodeEscapeChar(buf[++k]));
                     }
                     // else: trailing lone escape, dropped
                 } else {
-                    buf.append(c);
+                    value.append(c);
                 }
             }
-            if (buf.length() > maxFieldChars) {
-                return rejectFieldTooLarge(buf.length());
+            if (value.length() > maxFieldChars) {
+                return rejectFieldTooLarge(value.length());
             }
-            if (buf.length() == 0) {
-                rowBuffer[bufIdx] = null;
+            if (value.length() == 0) {
+                stageNullValue(bufIdx);
                 return true;
             }
-            return emitConvertedStringField(buf.toString(), bufIdx, dt, line);
+            return emitConvertedStageField(value.toString(), bufIdx, dt);
         }
 
         /**
@@ -3150,20 +3393,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
          *
          * @return {@code true} if within the cap, {@code false} if it was rejected (and the row dropped)
          */
-        private boolean checkUnprojectedEscapedFieldCap(String line, int start, int end) {
+        private boolean checkUnprojectedEscapedFieldCap(char[] buf, int start, int end) {
             if (end - start <= maxFieldChars) {
                 return true;
             }
-            while (start < end && line.charAt(start) <= ' ') {
+            while (start < end && buf[start] <= ' ') {
                 start++;
             }
-            while (end > start && line.charAt(end - 1) <= ' ') {
+            while (end > start && buf[end - 1] <= ' ') {
                 end--;
             }
             final char esc = options.escapeChar();
             int decodedLen = 0;
             for (int k = start; k < end; k++) {
-                if (line.charAt(k) == esc) {
+                if (buf[k] == esc) {
                     if (k + 1 < end) {
                         k++; // escape consumes the next char, yielding one decoded char
                         decodedLen++;

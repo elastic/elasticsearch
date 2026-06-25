@@ -24,6 +24,7 @@ You can author {{esql}} queries to find specific events, perform statistical ana
 {{esql}} is designed to be easy to read and write, making it accessible for users with varying levels of technical expertise. It is particularly useful for data analysts, security professionals, and developers who need to work with large datasets in Elasticsearch.
 
 ::::{include} esql/_snippets/common/query-performance-tip.md
+::::
 
 ## How does it work? [search-analyze-data-esql]
 

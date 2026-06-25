@@ -37,6 +37,7 @@ In {{serverless-short}}, queries automatically run across all linked projects wi
 % TODO: update "Space-level settings" link to docs-content://explore-analyze/cross-project-search/cross-project-search-manage-scope.md once elastic/docs-content#5498 is merged
 
 ::::{include} _snippets/common/query-performance-tip.md
+::::
 
 
 ## Field type mismatches [esql-multi-index-invalid-mapping]

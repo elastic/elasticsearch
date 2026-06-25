@@ -17,3 +17,4 @@ data from multiple sources. Learn more in the following sections:
 * [Define virtual indices using ES|QL views](esql-views.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: unavailable`
 
 ::::{include} _snippets/common/query-performance-tip.md
+::::

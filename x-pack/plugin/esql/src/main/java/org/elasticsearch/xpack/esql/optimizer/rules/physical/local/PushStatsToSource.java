@@ -54,7 +54,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
         PhysicalPlan child = aggregateExec.child();
         EsQueryExec queryExec;
-        AttributeMap<Attribute> aliasReplacedBy;
+        AttributeMap<Expression> aliasReplacedBy;
 
         if (child instanceof EsQueryExec qe) {
             queryExec = qe;
@@ -118,7 +118,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
      */
     private static List<NamedExpression> resolveAliases(
         List<? extends NamedExpression> aggregates,
-        AttributeMap<Attribute> aliasReplacedBy
+        AttributeMap<Expression> aliasReplacedBy
     ) {
         List<NamedExpression> resolved = new ArrayList<>(aggregates.size());
         for (NamedExpression agg : aggregates) {

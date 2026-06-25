@@ -148,7 +148,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         }
 
         // Process the EVAL to get all aliases that might be needed in the filter rewrite
-        AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
+        AttributeMap<Expression> aliasReplacedBy = getAliasReplacedBy(evalExec);
 
         // First we split the filter into multiple AND'd expressions, and then we evaluate each individually for distance rewrites
         List<Expression> pushable = new ArrayList<>();

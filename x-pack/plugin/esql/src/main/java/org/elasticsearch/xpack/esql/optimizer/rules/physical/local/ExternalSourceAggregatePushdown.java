@@ -37,7 +37,7 @@ public final class ExternalSourceAggregatePushdown {
      * any alias mapping from intermediate {@code EvalExec}/{@code ProjectExec} nodes, and
      * the filter condition from any intermediate {@code FilterExec}.
      */
-    record ExternalSourceInfo(ExternalSourceExec externalExec, AttributeMap<Attribute> aliasReplacedBy, Expression filterCondition) {}
+    record ExternalSourceInfo(ExternalSourceExec externalExec, AttributeMap<Expression> aliasReplacedBy, Expression filterCondition) {}
 
     /**
      * Light-weight projection of {@link #extractExternalSource(PhysicalPlan)} that returns just the

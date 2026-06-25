@@ -138,6 +138,24 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
     }
 
     /**
+     * EVAL over field_extract followed by a WHERE condition on the evaluated alias must push
+     * down to the same Lucene query as the inline version.
+     */
+    public void testEqualityPushedFromEval() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        String value = randomAlphaOfLengthBetween(1, 16);
+        String otherValue = randomValueOtherThan(value, () -> randomAlphaOfLengthBetween(1, 16));
+        indexDocs(List.of(value, otherValue));
+
+        runAndAssert(String.format(Locale.ROOT, """
+            FROM test
+            | EVAL ext = field_extract(%s, "%s")
+            | WHERE ext == "%s"
+            | KEEP id
+            """, FLATTENED_ROOT, SUBKEY, value), equalTo(expectedEqualityQuery(value)), ComputeSignature.FILTER_IN_QUERY, 1);
+    }
+
+    /**
      * {@code field_extract(...) != "v"} must push to a negated {@code TermQuery} against the keyed
      * sub-field. Lucene renders the negation as {@code -<inner> #<filter>} (must-not + filter); see
      * {@link #expectedInequalityQuery} for why the filter clause depends on the index mode.
@@ -321,6 +339,26 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
                 | WHERE %s AND %s
                 | KEEP id
                 """, randomizedComparison(">=", "b"), randomizedComparison("<=", "y")),
+            equalTo(expectedRangeQuery("b", true, "y", true)),
+            ComputeSignature.FILTER_IN_QUERY,
+            1
+        );
+    }
+
+    /**
+     * Closed range over EVAL field_extract must push down exactly like the inline version.
+     */
+    public void testBetweenPushedFromEval() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        indexDocs(List.of("aaa", "mmm", "zzz"));
+
+        runAndAssert(
+            String.format(Locale.ROOT, """
+                FROM test
+                | EVAL ext = field_extract(%s, "%s")
+                | WHERE ext >= "b" AND ext <= "y"
+                | KEEP id
+                """, FLATTENED_ROOT, SUBKEY),
             equalTo(expectedRangeQuery("b", true, "y", true)),
             ComputeSignature.FILTER_IN_QUERY,
             1

@@ -89,27 +89,23 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LocalPhysicalOptimizerContext ctx
     ) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
-        AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
+        AttributeMap<Expression> aliasReplacedBy = getAliasReplacedBy(evalExec);
         PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
         classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
         return rewrite(pushdownPredicates, filterExec, queryExec, classified.pushable, classified.nonPushable, evalExec.fields());
     }
 
-    static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
-        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
-        evalExec.fields().forEach(alias -> {
-            if (alias.child() instanceof Attribute attr) {
-                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
-            }
-        });
+    static AttributeMap<Expression> getAliasReplacedBy(EvalExec evalExec) {
+        AttributeMap.Builder<Expression> aliasReplacedByBuilder = AttributeMap.builder();
+        evalExec.fields().forEach(alias -> aliasReplacedByBuilder.put(alias.toAttribute(), alias.child()));
         return aliasReplacedByBuilder.build();
     }
 
-    static AttributeMap<Attribute> getAliasReplacedBy(ProjectExec projectExec) {
-        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
+    static AttributeMap<Expression> getAliasReplacedBy(ProjectExec projectExec) {
+        AttributeMap.Builder<Expression> aliasReplacedByBuilder = AttributeMap.builder();
         for (NamedExpression ne : projectExec.projections()) {
-            if (ne instanceof Alias alias && alias.child() instanceof Attribute attr) {
-                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
+            if (ne instanceof Alias alias) {
+                aliasReplacedByBuilder.put(alias.toAttribute(), alias.child());
             }
         }
         return aliasReplacedByBuilder.build();
@@ -361,7 +357,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LocalPhysicalOptimizerContext ctx
     ) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
-        AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
+        AttributeMap<Expression> aliasReplacedBy = getAliasReplacedBy(evalExec);
         PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
         classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
         return rewrite(pushdownPredicates, filterExec, pqExec, classified.pushable, classified.nonPushable, evalExec.fields());
@@ -409,7 +405,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     private static PushdownClassification classifyFilters(
         Expression condition,
         LucenePushdownPredicates pushdownPredicates,
-        AttributeMap<Attribute> aliasReplacedBy
+        AttributeMap<Expression> aliasReplacedBy
     ) {
         List<Expression> conjuncts = combineFieldExtractRangePairs(splitAnd(condition), pushdownPredicates, aliasReplacedBy);
 
@@ -418,7 +414,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         for (Expression exp : conjuncts) {
             Expression resExp = aliasReplacedBy.isEmpty()
                 ? exp
-                : exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+                : exp.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
             switch (translatable(resExp, pushdownPredicates).finish()) {
                 case NO -> nonPushable.add(exp);
                 case YES -> pushable.add(exp);
@@ -456,7 +452,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     static List<Expression> combineFieldExtractRangePairs(
         List<Expression> conjuncts,
         LucenePushdownPredicates pushdownPredicates,
-        AttributeMap<Attribute> aliasReplacedBy
+        AttributeMap<Expression> aliasReplacedBy
     ) {
         // Holds the BC in its alias-resolved form (so the produced Range references the
         // underlying field_extract directly, never a ReferenceAttribute alias).
@@ -468,7 +464,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         for (int i = 0; i < conjuncts.size(); i++) {
             Expression resolved = aliasReplacedBy.isEmpty()
                 ? conjuncts.get(i)
-                : conjuncts.get(i).transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+                : conjuncts.get(i).transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
 
             if (resolved instanceof EsqlBinaryComparison bc && bc.right().foldable() && bc.left() instanceof FieldExtract fe) {
                 Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);

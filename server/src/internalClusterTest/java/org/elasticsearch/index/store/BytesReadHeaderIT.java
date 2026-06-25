@@ -54,6 +54,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.search.SearchService.FETCH_PHASE_CHUNKED_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -321,6 +322,8 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         int numDocs = between(100, 300);
         final String firstIndex = setupIndex(between(2, 4), numDocs);
         final String secondIndex = setupIndex(between(2, 4), numDocs);
+
+        assertNoFailures(indicesAdmin().prepareForceMerge(firstIndex, secondIndex).setMaxNumSegments(1).get());
 
         int fetchAll = numDocs * 2;
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).size(fetchAll);

@@ -142,6 +142,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         }
 
         var projectDirFiles = getFileOperations().fileTree(projectDir);
+        projectDirFiles.include("modules/reindex/build/distributions/reindex-9.4.0-SNAPSHOT.jar");
         projectDirFiles.include("**/*.hprof");
         projectDirFiles.include("**/build/reports/configuration-cache/**");
         projectDirFiles.include("**/build/test-results/**/*.xml");

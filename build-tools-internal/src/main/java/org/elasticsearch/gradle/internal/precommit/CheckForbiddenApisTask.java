@@ -379,6 +379,7 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     /** Executes the forbidden apis task. */
     @TaskAction
     public void checkForbidden() {
+        System.out.println("BUNDLED_SIGNATURE_DEFAULTS = " + getBundledSignatures().get());
         WorkQueue workQueue = getWorkerExecutor().noIsolation();
         workQueue.submit(ForbiddenApisCheckWorkAction.class, parameters -> {
             parameters.getClasspath().setFrom(getClasspath());

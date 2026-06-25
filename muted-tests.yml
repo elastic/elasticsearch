@@ -542,6 +542,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load four indices with single conversion function TO_IP}
   issue: https://github.com/elastic/elasticsearch/issues/151413
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/250_columnar_keyword/Test mv_min}
+  issue: https://github.com/elastic/elasticsearch/issues/147379
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/250_columnar_keyword/Test mv max}
+  issue: https://github.com/elastic/elasticsearch/issues/147379
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:date_nanos.implicit casting to nanos, date plus time to millis, equality test}
   issue: https://github.com/elastic/elasticsearch/issues/151536

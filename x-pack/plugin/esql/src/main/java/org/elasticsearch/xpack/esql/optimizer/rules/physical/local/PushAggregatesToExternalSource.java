@@ -129,7 +129,8 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         }
         List<Object> values = new ArrayList<>(aggregateExec.aggregates().size());
         List<DataType> dataTypes = new ArrayList<>(aggregateExec.aggregates().size());
-        if (resolveAggregateValues(aggregateExec.aggregates(), stats, values, dataTypes) == false) {
+        boolean implicitNullsForAbsentColumn = formatReader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
+        if (resolveAggregateValues(aggregateExec.aggregates(), stats, values, dataTypes, implicitNullsForAbsentColumn) == false) {
             return aggregateExec;
         }
 
@@ -153,7 +154,8 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         List<? extends NamedExpression> aggregates,
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
         List<Object> values,
-        List<DataType> dataTypes
+        List<DataType> dataTypes,
+        boolean implicitNullsForAbsentColumn
     ) {
         for (int i = 0; i < aggregates.size(); i++) {
             NamedExpression agg = aggregates.get(i);
@@ -161,7 +163,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return false;
             }
             Expression child = ((Alias) agg).child();
-            Object value = resolveFromStats(child, stats);
+            Object value = resolveFromStats(child, stats, implicitNullsForAbsentColumn);
             if (value == null) {
                 return false;
             }
@@ -182,7 +184,16 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
      * from a scope, {@code columnNullCount == rowCount}, so {@code COUNT(col) == 0} for that
      * scope — exactly the right answer for UNION_BY_NAME mixes.
      * <p>
-     * The only short-circuit is the rare "column present but stats unknown" case, where
+     * The implicit-nulls contract is only sound when an absent column key genuinely means "all-null"
+     * — true for footer formats (Parquet/ORC), which emit a stat for every physically present column.
+     * Line-oriented text formats harvest per-column stats partially (count / projected scopes leave
+     * present columns un-summarised), so for them an absent key means "not harvested," and applying
+     * the contract would serve {@code rowCount - rowCount = 0} for a column that may be entirely
+     * non-null. When {@code implicitNullsForAbsentColumn} is {@code false} (the format declares it via
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#appliesImplicitNullsForAbsentColumn()}),
+     * a column with no observed stats ({@code stats.hasColumn(name) == false}) safe-misses instead.
+     * <p>
+     * The other short-circuit is the rare "column present but stats unknown" case, where
      * {@code columnNullCount} returns {@code -1} and we bail out so the engine falls back to a
      * regular scan.
      * <p>
@@ -193,7 +204,11 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
      * means either "no child contributed a candidate value" or "incompatible/unknown stats" — both are
      * correct fall-back signals, the rule does not pushdown.
      */
-    private Object resolveFromStats(Expression aggFunction, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
+    private Object resolveFromStats(
+        Expression aggFunction,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
         if (aggFunction instanceof Count count) {
             if (count.hasFilter()) {
                 return null;
@@ -205,6 +220,12 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             // Virtual columns are not present in the split's column stats; refuse the pushdown
             // here even if a format-level gate happens to let one through (defense in depth).
             if (target instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
+                // For formats that do not apply implicit nulls to absent columns (text formats under
+                // partial harvest), an unobserved column means "not harvested," not "all-null":
+                // serving rowCount - rowCount = 0 would be wrong. Safe-miss so the engine re-scans.
+                if (implicitNullsForAbsentColumn == false && stats.hasColumn(ref.name()) == false) {
+                    return null;
+                }
                 long nc = stats.columnNullCount(ref.name());
                 if (nc >= 0) {
                     return stats.rowCount() - nc;

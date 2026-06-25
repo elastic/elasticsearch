@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -315,6 +316,39 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         // column-specific, not a blanket refusal.
         var minAge = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Min(Source.EMPTY, AGE)));
         as(applyRule(minAge), LocalSourceExec.class);
+    }
+
+    /**
+     * COUNT(col) WRONG-DATA safe-miss for a text format under partial harvest. A CSV/NDJSON file can have
+     * a complete whole-file row count (count-scope or projected-scope of a different column) but NO
+     * per-column key for a column that is physically present yet was never harvested. The implicit-nulls
+     * contract ({@code columnNullCount == rowCount} for an absent key) is a FOOTER-format property; for a
+     * text format the absent key means "not harvested," so {@code COUNT(col)} must NOT serve
+     * {@code rowCount - rowCount = 0} — it must safe-miss and re-scan.
+     * <p>
+     * The companion {@link #testCountFieldWithoutColumnEntriesPushedAsImplicitNullCount} proves the FOOTER
+     * contract is preserved (the same shape over a footer-format source still serves 0).
+     */
+    public void testCountFieldOfUnharvestedColumnSafeMissesForTextFormat() {
+        // Complete whole-file stats: 1000 rows, but no _stats.columns.age.* (age present, not harvested).
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        var agg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countFieldAlias(AGE));
+
+        // Text format: implicit nulls do not apply to an absent (unharvested) column -> safe-miss.
+        as(applyRuleText(agg), AggregateExec.class);
+
+        // A harvested column with a genuine null count over the same text source STILL serves: the safe-miss
+        // is column-specific, not a blanket refusal for text formats.
+        Map<String, Object> harvested = statsMetadata(1000L, "age", 50L);
+        var aggHarvested = aggregateExec(AggregatorMode.SINGLE, externalSource(harvested), countFieldAlias(AGE));
+        LocalSourceExec local = as(applyRuleText(aggHarvested), LocalSourceExec.class);
+        assertEquals(950L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+
+        // COUNT(*) over the unharvested-column source is independent of column stats -> still serves.
+        var countStar = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countStarAlias());
+        LocalSourceExec countLocal = as(applyRuleText(countStar), LocalSourceExec.class);
+        assertEquals(1000L, as(countLocal.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
     /**
@@ -739,6 +773,19 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         return registry;
     }
 
+    /**
+     * Registry whose "parquet"-named reader carries the real {@link TextAggregatePushdownSupport}, i.e. it
+     * declares {@code appliesImplicitNullsForAbsentColumn() == false}. Used to exercise the text-format
+     * partial-harvest safe-miss without standing up a CSV/NDJSON reader; the source-type name stays
+     * "parquet" only because {@link #externalSource} hard-codes it — the support is what the rule reads.
+     */
+    private static FormatReaderRegistry buildTextRegistry() {
+        FormatReaderRegistry registry = new FormatReaderRegistry(null);
+        AggregatePushdownSupport textSupport = new TextAggregatePushdownSupport();
+        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(textSupport), null, null);
+        return registry;
+    }
+
     private static LocalPhysicalOptimizerContext buildContext(FormatReaderRegistry registry) {
         return new LocalPhysicalOptimizerContext(null, null, null, null, null, new ExternalOptimizerContext(registry));
     }
@@ -749,6 +796,10 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     private static PhysicalPlan applyRule(AggregateExec agg) {
         return new PushAggregatesToExternalSource().apply(agg, buildContext(buildParquetRegistry()));
+    }
+
+    private static PhysicalPlan applyRuleText(AggregateExec agg) {
+        return new PushAggregatesToExternalSource().apply(agg, buildContext(buildTextRegistry()));
     }
 
     /**

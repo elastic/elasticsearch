@@ -275,6 +275,18 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         return nullCounts[col];
     }
 
+    /**
+     * Returns {@code true} iff this split carries a column-family entry for {@code name}. A column is
+     * present in the compact representation only when the reader emitted at least one stat for it (the
+     * producer contract documented on {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats#columnNullCount}),
+     * so this is exactly "the stats layer observed this column" — the predicate the optimizer uses to
+     * tell a harvested-but-all-null text column apart from an unharvested one.
+     */
+    @Override
+    public boolean hasColumn(String name) {
+        return findColumn(name) >= 0;
+    }
+
     /** Returns the min value for the column with the given name, or {@code null} if not found. */
     @Override
     @Nullable

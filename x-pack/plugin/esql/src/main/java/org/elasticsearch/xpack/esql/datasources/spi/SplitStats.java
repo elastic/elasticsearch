@@ -60,6 +60,19 @@ public interface SplitStats {
     long columnNullCount(String name);
 
     /**
+     * Whether the named column carries any per-column statistics in this split (a null count, a
+     * min/max, or a size). This is the "column was observed by the stats layer" predicate, distinct
+     * from {@link #columnNullCount}'s implicit-nulls contract: for footer formats an absent column is
+     * genuinely all-null and {@code columnNullCount} returns {@code rowCount}, but a text-format
+     * partial harvest can leave a physically present column with no stats at all, and the two cases
+     * are indistinguishable through {@code columnNullCount} alone. Callers that must not apply the
+     * implicit-nulls contract for unharvested columns (see
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#appliesImplicitNullsForAbsentColumn()})
+     * use this to safe-miss instead.
+     */
+    boolean hasColumn(String name);
+
+    /**
      * Minimum value for the named column, or {@code null} if unknown or the column
      * is not present in this split's statistics.
      */

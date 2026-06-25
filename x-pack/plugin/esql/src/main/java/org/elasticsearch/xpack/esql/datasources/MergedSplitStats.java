@@ -101,6 +101,25 @@ public final class MergedSplitStats implements org.elasticsearch.xpack.esql.data
     }
 
     /**
+     * Returns {@code true} only when <b>every</b> child observed the column in its stats. A single
+     * child that lacks the column makes the merged answer "not fully harvested": for a text-format
+     * multi-file query where one file's scan harvested the column and another's did not, the merged
+     * {@code COUNT(col)} cannot be served from stats without under-counting the unharvested file's
+     * rows, so the all-children predicate forces a safe-miss. Footer formats never consult this (their
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport} applies implicit
+     * nulls), so genuinely-absent columns in a UNION_BY_NAME mix are unaffected.
+     */
+    @Override
+    public boolean hasColumn(String name) {
+        for (org.elasticsearch.xpack.esql.datasources.spi.SplitStats child : children) {
+            if (child.hasColumn(name) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Returns the minimum of children's min values for the named column under the SPI's
      * "implicit nulls" contract:
      * <ul>

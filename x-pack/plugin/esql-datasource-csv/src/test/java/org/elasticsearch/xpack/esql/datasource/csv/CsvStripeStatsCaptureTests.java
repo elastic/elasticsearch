@@ -393,6 +393,83 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         return raw == null ? List.of() : raw;
     }
 
+    /**
+     * BUG 2 regression: the plain Jackson bulk path (non-UTF-8 encoding routes off the byte-tracking
+     * iterator, and no {@code _rowPosition} is projected) never advances {@code CsvLogicalRecordReader},
+     * so any derived per-row offset is frozen at the header boundary. Under ALL scope the reader used to
+     * force {@code trackOffsets=true} regardless, deriving collapsed offsets that piled every row onto one
+     * stripe and emitted stripe-addressed fragments carrying bogus per-stripe stats (which the reconciler
+     * would then commit). The fix disables stripe capture on this path, so it emits NO stripe-addressed
+     * fragment — a safe miss; a warm aggregate re-scans rather than serving a fabricated single-stripe
+     * count/min/max. Reconciling whatever is emitted must therefore commit no whole-file stripe fold.
+     */
+    public void testAllScopePlainJacksonBulkPathSafeMissesNoBogusStripes() throws Exception {
+        // ASCII bytes are identical under ISO-8859-1, so the data parses the same; the non-UTF-8 encoding
+        // only forces the read off the byte-tracking path onto the plain Jackson bulk iterator.
+        byte[] header = "n\n".getBytes(StandardCharsets.US_ASCII);
+        byte[] data = asciiCsv(0, 10);
+        byte[] full = concat(header, data);
+        long stripe = 4; // many stripes over the file, so a collapse-to-one-stripe bug would be visible
+
+        List<Map<String, Object>> frags = captureScopedWithEncoding(
+            full,
+            0,
+            true,
+            true,
+            1000,
+            stripe,
+            List.of("n"),
+            StripeColumnScope.ALL,
+            "ISO-8859-1"
+        );
+        // Stripe capture is disabled: no emitted contribution may carry the stripe-addressing keys. Pre-fix,
+        // every row collapsed onto stripe 0 and a stripe-addressed fragment (carrying STRIPE_SIZE_KEY /
+        // STRIPE_ORDINAL_KEY) was emitted; post-fix none is, so the coordinator's stripe fold has nothing.
+        for (Map<String, Object> frag : frags) {
+            assertFalse("no fragment may be stripe-addressed (capture must be disabled)", frag.containsKey(ExternalStats.STRIPE_SIZE_KEY));
+            assertFalse("no fragment may carry a stripe ordinal", frag.containsKey(ExternalStats.STRIPE_ORDINAL_KEY));
+        }
+    }
+
+    /** Capture variant that also overrides the read encoding, to steer onto the plain Jackson bulk path. */
+    private List<Map<String, Object>> captureScopedWithEncoding(
+        byte[] bytes,
+        long baseOffset,
+        boolean firstSplit,
+        boolean fileFinal,
+        int batchSize,
+        long stripeSize,
+        List<String> projectedColumns,
+        StripeColumnScope scope,
+        String encoding
+    ) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        boolean headerRow = projectedColumns != null;
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(batchSize)
+            .recordAligned(true)
+            .firstSplit(firstSplit)
+            .lastSplit(true)
+            .splitStartByte(baseOffset)
+            .stats(baseOffset, stripeSize, fileFinal)
+            .statsColumnScope(scope)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, headerRow, CsvFormatReader.CONFIG_ENCODING, encoding)
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
     private static byte[] concat(byte[] a, byte[] b) {
         byte[] out = new byte[a.length + b.length];
         System.arraycopy(a, 0, out, 0, a.length);

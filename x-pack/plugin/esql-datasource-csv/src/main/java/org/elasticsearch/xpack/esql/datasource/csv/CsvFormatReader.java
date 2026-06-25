@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvParser;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
@@ -2006,7 +2007,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private ByteOffsetTrackingReader bulkByteTracker;
         /** The Jackson bulk mapping iterator, retained to read each row's start char offset. */
-        private com.fasterxml.jackson.databind.MappingIterator<List<?>> bulkRows;
+        private MappingIterator<List<?>> bulkRows;
         /** Last bulk-path char offset queried, to enforce the tracker's non-decreasing contract / detect anomalies. */
         private long bulkLastCharOffset = 0L;
 
@@ -2382,6 +2383,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         // Jackson path or re-decoding. Non-UTF-8 falls through and stripe capture safe-misses.
                         csvIterator = newTrackedJacksonBulkIterator();
                     } else {
+                        // Plain Jackson bulk path: neither a byte tracker (set only on the UTF-8 stripe path
+                        // above) nor the record-reader path (rowPositionSlot >= 0) is active, so recordReader is
+                        // never advanced. Any per-row offset would be derived from its frozen byte accounting and
+                        // collapse every row onto one stripe — a wrong warm count/min/max. If stripe capture would
+                        // otherwise be attempted here (e.g. ALL scope on a non-UTF-8 input), disable it so the read
+                        // safe-misses and a warm aggregate re-scans rather than serving fabricated per-stripe stats.
+                        if (statsStripeSize > 0) {
+                            stripeCaptureDisabled = true;
+                        }
                         csvIterator = newJacksonBulkIterator(reader);
                     }
                 }

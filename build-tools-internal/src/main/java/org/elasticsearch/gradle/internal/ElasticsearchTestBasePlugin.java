@@ -113,6 +113,10 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             });
             test.getJvmArgumentProviders().add(nonInputProperties);
             test.getExtensions().add("nonInputProperties", nonInputProperties);
+            test.getJvmArgumentProviders().add(() -> {
+                int javaFeature = Integer.parseInt(test.getJavaVersion().getMajorVersion());
+                return javaFeature >= 21 && javaFeature <= 24 ? List.of("--add-modules=jdk.incubator.vector") : List.of();
+            });
 
             test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName().replace("#", "_")));
             test.setMaxParallelForks(Integer.parseInt(System.getProperty("tests.jvms", buildParams.get().getDefaultParallel().toString())));
@@ -137,7 +141,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 // Needed by UninitializedArrays to reflectively access jdk.internal.misc.Unsafe
                 "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
                 "--enable-native-access=ALL-UNNAMED",
-                "--add-modules=jdk.incubator.vector",
                 "-XX:+HeapDumpOnOutOfMemoryError",
                 "-XX:-UseGCOverheadLimit"
             );

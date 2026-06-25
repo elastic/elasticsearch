@@ -48,7 +48,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         );
 
         Set<DataType> taggedTypes = new HashSet<>();
-        List<DataType> extraBoth = List.of(
+        List<DataType> extra = List.of(
             DataType.VERSION,
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,
@@ -62,8 +62,8 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.TDIGEST
         );
-        searchFieldTypes.addAll(extraBoth);
-        taggedTypes.addAll(extraBoth);
+        searchFieldTypes.addAll(extra);
+        taggedTypes.addAll(extra);
 
         // FLATTENED is supported but intentionally not in @FunctionInfo, so it stays untagged (not in taggedTypes).
         searchFieldTypes.add(DataType.FLATTENED);

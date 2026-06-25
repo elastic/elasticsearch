@@ -31,6 +31,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.SplittableRandom;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -156,17 +157,59 @@ public class CsvReadBenchmark {
     }
 
     /**
-     * Produces a typed-header text fixture matching the four-column schema used by
-     * the sibling format benches. The header line carries ESQL type annotations
-     * ({@code id:long}, etc.) so the reader doesn't have to guess types.
+     * Produces a typed-header text fixture matching the four-column schema used by the sibling format
+     * benches. The header line carries ESQL type annotations ({@code id:long}, etc.) so the reader
+     * doesn't have to guess types.
+     * <p>
+     * The data is deterministic (fixed-seed PRNG) but shaped to resemble real CSV rather than the
+     * degenerate "every column is the row index" fixture: multi-digit ids, signed integers over a wide
+     * range, variable-length ASCII {@code name} values, real decimals, and a sprinkling of nulls (empty
+     * fields). This keeps the min/max accumulator, the UTF-8 keyword encoder, and the null classifier on
+     * realistic input. All fields are plain (no quoting, no non-ASCII).
      */
     static byte[] generateFixture(int rowCount, char separator) {
-        StringBuilder sb = new StringBuilder(rowCount * 40);
+        StringBuilder sb = new StringBuilder(rowCount * 48);
         sb.append("id:long").append(separator).append("value:integer").append(separator);
         sb.append("name:keyword").append(separator).append("score:double\n");
+        SplittableRandom rnd = new SplittableRandom(0x5EEDL);
+        String[] firstNames = {
+            "James",
+            "Mary",
+            "Robert",
+            "Patricia",
+            "John",
+            "Jennifer",
+            "Michael",
+            "Linda",
+            "David",
+            "Barbara",
+            "William",
+            "Elizabeth",
+            "Nakamura" };
+        String[] lastNames = {
+            "Smith",
+            "Johnson",
+            "Williams",
+            "Brown",
+            "Garcia",
+            "Miller",
+            "Rodriguez",
+            "Martinez",
+            "Anderson",
+            "Thompson" };
         for (int i = 0; i < rowCount; i++) {
-            sb.append(i).append(separator).append(i).append(separator);
-            sb.append("row-").append(i).append(separator).append(i * 1.5).append('\n');
+            // id: increasing primary-key-ish with small gaps (realistic auto-increment with deletions).
+            long id = 1_000_000L + (long) i * 3 + rnd.nextInt(3);
+            // value: ~6% null, else a signed integer over a wide range (multi-digit, both signs).
+            String value = rnd.nextInt(100) < 6 ? "" : Integer.toString(rnd.nextInt(2_000_000) - 1_000_000);
+            // name: usually "First Last" (space-separated, never quoted), sometimes a single token.
+            String name = rnd.nextInt(100) < 70
+                ? firstNames[rnd.nextInt(firstNames.length)] + " " + lastNames[rnd.nextInt(lastNames.length)]
+                : firstNames[rnd.nextInt(firstNames.length)];
+            // score: ~3% null, else a real decimal in [-10000.00, 10000.00].
+            String score = rnd.nextInt(100) < 3 ? "" : Double.toString((rnd.nextInt(2_000_001) - 1_000_000) / 100.0);
+            sb.append(id).append(separator).append(value).append(separator);
+            sb.append(name).append(separator).append(score).append('\n');
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }

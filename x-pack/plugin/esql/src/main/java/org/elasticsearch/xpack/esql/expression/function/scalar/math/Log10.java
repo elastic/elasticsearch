@@ -41,6 +41,8 @@ public class Log10 extends UnaryScalarFunction implements NonFiniteSupport {
         .unaryNonFiniteValueTransformation(Log10::new)
         .description("Calculates the decimal logarithm for all elements in the input vector.")
         .example("log10(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.LOG_DOMAIN_NOTE)
         .name("log10");
 
     /**

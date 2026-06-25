@@ -38,6 +38,8 @@ public class Acos extends AbstractTrigonometricFunction implements NonFiniteSupp
         .unaryValueTransformation((source, field) -> new Acos(source, field, true))
         .description("Calculates the arccosine of all elements in the input vector.")
         .example("acos(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.DOMAIN_PLUS_MINUS_ONE_NOTE)
         .name("acos");
 
     /**

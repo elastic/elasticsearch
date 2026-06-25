@@ -466,6 +466,62 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertThat(bytesReadFromBlobStore.get(), is(equalTo(bytesReadFromBlobStoreBeforeSearch)));
     }
 
+    public void testUploadedCommitPrefetchNeverHitsIndexingNode() throws Exception {
+        final boolean backgroundPrefetch = randomBoolean();
+        var nodeSettings = Settings.builder()
+            // Only prefetch uploaded commits — the indexing node is never involved
+            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)
+            .put(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING.getKey(), backgroundPrefetch)
+            .build();
+        var indexNode = startMasterAndIndexNode(nodeSettings);
+        var searchNode = startSearchNode(nodeSettings);
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+        // Break the idle barrier so prefetching is not skipped
+        assertNoFailures(prepareSearch(indexName));
+
+        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
+        var vBCCGen = latestCommitGeneration + 1;
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+
+        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
+        var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
+
+        var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
+        assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
+
+        // Track the search node's refresh pool to know when N-notification segment openings are done.
+        // processCommitNotifications() runs on REFRESH and blocks until VBCC cache fills complete,
+        // so draining REFRESH guarantees all N-notification indexing-node reads have finished.
+        ThreadPool searchThreadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
+        long preIndexingRefreshTasks = getNumberOfCompletedTasks(searchThreadPool, ThreadPool.Names.REFRESH);
+
+        var numberOfCommits = randomIntBetween(5, 8);
+        for (int j = 0; j < numberOfCommits; j++) {
+            // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
+            indexDocs(indexName, 10_000);
+            refresh(indexName);
+        }
+
+        // Wait for all N-notification segment openings (and their VBCC reads) to complete
+        assertNoRunningAndQueueTasks(searchThreadPool, ThreadPool.Names.REFRESH, preIndexingRefreshTasks);
+
+        // Snapshot indexing-node reads before the flush so we can assert M's prefetch adds nothing
+        var indexingNodeReadsBeforeFlush = bytesReadFromIndexingNode.bytesCount();
+
+        flush(indexName);
+
+        // Wait until the M notification's prefetch has completed
+        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(greaterThan(0L))));
+
+        // M notification's prefetch read from the blob store
+        assertThat(bytesReadFromBlobStore.get(), is(greaterThan(0L)));
+        // M notification's prefetch never contacted the indexing node
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(equalTo(indexingNodeReadsBeforeFlush)));
+    }
+
     public void testOnNonUploadedCommitNotificationsTryToPrefetchUploadedData() throws Exception {
         var nodeSettings = Settings.builder()
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)

@@ -111,6 +111,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.S
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.bccSizeBucket;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.bccTimestampSpanMinutes;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration.ZERO;
 import static org.hamcrest.Matchers.closeTo;
@@ -3165,8 +3166,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testBccTimestampSpanMinutesEmptyWhenNoTimestamps() {
-        assertThat(StatelessCommitService.bccTimestampSpanMinutes(List.of()), equalTo(OptionalDouble.empty()));
-        assertThat(StatelessCommitService.bccTimestampSpanMinutes(Arrays.asList(null, null)), equalTo(OptionalDouble.empty()));
+        assertThat(bccTimestampSpanMinutes(Stream.of()), equalTo(OptionalDouble.empty()));
+        assertThat(bccTimestampSpanMinutes(Stream.of(null, null)), equalTo(OptionalDouble.empty()));
     }
 
     public void testBccTimestampSpanMinutesAggregatesAcrossCommits() {
@@ -3177,7 +3178,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         {
             final long min = randomLongBetween(0, tenYearsMillis);
             final long max = min + randomLongBetween(0, oneYearMillis);
-            final OptionalDouble span = StatelessCommitService.bccTimestampSpanMinutes(List.of(new TimestampFieldValueRange(min, max)));
+            final OptionalDouble span = bccTimestampSpanMinutes(Stream.of(new TimestampFieldValueRange(min, max)));
             assertThat(span.isPresent(), is(true));
             assertThat(span.getAsDouble(), closeTo((double) (max - min) / 60_000d, 1e-9));
         }
@@ -3185,7 +3186,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         // zero-width range -> 0.0
         {
             final long ts = randomLongBetween(0, tenYearsMillis);
-            final OptionalDouble span = StatelessCommitService.bccTimestampSpanMinutes(List.of(new TimestampFieldValueRange(ts, ts)));
+            final OptionalDouble span = bccTimestampSpanMinutes(Stream.of(new TimestampFieldValueRange(ts, ts)));
             assertThat(span.isPresent(), is(true));
             assertThat(span.getAsDouble(), closeTo(0.0, 1e-9));
         }
@@ -3207,16 +3208,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ranges.add(null);
             Collections.shuffle(ranges, random());
 
-            final OptionalDouble span = StatelessCommitService.bccTimestampSpanMinutes(ranges);
+            final OptionalDouble span = bccTimestampSpanMinutes(ranges.stream());
             assertThat(span.isPresent(), is(true));
             assertThat(span.getAsDouble(), closeTo((double) (expectedMax - expectedMin) / 60_000d, 1e-9));
         }
     }
 
     public void testBccTimestampSpanMinutesDoesNotThrowOnHugeSpan() {
-        final OptionalDouble span = StatelessCommitService.bccTimestampSpanMinutes(
-            List.of(new TimestampFieldValueRange(Long.MIN_VALUE + 1, Long.MAX_VALUE))
-        );
+        final OptionalDouble span = bccTimestampSpanMinutes(Stream.of(new TimestampFieldValueRange(Long.MIN_VALUE + 1, Long.MAX_VALUE)));
         assertThat(span.isPresent(), is(true));
         assertThat(span.getAsDouble(), closeTo(((double) Long.MAX_VALUE - (double) (Long.MIN_VALUE + 1)) / 60_000d, 1.0));
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -1364,9 +1365,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
     }
 
     public void testBccTimestampRangeMetricRecordedOnUpload() throws Exception {
-        final var indexNode = startMasterAndIndexNode(
-            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).build()
-        );
+        final var indexNode = startMasterAndIndexNode();
 
         final var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
@@ -1395,8 +1394,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 max = Math.max(max, timestamp);
                 bulkRequest.add(new IndexRequest(indexName).source("@timestamp", timestamp));
             }
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             assertNoFailures(bulkRequest.get());
-            assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
         }
 
         final var shardId = findIndexShard(indexName).shardId();
@@ -1422,9 +1421,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
     }
 
     public void testBccMissingTimestampMetricRecordedWhenNoTimestampField() throws Exception {
-        final var indexNode = startMasterAndIndexNode(
-            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).build()
-        );
+        final var indexNode = startMasterAndIndexNode();
 
         final var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());

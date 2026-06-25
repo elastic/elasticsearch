@@ -109,6 +109,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
@@ -362,7 +363,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.bccMissingTimestampCounter = telemetryProvider.getMeterRegistry()
             .registerLongCounter(
                 BCC_MISSING_TIMESTAMP_METRIC,
-                "Number of uploaded batched compound commits that have no @timestamp range on any compound commit",
+                "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
                 "count"
             );
     }
@@ -887,11 +888,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     private void recordBccTimestampRangeMetric(VirtualBatchedCompoundCommit virtualBcc) {
-        final List<TimestampFieldValueRange> ranges = virtualBcc.getPendingCompoundCommits()
-            .stream()
-            .map(pc -> pc.getStatelessCompoundCommit().getTimestampFieldValueRange())
-            .toList(); // Stream.toList() permits null elements (CCs without a @timestamp)
-        final OptionalDouble spanMinutes = bccTimestampSpanMinutes(ranges);
+        final OptionalDouble spanMinutes = bccTimestampSpanMinutes(
+            virtualBcc.getPendingCompoundCommits().stream().map(pc -> pc.getStatelessCompoundCommit().getTimestampFieldValueRange())
+        );
         if (spanMinutes.isEmpty()) {
             bccMissingTimestampCounter.increment();
         } else {
@@ -3483,11 +3482,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     // visible for testing
-    static OptionalDouble bccTimestampSpanMinutes(final List<TimestampFieldValueRange> ranges) {
+    static OptionalDouble bccTimestampSpanMinutes(final Stream<TimestampFieldValueRange> ranges) {
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
         boolean any = false;
-        for (var range : ranges) {
+        for (final Iterator<TimestampFieldValueRange> it = ranges.iterator(); it.hasNext();) {
+            final TimestampFieldValueRange range = it.next();
             if (range == null) {
                 continue;
             }

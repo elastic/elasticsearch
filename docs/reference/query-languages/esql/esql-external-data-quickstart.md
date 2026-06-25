@@ -12,19 +12,15 @@ products:
 
 This guide walks you through connecting {{es}} to external data and querying it with {{esql}}. By the end, you will have a working data source, a dataset, and a query returning results from external storage.
 
+The example uses a publicly accessible S3 dataset, so you can follow along without AWS credentials.
+
 ## Before you begin
 
 Make sure you have the following:
 
 - An {{es}} deployment running version 9.5 or later, or a serverless project.
-- An Amazon S3 bucket (or S3-compatible store) containing data in a [supported format](esql-external-data.md#supported-file-formats).
-- Credentials with read access to the bucket, or a bucket that allows anonymous access.
 - The cluster `manage` privilege to create data sources.
 - The index `manage` privilege to create datasets.
-
-:::{important}
-When a data source includes credentials, {{es}} encrypts them before storing them in the cluster state. This is handled automatically in {{ech}} and {{serverless-short}} deployments. For self-managed, {{ece}}, and {{eck}} deployments, follow the [credential encryption setup steps](esql-external-data-reference.md#credential-encryption) before registering data sources with credentials.
-:::
 
 ## Quickstart
 
@@ -33,9 +29,9 @@ These steps walk you through registering a data source, creating a dataset, and 
 :::::::{stepper}
 
 ::::::{step} Register a data source
-A data source tells {{es}} how to connect to an external storage system. Create one by sending a `PUT` request with the connection type and credentials.
+A data source tells {{es}} how to connect to an external storage system. Create one by sending a `PUT` request with the connection type and settings.
 
-This example registers an S3 data source:
+This example registers a data source pointing at a public S3 bucket with anonymous access:
 
 ::::{tab-set}
 :group: api-examples
@@ -43,44 +39,35 @@ This example registers an S3 data source:
 :::{tab-item} Console
 :sync: console
 ```console
-PUT /_query/data_source/prod_s3_logs
+PUT /_query/data_source/public_blockchain
 {
-  "type": "s3", <1>
-  "description": "Production S3 logs bucket, us-east-1",
+  "type": "s3",
   "settings": {
-    "region": "us-east-1", <2>
-    "access_key": "AKIA...",
-    "secret_key": "wJal..."
+    "region": "us-east-2",
+    "auth": "none" <1>
   }
 }
 ```
-1. The data source type. Refer to [supported data source types](esql-external-data.md#supported-data-source-types) for the full list.
-2. Connection and authentication settings. Refer to the [data source settings](esql-external-data-reference.md#data-source-settings) for all available fields.
+1. `auth: "none"` enables anonymous access for public buckets. For private data, supply `access_key` and `secret_key` instead.
 :::
 
 :::{tab-item} curl
 :sync: curl
 ```bash
-curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
+curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/public_blockchain" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
   "type": "s3",
-  "description": "Production S3 logs bucket, us-east-1",
   "settings": {
-    "region": "us-east-1",
-    "access_key": "AKIA...",
-    "secret_key": "wJal..."
+    "region": "us-east-2",
+    "auth": "none"
   }
 }'
 ```
 :::
 
 ::::
-
-:::{tip}
-For public buckets that allow anonymous access, set `"auth": "none"` in the settings and omit the credential fields.
-:::
 
 Confirm that the data source was created by retrieving it:
 
@@ -90,33 +77,31 @@ Confirm that the data source was created by retrieving it:
 :::{tab-item} Console
 :sync: console
 ```console
-GET /_query/data_source/prod_s3_logs
+GET /_query/data_source/public_blockchain
 ```
 :::
 
 :::{tab-item} curl
 :sync: curl
 ```bash
-curl -X GET "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
+curl -X GET "${ELASTICSEARCH_URL}/_query/data_source/public_blockchain" \
   -H "Authorization: ApiKey ${API_KEY}"
 ```
 :::
 
 ::::
 
-The response includes all settings, with credential values replaced by `::es_redacted::`:
+The response includes all data source settings:
 
 ```json
 {
   "data_sources": [
     {
-      "name": "prod_s3_logs",
+      "name": "public_blockchain",
       "type": "s3",
-      "description": "Production S3 logs bucket, us-east-1",
       "settings": {
-        "region": "us-east-1",
-        "access_key": "::es_redacted::",
-        "secret_key": "::es_redacted::"
+        "region": "us-east-2",
+        "auth": "none"
       }
     }
   ]
@@ -131,7 +116,7 @@ Creating a data source does not validate connectivity to the external system. To
 ::::::{step} Create a dataset
 A dataset points at specific files within a data source and makes them queryable as a virtual index. It references a data source by name and specifies a resource path that identifies the files to read.
 
-This example creates a dataset that points at Parquet files in an S3 bucket:
+This example creates a dataset that points at Bitcoin transaction Parquet files in the AWS Public Blockchain Data bucket:
 
 ::::{tab-set}
 :group: api-examples
@@ -139,11 +124,10 @@ This example creates a dataset that points at Parquet files in an S3 bucket:
 :::{tab-item} Console
 :sync: console
 ```console
-PUT /_query/dataset/access_logs
+PUT /_query/dataset/btc_transactions
 {
-  "data_source": "prod_s3_logs", <1>
-  "resource": "s3://logs-bucket/access/**/*.parquet", <2>
-  "description": "Production access logs"
+  "data_source": "public_blockchain", <1>
+  "resource": "s3://aws-public-blockchain/v1.0/btc/transactions/**/*.parquet" <2>
 }
 ```
 1. The name of the data source to connect through.
@@ -153,13 +137,12 @@ PUT /_query/dataset/access_logs
 :::{tab-item} curl
 :sync: curl
 ```bash
-curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
+curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/btc_transactions" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-  "data_source": "prod_s3_logs",
-  "resource": "s3://logs-bucket/access/**/*.parquet",
-  "description": "Production access logs"
+  "data_source": "public_blockchain",
+  "resource": "s3://aws-public-blockchain/v1.0/btc/transactions/**/*.parquet"
 }'
 ```
 :::
@@ -174,14 +157,14 @@ Confirm that the dataset was created:
 :::{tab-item} Console
 :sync: console
 ```console
-GET /_query/dataset/access_logs
+GET /_query/dataset/btc_transactions
 ```
 :::
 
 :::{tab-item} curl
 :sync: curl
 ```bash
-curl -X GET "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
+curl -X GET "${ELASTICSEARCH_URL}/_query/dataset/btc_transactions" \
   -H "Authorization: ApiKey ${API_KEY}"
 ```
 :::
@@ -194,10 +177,9 @@ The response includes the full dataset definition:
 {
   "datasets": [
     {
-      "name": "access_logs",
-      "data_source": "prod_s3_logs",
-      "resource": "s3://logs-bucket/access/**/*.parquet",
-      "description": "Production access logs"
+      "name": "btc_transactions",
+      "data_source": "public_blockchain",
+      "resource": "s3://aws-public-blockchain/v1.0/btc/transactions/**/*.parquet"
     }
   ]
 }
@@ -213,11 +195,10 @@ Once a dataset exists, query it with `FROM` just like any {{es}} index:
 :::{tab-item} {{esql}}
 :sync: esql
 ```esql
-FROM access_logs
-| WHERE status_code >= 400
-| STATS error_count = COUNT(*) BY service_name
-| SORT error_count DESC
-| LIMIT 20
+FROM btc_transactions
+| WHERE fee > 0
+| STATS tx_count = COUNT(*), avg_fee = AVG(fee) BY is_coinbase
+| SORT tx_count DESC
 ```
 :::
 
@@ -226,7 +207,7 @@ FROM access_logs
 ```console
 POST /_query
 {
-  "query": "FROM access_logs | WHERE status_code >= 400 | STATS error_count = COUNT(*) BY service_name | SORT error_count DESC | LIMIT 20"
+  "query": "FROM btc_transactions | WHERE fee > 0 | STATS tx_count = COUNT(*), avg_fee = AVG(fee) BY is_coinbase | SORT tx_count DESC"
 }
 ```
 :::
@@ -238,7 +219,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-  "query": "FROM access_logs | WHERE status_code >= 400 | STATS error_count = COUNT(*) BY service_name | SORT error_count DESC | LIMIT 20"
+  "query": "FROM btc_transactions | WHERE fee > 0 | STATS tx_count = COUNT(*), avg_fee = AVG(fee) BY is_coinbase | SORT tx_count DESC"
 }'
 ```
 :::
@@ -249,6 +230,29 @@ If the query returns results, your external data source is working. You can now 
 ::::::
 
 :::::::
+
+## Use your own data
+
+To connect to a private S3 bucket, supply credentials when registering the data source:
+
+```console
+PUT /_query/data_source/my_s3_logs
+{
+  "type": "s3",
+  "description": "Production logs bucket",
+  "settings": {
+    "region": "us-east-1",
+    "access_key": "AKIA...",
+    "secret_key": "wJal..."
+  }
+}
+```
+
+:::{important}
+When a data source includes credentials, {{es}} encrypts them before storing them in the cluster state. This is handled automatically in {{ech}} and {{serverless-short}} deployments. For self-managed, {{ece}}, and {{eck}} deployments, you must configure [credential encryption](esql-external-data-reference.md#credential-encryption) first.
+:::
+
+Credential values are never returned in API responses. When you retrieve a data source, secrets are replaced by `::es_redacted::`.
 
 ## Next steps
 

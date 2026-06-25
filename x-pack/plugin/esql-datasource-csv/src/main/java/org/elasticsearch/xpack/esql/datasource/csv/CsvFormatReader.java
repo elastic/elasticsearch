@@ -1890,6 +1890,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private int[] projectedIdx;
         private DataType[] projectedTypes;
         private Attribute[] projectedAttrs;
+        /**
+         * Projection slots backed by a {@code KEYWORD}/{@code TEXT} source column: the only columns
+         * that receive a byte-size hint when building blocks (see {@link #convertRowsToPage}).
+         * Precomputed once here so the per-batch hint pass iterates only string columns rather than
+         * scanning every projected column for every row (which would add an O(rows x columns) walk
+         * even for purely numeric projections).
+         */
+        private int[] byteHintColumns;
         private int columnCount;
         /** Total number of columns in the file schema (not just projected). */
         private int schemaColumnCount;
@@ -2454,6 +2462,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 projectedAttrs[i] = attr;
                 projectedTypes[i] = attr.dataType();
             }
+            int[] stringSlots = new int[columnCount];
+            int stringColumns = 0;
+            for (int i = 0; i < columnCount; i++) {
+                if (projectedTypes[i] == DataType.KEYWORD || projectedTypes[i] == DataType.TEXT) {
+                    stringSlots[stringColumns++] = i;
+                }
+            }
+            byteHintColumns = Arrays.copyOf(stringSlots, stringColumns);
             rowBuffer = new Object[columnCount];
 
             projectedFieldSet = new BitSet(schemaSize);
@@ -2495,18 +2511,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // Only KEYWORD/TEXT get a byte-size hint: their stored bytes are the source string's UTF-8 bytes
                 // verbatim, so the column's byte size is knowable here and lets BytesRefArray size its buffer once.
                 // Fixed-width types are already sized by the position count; IP and VERSION map to BYTES_REF but
-                // store encoded bytes unrelated to the source length, so they stay unhinted. Hints are summed in
-                // one pass over rows to avoid scanning the batch once per string column.
+                // store encoded bytes unrelated to the source length, so they stay unhinted. byteHintColumns is
+                // precomputed to the string slots only, so the hint pass is skipped entirely for numeric
+                // projections and never walks non-string columns.
                 long[] byteHints = new long[columnCount];
-                for (String[] row : rows) {
-                    for (int i = 0; i < columnCount; i++) {
-                        DataType type = projectedTypes[i];
-                        if (type != DataType.KEYWORD && type != DataType.TEXT) {
-                            continue;
-                        }
-                        int si = projectedIdx[i];
-                        if (si < row.length && row[si] != null) {
-                            byteHints[i] += UnicodeUtil.calcUTF16toUTF8Length(row[si], 0, row[si].length());
+                if (byteHintColumns.length > 0) {
+                    for (String[] row : rows) {
+                        for (int slot : byteHintColumns) {
+                            int si = projectedIdx[slot];
+                            if (si < row.length && row[si] != null) {
+                                byteHints[slot] += UnicodeUtil.calcUTF16toUTF8Length(row[si], 0, row[si].length());
+                            }
                         }
                     }
                 }

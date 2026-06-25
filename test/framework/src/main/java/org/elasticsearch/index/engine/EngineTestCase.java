@@ -45,6 +45,7 @@ import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -178,8 +179,11 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected IndexSettings defaultSettings;
     protected String codecName;
+
     protected Path primaryTranslogDir;
     protected Path replicaTranslogDir;
+    protected Path mapperDir;
+
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
     protected static SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
@@ -257,7 +261,8 @@ public abstract class EngineTestCase extends ESTestCase {
             parsedMapping.put(RoutingFieldMapper.NAME, Map.of("doc_values", true));
             defaultMapping = Strings.toString(XContentFactory.jsonBuilder().map(parsedMapping));
         }
-        mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping, extraMappers());
+        mapperDir = createTempDir("mapper-service-path-home");
+        mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping, extraMappers(), mapperDir);
         translogHandler = createTranslogHandler(mapperService);
         mergeMetrics = MergeMetrics.NOOP;
         engine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy());
@@ -304,6 +309,9 @@ public abstract class EngineTestCase extends ESTestCase {
             }
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool), nodeEnvironment);
+            if (LuceneTestCase.LEAVE_TEMPORARY == false) {
+                IOUtils.rm(primaryTranslogDir, replicaTranslogDir, mapperDir);
+            }
         }
     }
 
@@ -1398,14 +1406,14 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static MapperService createMapperService() throws IOException {
-        return createMapperService(Settings.EMPTY, "{}", List.of());
+        return createMapperService(Settings.EMPTY, "{}");
     }
 
     public static MapperService createMapperService(Settings settings, String mappings) throws IOException {
-        return createMapperService(settings, mappings, List.of());
+        return createMapperService(settings, mappings, List.of(), createTempDir("mapper-service"));
     }
 
-    public static MapperService createMapperService(Settings settings, String mappings, List<MapperPlugin> extraMappers)
+    public static MapperService createMapperService(Settings settings, String mappings, List<MapperPlugin> extraMappers, Path tempDir)
         throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(settings))
@@ -1414,7 +1422,7 @@ public abstract class EngineTestCase extends ESTestCase {
         MapperService mapperService = MapperTestUtils.newMapperService(
             extraMappers,
             new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
-            createTempDir(),
+            tempDir,
             indexMetadata.getSettings(),
             "index"
         );

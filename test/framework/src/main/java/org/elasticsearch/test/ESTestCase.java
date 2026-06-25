@@ -109,6 +109,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.RefCounted;
@@ -303,6 +304,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final String UPPER_ALPHA_CHARACTERS = LOWER_ALPHA_CHARACTERS.toUpperCase(Locale.ROOT);
     private static final String DIGIT_CHARACTERS = "0123456789";
     private static final String ALPHANUMERIC_CHARACTERS = LOWER_ALPHA_CHARACTERS + UPPER_ALPHA_CHARACTERS + DIGIT_CHARACTERS;
+
+    // Cleanup for temporary files emitted by buildEnvSettings / newNodeEnvironment
+    private final List<Path> buildEnvSettingsPaths = new ArrayList<>();
+
+    @After
+    public void cleanupEnvSettingsPaths() throws Exception {
+        if (LuceneTestCase.LEAVE_TEMPORARY == false) {
+            final var paths = buildEnvSettingsPaths.toArray(new Path[0]);
+            buildEnvSettingsPaths.clear();
+            IOUtils.rm(paths);
+        }
+    }
 
     static {
         Random random = initTestSeed();
@@ -1844,14 +1857,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    /** Returns a random number of temporary paths. */
-    public String[] tmpPaths() {
+    private static Path[] tmpPathsAsPaths() {
         final int numPaths = TestUtil.nextInt(random(), 1, 3);
-        final String[] absPaths = new String[numPaths];
+        final Path[] absPaths = new Path[numPaths];
         for (int i = 0; i < numPaths; i++) {
-            absPaths[i] = createTempDir().toAbsolutePath().toString();
+            absPaths[i] = createTempDir();
         }
         return absPaths;
+    }
+
+    private static String[] absolutePathStrings(Path[] paths) {
+        final String[] absPaths = new String[paths.length];
+        for (int i = 0; i < absPaths.length; i++) {
+            absPaths[i] = paths[i].toAbsolutePath().toString();
+        }
+        return absPaths;
+    }
+
+    /** Returns a random number of temporary paths. */
+    public String[] tmpPaths() {
+        return absolutePathStrings(tmpPathsAsPaths());
     }
 
     public NodeEnvironment newNodeEnvironment() throws IOException {
@@ -1859,10 +1884,17 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public Settings buildEnvSettings(Settings settings) {
+        final var temp = createTempDir("build-env-settings");
+        final var dataPaths = tmpPathsAsPaths();
+
+        // register all these paths for cleanup after the test has finished
+        buildEnvSettingsPaths.add(temp);
+        buildEnvSettingsPaths.addAll(Arrays.asList(dataPaths));
+
         return Settings.builder()
             .put(settings)
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+            .put(Environment.PATH_HOME_SETTING.getKey(), temp.toAbsolutePath())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), absolutePathStrings(dataPaths))
             .build();
     }
 

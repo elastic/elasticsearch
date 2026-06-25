@@ -71,6 +71,27 @@ public class Stats {
         return max - min;
     }
 
+    /**
+     * Robust line over {@code values[start, start+length)} as {@code {intercept_at_start, slope}},
+     * via Theil-Sen (median pairwise slope, then median intercept) so a boundary spike does not pull
+     * the fit.
+     */
+    public static double[] theilSenLine(double[] values, int start, int length) {
+        double[] slopes = new double[length * (length - 1) / 2];
+        int s = 0;
+        for (int j = 0; j < length; j++) {
+            for (int k = j + 1; k < length; k++) {
+                slopes[s++] = (values[start + k] - values[start + j]) / (k - j);
+            }
+        }
+        double slope = median(slopes);
+        double[] intercepts = new double[length];
+        for (int j = 0; j < length; j++) {
+            intercepts[j] = values[start + j] - slope * j;
+        }
+        return new double[] { median(intercepts), slope };
+    }
+
     public static double weightedMean(double[] values, double[] weights, int start, int end) {
         double weightedSum = 0.0;
         double weightTotal = 0.0;

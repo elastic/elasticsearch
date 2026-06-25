@@ -144,4 +144,120 @@ public class StatsTests extends ESTestCase {
         assertTrue("stabilized RSS is strictly positive", Stats.stabilizeRss(0.0, 100, 4.0) > 0.0);
         assertTrue("stabilization only ever adds to the RSS", Stats.stabilizeRss(10.0, 100, 4.0) > 10.0);
     }
+
+    public void testRange() {
+        assertEquals(6.0, Stats.range(new double[] { 3.0, 7.0, 1.0, 5.0 }), 1e-12);
+        assertEquals("a constant array has zero range", 0.0, Stats.range(new double[] { 4.0, 4.0, 4.0 }), 1e-12);
+        assertEquals("an empty array has zero range", 0.0, Stats.range(new double[0]), 1e-12);
+    }
+
+    public void testTheilSenLineRecoversALineAndIsRobustToASpike() {
+        // y = 2 + 3 x on [0, 6): every pairwise slope is 3 and every intercept is 2.
+        double[] clean = { 2.0, 5.0, 8.0, 11.0, 14.0, 17.0 };
+        double[] line = Stats.theilSenLine(clean, 0, clean.length);
+        assertEquals("intercept at start", 2.0, line[0], 1e-9);
+        assertEquals("slope", 3.0, line[1], 1e-9);
+
+        // A single gross outlier (index 3) must not move the median slope or intercept.
+        double[] spiky = { 2.0, 5.0, 8.0, 100.0, 14.0, 17.0, 20.0 };
+        double[] robust = Stats.theilSenLine(spiky, 0, spiky.length);
+        assertEquals("Theil-Sen ignores the lone spike's slope", 3.0, robust[1], 1e-9);
+        assertEquals("Theil-Sen ignores the lone spike's intercept", 2.0, robust[0], 1e-9);
+
+        // The intercept is reported at the window start, so a sub-range is fit in its own local coordinates.
+        double[] offsetLine = { -100.0, -100.0, 2.0, 5.0, 8.0, 11.0 };
+        double[] sub = Stats.theilSenLine(offsetLine, 2, 4);
+        assertEquals("intercept at the sub-range start", 2.0, sub[0], 1e-9);
+        assertEquals(3.0, sub[1], 1e-9);
+    }
+
+    public void testQuantizationStepRecoversGranularityAndIgnoresStepsAndNoise() {
+        // Many unit first-differences -> the granularity is 1, and a lone fractional gap (0.5) and a larger
+        // gap (1.5) that do not recur are skipped.
+        double[] integerish = { 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 5.5, 7.0, 8.0, 9.0 };
+        assertEquals(1.0, Stats.quantizationStep(integerish, 0, integerish.length), 1e-12);
+
+        // A clean step (one non-zero difference) is structure, not granularity: no floor.
+        double[] step = { 5.0, 5.0, 5.0, 9.0, 9.0, 9.0, 9.0 };
+        assertEquals("a lone step is not a quantization", 0.0, Stats.quantizationStep(step, 0, step.length), 1e-12);
+
+        // Continuous data: the smallest difference does not recur within tolerance, so there is no floor.
+        Random random = new Random(11);
+        double[] continuous = new double[200];
+        for (int i = 0; i < continuous.length; i++) {
+            continuous[i] = random.nextGaussian();
+        }
+        assertEquals("continuous data has no quantization step", 0.0, Stats.quantizationStep(continuous, 0, continuous.length), 1e-12);
+    }
+
+    public void testKdeBandwidthFloorRescuesADegenerateBackgroundButIsInertOtherwise() {
+        // A constant background has zero spread; the floor is returned so the gate can still call an outlier.
+        double[] constant = { 3.0, 3.0, 3.0, 3.0 };
+        assertEquals(0.05, Stats.kdeBandwidth(constant, 0.05), 1e-12);
+
+        // On a well-spread background Silverman's bandwidth dominates and a tiny floor is inert.
+        Random random = new Random(17);
+        double[] spread = new double[200];
+        for (int i = 0; i < spread.length; i++) {
+            spread[i] = random.nextGaussian();
+        }
+        assertEquals(
+            "a negligible floor leaves Silverman's bandwidth unchanged",
+            Stats.kdeBandwidth(spread),
+            Stats.kdeBandwidth(spread, 1e-9),
+            1e-12
+        );
+    }
+
+    public void testLogErfcMatchesLogOfErfcAndStaysFiniteInTheFarTail() {
+        assertEquals("erfc(0) = 1", 0.0, Stats.logErfc(0.0), 1e-12);
+        assertEquals("log(erfc(1))", -1.849, Stats.logErfc(1.0), 1e-2);
+        assertEquals("log(erfc(2))", -5.365, Stats.logErfc(2.0), 1e-2);
+        // Far in the tail erfc underflows to 0, but the asymptotic branch keeps the log finite and ~ -x^2.
+        double far = Stats.logErfc(30.0);
+        assertTrue("far-tail log-erfc is finite", Double.isFinite(far));
+        assertTrue("and very negative, near -x^2", far < -800.0);
+        assertTrue("and monotonically decreasing", Stats.logErfc(40.0) < far);
+    }
+
+    public void testLogTailProbabilityDoesNotUnderflowWhereTheLinearTailWould() {
+        Random random = new Random(23);
+        double[] background = new double[200];
+        for (int i = 0; i < background.length; i++) {
+            background[i] = random.nextGaussian();
+        }
+        double bandwidth = Stats.kdeBandwidth(background);
+
+        // For a moderate value the log-tail is just the log of the linear tail.
+        double moderate = 1.5;
+        assertEquals(
+            Math.log(Stats.kdeTailProbability(moderate, background, bandwidth, 1)),
+            Stats.kdeLogTailProbability(moderate, background, bandwidth, 1),
+            1e-9
+        );
+
+        // Far in the tail the linear probability underflows to exactly 0, but the log-tail stays finite and
+        // very negative -- this is the whole point of carrying log probabilities through the pulse gate.
+        double far = 20.0;
+        assertEquals("the linear tail underflows", 0.0, Stats.kdeTailProbability(far, background, bandwidth, 1), 0.0);
+        double logFar = Stats.kdeLogTailProbability(far, background, bandwidth, 1);
+        assertTrue("the log tail is finite", Double.isFinite(logFar));
+        assertTrue("and very negative", logFar < -100.0);
+    }
+
+    public void testAsinhStabilizationFamily() {
+        assertEquals(0.0, Stats.asinh(0.0), 1e-12);
+        assertEquals("asinh(1) = ln(1 + sqrt(2))", 0.881373587, Stats.asinh(1.0), 1e-9);
+        assertEquals("asinh is odd", -Stats.asinh(1.0), Stats.asinh(-1.0), 1e-12);
+
+        // asinhStabilize(x, s) = asinh(x / s), elementwise.
+        double[] stabilized = Stats.asinhStabilize(new double[] { 3.0, -3.0 }, 3.0);
+        assertEquals(Stats.asinh(1.0), stabilized[0], 1e-12);
+        assertEquals(Stats.asinh(-1.0), stabilized[1], 1e-12);
+
+        // asinhScale is a robust spread (IQR / 1.349). For 1..9 the IQR is 7 - 3 = 4.
+        assertEquals(4.0 / 1.349, Stats.asinhScale(new double[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 }), 1e-9);
+        // A constant series has no spread; the scale falls back to 1.0 rather than 0.
+        assertEquals("degenerate spread falls back to 1", 1.0, Stats.asinhScale(new double[] { 5.0, 5.0, 5.0, 5.0 }), 1e-12);
+    }
 }

@@ -51,13 +51,23 @@ so it is immune to that, and a small RSS floor keeps the logarithm finite so a p
 rewarded without bound.
 
 Before PELT runs, the points are robustly down-weighted (`StructuralChangeDetector.localDeviationWeights`).
-Each point is weighted by a redescending Tukey biweight of its residual from a rolling-median baseline, so
-a short excursion loses influence on the fit while a sustained regime keeps full weight. Crucially the
-residual is judged against a local robust scale (the MAD of residuals in a window of about a segment, capped
-by the global composite scale), not a global one. On a heteroscedastic series this is essential: a spike
-sitting on a low-variance regime is many *local* sigma and is suppressed, even though it is a fraction of
-a sigma against a global scale dominated by some noisier regime elsewhere — and leaving it at full weight
-would pull a nearby boundary off the true change.
+Each point is weighted by a **Cauchy (Lorentzian) M-estimator weight** of its residual from a rolling-median
+baseline, $w = 1/(1 + (u/c)^2)$ with $u$ the residual in robust-sigma units and $c \approx 2.385$ (the
+classic 95%-efficiency tuning). This is the IRLS weight of the loss $\rho(u) = \log(1 + (u/c)^2)$, which
+grows only *logarithmically*, so a gross excursion's contribution to the segment cost saturates rather than
+dominating it. That behaviour is deliberately different from a redescending estimator (e.g. Tukey biweight):
+on heavy-tailed data a frequent large-residual population is progressively *discounted*, not hard-rejected —
+hard rejection collapses the effective sample and destabilises the fit, whereas the weighted residual-sum
+remains a smooth, well-conditioned surrogate (it is the tangent quadratic majorizer of the Cauchy loss, so a
+weighted-Gaussian BIC is a one-step robust cost). True point spikes are owned by the pulse stream regardless.
+
+Crucially the residual is judged against a *local* robust scale (the MAD of residuals in a window of about a
+segment), not a global one, capped above by the global composite scale. On a heteroscedastic series this is
+essential: a spike sitting on a low-variance regime is many *local* sigma and is suppressed, even though it is
+a fraction of a sigma against a global scale dominated by some noisier regime elsewhere — and leaving it at
+full weight would pull a nearby boundary off the true change. The local scale is also held off zero (a
+fraction of the global scale, and the data's quantization step) so it cannot collapse on a quiet or quantized
+stretch and make ordinary fluctuations read as many local sigma.
 
 PELT's candidates are then verified and classified (`StructuralChangeClassifier`). PELT already produces
 a globally-optimal penalised segmentation, so its candidates are taken as the boundaries directly. Each
@@ -90,6 +100,17 @@ Two choices matter here:
   because its segments are much shorter (the channel is `1/window` the length): a more flexible null would
   absorb a genuine low-high-low variance bump.
 
+The classifier adds a **full-resolution variance backstop on the value channel**. At a boundary that is not a
+significant *mean* change, the two sides' noise levels are compared directly: each side's variance is the IQR
+of its first differences (first-differencing removes level/trend; the IQR's 25%-per-tail breakdown keeps a
+lone spike from posing as a variance regime), scored as a one-variance null against a two-variance split in
+the same BIC currency. This catches a short, strong variance change that the coarser, discounted dispersion
+channel — sampling only once per window — misses. Two calibrations keep it honest: both side-variances are
+floored at one quantization step squared (below the measurement granularity the IQR of a discrete difference
+distribution is unstable and a near-constant integer oscillation would otherwise read as a huge variance
+ratio), and the effective sample size is discounted to the IQR's ~0.35 Gaussian efficiency, so the test fires
+only on a genuinely strong change rather than on the extra noise of a robust, autocorrelated scale estimate.
+
 ## Point anomalies (spikes and dips)
 
 Spikes and dips are point excursions from a local rolling-median baseline. Working off the local residual
@@ -118,6 +139,22 @@ The pipeline is:
    A recurring population is still rejected, because its representatives are judged against their many
    remaining peers.
 
+   The gate runs in an **asinh-stabilised value space** ($\operatorname{asinh}(x/s)$): telemetry noise is
+   typically multiplicative, so a single KDE bandwidth on raw values is far too narrow up in the high-magnitude
+   tail and would flag ordinary large values. The transform is monotonic (the gate still asks "is this
+   magnitude one we see at other times?") but removes the magnitude dependence so one bandwidth is valid across
+   orders of magnitude. Two scales are used on purpose: the KDE *null* is the stabilised background **values**
+   (so a magnitude that recurs elsewhere has neighbours and is unsurprising), while the **bandwidth** is taken
+   from the stabilised **residuals**, not the values — a level change makes the value distribution bimodal and
+   would inflate a value-derived width, smearing the gate so a genuine within-regime spike after a step is
+   missed. The bandwidth itself is Silverman's rule on a **Winsorized** standard deviation (residuals clipped to
+   their central ~95% before taking the spread, so a heavy tail or a regime's sharp-transition residuals do not
+   inflate it), floored at a small fraction of the residual range **only** when the estimate would otherwise be
+   zero — that rescues a flat/degenerate background (where the empirical-tail fallback could not call any single
+   point significant) without engaging on well-spread data. The tail probability is evaluated by log-sum-exp
+   over the kernels with an asymptotic `logErfc` branch, so a value far in the tail yields a meaningful tiny
+   log-probability rather than underflowing to zero; events accordingly carry a **log p-value** end to end.
+
 ## Orchestration, de-duplication and indices
 
 `EventDetector` runs the structural value channel and the dispersion channel, then **de-duplicates** their
@@ -145,6 +182,16 @@ Real telemetry breaks naive implementations in a few specific ways, each handled
   is anomalous in its own neighbourhood); spike/dip detection wants a *global* scale (we genuinely care about
   global outliers). Using the wrong one in either place produces the characteristic failures — a missed spike
   on a low regime, or a high-variance regime reported as a run of spikes.
+- **Quantization-awareness.** Discrete telemetry (integer counts, rounded gauges) has a measurement
+  granularity `q`, and below it variance estimates are meaningless — a near-constant integer series can
+  manufacture overwhelmingly significant steps or variance shifts out of pure rounding. `q` is estimated
+  (`Stats.quantizationStep`) as the smallest first-difference magnitude that *recurs* (within a tight relative
+  tolerance): genuine quantization produces many differences of size ~`q`, whereas an isolated step shows up as
+  a handful of large, distinct differences whose smallest must not be mistaken for a granularity (that would
+  floor away the very signal). It feeds three floors: the per-point variance in the BIC is floored at `q²/12`
+  (the variance of a uniform quantum, so a numerically near-zero residual window cannot earn unbounded
+  significance), the value-channel variance backstop floors each side at `q²`, and the local weighting scale is
+  held off zero by `q`. On continuous data `q ≈ 0` and all three are inert.
 - Detection cost grows with the number of buckets, so a series longer than a cap (`MAX_SAMPLES`) is collapsed
   by `SeriesDownsampler` to two representatives per macro-bucket — the median and the largest-deviation extreme — 
   which preserves both the level and any spike. The downsampled series carries the original bucket indices, so

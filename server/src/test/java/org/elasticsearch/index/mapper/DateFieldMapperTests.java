@@ -608,16 +608,21 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupportInternal(ignoreMalformed, true);
+        return syntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
+        return syntheticSourceSupportInternal(ignoreMalformed, true, columnar);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
         // Serializing and deserializing BigDecimal values may lead to parsing errors, a test artifact.
-        return syntheticSourceSupportInternal(ignoreMalformed, false);
+        return syntheticSourceSupportInternal(ignoreMalformed, false, false);
     }
 
-    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal) {
+    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal, boolean columnar) {
         return new SyntheticSourceSupport() {
             private final DateFieldMapper.Resolution resolution = randomFrom(DateFieldMapper.Resolution.values());
             private final Object nullValue = usually()
@@ -629,8 +634,13 @@ public class DateFieldMapperTests extends MapperTestCase {
             private final DateFormatter formatter = resolution == DateFieldMapper.Resolution.MILLISECONDS
                 ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
                 : DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER;
-            // date fields have doc_values enabled by default, so multi_value: false can always be requested when the feature is on.
-            private final boolean enforceSingleValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+            // date fields have doc_values enabled by default, so multi_value: false can be requested in columnar mode.
+            private final boolean enforceSingleValue = columnar && randomBoolean();
+
+            @Override
+            public boolean isColumnar() {
+                return columnar;
+            }
 
             @Override
             public boolean enforcesSingleValue() {

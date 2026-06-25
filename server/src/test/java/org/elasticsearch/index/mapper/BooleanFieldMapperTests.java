@@ -311,11 +311,19 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     private class BooleanSyntheticSourceSupport implements SyntheticSourceSupport {
         Boolean nullValue = usually() ? null : randomBoolean();
         private boolean ignoreMalformed;
-        // boolean fields have doc_values enabled by default, so multi_value: false can always be requested when the feature is on.
-        private final boolean enforceSingleValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        private final boolean isColumnar;
+        // boolean fields have doc_values enabled by default, so multi_value: false can be requested in columnar mode.
+        private final boolean enforceSingleValue;
 
-        BooleanSyntheticSourceSupport(boolean ignoreMalformed) {
+        BooleanSyntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
             this.ignoreMalformed = ignoreMalformed;
+            this.isColumnar = columnar;
+            this.enforceSingleValue = columnar && randomBoolean();
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -366,12 +374,17 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new BooleanSyntheticSourceSupport(ignoreMalformed);
+        return syntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
+        return new BooleanSyntheticSourceSupport(ignoreMalformed, columnar);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode keepMode) {
-        return new BooleanSyntheticSourceSupport(ignoreMalformed) {
+        return new BooleanSyntheticSourceSupport(ignoreMalformed, false) {
             @Override
             public SyntheticSourceExample example(int maxVals) throws IOException {
                 var example = super.example(maxVals);

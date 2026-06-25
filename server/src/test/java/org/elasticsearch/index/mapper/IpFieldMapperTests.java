@@ -341,18 +341,30 @@ public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new IpSyntheticSourceSupport(ignoreMalformed);
+        return syntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
+        return new IpSyntheticSourceSupport(ignoreMalformed, columnar);
     }
 
     private static class IpSyntheticSourceSupport implements SyntheticSourceSupport {
         private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
         private final boolean ignoreMalformed;
         // Decided once per instance so that the generated mapping is stable across the throwaway and per-document examples.
-        private final boolean extendedDocValues = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        private final boolean enforceSingleValue = extendedDocValues && randomBoolean();
+        private final boolean isColumnar;
+        private final boolean enforceSingleValue;
 
-        private IpSyntheticSourceSupport(boolean ignoreMalformed) {
+        private IpSyntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
             this.ignoreMalformed = ignoreMalformed;
+            this.isColumnar = columnar;
+            this.enforceSingleValue = columnar && randomBoolean();
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -423,7 +435,7 @@ public class IpFieldMapperTests extends MapperTestCase {
             if (ignoreMalformed) {
                 b.field("ignore_malformed", true);
             }
-            if (extendedDocValues && enforceSingleValue) {
+            if (isColumnar && enforceSingleValue) {
                 b.startObject("doc_values");
                 b.field("multi_value", false);
                 b.endObject();

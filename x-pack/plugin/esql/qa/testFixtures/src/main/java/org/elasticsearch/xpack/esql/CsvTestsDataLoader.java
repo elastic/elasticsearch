@@ -77,6 +77,8 @@ public class CsvTestsDataLoader {
     private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
     private static final int BULK_DATA_SIZE = 100_000;
+    private static final String VIEW_SUPPORT_PROBE_NAME = "esql-view-support-probe";
+    private static final String VIEW_SUPPORT_PROBE_QUERY = "{\"query\":\"ROW x = 1\"}";
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(
@@ -711,7 +713,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
-        if (clusterHasViewSupport(client)) {
+        if (clusterSupportsViews(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
                 if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
@@ -726,7 +728,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void deleteViews(RestClient client) throws IOException {
-        if (clusterHasViewSupport(client)) {
+        if (clusterSupportsViews(client)) {
             logger.debug("Deleting views");
             for (var view : VIEW_CONFIGS.values()) {
                 deleteView(client, view.name);
@@ -832,7 +834,10 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static boolean clusterHasViewSupport(RestClient client) throws IOException {
+    public static boolean clusterSupportsViews(RestClient client) throws IOException {
+        final Set<Integer> unsupportedViewCrudStatusCodes = Set.of(400, 405, 410, 500);
+        final Set<Integer> ignoredProbeDeleteStatusCodes = Set.of(400, 404, 405, 410, 500);
+
         // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
         Request capRequest = new Request("GET", "/_capabilities");
         capRequest.addParameter("method", "POST");
@@ -850,34 +855,39 @@ public class CsvTestsDataLoader {
             return false;
         }
 
-        // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes (old or new)
-        // return 200 because @ServerlessScope is not enforced. In serverless mode an old node
-        // without @ServerlessScope(Scope.PUBLIC) on RestPutViewAction returns 410. A single probe
-        // cannot cover every node in a mixed-serverless cluster, but any 410 is a definitive signal
-        // that view loading will fail on at least some nodes.
+        // Step 2: probe the API path used by loadView (PUT /_query/view/{name}). In serverless mode
+        // an old node can still pass generic checks and read probes, but reject PUT with 410 because
+        // RestPutViewAction lacks the required @ServerlessScope.
         try {
-            client.performRequest(new Request("GET", "/_query/view"));
+            Request createProbeView = new Request("PUT", "/_query/view/" + VIEW_SUPPORT_PROBE_NAME);
+            createProbeView.setJsonEntity(VIEW_SUPPORT_PROBE_QUERY);
+            client.performRequest(createProbeView);
+            try {
+                client.performRequest(new Request("DELETE", "/_query/view/" + VIEW_SUPPORT_PROBE_NAME));
+            } catch (ResponseException e) {
+                if (ignoredProbeDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
+                    throw e;
+                }
+            }
             return true;
         } catch (ResponseException e) {
             int code = e.getResponse().getStatusLine().getStatusCode();
-            if (code == 410) {
-                return false; // serverless restriction — old node lacks @ServerlessScope
-            }
-            if (code == 400 || code == 500 || code == 405) {
-                return false; // older server that doesn't support the view API at all
+            // Serverless restriction (410) or old servers not supporting this view API path.
+            if (unsupportedViewCrudStatusCodes.contains(code)) {
+                return false;
             }
             throw e;
         }
     }
 
     private static void deleteView(RestClient client, String viewName) throws IOException {
+        final Set<Integer> ignoredDeleteStatusCodes = Set.of(400, 404, 405, 410, 500, 503);
         try {
             client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
         } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
             // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500.
             // 503 (master_not_discovered_exception) is transient and can occur in BWC mixed-cluster tests after node restarts.
-            if (code != 404 && code != 400 && code != 410 && code != 500 && code != 503) {
+            if (ignoredDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
                 logger.info("View delete error: {}", e.getMessage());
                 throw e;
             }

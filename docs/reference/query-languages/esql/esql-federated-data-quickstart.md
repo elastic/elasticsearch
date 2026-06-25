@@ -244,7 +244,7 @@ If the query returns results, your data source is working. You can now use the f
 ::::::{step} Query federated and indexed data together
 Datasets share the same namespace as regular indices, so you can query both in a single `FROM`. This lets you correlate external data with indexed data without ingesting anything.
 
-First, index a few sample documents to join against:
+First, index a few sample documents to query alongside the dataset:
 
 ```console
 POST /_bulk

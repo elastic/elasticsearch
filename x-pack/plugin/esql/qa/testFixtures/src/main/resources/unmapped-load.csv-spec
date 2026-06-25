@@ -194,7 +194,7 @@ book_no:keyword | author:text
 ;
 
 qstrTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 required_capability: qstr_function
 required_capability: fix_unmapped_fields_in_esrelation
 
@@ -212,7 +212,7 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 kqlTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 required_capability: kql_function
 required_capability: fix_unmapped_fields_in_esrelation
 
@@ -230,7 +230,7 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 matchTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 required_capability: match_function
 required_capability: fix_unmapped_fields_in_esrelation
 
@@ -248,7 +248,7 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 matchOperatorTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 required_capability: match_operator_colon
 required_capability: fix_unmapped_fields_in_esrelation
 
@@ -266,8 +266,7 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 renameTextMappedUnmappedAndNonExistentUnderLoad
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -286,8 +285,7 @@ text_state_unmapped     | unmapped-1     | null
 # AwaitsFix: https://github.com/elastic/elasticsearch/issues/152184
 # A dense_vector PUNK should null-fill where unmapped, but the KEYWORD->dense_vector auto-cast hex-decodes the _source array and fails.
 denseVectorPunkShowsNullUnderLoad-Ignore
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 
 SET unmapped_fields="load"\;
 FROM colors, colors_unmapped METADATA _index
@@ -304,8 +302,7 @@ colors_unmapped      | green      | null
 # AwaitsFix: https://github.com/elastic/elasticsearch/issues/152196
 # KNN over a partially unmapped dense_vector should null-fill where unmapped, but instead errors that the field does not exist.
 knnOnDenseVectorPunkUnderLoad-Ignore
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 required_capability: knn_function_v5
 
 SET unmapped_fields="load"\;

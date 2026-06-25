@@ -6,7 +6,7 @@
 // network.eth0.tx is aggregate_metric_double in k8s-downsampled and unmapped in k8s_unmapped.
 // Under load mode, function application should keep mapped rows and nullify unmapped ones.
 aggregateMetricDoubleUnmappedToGauge
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 required_capability: aggregate_metric_double_v0
 required_capability: to_gauge
 
@@ -25,7 +25,7 @@ rows:long | tx_count:long
 // and entirely absent in k8s_nonexistent. Under load, a global aggregate over this single-type PUNK keeps the mapped values;
 // the unmapped and non-existent rows contribute null to the metric aggregates while still counting toward COUNT(*).
 aggregateMetricDoubleUnmappedStatsNoCast
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 required_capability: aggregate_metric_double_v0
 
 SET unmapped_fields="load"\;
@@ -39,7 +39,7 @@ avg_tx:double     | sum_tx:double | tx_count:long | rows:long
 
 // Same trio grouped by _index
 aggregateMetricDoubleUnmappedStatsNoCastByIndex
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 required_capability: aggregate_metric_double_v0
 
 SET unmapped_fields="load"\;
@@ -57,7 +57,7 @@ null              | null          | 0             | 200       | k8s_unmapped
 // A single-type aggregate_metric_double PUNK has no KEYWORD converter, so under load it falls back to its mapped type and may be renamed.
 // The renamed field behaves exactly as the default setting: real aggregates where mapped, null metrics and 0 COUNT where unmapped.
 aggregateMetricDoubleUnmappedRenameNoCast
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 required_capability: aggregate_metric_double_v0
 
 SET unmapped_fields="load"\;
@@ -72,7 +72,7 @@ avg_tx:double     | sum_tx:double | tx_count:long | rows:long
 
 // Same rename grouped by _index: matches aggregateMetricDoubleUnmappedStatsNoCastByIndex, confirming the rename is transparent.
 aggregateMetricDoubleUnmappedRenameNoCastByIndex
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_null_fallback_punks
 required_capability: aggregate_metric_double_v0
 
 SET unmapped_fields="load"\;

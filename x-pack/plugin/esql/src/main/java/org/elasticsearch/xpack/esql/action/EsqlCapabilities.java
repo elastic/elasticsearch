@@ -314,6 +314,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_SMALL_NUMERIC,
 
         /**
+         * Null-fallback for single-type partially unmapped non-keyword fields (PUNKs) that have no implicit KEYWORD converter
+         * (e.g. {@code text}, {@code aggregate_metric_double}). Under {@code unmapped_fields="load"} these fall back to their mapped
+         * type and nullify the unmapped rows -- matching the default (no-load) behavior -- instead of being rejected, so they can be
+         * renamed and used in expressions.
+         */
+        OPTIONAL_FIELDS_UNMAPPED_LOAD_NULL_FALLBACK_PUNKS,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

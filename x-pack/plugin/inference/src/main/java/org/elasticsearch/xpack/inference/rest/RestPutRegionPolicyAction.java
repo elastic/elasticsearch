@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -42,9 +41,7 @@ public class RestPutRegionPolicyAction extends BaseRestHandler {
 
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             var parsedRequest = PutRegionPolicyAction.Request.parseRequest(
-                parser,
-                RestUtils.getMasterNodeTimeout(request),
-                RestUtils.getAckTimeout(request)
+                parser
             );
             return channel -> client.execute(PutRegionPolicyAction.INSTANCE, parsedRequest, new RestToXContentListener<>(channel));
         }

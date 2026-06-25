@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -25,14 +25,17 @@ public class DeleteRegionPolicyAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends ActionRequest {
 
-        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
-            super(masterNodeTimeout, ackTimeout);
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         @Override

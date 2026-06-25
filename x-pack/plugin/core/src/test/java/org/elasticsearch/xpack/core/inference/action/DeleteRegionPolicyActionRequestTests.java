@@ -30,7 +30,7 @@ public class DeleteRegionPolicyActionRequestTests extends AbstractBWCWireSeriali
 
     @Override
     protected DeleteRegionPolicyAction.Request createTestInstance() {
-        return new DeleteRegionPolicyAction.Request(randomTimeValue(), randomTimeValue());
+        return new DeleteRegionPolicyAction.Request();
     }
 
     @Override

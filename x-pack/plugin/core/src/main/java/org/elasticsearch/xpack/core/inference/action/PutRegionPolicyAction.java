@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,33 +31,34 @@ public class PutRegionPolicyAction extends ActionType<RegionPolicyResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends ActionRequest implements ToXContentObject {
 
         public static final ParseField REGION_POLICY_FIELD = new ParseField("region_policy");
 
-        public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, Builder::new);
+        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>("put_region_policy_request", false, args -> new Request((RegionPolicy) args[0]));
 
         static {
-            PARSER.declareObject(Builder::setRegionPolicy, RegionPolicy.STRICT_PARSER, REGION_POLICY_FIELD);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), RegionPolicy.STRICT_PARSER, REGION_POLICY_FIELD);
         }
 
-        public static Request parseRequest(XContentParser parser, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
-            Builder builder = PARSER.apply(parser, null);
-            builder.setMasterNodeTimeout(masterNodeTimeout);
-            builder.setAckTimeout(ackTimeout);
-            return builder.build();
+        public static Request parseRequest(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         private final RegionPolicy regionPolicy;
 
-        public Request(RegionPolicy regionPolicy, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
-            super(masterNodeTimeout, ackTimeout);
+        public Request(RegionPolicy regionPolicy) {
             this.regionPolicy = Objects.requireNonNull(regionPolicy);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             regionPolicy = new RegionPolicy(in);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         @Override
@@ -88,28 +89,6 @@ public class PutRegionPolicyAction extends ActionType<RegionPolicyResponse> {
 
         public RegionPolicy regionPolicy() {
             return regionPolicy;
-        }
-
-        private static class Builder {
-            private RegionPolicy regionPolicy;
-            private TimeValue masterNodeTimeout;
-            private TimeValue ackTimeout;
-
-            private void setRegionPolicy(RegionPolicy regionPolicy) {
-                this.regionPolicy = regionPolicy;
-            }
-
-            private void setMasterNodeTimeout(TimeValue masterNodeTimeout) {
-                this.masterNodeTimeout = masterNodeTimeout;
-            }
-
-            private void setAckTimeout(TimeValue ackTimeout) {
-                this.ackTimeout = ackTimeout;
-            }
-
-            private Request build() {
-                return new Request(regionPolicy, masterNodeTimeout, ackTimeout);
-            }
         }
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyTests;
@@ -30,20 +29,16 @@ public class PutRegionPolicyActionRequestTests extends AbstractBWCSerializationT
 
     @Override
     protected PutRegionPolicyAction.Request createTestInstance() {
-        return new PutRegionPolicyAction.Request(RegionPolicyTests.createRandom(), randomTimeValue(), randomTimeValue());
+        return new PutRegionPolicyAction.Request(RegionPolicyTests.createRandom());
     }
 
     @Override
     protected PutRegionPolicyAction.Request mutateInstance(PutRegionPolicyAction.Request instance) throws IOException {
-        return new PutRegionPolicyAction.Request(
-            randomValueOtherThan(instance.regionPolicy(), RegionPolicyTests::createRandom),
-            instance.masterNodeTimeout(),
-            instance.ackTimeout()
-        );
+        return new PutRegionPolicyAction.Request(randomValueOtherThan(instance.regionPolicy(), RegionPolicyTests::createRandom));
     }
 
     @Override
     protected PutRegionPolicyAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return PutRegionPolicyAction.Request.parseRequest(parser, TimeValue.THIRTY_SECONDS, TimeValue.ZERO);
+        return PutRegionPolicyAction.Request.parseRequest(parser);
     }
 }

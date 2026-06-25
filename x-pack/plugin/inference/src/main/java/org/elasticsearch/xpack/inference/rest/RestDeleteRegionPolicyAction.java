@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -36,7 +35,7 @@ public class RestDeleteRegionPolicyAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return channel -> client.execute(
             DeleteRegionPolicyAction.INSTANCE,
-            new DeleteRegionPolicyAction.Request(RestUtils.getMasterNodeTimeout(request), RestUtils.getAckTimeout(request)),
+            new DeleteRegionPolicyAction.Request(),
             new RestToXContentListener<>(channel)
         );
     }

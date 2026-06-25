@@ -734,3 +734,6 @@ tests:
 - class: org.elasticsearch.index.engine.InternalEngineTests
   method: testLookupSeqNoByIdInLucene
   issue: https://github.com/elastic/elasticsearch/issues/152120
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:views.notInSubqueryReferencingView}
+  issue: https://github.com/elastic/elasticsearch/issues/152126

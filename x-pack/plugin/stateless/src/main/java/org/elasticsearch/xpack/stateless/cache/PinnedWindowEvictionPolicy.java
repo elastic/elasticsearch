@@ -47,11 +47,7 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
 
     private volatile TimeValue pinnedWindowDuration = PINNED_WINDOW_DURATION_SETTING.getDefault(Settings.EMPTY);
 
-    public PinnedWindowEvictionPolicy(
-        ClusterSettings clusterSettings,
-        ThreadPool threadPool,
-        Predicate<ShardId> locallyOpenShard
-    ) {
+    public PinnedWindowEvictionPolicy(ClusterSettings clusterSettings, ThreadPool threadPool, Predicate<ShardId> locallyOpenShard) {
         this.locallyOpenShard = Objects.requireNonNull(locallyOpenShard);
         this.threadPool = Objects.requireNonNull(threadPool);
         clusterSettings.initializeAndWatchIfRegistered(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value);

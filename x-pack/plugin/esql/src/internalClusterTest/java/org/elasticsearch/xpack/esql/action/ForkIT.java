@@ -885,9 +885,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             """;
 
         var e = expectThrows(VerificationException.class, () -> run(firstQuery));
-        assertTrue(
-            e.getMessage().contains("Cannot use field [embedding] with unsupported type [sparse_vector]")
-        );
+        assertTrue(e.getMessage().contains("Cannot use field [embedding] with unsupported type [sparse_vector]"));
 
         var secondQuery = """
                 FROM test*

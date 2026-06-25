@@ -15,6 +15,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+
 public class RegionPolicyTests extends AbstractBWCSerializationTestCase<RegionPolicy> {
 
     private boolean ignoreUnknownFields = randomBoolean();
@@ -66,11 +69,20 @@ public class RegionPolicyTests extends AbstractBWCSerializationTestCase<RegionPo
     protected RegionPolicy mutateInstance(RegionPolicy instance) throws IOException {
         List<String> allowedGeos = instance.allowedGeos();
         List<CspRegion> allowedRegions = instance.allowedRegions();
+        boolean useGeos = allowedGeos != null;
+        boolean useRegions = allowedRegions != null;
+        assertThat(useGeos, not(equalTo(useRegions)));
         CspRegion fallbackRegion = instance.fallbackRegion();
-        switch (randomInt(2)) {
-            case 0 -> allowedGeos = randomValueOtherThan(allowedGeos, () -> randomList(10, () -> randomAlphaOfLength(10)));
-            case 1 -> allowedRegions = randomValueOtherThan(allowedRegions, () -> randomList(10, () -> CspRegionTests.createRandom()));
-            case 2 -> fallbackRegion = randomValueOtherThan(fallbackRegion, CspRegionTests::createRandom);
+        switch (randomInt(1)) {
+            case 0 -> {
+                // either allowedGeos or allowedRegions is not null
+                if (useGeos) {
+                    allowedGeos = randomValueOtherThan(allowedGeos, () -> randomList(10, () -> randomAlphaOfLength(10)));
+                } else if (useRegions) {
+                    allowedRegions = randomValueOtherThan(allowedRegions, () -> randomList(10, () -> CspRegionTests.createRandom()));
+                }
+            }
+            case 1 -> fallbackRegion = randomValueOtherThan(fallbackRegion, CspRegionTests::createRandom);
             default -> throw new IllegalStateException("Illegal randomisation branch");
         }
         return new RegionPolicy(allowedGeos, allowedRegions, fallbackRegion);

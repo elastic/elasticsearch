@@ -20,9 +20,14 @@ public class TestIvfQueryConfigResolver extends IvfQueryConfigResolver {
 
     private final IvfSegmentConfig config;
 
-    public TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding encoding, boolean usePrecondition, float rescoreOversample) {
+    public TestIvfQueryConfigResolver(
+        ESNextDiskBBQVectorsFormat.CentroidIndexFormat centroidIndexFormat,
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
+        boolean usePrecondition,
+        float rescoreOversample
+    ) {
         super(false, false, 4, rescoreOversample, null);
-        this.config = new IvfSegmentConfig(encoding, usePrecondition, rescoreOversample);
+        this.config = new IvfSegmentConfig(centroidIndexFormat, encoding, usePrecondition, rescoreOversample);
     }
 
     @Override

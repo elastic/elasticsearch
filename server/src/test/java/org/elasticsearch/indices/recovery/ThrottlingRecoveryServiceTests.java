@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.ShardId;
@@ -26,6 +28,7 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
@@ -63,18 +66,62 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     @After
     public void verifyStats() {
         // recovery stats counters should always be back to 0 at the end of tests
-        assertThat(stats, equalTo(new RecoveryStats()));
+        assertTrue(stats.noCurrentRecoveries());
         stats = new RecoveryStats();
+    }
+
+    /// Regression test for a context-leaking bug: [issue-152039](https://github.com/elastic/elasticsearch/issues/152039)
+    public void testQueuedRecoveryIsDispatchedWithCleanThreadContext() throws Exception {
+        final var service = new ThrottlingRecoveryService(threadPool, newClusterService(1), new CompositeRecoverySchedulingListener());
+
+        final var firstRecoveryRunning = new CountDownLatch(1);
+        final var firstRecoveryProceed = new CountDownLatch(1);
+        final var secondRecoveryDone = new CountDownLatch(1);
+
+        // Enqueue recovery 1 with a project-id header in the thread context and verify
+        // it gets wiped when starting a new recovery runnable
+        try (var ignored = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, "project-a");
+            service.enqueue(RecoveryListener.NOOP, newRecoveryState(), stats, listener -> {
+                firstRecoveryRunning.countDown();
+                safeAwait(firstRecoveryProceed);
+                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            });
+        }
+
+        safeAwait(firstRecoveryRunning);
+
+        // Enqueue recovery 2 while the slot is held. It will be dispatched by recovery 1's releasing thread
+        final var secondListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange t, ShardLongFieldRange e) {
+                secondRecoveryDone.countDown();
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                fail(e);
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                fail("recovery aborted");
+            }
+        };
+        service.enqueue(secondListener, newRecoveryState(), stats, listener -> {
+            assertNull(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+            listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        });
+        assertThat(service.currentQueueSize(), equalTo(1));
+
+        firstRecoveryProceed.countDown();
+        safeAwait(secondRecoveryDone);
     }
 
     public void testSynchronousTaskRunsOnProvidedThreadPoolAndNotifiesUserListener() {
         // Use real threads instead of DeterministicTaskQueue to verify actual threading behavior below
         final var recoveryType = randomFrom(RecoverySource.Type.values());
-        final var service = new ThrottlingRecoveryService(
-            threadPool.generic(),
-            newClusterService(1),
-            new CompositeRecoverySchedulingListener()
-        );
+        final var service = new ThrottlingRecoveryService(threadPool, newClusterService(1), new CompositeRecoverySchedulingListener());
         final var callerThread = Thread.currentThread();
         final var executionThread = new AtomicReference<Thread>();
         final var consumerReturned = new CountDownLatch(1);
@@ -121,11 +168,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     /// Asynchronous task: consumer returns before the scheduling listener receives a terminal callback.
     public void testAsynchronousTaskListenerNotificationAfterConsumerReturns() {
         // Use real threads instead of DeterministicTaskQueue to be able to use safeAwait below
-        final var service = new ThrottlingRecoveryService(
-            threadPool.generic(),
-            newClusterService(1),
-            new CompositeRecoverySchedulingListener()
-        );
+        final var service = new ThrottlingRecoveryService(threadPool, newClusterService(1), new CompositeRecoverySchedulingListener());
         final var consumerReturned = new CountDownLatch(1);
         final var recoveryDone = new CountDownLatch(1);
         final var userListener = new RecoveryListener() {
@@ -162,10 +205,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testMaxConcurrencyBoundWithAsynchronousTasks() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var executor = taskQueue.getThreadPool().generic();
         final int maxConcurrentRecoveries = between(2, 5);
         final var service = new ThrottlingRecoveryService(
-            executor,
+            taskQueue.getThreadPool(),
             newClusterService(maxConcurrentRecoveries),
             new CompositeRecoverySchedulingListener()
         );
@@ -237,7 +279,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(2);
         final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool().generic(),
+            taskQueue.getThreadPool(),
             clusterService,
             new CompositeRecoverySchedulingListener()
         );
@@ -271,7 +313,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(3);
         final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool().generic(),
+            taskQueue.getThreadPool(),
             clusterService,
             new CompositeRecoverySchedulingListener()
         );
@@ -346,7 +388,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool().generic(),
+            taskQueue.getThreadPool(),
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
@@ -394,7 +436,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testFailureTriggersNextQueuedRecovery() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool().generic(),
+            taskQueue.getThreadPool(),
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
@@ -462,7 +504,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testRecoveryAbortedTriggersNextQueuedRecovery() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool().generic(),
+            taskQueue.getThreadPool(),
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
@@ -525,7 +567,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testCloseAbortsQueuedButNotDispatchedRecoveries() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool().generic(),
+            taskQueue.getThreadPool(),
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
@@ -592,7 +634,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testEnqueueAfterCloseImmediatelyAborts() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool().generic(),
+            taskQueue.getThreadPool(),
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
@@ -634,7 +676,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var maxConcurrency = new AtomicInteger(between(1, 20));
         final var clusterService = newClusterService(maxConcurrency.get());
         final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool().generic(),
+            taskQueue.getThreadPool(),
             clusterService,
             new CompositeRecoverySchedulingListener()
         );
@@ -721,6 +763,133 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             assertThat(running.get(), equalTo(0));
             assertThat(service.currentQueueSize(), equalTo(0));
         }
+    }
+
+    /// Stress one [ThrottlingRecoveryService] from many producer threads using real threads: alternating
+    /// bursty submits (high contention on the throttle) and idle periods. Verify that all tasks finish and
+    /// that concurrent recovery executions count never exceeded the peak value of `maxConcurrentRecoveries`.
+    ///
+    /// Unlike [#testStressConcurrentEnqueueMaintainsBoundsAndCompleteness], this test uses real threads to
+    /// catch missing happens-before relationships that a deterministic scheduler cannot expose.
+    public void testStressConcurrentEnqueueWithRealThreads() throws Exception {
+        final int initialMaxConcurrentRecoveries = between(1, 20);
+        final var clusterService = newClusterService(initialMaxConcurrentRecoveries);
+        final var peakLimit = new AtomicInteger(initialMaxConcurrentRecoveries);
+        final var throttlingRecoveryService = new ThrottlingRecoveryService(
+            threadPool,
+            clusterService,
+            new CompositeRecoverySchedulingListener()
+        );
+
+        final var currentMaxConcurrentRecoveries = new AtomicInteger(peakLimit.get());
+        final var runningOrPending = new AtomicInteger();
+        final var running = new AtomicInteger();
+        final var peakRunning = new AtomicInteger();
+        final var tasksEnqueued = new AtomicInteger();
+        final var tasksCompleted = new AtomicInteger();
+        final var allFinished = new CountDownLatch(1);
+        final var refCounted = AbstractRefCounted.of(allFinished::countDown);
+        final int maxTaskCount = 1000;
+        final var recoveryState = newRecoveryState();
+
+        final var trackingListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                runningOrPending.decrementAndGet();
+                tasksCompleted.incrementAndGet();
+                refCounted.decRef();
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                runningOrPending.decrementAndGet();
+                tasksCompleted.incrementAndGet();
+                refCounted.decRef();
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                runningOrPending.decrementAndGet();
+                tasksCompleted.incrementAndGet();
+                refCounted.decRef();
+            }
+        };
+
+        final int producerThreads = between(1, 6);
+        runInParallel(producerThreads, index -> {
+            while (tasksEnqueued.get() < maxTaskCount) {
+                if (index == 0) {
+                    if (rarely()) {
+                        int nextLimit = between(1, 20);
+                        clusterService.getClusterSettings()
+                            .applySettings(
+                                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
+                            );
+                        peakLimit.accumulateAndGet(nextLimit, Integer::max);
+                        currentMaxConcurrentRecoveries.set(nextLimit);
+                    }
+                    if ((tasksEnqueued.get() * 1.0 / maxTaskCount) > 0.8 && rarely()) {
+                        throttlingRecoveryService.close();
+                    }
+                }
+
+                int localRunningOrPending = runningOrPending.get();
+                int localLimit = currentMaxConcurrentRecoveries.get();
+                if (randomDouble() > localRunningOrPending * 1.0 / localLimit) {
+                    // Likelihood to generate load is proportional to the number of free slots.
+                    // If all slots are free (localRunningOrPending == 0), likelihood is 100%.
+                    // Rarely burst with enough tasks to fill the queue.
+                    boolean burst = rarely();
+                    int incomingTasks = burst ? localLimit : 1;
+                    for (int i = 0; i < incomingTasks && tasksEnqueued.get() < maxTaskCount; i++) {
+                        refCounted.incRef();
+                        runningOrPending.incrementAndGet();
+                        tasksEnqueued.incrementAndGet();
+                        throttlingRecoveryService.enqueue(trackingListener, recoveryState, stats, schedulingListener -> {
+                            peakRunning.accumulateAndGet(running.incrementAndGet(), Integer::max);
+                            runStressInboundRecoveryTask(recoveryState, schedulingListener, running);
+                        });
+                        Thread.yield();
+                    }
+                }
+                Thread.yield();
+            }
+        });
+
+        // refCounted starts with 1 ref, decremented here
+        refCounted.decRef();
+        safeAwait(allFinished, TimeValue.timeValueSeconds(30));
+        // stats are updated after onRecoveryDone is called
+        assertBusy(() -> assertThat(stats, equalTo(new RecoveryStats())));
+        assertThat(tasksCompleted.get(), equalTo(tasksEnqueued.get()));
+        assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimit.get()));
+    }
+
+    private static void runStressInboundRecoveryTask(
+        RecoveryState recoveryState,
+        RecoveryListener schedulingListener,
+        AtomicInteger running
+    ) {
+        threadPool.generic().execute(() -> {
+            Thread.yield();
+            running.decrementAndGet();
+            if (randomBoolean()) {
+                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            } else {
+                if (randomBoolean()) {
+                    schedulingListener.onRecoveryAborted();
+                } else {
+                    schedulingListener.onRecoveryFailure(
+                        new RecoveryFailedException(recoveryState, null, new RuntimeException("test recovery task injected failure")),
+                        randomBoolean()
+                    );
+                }
+            }
+        });
     }
 
     private static ClusterService newClusterService(int maxConcurrentRecoveries) {

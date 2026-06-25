@@ -15,6 +15,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.Accountable;
@@ -23,6 +24,7 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 
 import java.util.function.Supplier;
 
@@ -119,6 +121,8 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         long bytes;
         if (query instanceof FuzzyQuery fq) {
             bytes = FuzzyQueries.estimateBytes(fq);
+        } else if (query instanceof PointRangeQuery prq) {
+            bytes = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate();
         } else if (query instanceof Accountable a) {
             bytes = a.ramBytesUsed();
         } else {

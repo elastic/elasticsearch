@@ -1,0 +1,5 @@
+area: Indices APIs
+issues: []
+pr: 152144
+summary: Rebuild indices lookup when a cluster-state diff changes datasets
+type: bug

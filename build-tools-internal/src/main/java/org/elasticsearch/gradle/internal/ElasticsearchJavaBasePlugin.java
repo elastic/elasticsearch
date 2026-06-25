@@ -13,6 +13,7 @@ import groovy.lang.Closure;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
 import org.elasticsearch.gradle.internal.test.TestUtil;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
@@ -129,6 +130,16 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
             // TODO: this probably shouldn't apply to groovy at all?
             compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+        });
+
+        // Run the forbidden-apis checker in a forked process matching the compile toolchain,
+        // so that signature resolution uses the correct JDK bootclasspath (e.g. JDK 22+
+        // signatures like MemorySegment#getString cannot be resolved in a JDK 21 daemon).
+        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> {
+            t.getJavaLauncher().set(javaToolchains.launcherFor(spec -> {
+                spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));
+                spec.getVendor().set(JvmVendorSpec.ORACLE);
+            }));
         });
     }
 

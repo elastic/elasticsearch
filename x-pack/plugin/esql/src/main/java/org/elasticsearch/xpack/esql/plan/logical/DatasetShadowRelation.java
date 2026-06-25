@@ -21,42 +21,28 @@ import java.util.Objects;
 
 /**
  * Marker leaf node that represents an exact dataset name being looked up on linked projects (CPS) as
- * a potential <em>remote index</em> with the same name as a local dataset. It is the dataset analog of
- * {@link ViewShadowRelation}: where a view-name shadow rides next to the view's recursive substitution
- * inside a {@link ViewUnionAll}, a dataset-name shadow rides next to the dataset's
- * {@link UnresolvedExternalRelation} inside the plain {@link UnionAll} the
- * {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} builds.
+ * a potential <em>remote index</em> with the same name as a local dataset. The dataset analog of
+ * {@link ViewShadowRelation}: it rides next to the dataset's {@link UnresolvedExternalRelation} inside
+ * the plain {@link UnionAll} the {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} builds.
  * <p>
- * Motivation: {@code FROM ds} where {@code ds} is BOTH a local dataset AND a remote dataset/index.
- * The local dataset is consumed before field-caps (rewritten to an external relation), and
- * {@code DatasetRewriter.crossProjectPatternsToPreserve} only re-emits a sibling for <em>wildcards</em>
- * — an exact name returns nothing, so without this shadow the remote half of the exact name never
- * reaches field-caps. Per CPS Principle 1, an unqualified exact name expands to every container across
- * origin + all linked projects, so a remote <em>index</em> {@code ds} must federate in and a remote
- * <em>dataset/view</em> {@code ds} must FAIL.
+ * Motivation: {@code FROM ds} where {@code ds} is BOTH a local dataset AND a remote dataset/index. The
+ * local dataset is consumed before field-caps, and {@code DatasetRewriter.crossProjectPatternsToPreserve}
+ * only re-emits a sibling for <em>wildcards</em> — an exact name returns nothing, so without this shadow
+ * the remote half of the exact name never reaches field-caps.
  * <p>
  * Lifecycle, mirroring {@link ViewShadowRelation}:
  * <ol>
  *   <li>Emitted during dataset rewriting ({@code DatasetRewriter.rewriteOne}) alongside the dataset's
- *       external relation, only when CPS is enabled and the dataset was named by an exact (non-wildcard,
- *       flat) pattern. The shadow and its external sibling live in a plain {@link UnionAll}.</li>
- *   <li>{@code PreAnalyzer} collects {@code DatasetShadowRelation} patterns into the same linked-indices
- *       set {@link ViewShadowRelation} lands in, keyed by {@link #linkedIndexPattern()}.</li>
- *   <li>{@code EsqlSession.preAnalyzeLinkedIndices} issues a lenient flat field-caps request per pattern
- *       scoped to linked projects. The remote field-caps fan-out carries {@code resolveViews(true)} +
- *       {@code resolveDatasets(true)} unconditionally (see {@code EsqlResolveFieldsAction}), so a linked
- *       project that has a <em>dataset or view</em> of the same name fails the query with
- *       {@code RemoteDatasetNotSupportedException}/{@code RemoteViewNotSupportedException}; a linked
- *       project that has an <em>index</em> of the same name resolves. Results land in
- *       {@code AnalyzerContext.linkedResolution}, keyed by this shadow's {@link #linkedIndexPattern()}.</li>
- *   <li>The {@code ResolveDatasetShadow} analyzer rule (sibling of {@code ResolveViewShadow}, in the
- *       Initialize batch) consults {@code AnalyzerContext.linkedResolution} for this shadow's
- *       {@link #linkedIndexPattern()}. If a remote <em>index</em> is found the shadow is replaced with a
- *       corresponding {@code EsRelation}; otherwise the shadow is left unresolved.</li>
- *   <li>{@code StripDatasetShadowRelations} runs right after {@code ResolveDatasetShadow}: any
- *       still-unresolved shadow is removed from its {@link UnionAll}; a single-survivor union collapses
- *       to its lone child. Mirrors {@code ViewCompaction.stripViewShadowRelations} but over the plain
- *       {@link UnionAll} the dataset path produces (not a {@link ViewUnionAll}).</li>
+ *       external relation, only under CPS for an exact (non-wildcard, flat) pattern.</li>
+ *   <li>{@code PreAnalyzer} collects the pattern into the same linked-indices set {@link ViewShadowRelation}
+ *       lands in, keyed by {@link #linkedIndexPattern()}.</li>
+ *   <li>{@code EsqlSession.preAnalyzeLinkedIndices} issues a lenient flat field-caps request per pattern;
+ *       a linked index of the same name resolves, a linked dataset/view fails on the detect rail. Results
+ *       land in {@code AnalyzerContext.linkedResolution}, keyed by {@link #linkedIndexPattern()}.</li>
+ *   <li>The {@code ResolveDatasetShadow} analyzer rule (sibling of {@code ResolveViewShadow}) replaces the
+ *       shadow with an {@code EsRelation} on a valid resolution, else leaves it unresolved.</li>
+ *   <li>{@code StripDatasetShadowRelations} removes any still-unresolved shadow; a single-survivor union
+ *       collapses to its lone child.</li>
  * </ol>
  */
 public class DatasetShadowRelation extends LeafPlan implements Unresolvable {

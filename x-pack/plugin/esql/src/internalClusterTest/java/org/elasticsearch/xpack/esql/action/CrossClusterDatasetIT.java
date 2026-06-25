@@ -43,9 +43,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * {@code FROM cluster-a:<index>} still succeeds. This is the dataset analogue of CrossClusterViewIT's
  * {@code testRemoteViewConcreteMatchFailsQuery}/{@code testRemoteViewWildcardMatchFailsQuery}.
  *
- * <p>Multi-node remotes are now safe: the harness's random 1-3 node remote cluster publishes the dataset across
- * followers without tripping {@code ProjectMetadata.Builder}'s indices-lookup rebuild assertion (the diff-apply
- * reuse guard now accounts for dataset metadata).
+ * <p>Multi-node remotes are safe: the diff-apply indices-lookup reuse guard now accounts for dataset metadata.
  */
 public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
 
@@ -120,11 +118,8 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
             ).actionGet(30, TimeUnit.SECONDS)
         );
 
-        // A second dataset on the OTHER remote (remote-b), mirroring how CrossClusterViewIT seeds its remotes:
-        // the cluster-exclusion / multi-cluster legs (testAllDatasetsOnRemoteExcludedSucceeds,
-        // testRemoteDatasetFailsOnOneCluster) need a remote-b that is dataset-bearing in its own right so the
-        // assertions exercise "exclude the dataset-bearing cluster, keep the other" rather than "the other remote
-        // happens to be dataset-free". setupClusters(3) already seeds a plain logs-2 index on remote-b.
+        // A second dataset on remote-b so the cluster-exclusion / multi-cluster legs exercise "exclude the
+        // dataset-bearing cluster, keep the other" rather than relying on the other remote being dataset-free.
         assertAcked(
             client(REMOTE_CLUSTER_2).execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("remote_ds_b", Map.of()))
                 .actionGet(30, TimeUnit.SECONDS)
@@ -239,10 +234,8 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     }
 
     /**
-     * Walks the cause chain and asserts the remote-dataset rejection message (headline + matched name + the full
-     * remediation hint) appears somewhere in it. Mirrors CrossClusterViewIT's message-completeness bar
-     * ({@code testRemoteViewConcreteMatchFailsQuery} asserts the entire "...exclude them with [cluster-a:-...]" string),
-     * not just the headline: the hint must name {@code cluster-a:-remote_employees} so a user can copy it verbatim.
+     * Walks the cause chain and asserts the full remote-dataset rejection message (headline + matched name + the
+     * copy-verbatim exclusion hint) appears somewhere in it.
      */
     private void assertRemoteDatasetRejected(Throwable throwable) {
         String matched = REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET;

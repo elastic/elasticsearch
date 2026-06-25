@@ -307,12 +307,8 @@ public final class DatasetRewriter {
             // _index with the user-facing identifier rather than the underlying resource path.
             children.add(new UnresolvedExternalRelation(relation.source(), path, merged, relation.metadataFields(), name));
         }
-        // Friendly cap on the matched LOCAL datasets, checked before the CPS siblings are appended so the message
-        // reports the real dataset count rather than the bookkeeping siblings. A sibling's branch contribution is
-        // non-deterministic here: a wildcard-preserve relation or an exact-name DatasetShadowRelation becomes a branch
-        // only if it resolves to a remote index (an unmatched shadow strips to nothing). Those resolved branches are
-        // bounded separately by Fork's own MAX_BRANCHES cap post-resolution; counting them here would over-reject the
-        // common case where they strip away.
+        // Cap the matched LOCAL datasets before the CPS siblings are appended — sibling branches that survive are
+        // bounded separately by Fork's MAX_BRANCHES post-resolution.
         if (Fork.exceedsMaxBranches(children.size())) {
             throw new VerificationException(
                 "FROM ["
@@ -348,9 +344,7 @@ public final class DatasetRewriter {
             // ViewResolver's OPTIONAL-shadow branch — so the lenient linked pass federates a remote index of the same
             // name in, while a remote dataset/view of the same name fails (the detection rail). See
             // DatasetShadowRelation for the full lifecycle.
-            for (DatasetShadowRelation shadow : crossProjectExactNameShadows(relation, datasetNames)) {
-                children.add(shadow);
-            }
+            children.addAll(crossProjectExactNameShadows(relation, datasetNames));
         }
         if (children.size() == 1) {
             return children.get(0);

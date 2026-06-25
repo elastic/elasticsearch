@@ -1691,8 +1691,6 @@ public class ProjectMetadataTests extends ESTestCase {
 
         ProjectMetadata before = ProjectMetadata.builder(projectId).put(index, false).build();
         // Materialize and cache `before`'s indices lookup, mirroring a follower that has already served reads.
-        // The bug only manifests when the predecessor's lookup is non-null at apply time, so the guard can (wrongly)
-        // reuse it. Without this the lazily-null lookup would be rebuilt regardless and the regression would not fire.
         before.getIndicesLookup();
 
         // Identical to `before` except for the single added dataset.

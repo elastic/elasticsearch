@@ -576,13 +576,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * The dataset analog of {@link ResolveViewShadow}.
      * <p>
      * Each {@code DatasetShadowRelation} represents a "if a linked project has an index with this
-     * dataset's name, treat it as if the user wrote a remote index reference at this position" lookup
-     * (CPS Principle 1). {@code EsqlSession.preAnalyzeLinkedIndices} populates {@code linkedResolution},
-     * keyed by the shadow's {@link DatasetShadowRelation#linkedIndexPattern()} (dataset name + applicable
-     * exclusions). The remote field-caps fan-out carries {@code resolveDatasets(true)} +
-     * {@code resolveViews(true)}, so a linked project that has a <em>dataset/view</em> of the same name has
-     * already failed the query before this rule runs; a linked project with an <em>index</em> of the same
-     * name produces a valid resolution here. This rule:
+     * dataset's name, treat it as if the user wrote a remote index reference at this position" lookup.
+     * {@code EsqlSession.preAnalyzeLinkedIndices} populates {@code linkedResolution}, keyed by the shadow's
+     * {@link DatasetShadowRelation#linkedIndexPattern()} (dataset name + applicable exclusions). A linked
+     * dataset/view of the same name has already failed the query on the detect rail before this rule runs;
+     * a linked index of the same name produces a valid resolution here. This rule:
      * <ul>
      *   <li>If a valid {@link IndexResolution} is present for the shadow's
      *       {@link DatasetShadowRelation#linkedIndexPattern()}, replaces the shadow with an
@@ -634,9 +632,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             return plan.transformDown(UnionAll.class, unionAll -> {
-                // Operate only on the plain UnionAll the DatasetRewriter builds — never a ViewUnionAll
-                // (its shadows are handled by ViewCompaction, and its single-child wrappers are a view
-                // semantic this rule must not collapse).
+                // Plain UnionAll only — ViewUnionAll shadows are ViewCompaction's, and its single-child
+                // wrappers must not collapse.
                 if (unionAll instanceof ViewUnionAll) {
                     return unionAll;
                 }

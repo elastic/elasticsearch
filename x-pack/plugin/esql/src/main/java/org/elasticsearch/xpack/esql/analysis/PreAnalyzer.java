@@ -99,12 +99,10 @@ public class PreAnalyzer {
         });
 
         // CPS: collect ViewShadowRelation and DatasetShadowRelation patterns into one linked-indices set.
-        // View shadows live as siblings of the strict UnresolvedRelation inside per-resolution-level
-        // ViewUnionAlls (see ViewResolver); dataset shadows live as siblings of the dataset's external
-        // relation inside the plain UnionAll the DatasetRewriter builds (see DatasetShadowRelation). Both
-        // drive the same lenient flat field-caps pass (EsqlSession.preAnalyzeLinkedIndices), keyed by the
-        // shadow's LinkedIndexPattern. A LinkedHashSet preserves emission order for deterministic test
-        // output and deduplicates so two shadows with the same indexPattern only produce one lenient call.
+        // View shadows ride inside ViewUnionAll, dataset shadows inside the plain UnionAll DatasetRewriter
+        // builds; both drive the same lenient flat field-caps pass (EsqlSession.preAnalyzeLinkedIndices),
+        // keyed by the shadow's LinkedIndexPattern. A LinkedHashSet preserves emission order for deterministic
+        // test output and deduplicates so two shadows with the same indexPattern only produce one lenient call.
         Set<LinkedIndexPattern> linkedIndexPatterns = new LinkedHashSet<>();
         plan.forEachUp(ViewShadowRelation.class, p -> linkedIndexPatterns.add(p.linkedIndexPattern()));
         plan.forEachUp(DatasetShadowRelation.class, p -> linkedIndexPatterns.add(p.linkedIndexPattern()));

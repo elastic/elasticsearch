@@ -1,0 +1,5 @@
+pr: 126842
+summary: change usage.bytes field from keyword to a numeric datatype to enable graphing of memory usage.
+area: Mapping
+type: bug
+issues: [116766]

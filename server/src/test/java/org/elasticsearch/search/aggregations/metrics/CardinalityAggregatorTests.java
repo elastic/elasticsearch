@@ -84,6 +84,9 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     /** Script to extract the value from any field **/
     public static final String VALUE_SCRIPT = "_value";
 
+    /** Script that returns null for the value "skip", otherwise passes the value through **/
+    public static final String NULL_RETURNING_VALUE_SCRIPT = "null_returning_value_script";
+
     /** Script to extract the single string value of the 'str_value' field **/
     public static final String STRING_VALUE_SCRIPT = "doc['str_value'].value";
 
@@ -101,6 +104,11 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
         scripts.put(VALUE_SCRIPT, vars -> vars.get("_value"));
+
+        scripts.put(NULL_RETURNING_VALUE_SCRIPT, vars -> {
+            Object value = vars.get("_value");
+            return "skip".equals(value) ? null : value;
+        });
 
         scripts.put(STRING_VALUE_SCRIPT, vars -> {
             final Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
@@ -448,6 +456,24 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
         }, card -> {
             assertEquals(2, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
+    public void testSingleValuedStringValueScriptReturningNull() throws IOException {
+        // Regression test: value script returning null must not cause NPE (github #136639).
+        // Null results are skipped; only non-null transformed values contribute to cardinality.
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, NULL_RETURNING_VALUE_SCRIPT, emptyMap()));
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
+            iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("alpha"))));
+            iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("skip")))); // script returns null
+            iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("alpha"))));
+            iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("beta"))));
+        }, card -> {
+            assertEquals(2, card.getValue(), 0); // "alpha" and "beta"; "skip"→null is excluded
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
     }

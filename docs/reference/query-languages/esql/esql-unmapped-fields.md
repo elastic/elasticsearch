@@ -41,7 +41,7 @@ For the full syntax and the accepted values, refer to the [`SET unmapped_fields`
 :::{tip}
 :applies_to: stack: preview 9.4
 
-Reading the real values of an unmapped field with `LOAD` is newer than the other behaviors. Earlier versions support `NULLIFY` only, which fills unmapped fields with `null`.
+Reading the real values of an unmapped field with `LOAD` is newer than the other behaviors. Earlier versions can nullify unmapped fields (`NULLIFY`) but can't load their real values.
 :::
 
 ## Limitations [esql-unmapped-fields-limitations]

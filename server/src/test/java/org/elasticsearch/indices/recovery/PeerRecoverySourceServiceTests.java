@@ -626,6 +626,35 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         closeShards(primary1, primary2);
     }
 
+    /// Regression test for the race where an active recovery completes during service shutdown and would cause
+    /// a new pending recovery to be started after the lifecycle already moved to `State.STOPPED`.
+    /// The queue is now drained before the lifecycle state changes.
+    public void testCompletingRecoveryWhileStopping() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final var service = newPeerRecoverySourceService(1);
+        service.start();
+        final var task = newRecoveryTask();
+
+        // Fill slot
+        final var handler1 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(primary1),
+            task,
+            primary1,
+            ActionListener.noop()
+        );
+        assertNotNull(handler1);
+
+        // Queue another recovery
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+        assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
+
+        // Stop the service and complete handler1. Lifecycle assertions in the production code must hold.
+        // The pending recovery should never start after the service moved to `State.STOPPED`.
+        runInParallel(service::stop, () -> service.ongoingRecoveries.onRecoveryComplete(primary1, handler1));
+        closeShards(primary1, primary2);
+    }
+
     public void testDynamicLimitDecreaseQueuesNewRequests() throws IOException {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);

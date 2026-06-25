@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -200,6 +201,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         NdJsonReaderCounters counters,
         long splitStartByte,
         int maxRecordBytes,
+        DateFormatter datetimeFormatter,
         long statsBaseOffset,
         long statsStripeSize,
         boolean statsFileFinal,
@@ -285,6 +287,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 data,
                 0,
                 data.length,
+                datetimeFormatter,
                 resolvedAttributes,
                 decodeColumns,
                 batchSize,
@@ -301,6 +304,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             this.byteArrayBytesRead = -1;
             this.pageDecoder = new NdJsonPageDecoder(
                 counted,
+                datetimeFormatter,
                 resolvedAttributes,
                 decodeColumns,
                 batchSize,

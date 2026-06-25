@@ -11,6 +11,8 @@ package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Nested;
@@ -141,6 +143,8 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
      */
     public abstract static class ExtractionWorkAction implements WorkAction<ExtractionParameters> {
 
+        private static final Logger LOGGER = Logging.getLogger(ExtractionWorkAction.class);
+
         @Override
         public void execute() {
             checkRuntimeJava21();
@@ -183,7 +187,7 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
                 throw new UncheckedIOException("Failed to extract foreign API stubs", e);
             }
 
-            System.out.printf("Generated %s with %d class(es)%n", outputPath, count);
+            LOGGER.info("Generated {} with {} class(es)", outputPath, count);
         }
 
         private static void checkRuntimeJava21() {

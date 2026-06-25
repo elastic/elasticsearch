@@ -7,6 +7,7 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   name = 'x-pack-kibana'
@@ -22,6 +23,12 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("javaRestTest").configure {
+  // The provider ships in the default distribution and is auto-discovered via the SecurityExtension
+  // SPI, so the test exercises the real bundling/loading path rather than installing a test plugin.
+  usesDefaultDistribution("contributes implicit privileges through the security SecurityExtension SPI")
 }
 
 addQaCheckDependencies(project)

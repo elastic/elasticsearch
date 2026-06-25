@@ -49,6 +49,7 @@ import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -61,6 +62,23 @@ import java.util.Map;
 public class NdJsonPageDecoder implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(NdJsonPageDecoder.class);
+
+    /**
+     * Floor for the per-{@code BlockDecoder} identity-cache bound (see
+     * {@code BlockDecoder#identityCacheMaxEntries}). High enough that the common NDJSON STATS
+     * shape (a handful of projected columns plus tens of unprojected ones) fits entirely; low
+     * enough that the worst-case retention on a dynamic-key input stays in the kilobytes range
+     * per decoder level.
+     */
+    static final int IDENTITY_CACHE_MIN_CAP = 256;
+
+    /**
+     * Multiplier on the local {@code children.size()} when sizing the identity-cache bound:
+     * gives wide schemas (e.g. ClickBench's ~105-column {@code hits}) headroom for every
+     * unprojected name without letting the bound scale unbounded with dynamic JSON keys not
+     * present in the schema.
+     */
+    static final int IDENTITY_CACHE_FANOUT_MULT = 4;
 
     private InputStream input;
     /**
@@ -705,6 +723,40 @@ public class NdJsonPageDecoder implements Closeable {
         parser = null;
     }
 
+    /**
+     * Total number of {@code children.get(String)} (HashMap) fallback lookups across the decoder
+     * tree on this decoder's lifetime. Each {@link BlockDecoder#decodeObject} field probes the
+     * per-object identity cache first; the HashMap is consulted only on identity-cache miss (i.e.
+     * the first time a given canonicalised {@code String} instance is seen by this object's
+     * decoder). Once a name is cached, repeat occurrences across pages cost a single identity
+     * compare. Package-private for tests that assert the cache is effective.
+     */
+    long hashMapFallbacks() {
+        return hashMapFallbacks;
+    }
+
+    private long hashMapFallbacks = 0L;
+
+    /**
+     * Size of the root {@code BlockDecoder}'s identity cache, or {@code 0} when the cache has
+     * not been allocated (no JSON object decoded yet, or the root decoder has {@code null}
+     * children). Package-private so tests can pin the bound semantics on dynamic-key inputs
+     * where the cache is intentionally capped rather than allowed to grow with each new field
+     * name on the wire.
+     */
+    int rootIdentityCacheSize() {
+        var cache = decoder.identityCache;
+        return cache == null ? 0 : cache.size();
+    }
+
+    /**
+     * Sentinel returned by {@link BlockDecoder#lookupChild} for canonicalised field-name
+     * {@code String} instances that have been resolved to "no matching projection". One per
+     * decoder; only identity comparisons are performed against it (never any method calls), so
+     * its inner-class outer-{@code this} binding is irrelevant.
+     */
+    private final BlockDecoder unprojected = new BlockDecoder();
+
     // ---------------------------------------------------------------------------------------------
     // A tree of decoders. Avoids path reconstruction when traversing nested objects.
     private class BlockDecoder {
@@ -714,6 +766,22 @@ public class NdJsonPageDecoder implements Closeable {
         int blockIdx;
         Block.Builder blockBuilder;
         Map<String, BlockDecoder> children;
+        /**
+         * Identity-keyed cache of field-name {@link String} instances previously seen by this
+         * object's decoder, mapped to either a child {@link BlockDecoder} (projected) or
+         * {@link #unprojected} (unprojected). Lazily allocated on the first field probe so
+         * leaf decoders (which never call {@link #decodeObject}) pay nothing.
+         * <p>
+         * Correctness rests on Jackson's {@link com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer}
+         * (enabled by default; {@code JsonFactory.Feature#CANONICALIZE_FIELD_NAMES}) returning the
+         * <em>same</em> {@code String} instance for repeat occurrences of a name across pages — and
+         * on the {@link NdJsonUtils#JSON_FACTORY} root canonicalizer being shared so subsequent
+         * parsers from the same factory inherit those instances. A name that hash-collides with a
+         * different identity falls through to the slow HashMap lookup and re-primes the cache; the
+         * code is therefore safe even when an instance does turn over (e.g. canonicaliser rehash).
+         */
+        @Nullable
+        IdentityHashMap<String, BlockDecoder> identityCache;
 
         void setAttribute(Attribute attribute, int blockIdx) {
             this.dataType = attribute.dataType();
@@ -751,9 +819,9 @@ public class NdJsonPageDecoder implements Closeable {
             }
             String fieldName;
             while ((fieldName = parser.nextFieldName()) != null) {
-                var childDecoder = this.children == null ? null : this.children.get(fieldName);
+                var childDecoder = lookupChild(fieldName);
                 parser.nextToken();
-                if (childDecoder == null) {
+                if (childDecoder == unprojected) {
                     // Unknown/unprojected field: advance to its value then skip (no decode).
                     // For string values nextFieldName() uses _skipString() internally on the next
                     // call, so we avoid _finishString2 for non-projected string fields.
@@ -762,6 +830,61 @@ public class NdJsonPageDecoder implements Closeable {
                     childDecoder.decodeValue(parser, inArray);
                 }
             }
+        }
+
+        /**
+         * Resolve {@code fieldName} to either a projected child {@link BlockDecoder} or the
+         * {@link #unprojected} sentinel, using an identity-keyed cache to avoid the
+         * {@link String#hashCode}/{@link HashMap#get} pair on repeat occurrences of the same
+         * canonicalised {@code String} instance.
+         * <p>
+         * On cache miss (first time this object's decoder sees this identity) the call falls
+         * back to a single {@code children.get(fieldName)} probe and primes the cache with
+         * either the child decoder or {@link #unprojected}. The fallback count is exposed via
+         * {@link #hashMapFallbacks()} so tests can pin that the cache is doing its job.
+         * <p>
+         * When {@code children} is {@code null} the decoder cannot match any projection, so the
+         * loop short-circuits to {@link #unprojected} without allocating an identity cache or
+         * incrementing the fallback counter — there is no HashMap probe to avoid in that case.
+         * <p>
+         * The cache is bounded at {@link #identityCacheMaxEntries()} entries to keep
+         * dynamic-key NDJSON inputs (per-tenant column names, event ids embedded as JSON keys,
+         * sparse extensions) from growing the cache without bound. Once full it stops accepting
+         * new entries — existing entries keep serving identity hits and the rest pay the
+         * {@code HashMap} probe — so correctness degrades to "no cache" for the tail, not to a
+         * memory leak.
+         */
+        private BlockDecoder lookupChild(String fieldName) {
+            if (children == null) {
+                return unprojected;
+            }
+            if (identityCache == null) {
+                // Sized for the expected fanout of one object: the schema's full column count is a
+                // conservative ceiling. We never iterate it, so collisions only cost a probe.
+                identityCache = new IdentityHashMap<>(children.size() * 2);
+            }
+            BlockDecoder cached = identityCache.get(fieldName);
+            if (cached != null) {
+                return cached;
+            }
+            hashMapFallbacks++;
+            BlockDecoder resolved = children.get(fieldName);
+            BlockDecoder toCache = resolved == null ? unprojected : resolved;
+            if (identityCache.size() < identityCacheMaxEntries()) {
+                identityCache.put(fieldName, toCache);
+            }
+            return toCache;
+        }
+
+        /**
+         * Upper bound for {@link #identityCache} entries on this decoder. Sized off the local
+         * children fanout so a wide schema still gets generous headroom for unprojected names
+         * while a narrow one (the common NDJSON STATS case) stays compact. The hard floor is
+         * {@value #IDENTITY_CACHE_MIN_CAP} so leaf-ish objects with a tiny {@code children} map
+         * still cache a usable working set.
+         */
+        private int identityCacheMaxEntries() {
+            return Math.max(IDENTITY_CACHE_MIN_CAP, children.size() * IDENTITY_CACHE_FANOUT_MULT);
         }
 
         /**

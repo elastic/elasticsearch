@@ -237,6 +237,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return getCacheBlobReader(
             fileName,
             blobFile,
+            objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
             cacheService.getShardReadThreadPoolExecutor()
         );
@@ -248,6 +249,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return getCacheBlobReader(
             blobFile.blobName(),
             blobFile,
+            objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.Warming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -268,6 +270,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return getCacheBlobReader(
             blobFile.blobName(),
             blobFile,
+            objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -281,13 +284,18 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * We allow creating this reader from any thread but the actual downloading of
      * bytes will happen on the stateless_prewarm pool.
      *
-     * @param blobFile blob file
+     * @param blobFile   blob file
+     * @param isUploaded when {@code true} the file's BCC generation is known to be uploaded (from the notification), so the blob-store
+     *                   reader is used directly rather than relying on the upload tracker — which may not yet reflect the upload because
+     *                   {@code updateLatestUploadedBcc} is deferred until after prefetch completes
      * @return a CacheBlobReader for reading the specified file
      */
-    public CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile) {
+    public CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile, boolean isUploaded) {
+        var tracker = isUploaded ? MutableObjectStoreUploadTracker.ALWAYS_UPLOADED : objectStoreUploadTracker;
         return getCacheBlobReader(
             blobFile.blobName(),
             blobFile,
+            tracker,
             BlobCacheMetrics.CachePopulationReason.PreFetchingNewCommit,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -296,6 +304,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private CacheBlobReader getCacheBlobReader(
         String fileName,
         BlobFile blobFile,
+        MutableObjectStoreUploadTracker tracker,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
         Executor executor
     ) {
@@ -303,7 +312,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             shardId,
             this::getBlobContainer,
             blobFile,
-            objectStoreUploadTracker,
+            tracker,
             totalBytesWarmedFromObjectStore::add,
             totalBytesWarmedFromIndexing::add,
             cachePopulationReason,
@@ -330,6 +339,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 return SearchDirectory.this.getCacheBlobReader(
                     fileName,
                     blobFile,
+                    objectStoreUploadTracker,
                     BlobCacheMetrics.CachePopulationReason.Warming,
                     getCacheService().getShardReadThreadPoolExecutor()
                 );

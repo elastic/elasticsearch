@@ -272,7 +272,15 @@ public class SearchCommitPrefetcher {
 
                 var cacheKey = new FileCacheKey(shardId, blobFile.primaryTerm(), blobFile.blobName());
 
-                var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile);
+                // Determine whether this file's BCC generation is already uploaded based on the notification,
+                // rather than the tracker — updateLatestUploadedBcc is intentionally deferred until after
+                // prefetch completes so that searches don't see isUploaded=true before the cache is populated.
+                // Using the blob store for uploaded files avoids unnecessary load on the indexing node, which
+                // has limited bandwidth compared to the object store.
+                var latestUploadedTermAndGen = notification.latestUploadedBatchedCompoundCommitTermAndGen();
+                var fileIsUploaded = latestUploadedTermAndGen != null
+                    && blobFile.termAndGeneration().compareTo(latestUploadedTermAndGen) <= 0;
+                var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile, fileIsUploaded);
 
                 // Calculate regions from the full range first, then compute the adjusted range per-region.
                 // This avoids Integer.MAX_VALUE truncation for > 2GB blobs.
@@ -445,7 +453,12 @@ public class SearchCommitPrefetcher {
     }
 
     public interface CacheBlobReaderSupplier {
-        CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile);
+        /**
+         * @param blobFile   the file to prefetch
+         * @param isUploaded {@code true} when the notification already confirms this file's BCC generation is uploaded; the caller should
+         *                   pass this from the notification rather than relying on the upload tracker, which may not yet be updated
+         */
+        CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile, boolean isUploaded);
     }
 
     public static class PrefetchExecutor implements Executor {

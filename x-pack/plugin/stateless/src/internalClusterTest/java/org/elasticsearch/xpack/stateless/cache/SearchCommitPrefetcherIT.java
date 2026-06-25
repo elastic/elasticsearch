@@ -76,7 +76,6 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -704,8 +703,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertThat(searchEngine.getTotalPrefetchedBytes(), lessThanOrEqualTo(toPageAlignedSize(bccTotalSizeInBytes)));
         if (prefetchNonUploadedCommits && immediateVbccRelease == false) {
             // N's prefetch read from VBCC (indexing node); those bytes are counted.
-            assertThat(
-                searchEngine.getTotalPrefetchedBytes(), greaterThan(0L));
+            assertThat(searchEngine.getTotalPrefetchedBytes(), greaterThan(0L));
         }
         assertThat(findSearchShard(indexName).commitStats().getGeneration(), is(greaterThan(initialCommitGeneration)));
 

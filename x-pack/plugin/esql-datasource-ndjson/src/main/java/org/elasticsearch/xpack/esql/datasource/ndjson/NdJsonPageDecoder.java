@@ -80,6 +80,13 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private final int sourceEnd;
     /**
+     * Total readable bytes for the byte-array path ({@code sourceEnd - sourceOffset}), or {@code -1}
+     * on the {@link InputStream} path. Used by {@link #setMaxRecordBytes(int)} to decide whether the
+     * per-record cap can ever trip: a record can never be longer than the buffer that fully contains
+     * it, so a byte-array whose whole length is {@code <= max_record_size} needs no enforcement at all.
+     */
+    private final int sourceDataLength;
+    /**
      * Absolute offset (within {@link #sourceBytes}) where {@link #parser}'s input slice starts;
      * tracked because {@code JsonParser.getCurrentLocation().getByteOffset()} is relative to the
      * slice the parser was created over, not to the underlying byte array. Updated each time
@@ -110,6 +117,31 @@ public class NdJsonPageDecoder implements Closeable {
      * caller via {@link #setRecordOffsetBase(long)} before the first {@link #decodePage()}.
      */
     private long recordOffsetBase = 0L;
+
+    /**
+     * Per-record {@code max_record_size} byte cap. Enforced inside the decode loop on the same pass
+     * Jackson already makes (no separate full sweep), so it replaces the pre-#965 stream-wrapper /
+     * pre-scan. Defaults to {@link Integer#MAX_VALUE} (no cap) until {@link #setMaxRecordBytes(int)}
+     * is called by the iterator.
+     */
+    private int maxRecordBytes = Integer.MAX_VALUE;
+    /**
+     * True only when an oversized record is actually reachable on this input, so the hot path (a
+     * byte-array segment whose whole length is within the cap — the streaming-parallel chunk case)
+     * pays nothing. See {@link #setMaxRecordBytes(int)}.
+     */
+    private boolean capEnforced = false;
+    /**
+     * Set when a non-strict policy stops the read at an oversized record on the {@link InputStream}
+     * (streaming / fallback) path. Unlike the byte-array path — where a fully-buffered oversized
+     * record can be dropped and decoding continues — a streaming oversized record has no cheap
+     * resumption point, so the read truncates at the failure (matching the segmentator's behavior).
+     * The records emitted before it are a partial prefix; {@link NdJsonPageIterator} surfaces a
+     * client warning and keeps the under-count out of the stats cache.
+     */
+    private boolean truncated = false;
+    /** File-global byte offset where the oversized record that triggered {@link #truncated} began. */
+    private long truncatedAtByte = -1L;
 
     /** Page block layout: index {@code i} corresponds to {@code projectedAttributes().get(i)}. */
     List<Attribute> projectedAttributes() {
@@ -263,6 +295,7 @@ public class NdJsonPageDecoder implements Closeable {
             Check.isTrue(end <= sourceBytes.length, "byte slice [{}, {}) exceeds buffer length {}", sourceOffset, end, sourceBytes.length);
             this.sourceEnd = end;
             this.parserSliceStart = sourceOffset;
+            this.sourceDataLength = sourceLength;
         } else {
             // The default-zero values are unreachable on the InputStream path: every read of these
             // fields is gated on {@code sourceBytes != null}. Assign explicitly so the dependency is
@@ -270,6 +303,7 @@ public class NdJsonPageDecoder implements Closeable {
             // than reading silently from a zero-initialized field.
             this.sourceEnd = 0;
             this.parserSliceStart = 0;
+            this.sourceDataLength = -1;
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         Check.isTrue(counters != null, "counters must not be null");
@@ -439,6 +473,63 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
+     * Sets the per-record {@code max_record_size} cap (in bytes). Must be called before the first
+     * {@link #decodePage()}. Enforcement is gated on {@link #capEnforced}: on the byte-array path a
+     * record can never exceed the buffer that fully contains it, so when the whole segment is within
+     * the cap the loop skips offset tracking entirely (the streaming-parallel chunk hot path pays
+     * nothing — see issue 965). The {@link InputStream} path has no such bound, so it always enforces
+     * when a finite cap is configured.
+     */
+    void setMaxRecordBytes(int maxRecordBytes) {
+        Check.isTrue(maxRecordBytes > 0, "maxRecordBytes must be positive, got: {}", maxRecordBytes);
+        this.maxRecordBytes = maxRecordBytes;
+        this.capEnforced = maxRecordBytes != Integer.MAX_VALUE && (sourceDataLength < 0 || maxRecordBytes < sourceDataLength);
+    }
+
+    /**
+     * Whether the per-record {@code max_record_size} check runs in the decode loop. False on the
+     * byte-array hot path when the whole segment is within the cap (no record can exceed the buffer
+     * that contains it) — the streaming-parallel chunk case that issue 965 must keep free of any
+     * extra per-record work. Package-private for tests that pin that gate.
+     */
+    boolean capEnforced() {
+        return capEnforced;
+    }
+
+    /**
+     * True when a non-strict read stopped early at an oversized record on the streaming/fallback
+     * path. The emitted rows are a partial prefix of the input.
+     */
+    boolean truncated() {
+        return truncated;
+    }
+
+    /** File-global byte offset of the oversized record that caused {@link #truncated}, or {@code -1}. */
+    long truncatedAtByte() {
+        return truncatedAtByte;
+    }
+
+    /**
+     * Parser byte offset relative to its current slice. Stable to subtract between two points within
+     * a single record's decode (no recovery happens between {@code nextToken} and a successful
+     * {@code decodeObject}), so {@code endOffset - startOffset} is the record's parsed JSON span.
+     */
+    private long parserSliceByteOffset() {
+        return parser.getCurrentLocation().getByteOffset();
+    }
+
+    /**
+     * Throws the strict-policy {@code max_record_size} failure for a record whose parsed span is
+     * {@code spanBytes}. Mirrors {@link NdJsonRecordSplitter}'s message so the user-facing wording is
+     * identical regardless of which layer detects the overflow.
+     */
+    private IOException recordTooLarge(long spanBytes) {
+        return new IOException(
+            "NDJSON record exceeded max_record_size [" + maxRecordBytes + "]: record spans at least [" + spanBytes + "] bytes"
+        );
+    }
+
+    /**
      * File-global byte offset of the parser's current logical position. {@link #parserSliceStart} is
      * the parser slice's absolute start within {@link #sourceBytes} (updated on recovery);
      * {@link #initialSliceStart} relativizes it so the result stays anchored to {@link #recordOffsetBase}.
@@ -449,6 +540,10 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     Page decodePage() throws IOException {
+        if (truncated) {
+            // A prior page stopped at an oversized record on the streaming path; nothing more to read.
+            return null;
+        }
         long startNanos = System.nanoTime();
         long startTotalRowCount = totalRowCount;
         long startErrorCount = errorCount;
@@ -485,13 +580,32 @@ public class NdJsonPageDecoder implements Closeable {
 
             totalRowCount++;
             this.blockTracker.clear();
-            // Capture the record's file-global start offset before decodeObject advances the parser.
-            long recordOffset = rowPositionSlot >= 0 ? recordFileOffset() : 0L;
+            // Capture the record's start offset before decodeObject advances the parser. The slice-relative
+            // offset feeds the max_record_size span check; the file-global offset feeds _rowPosition.
+            boolean trackOffset = capEnforced || rowPositionSlot >= 0;
+            long startSliceOffset = trackOffset ? parserSliceByteOffset() : 0L;
+            long recordOffset = trackOffset ? recordOffsetBase + (parserSliceStart - initialSliceStart) + startSliceOffset : 0L;
 
             try {
                 decoder.decodeObject(parser, false);
             } catch (JsonParseException e) {
                 onNdjsonLineParseError(e, totalRowCount, "decodeObject");
+            }
+
+            if (capEnforced) {
+                // span is the parsed JSON object's byte length (opening '{' through closing '}'); it omits the
+                // line terminator, so it is up to a couple of bytes under the splitter's terminator-inclusive
+                // count. That can only make the decoder slightly more permissive at very small caps, never
+                // stricter, so it never spuriously rejects a record a coordinator chunk already accepted. The
+                // record was fully decoded before this check (the buffer is already bounded — byte-array
+                // segments are <= 16 MiB and Jackson's StreamReadConstraints bound a single streamed token),
+                // which trades a fail-fast pre-scan for the single-pass decode that issue 965 requires.
+                long span = parserSliceByteOffset() - startSliceOffset;
+                if (span > maxRecordBytes) {
+                    // Keep the failed row out of the emitted-rows counter (the finally adds totalRowCount).
+                    totalRowCount--;
+                    throw recordTooLarge(span);
+                }
             }
 
             if (rowPositionSlot >= 0) {
@@ -535,8 +649,11 @@ public class NdJsonPageDecoder implements Closeable {
 
             totalRowCount++;
             this.blockTracker.clear();
-            // Capture before decodeObject / recovery advance the parser.
-            long recordOffset = rowPositionSlot >= 0 ? recordFileOffset() : 0L;
+            // Capture before decodeObject / recovery advance the parser. The slice-relative offset feeds
+            // the max_record_size span check; the file-global offset feeds _rowPosition and truncation.
+            boolean trackOffset = capEnforced || rowPositionSlot >= 0;
+            long startSliceOffset = trackOffset ? parserSliceByteOffset() : 0L;
+            long recordOffset = trackOffset ? recordOffsetBase + (parserSliceStart - initialSliceStart) + startSliceOffset : 0L;
 
             try {
                 decoder.setupBuilders(rowScratch);
@@ -546,6 +663,42 @@ public class NdJsonPageDecoder implements Closeable {
                     onNdjsonLineParseError(e, totalRowCount, "decodeObject");
                     recoverFromParseException(parser);
                     continue;
+                }
+                if (capEnforced) {
+                    // The cap is checked only after a successful decode, so an oversized record that is ALSO
+                    // malformed JSON is classified by the parse-error path above (counts against the lenient
+                    // error budget) rather than being silently dropped as "too large". This is intentional:
+                    // the alternative is a raw-byte line scan on the recovery path, i.e. the redundant sweep
+                    // issue 965 removed. Both outcomes keep the bad row out of the result; only the warning
+                    // wording and budget attribution differ.
+                    long span = parserSliceByteOffset() - startSliceOffset;
+                    if (span > maxRecordBytes) {
+                        // Oversized record under a non-strict policy. Undo the pre-decode row count so the
+                        // skipped record stays out of rowsEmitted / error-budget accounting, matching the
+                        // pre-#965 byte-array filter (which dropped the record before it reached the
+                        // decoder). Crucially the buffer is NOT compacted, so retained rows keep their true
+                        // file offsets — the compaction in the old filter shifted _rowPosition /
+                        // _file.record_ref for every row after a skip (issue 965 feedback).
+                        totalRowCount--;
+                        if (sourceBytes == null) {
+                            // Streaming/fallback: no cheap resumption point, so stop at the oversized record.
+                            // Rows already in blockBuilders are a partial prefix. Emit a one-shot partial-results
+                            // warning (best-effort, via the same thread-bound HeaderWarning path as skip warnings);
+                            // NdJsonPageIterator keeps the under-count out of the stats cache (see truncated()).
+                            skipWarnings.add(
+                                "NDJSON read truncated at byte ["
+                                    + recordOffset
+                                    + "]: a record exceeded max_record_size ["
+                                    + maxRecordBytes
+                                    + "]; results are partial"
+                            );
+                            truncated = true;
+                            truncatedAtByte = recordOffset;
+                            break;
+                        }
+                        // Byte-array: the oversized record is fully buffered, so drop it and keep decoding.
+                        continue;
+                    }
                 }
                 if (rowPositionSlot >= 0) {
                     ((LongBlock.Builder) rowScratch[rowPositionSlot]).appendLong(recordOffset);

@@ -12,9 +12,9 @@ import org.elasticsearch.common.settings.Setting;
 import java.util.List;
 
 /**
- * Cluster settings for controlling ESQL external source behavior. All are node-scoped. Values are read when the
- * storage-provider registry initializes on a node; changing one takes effect for providers created after the
- * change (in practice, after a node restart) — they are not hot-reloaded into already-built providers.
+ * Cluster settings for controlling ESQL external source behavior; all node-scoped. The concurrency guardrail
+ * ({@link #MAX_CONNECTIONS}) and the throttle retry budget are read when the storage-provider registry initializes
+ * on a node, so a change to them takes effect after a node restart, not on already-built providers.
  * <p>
  * Covers three areas: a local-resource concurrency guardrail ({@link #MAX_CONNECTIONS}); reactive throttle
  * handling for object stores (the retry duration budget — throttling is handled by backoff, not a concurrency
@@ -42,8 +42,7 @@ public final class ExternalSourceSettings {
         256,
         0,
         500,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     /**

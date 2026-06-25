@@ -381,12 +381,17 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed);
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, columnar);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
-        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed) {
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, false) {
             @Override
             public SyntheticSourceExample example(int maxVals) {
                 var example = super.example(maxVals);
@@ -403,11 +408,18 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     private static class ScaledFloatSyntheticSourceSupport implements SyntheticSourceSupport {
         private final boolean ignoreMalformedEnabled;
+        private final boolean isColumnar;
         private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
         private final Double nullValue = usually() ? null : round(randomValue());
 
-        private ScaledFloatSyntheticSourceSupport(boolean ignoreMalformedEnabled) {
+        private ScaledFloatSyntheticSourceSupport(boolean ignoreMalformedEnabled, boolean isColumnar) {
             this.ignoreMalformedEnabled = ignoreMalformedEnabled;
+            this.isColumnar = isColumnar;
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -422,7 +434,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             List<Value> values = randomList(1, maxValues, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
 
-            List<Double> outputFromDocValues = values.stream().filter(v -> v.malformedOutput == null).map(Value::output).sorted().toList();
+            Stream<Double> nonMalformedOutputs = values.stream().filter(v -> v.malformedOutput == null).map(Value::output);
+            List<Double> outputFromDocValues = (isColumnar ? nonMalformedOutputs : nonMalformedOutputs.sorted()).toList();
             List<Object> malformedOutput = values.stream()
                 .filter(v -> v.malformedOutput != null)
                 .map(Value::malformedOutput)

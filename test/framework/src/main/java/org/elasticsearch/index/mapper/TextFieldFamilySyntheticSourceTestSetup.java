@@ -31,7 +31,7 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
 public final class TextFieldFamilySyntheticSourceTestSetup {
 
     public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
-        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, true, false);
+        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, true, false, false);
     }
 
     public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
@@ -39,7 +39,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         boolean supportsCustomIndexConfiguration,
         boolean fallbackUsesBinaryDocValues
     ) {
-        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, fallbackUsesBinaryDocValues, false);
+        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, fallbackUsesBinaryDocValues, false, false);
     }
 
     public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
@@ -48,11 +48,22 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         boolean fallbackUsesBinaryDocValues,
         boolean supportsDocValues
     ) {
+        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, fallbackUsesBinaryDocValues, supportsDocValues, false);
+    }
+
+    public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
+        String fieldType,
+        boolean supportsCustomIndexConfiguration,
+        boolean fallbackUsesBinaryDocValues,
+        boolean supportsDocValues,
+        boolean isColumnar
+    ) {
         return new TextFieldFamilySyntheticSourceSupport(
             fieldType,
             supportsCustomIndexConfiguration,
             fallbackUsesBinaryDocValues,
-            supportsDocValues
+            supportsDocValues,
+            isColumnar
         );
     }
 
@@ -101,15 +112,18 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private final Integer ignoreAbove;
         private final boolean fallbackUsesBinaryDocValues;
         private final KeywordFieldSyntheticSourceSupport keywordMultiFieldSyntheticSourceSupport;
+        private final boolean isColumnar;
 
         TextFieldFamilySyntheticSourceSupport(
             String fieldType,
             boolean supportsCustomIndexConfiguration,
             boolean fallbackUsesBinaryDocValues,
-            boolean supportsDocValues
+            boolean supportsDocValues,
+            boolean isColumnar
         ) {
             this.fieldType = fieldType;
-            this.store = randomBoolean();
+            this.isColumnar = isColumnar;
+            this.store = isColumnar ? false : randomBoolean();
             this.index = supportsCustomIndexConfiguration == false || randomBoolean();
             this.ignoreAbove = randomBoolean() ? null : between(10, 100);
             this.fallbackUsesBinaryDocValues = fallbackUsesBinaryDocValues;
@@ -118,9 +132,15 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 randomBoolean(),
                 null,
                 false,
-                KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false)
+                KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false),
+                isColumnar
             );
             this.docValues = docValuesParams(supportsDocValues);
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -137,6 +157,13 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 return docValues.multiValue() == false;
             }
             return keywordMultiFieldSyntheticSourceSupport.enforcesSingleValue();
+        }
+
+        @Override
+        public boolean preservesEmptyArray() {
+            // Columnar mode preserves empty arrays via the offsets sidecar only when doc values are enabled
+            // and multi_value is not forced to false (which would skip offset recording).
+            return isColumnar && docValues.enabled() && docValues.multiValue();
         }
 
         @Override
@@ -214,8 +241,8 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
 
             var list = ESTestCase.randomList(1, maxValues, this::randomString);
 
-            // Doc values (both LOW and HIGH cardinality) return sorted and deduplicated values
-            List<String> outputList = new HashSet<>(list).stream().sorted().toList();
+            // columnar mode preserves insertion order and duplicates; non-columnar deduplicates and sorts
+            List<String> outputList = isColumnar ? list : new HashSet<>(list).stream().sorted().toList();
 
             var output = outputList.size() == 1 ? outputList.get(0) : outputList;
             return new MapperTestCase.SyntheticSourceExample(list, output, mapping);

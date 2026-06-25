@@ -61,6 +61,11 @@ public class FloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
+        return new NumberSyntheticSourceSupport(Number::floatValue, ignoreMalformed, columnar);
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
         return new NumberSyntheticSourceSupportForKeepTests(Number::floatValue, ignoreMalformed, sourceKeepMode);
 

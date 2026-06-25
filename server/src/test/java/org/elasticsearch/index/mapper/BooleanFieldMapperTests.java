@@ -340,7 +340,9 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             }
             List<Tuple<Boolean, Boolean>> values = randomList(1, maxVals, this::generateValue);
             List<Boolean> in = values.stream().map(Tuple::v1).toList();
-            List<Boolean> outList = values.stream().map(Tuple::v2).sorted().toList();
+            List<Boolean> outList = isColumnar
+                ? values.stream().map(Tuple::v2).toList()
+                : values.stream().map(Tuple::v2).sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }

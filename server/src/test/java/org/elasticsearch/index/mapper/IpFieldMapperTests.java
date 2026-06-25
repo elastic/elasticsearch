@@ -384,15 +384,24 @@ public class IpFieldMapperTests extends MapperTestCase {
             }
             List<Tuple<Object, Object>> values = randomList(1, maxValues, this::generateValue);
             List<Object> in = values.stream().map(Tuple::v1).toList();
-            List<Object> outList = values.stream()
-                .filter(v -> v.v2() instanceof InetAddress)
-                .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
-                .collect(Collectors.toSet())
-                .stream()
-                .sorted(BytesRef::compareTo)
-                .map(v -> InetAddressPoint.decode(v.bytes))
-                .map(NetworkAddress::format)
-                .collect(Collectors.toCollection(ArrayList::new));
+            List<Object> outList;
+            if (isColumnar) {
+                // columnar mode preserves insertion order and duplicates
+                outList = values.stream()
+                    .filter(v -> v.v2() instanceof InetAddress)
+                    .map(v -> NetworkAddress.format((InetAddress) v.v2()))
+                    .collect(Collectors.toCollection(ArrayList::new));
+            } else {
+                outList = values.stream()
+                    .filter(v -> v.v2() instanceof InetAddress)
+                    .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
+                    .collect(Collectors.toSet())
+                    .stream()
+                    .sorted(BytesRef::compareTo)
+                    .map(v -> InetAddressPoint.decode(v.bytes))
+                    .map(NetworkAddress::format)
+                    .collect(Collectors.toCollection(ArrayList::new));
+            }
             values.stream()
                 .filter(v -> false == v.v2() instanceof InetAddress)
                 .map(Tuple::v2)

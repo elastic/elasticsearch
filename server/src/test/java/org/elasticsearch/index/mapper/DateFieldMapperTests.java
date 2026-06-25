@@ -662,15 +662,15 @@ public class DateFieldMapperTests extends MapperTestCase {
                 List<Value> values = randomList(1, maxValues, this::generateValue);
                 List<Object> in = values.stream().map(Value::input).toList();
 
-                List<String> outputFromDocValues = values.stream()
-                    .filter(v -> v.malformedOutput == null)
-                    .sorted(
+                Stream<Value> nonMalformed = values.stream().filter(v -> v.malformedOutput == null);
+                if (columnar == false) {
+                    nonMalformed = nonMalformed.sorted(
                         Comparator.comparing(
                             v -> Instant.from(formatter.parse(v.input == null ? nullValue.toString() : v.input.toString()))
                         )
-                    )
-                    .map(Value::output)
-                    .toList();
+                    );
+                }
+                List<String> outputFromDocValues = nonMalformed.map(Value::output).toList();
 
                 List<Object> malformedOutput = values.stream()
                     .filter(v -> v.malformedOutput != null)

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -18,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -50,7 +50,7 @@ public class TransportDeleteRegionPolicyAction extends HandledTransportAction<De
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
                     if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        listener.onFailure(new ResourceNotFoundException("No region policy is configured for this deployment"));
+                        listener.onFailure(TransportGetRegionPolicyAction.noRegionPolicyConfiguredException());
                     } else {
                         listener.onResponse(AcknowledgedResponse.TRUE);
                     }
@@ -58,7 +58,11 @@ public class TransportDeleteRegionPolicyAction extends HandledTransportAction<De
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    if (e instanceof IndexNotFoundException) {
+                        listener.onFailure(TransportGetRegionPolicyAction.noRegionPolicyConfiguredException());
+                    } else {
+                        listener.onFailure(e);
+                    }
                 }
             });
     }

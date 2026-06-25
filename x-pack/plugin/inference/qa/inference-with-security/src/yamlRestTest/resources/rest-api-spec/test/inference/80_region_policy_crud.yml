@@ -1,3 +1,8 @@
+setup:
+  - requires:
+      test_runner_features: headers
+
+---
 teardown:
   - do:
       catch: missing

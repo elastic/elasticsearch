@@ -18,9 +18,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
@@ -53,12 +55,18 @@ public class TransportGetRegionPolicyAction extends HandledTransportAction<GetRe
     @Override
     protected void doExecute(Task task, GetRegionPolicyAction.Request request, ActionListener<RegionPolicyResponse> finalListener) {
         SubscribableListener.newForked(this::searchRegionPolicy)
-            .<RegionPolicyResponse>andThen((l, searchResponse) -> processSearchResponse(searchResponse, l))
+            .<RegionPolicyResponse>andThen((l, searchResponse) -> processSearchResponse(searchResponse.getHits(), l))
             .addListener(finalListener);
     }
 
     private void searchRegionPolicy(ActionListener<SearchResponse> listener) {
-        doSearchRegionPolicy(client, false, listener);
+        doSearchRegionPolicy(client, false, listener.delegateResponse((l, e) -> {
+            if (e instanceof IndexNotFoundException) {
+                l.onFailure(noRegionPolicyConfiguredException());
+            } else {
+                l.onFailure(e);
+            }
+        }));
     }
 
     public static void doSearchRegionPolicy(Client client, boolean requestSeqNoAndPrimaryTerm, ActionListener<SearchResponse> listener) {
@@ -69,10 +77,14 @@ public class TransportGetRegionPolicyAction extends HandledTransportAction<GetRe
             .execute(listener);
     }
 
-    private void processSearchResponse(SearchResponse searchResponse, ActionListener<RegionPolicyResponse> listener) {
-        SearchHit[] hits = searchResponse.getHits().getHits();
+    public static ResourceNotFoundException noRegionPolicyConfiguredException() {
+        return new ResourceNotFoundException("No region policy is configured for this deployment");
+    }
+
+    private void processSearchResponse(SearchHits searchHits, ActionListener<RegionPolicyResponse> listener) {
+        SearchHit[] hits = searchHits.getHits();
         if (hits.length == 0) {
-            listener.onFailure(new ResourceNotFoundException("No region policy is configured for this deployment"));
+            listener.onFailure(noRegionPolicyConfiguredException());
         } else {
             listener.onResponse(new RegionPolicyResponse(parseRegionPolicy(hits[0])));
         }

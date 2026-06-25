@@ -22,6 +22,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.inference.ToXContentParams;
 import org.elasticsearch.injection.guice.Inject;
@@ -81,13 +82,19 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
     }
 
     private void getRegionPolicyOrNullWhenMissing(ActionListener<RegionPolicyDocWithSeqNo> listener) {
-        TransportGetRegionPolicyAction.doSearchRegionPolicy(client, true, listener.delegateFailureAndWrap((l, searchResponse) -> {
+        TransportGetRegionPolicyAction.doSearchRegionPolicy(client, true, ActionListener.wrap(searchResponse -> {
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
-                l.onResponse(null);
+                listener.onResponse(null);
             } else {
                 RegionPolicyDoc regionPolicyDoc = TransportGetRegionPolicyAction.parseRegionPolicy(hits[0]);
-                l.onResponse(new RegionPolicyDocWithSeqNo(regionPolicyDoc, hits[0].getSeqNo(), hits[0].getPrimaryTerm()));
+                listener.onResponse(new RegionPolicyDocWithSeqNo(regionPolicyDoc, hits[0].getSeqNo(), hits[0].getPrimaryTerm()));
+            }
+        }, e -> {
+            if (e instanceof IndexNotFoundException) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(e);
             }
         }));
     }

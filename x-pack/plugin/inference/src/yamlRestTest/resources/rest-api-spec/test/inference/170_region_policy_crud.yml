@@ -145,7 +145,8 @@ teardown:
         body:
           allowed_geos:
             - us
-  - match: { error.reason: /unknown field \[allowed_geos\]/ }
+  - match:
+      error.reason: /.*unknown\ field\ \[allowed_geos\].*/
 
 ---
 "Put region policy rejects both allowed_geos and allowed_regions":
@@ -159,8 +160,9 @@ teardown:
             allowed_regions:
               - csp: aws
                 region: us-east-1
-  - match: { error.reason: /failed to parse field \[region_policy\]/ }
-  - match: { error.caused_by.reason: /not allowed together/ }
+  - match:
+      error.reason: /.*failed\ to\ parse\ field\ \[region_policy\].*/
+  - match: { error.caused_by.reason: /.*not\ allowed\ together.*/ }
 
 ---
 "Delete region policy when none exists":

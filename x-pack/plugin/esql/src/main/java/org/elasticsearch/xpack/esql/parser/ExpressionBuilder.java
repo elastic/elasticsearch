@@ -127,6 +127,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      */
     public static final int MAX_EXPRESSION_DEPTH = 300;
 
+    /**
+     * Sentinel returned by {@link #visitInputNamedOrPositionalParam} when a named or positional
+     * parameter reference in the query has no matching entry in the request's parameter list.
+     * The "Unknown query parameter" parsing error is recorded at the return site; callers that
+     * receive this value should skip the segment rather than treating it as a real null literal.
+     * <p>
+     * This is intentionally distinct from {@link Literal#NULL} so that the two cannot be confused
+     * by reference equality: {@code Literal.NULL} is a general-purpose null literal that may
+     * appear legitimately in the expression tree, whereas {@code MISSING_PARAMETER} only ever
+     * comes from an unresolved parameter reference.
+     */
+    static final Literal MISSING_PARAMETER = new Literal(Source.EMPTY, null, DataType.NULL);
+
     protected final ParsingContext context;
 
     public record ParsingContext(QueryParams params, InferenceSettings inferenceSettings, String viewName) {}
@@ -1061,9 +1074,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * <p>
      * Two sentinel outcomes are possible without throwing:
      * <ul>
-     *   <li>{@link Literal#NULL} — the parameter is missing; a "Unknown query parameter" parsing
-     *       error has already been recorded by {@link #paramByNameOrPosition} and the caller
-     *       should skip the segment.</li>
+     *   <li>{@link #MISSING_PARAMETER} — the parameter is missing; a "Unknown query parameter"
+     *       parsing error has already been recorded by {@link #paramByNameOrPosition} and the
+     *       caller should skip the segment.</li>
      *   <li>{@link UnresolvedAttribute} or {@link UnresolvedNamePattern} — the happy path;
      *       the caller uses the resolved name or pattern.</li>
      * </ul>
@@ -1084,9 +1097,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     paramDisplay,
                     lit
                 );
-            } else if (lit != Literal.NULL) {
-                // Defined-but-null param (e.g. from an empty list): distinct from the missing-param sentinel
-                // (Literal.NULL), which already produces a parsing error from paramByNameOrPosition.
+            } else if (lit != MISSING_PARAMETER) {
+                // Defined-but-null param (e.g. from an empty list or explicit null): distinct from
+                // MISSING_PARAMETER, which already carries a parsing error from paramByNameOrPosition.
                 throw new ParsingException(
                     src,
                     "Query parameter [{}] is null or undefined, cannot be used as an identifier or pattern",
@@ -1221,7 +1234,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) {
         QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
         if (param == null) {
-            return Literal.NULL;
+            return MISSING_PARAMETER;
         }
         return visitParam(source(ctx), param);
     }

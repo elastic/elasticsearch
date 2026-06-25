@@ -168,3 +168,22 @@ result:double        | step:datetime            | _timeseries:keyword
 0.011137995076923079 | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
 0.008197047633136096 | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
 ;
+
+histogram_count_aggsum_increase_exp_histo
+required_capability: promql_sum_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_count(sum(increase(responseTime{instance=~"instance-.*"}[2h]))));
+
+result:double | step:datetime
+15471.0       | 2025-09-25T02:00:00.000Z
+;
+
+histogram_count_aggsum_by_increase_exp_histo
+required_capability: promql_sum_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_count(sum by (instance)(increase(responseTime{instance=~"instance-.*"}[2h]))))
+| SORT instance;
+
+result:double | step:datetime            | instance:keyword
+8841.0        | 2025-09-25T02:00:00.000Z | instance-0
+3250.0        | 2025-09-25T02:00:00.000Z | instance-1
+3380.0        | 2025-09-25T02:00:00.000Z | instance-2
+;

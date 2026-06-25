@@ -752,6 +752,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:stats_sparkline.weightedAvgAndSparklineWithSameWeightedAvg}
   issue: https://github.com/elastic/elasticsearch/issues/152162
-- class: org.elasticsearch.indices.recovery.ThrottlingRecoveryServiceTests
-  method: testQueuedRecoveryIsDispatchedWithCleanThreadContext
-  issue: https://github.com/elastic/elasticsearch/issues/152183

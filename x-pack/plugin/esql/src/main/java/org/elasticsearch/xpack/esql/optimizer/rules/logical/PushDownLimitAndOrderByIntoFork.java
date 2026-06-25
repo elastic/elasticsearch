@@ -43,10 +43,16 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
         }
 
         OrderBy orderBy = (OrderBy) limit.child();
-        if (orderBy.child() instanceof Fork == false || orderBy.child() instanceof UnionAll) {
+        if (orderBy.child() instanceof Fork == false) {
             return limit;
         }
         Fork fork = (Fork) orderBy.child();
+        // Allow TopN pushdown into a direct-leaf UnionAll (heterogeneous FROM shape).
+        // Subquery-shape UnionAll branches are left alone: shouldPushDownPipelineBreakerIntoForkBranch
+        // returns false for them so the loop below would be a no-op anyway.
+        if (fork instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
+            return limit;
+        }
 
         List<LogicalPlan> newForkChildren = new ArrayList<>();
         boolean changed = false;

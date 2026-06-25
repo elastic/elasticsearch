@@ -92,7 +92,14 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             for (int i = 0; i < expressions.size(); i++) {
                 ResolvedIndexExpression current = expressions.get(i);
                 if (current.localExpressions() != LocalExpressions.NONE) {
-                    expressions.set(i, new ResolvedIndexExpression(current.original(), LocalExpressions.NONE, current.remoteExpressions()));
+                    expressions.set(
+                        i,
+                        new ResolvedIndexExpression(
+                            current.original(),
+                            new LocalExpressions(Set.of(), LocalIndexResolutionResult.SUCCESS, null),
+                            current.remoteExpressions()
+                        )
+                    );
                 }
             }
         }

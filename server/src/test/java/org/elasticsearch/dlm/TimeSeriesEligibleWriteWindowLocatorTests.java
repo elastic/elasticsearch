@@ -45,9 +45,7 @@ public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
         project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         assertThat(DLM_ONLY.getEligibleWriteWindowStart(dataStream, project, null, randomNonNegativeLong()), equalTo(-1L));
 
-        DataStreamLifecycle withRetention = DataStreamLifecycle.dataLifecycleBuilder()
-            .dataRetention(TimeValue.timeValueDays(30))
-            .build();
+        DataStreamLifecycle withRetention = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(30)).build();
         Index index = new Index(DataStream.getDefaultBackingIndexName("non-tsdb", 1), randomAlphaOfLength(10));
         dataStream = DataStream.builder("non-tsdb", List.of(index)).setLifecycle(withRetention).build();
         assertThat(DLM_ONLY.getEligibleWriteWindowStart(dataStream, project, null, randomNonNegativeLong()), equalTo(-1L));

@@ -66,7 +66,7 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_
  *   <li>{@link AgentExportTracerSupplier} returns {@code GlobalOpenTelemetry.get()}, which the Elasticsearch
  *       APM Java agent intercepts to ship spans to Elastic APM.</li>
  *   <li>{@link OtelSdkExportTracerSupplier} returns an {@link io.opentelemetry.sdk.OpenTelemetrySdk} owned by
- *       this module that exports spans over OTLP HTTP. Activated by the
+ *       this module that exports spans over OTLP. Activated by the
  *       {@code telemetry.otel.traces.enabled=true} JVM system property and bypasses
  *       {@code GlobalOpenTelemetry} entirely.</li>
  * </ul>

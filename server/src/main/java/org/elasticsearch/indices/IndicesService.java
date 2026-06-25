@@ -421,7 +421,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
-        this.throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
+        this.throttlingRecoveryService = builder.throttlingRecoveryService;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -435,7 +435,6 @@ public class IndicesService extends AbstractLifecycleComponent
         stopLatch.countDown();
         clusterService.removeApplier(timestampFieldMapperService);
         timestampFieldMapperService.doStop();
-        throttlingRecoveryService.close();
 
         ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);
 
@@ -998,6 +997,7 @@ public class IndicesService extends AbstractLifecycleComponent
         throttlingRecoveryService.enqueue(
             recoveryListener,
             recoveryState,
+            indexShard.recoveryStats(),
             listener -> projectResolver.executeOnProject(
                 projectId,
                 () -> indexShard.startRecovery(

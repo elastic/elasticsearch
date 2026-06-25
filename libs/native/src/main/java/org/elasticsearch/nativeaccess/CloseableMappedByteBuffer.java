@@ -9,6 +9,8 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
+
 /** A closeable buffer backed by a mapped file. */
 public interface CloseableMappedByteBuffer extends CloseableByteBuffer {
 

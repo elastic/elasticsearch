@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.CacheRegion;
-import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
-import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
@@ -42,8 +40,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
@@ -67,7 +63,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(oldShard, creationDates[0], recentShard, creationDates[1]));
 
-        assertTrue(policy.canEvict(region(oldShard, "f"), region(recentShard, "g")));
+        assertTrue(canEvict(policy, region(oldShard, "f"), region(recentShard, "g")));
     }
 
     public void testCannotEvictNewerRegionForOlderIncoming() {
@@ -76,7 +72,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(oldShard, creationDates[0], recentShard, creationDates[1]));
 
-        assertFalse(policy.canEvict(region(recentShard, "f"), region(oldShard, "g")));
+        assertFalse(canEvict(policy, region(recentShard, "f"), region(oldShard, "g")));
     }
 
     public void testCanEvictWhenCreationDatesEqual() {
@@ -85,7 +81,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId shard2 = new ShardId("index2", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(shard1, creationDate, shard2, creationDate));
 
-        assertTrue(policy.canEvict(region(shard1, "f"), region(shard2, "g")));
+        assertTrue(canEvict(policy, region(shard1, "f"), region(shard2, "g")));
     }
 
     public void testMissingShardTreatedAsOldest() {
@@ -94,48 +90,8 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(recentShard, recentDate));
 
-        assertTrue(policy.canEvict(region(unknownShard, "f"), region(recentShard, "g")));
-        assertFalse(policy.canEvict(region(recentShard, "f"), region(unknownShard, "g")));
-    }
-
-    public void testCreateEvictionPolicyReturnsDefaultWhenSettingDisabled() {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), false);
-        if (randomBoolean()) {
-            settingsBuilder.put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
-                StatelessCacheEvictionPolicyType.INDEX_AGE
-            );
-        }
-        EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(
-            settingsBuilder.build(),
-            mock(ClusterService.class)
-        );
-        assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
-    }
-
-    public void testCreateEvictionPolicyReturnsDefaultWhenBoostEnabledButPolicyAlways() {
-        Settings settings = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
-            .put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
-                StatelessCacheEvictionPolicyType.ALWAYS
-            )
-            .build();
-        EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
-        assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
-    }
-
-    public void testCreateEvictionPolicyReturnsIndexAgePolicyWhenExplicitlyConfigured() {
-        Settings settings = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
-            .put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
-                StatelessCacheEvictionPolicyType.INDEX_AGE
-            )
-            .build();
-        EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
-        assertThat(policy, instanceOf(IndexAgeEvictionPolicy.class));
+        assertTrue(canEvict(policy, region(unknownShard, "f"), region(recentShard, "g")));
+        assertFalse(canEvict(policy, region(recentShard, "f"), region(unknownShard, "g")));
     }
 
     /**
@@ -260,5 +216,9 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
     private static long cacheRegionSizeInBytes(long numPages) {
         return numPages * SharedBytes.PAGE_SIZE;
+    }
+
+    private static boolean canEvict(IndexAgeEvictionPolicy policy, CacheRegion<FileCacheKey> region, CacheRegion<FileCacheKey> incoming) {
+        return policy.createPredicate(incoming).test(region);
     }
 }

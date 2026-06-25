@@ -256,7 +256,7 @@ POST /_bulk
 {"quadkey":"0320101","type":"degradation","duration_min":8}
 ```
 
-Now query both sources together. `FROM` resolves each name independently, whether it is an index, an alias, or a dataset:
+Now query both sources together. `FROM` resolves each name independently, whether it is an index (or index abstraction such as a data stream, alias, etc.) or a dataset:
 
 ```esql
 FROM speedtest_fixed, network_incidents

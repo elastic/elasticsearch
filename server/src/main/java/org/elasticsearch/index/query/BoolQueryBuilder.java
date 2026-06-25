@@ -354,7 +354,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             addBooleanClauses(context, booleanQueryBuilder, clauses, occurs, queryVisitor);
             return;
         }
-        MaxClauseCountQueryVisitor clauseVisitor = MaxClauseCountQueryVisitor.create(
+        MaxClauseCountQueryVisitor clauseVisitor = new MaxClauseCountQueryVisitor(
             IndexSearcher.getMaxClauseCount(),
             context.getCircuitBreaker()
         );

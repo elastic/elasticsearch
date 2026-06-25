@@ -41,6 +41,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -158,6 +160,39 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat("the out-of-band scorer must charge execution RAM", breaker.getUsed(), greaterThan(0L));
         searcher.close();
         assertThat("closing the searcher must release the residual out-of-band charge", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testOutOfBandChargeOnAnotherThreadReleasedOnClose() throws Exception {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            null,
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            false
+        );
+        searcher.setCircuitBreaker(breaker);
+        Query dense = LongPoint.newRangeQuery(FIELD, 0L, (NUM_DOCS * 3 / 4));
+        Weight weight = searcher.createWeight(searcher.rewrite(dense), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+
+        try (ExecutorService worker = Executors.newSingleThreadExecutor()) {
+            worker.submit(() -> {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    ScorerSupplier scorerSupplier = weight.scorerSupplier(leaf);
+                    if (scorerSupplier != null) {
+                        // Force the points branch the way KNN materialises the filter bitset, outside any searchLeaf scope.
+                        scorerSupplier.get(Long.MAX_VALUE);
+                    }
+                }
+                return null;
+            }).get();
+        }
+
+        assertThat("the worker thread's out-of-band scorer must charge execution RAM", breaker.getUsed(), greaterThan(0L));
+        // close() runs on the test thread, which never charged anything, so its own thread-local is empty;
+        // the release must come from the shared cross-thread counter.
+        searcher.close();
+        assertThat("closing on a different thread must still release the worker thread's charge", breaker.getUsed(), equalTo(0L));
     }
 
     private static Query conjunction(Query first, Query second) {

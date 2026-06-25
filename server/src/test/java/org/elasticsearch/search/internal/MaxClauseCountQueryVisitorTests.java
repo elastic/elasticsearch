@@ -131,7 +131,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
     public void testPointRangeStructuralChargeIsIndependentOfReaderSize() {
         PointRangeQuery prq = (PointRangeQuery) IntPoint.newRangeQuery("f", 1, 100);
 
-        MaxClauseCountQueryVisitor first = MaxClauseCountQueryVisitor.create(IndexSearcher.getMaxClauseCount(), null);
+        MaxClauseCountQueryVisitor first = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null);
         prq.visit(first);
         MaxClauseCountQueryVisitor second = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         prq.visit(second);

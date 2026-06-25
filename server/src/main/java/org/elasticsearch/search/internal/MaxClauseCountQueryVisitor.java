@@ -68,13 +68,6 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         this.breakerBaseline = breaker == null ? 0L : breaker.getUsed();
     }
 
-    /**
-     * Builds a clause-counting visitor that charges {@code breaker} mid-walk.
-     */
-    public static MaxClauseCountQueryVisitor create(int maxClauseCount, @Nullable CircuitBreaker breaker) {
-        return new MaxClauseCountQueryVisitor(maxClauseCount, breaker);
-    }
-
     public int getMaxClauseCount() {
         return maxClauseCount;
     }

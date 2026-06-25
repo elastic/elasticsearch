@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
  * API without risking breaking the external field-caps API. For now, this API delegates to the field-caps API, but gradually,
  * we will decouple this API completely from the field-caps.
  */
-public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabilitiesRequest, EsqlResolveFieldsResponse> {
+public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveFieldsRequest, EsqlResolveFieldsResponse> {
     public static final String NAME = "indices:data/read/esql/resolve_fields";
     public static final ActionType<EsqlResolveFieldsResponse> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<EsqlResolveFieldsResponse> RESOLVE_REMOTE_TYPE = new RemoteClusterActionType<>(
@@ -76,7 +76,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         ProjectResolver projectResolver
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(NAME, transportService, actionFilters, EsqlResolveFieldsRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.fieldCapsAction = fieldCapsAction;
         this.clusterService = clusterService;
         this.viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
@@ -85,23 +85,24 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     }
 
     @Override
-    protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
+    protected void doExecute(Task task, EsqlResolveFieldsRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
+        var fieldCapsRequest = request.fieldCapsRequest();
         // During CCS, resolveViews is only set on a request from the originating cluster and is therefore only true on a remote cluster
-        if (request.indicesOptions().indexAbstractionOptions().resolveViews()) {
+        if (fieldCapsRequest.indicesOptions().indexAbstractionOptions().resolveViews()) {
             Set<String> viewsLocalToRemoteCluster = getViews(
-                request.indices(),
-                request.indicesOptions(),
-                request.getResolvedIndexExpressions()
+                fieldCapsRequest.indices(),
+                fieldCapsRequest.indicesOptions(),
+                fieldCapsRequest.getResolvedIndexExpressions()
             );
             if (viewsLocalToRemoteCluster.isEmpty() == false) {
-                listener.onFailure(remoteViewDetectedException(request.clusterAlias(), viewsLocalToRemoteCluster));
+                listener.onFailure(remoteViewDetectedException(fieldCapsRequest.clusterAlias(), viewsLocalToRemoteCluster));
                 return;
             }
         }
 
         var combinedSchema = new LinkedHashMap<String, List<IndexAbstractionSchema>>();
 
-        fieldCapsAction.executeRequest(task, request, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
+        fieldCapsAction.executeRequest(task, fieldCapsRequest, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
             public void executeRemoteRequest(
                 TransportService transportService,
@@ -139,7 +140,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
             @Override
             public EsqlResolveFieldsResponse wrapPrimary(FieldCapabilitiesResponse primary) {
                 var localSchema = Maps.transformValues(
-                    resolveIndexAbstractions(request),
+                    resolveIndexAbstractions(fieldCapsRequest),
                     abstractions -> abstractions.stream().map(abstraction -> resolveSchema(abstraction, primary)).toList()
                 );
                 localSchema.forEach((key, list) -> combinedSchema.merge(key, list, CollectionUtils::combine));

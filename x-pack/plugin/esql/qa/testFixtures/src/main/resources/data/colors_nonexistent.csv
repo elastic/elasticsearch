@@ -1,2 +1,0 @@
-id:integer,color:text,hex_code:keyword,rgb_byte_vector:dense_vector,primary:boolean
-15,green,#008000,[-128, 0, -128],true

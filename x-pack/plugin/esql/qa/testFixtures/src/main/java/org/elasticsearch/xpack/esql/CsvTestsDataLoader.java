@@ -278,12 +278,6 @@ public class CsvTestsDataLoader {
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
-        new TestDataset("colors", "mapping-colors.json", "colors.csv").withIndex("colors_unmapped")
-            .withTypeMapping(removeFields("rgb_vector"))
-            .withDynamic("false"),
-        new TestDataset("colors", "mapping-colors.json", "colors_nonexistent.csv").withIndex("colors_nonexistent")
-            .withTypeMapping(removeFields("rgb_vector"))
-            .withDynamic("false"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),
         new TestDataset("multi_column_joinable", "mapping-multi_column_joinable.json", "multi_column_joinable.csv"),

@@ -21,7 +21,6 @@ Many organizations store large volumes of data in cloud object storage for cost 
 - **One language for all your data.** Use the same {{esql}} syntax for both indexed data and external data. No context-switching, no second query engine.
 - **No extra infrastructure.** Query external data natively in {{es}} without deploying or managing additional compute services, catalogs, or connectors.
 - **Progressive acceleration.** Start by querying raw data directly in object storage. When specific datasets need faster performance, promote them into {{es}} for indexed search. Both tiers stay queryable with the same `FROM` syntax.
-- **Multi-cloud from one interface.** Query data across Amazon S3, Google Cloud Storage, and Azure Storage through a single {{es}} cluster. No per-cloud tooling required.
 
 ## How it works
 
@@ -68,7 +67,7 @@ For details on type-specific settings and format options, refer to the [external
 
 Most {{esql}} processing commands and functions work on external datasets. The execution engine is the same one used for native indices. Some capabilities that depend on Lucene or specialized data structures are not currently available.
 
-For the full list of supported capabilities and limitations, refer to the [external data source reference](esql-external-data-reference.md#capabilities-and-limitations).
+For the full list, refer to the [external data source reference](esql-external-data-reference.md#functionality-that-does-not-work-or-works-differently-on-datasets).
 
 ## Next steps
 

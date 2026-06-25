@@ -22,9 +22,6 @@ import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
 import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
-import io.opentelemetry.proto.logs.v1.LogRecord;
-import io.opentelemetry.proto.logs.v1.ResourceLogs;
-import io.opentelemetry.proto.logs.v1.ScopeLogs;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -222,22 +219,12 @@ public class RecordingApmServer extends ExternalResource {
         return "http://" + host + ":" + grpcServer.getPort();
     }
 
-    /**
-     * Receives OTLP/gRPC log export requests, converts each {@link LogRecord} to a
-     * {@link ReceivedTelemetry.ReceivedLog}, and feeds them into the shared {@link #received} queue.
-     */
     private final class LogsServiceImpl extends LogsServiceGrpc.LogsServiceImplBase {
         @Override
         public void export(ExportLogsServiceRequest request, StreamObserver<ExportLogsServiceResponse> responseObserver) {
             if (running) {
                 try {
-                    for (ResourceLogs resourceLogs : request.getResourceLogsList()) {
-                        for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
-                            for (LogRecord record : scopeLogs.getLogRecordsList()) {
-                                received.add(OtlpLogsParser.toReceivedLog(record));
-                            }
-                        }
-                    }
+                    OtlpLogsParser.parse(request).forEach(RecordingApmServer.this::route);
                 } catch (Throwable t) {
                     logger.warn("failed to handle gRPC ExportLogsServiceRequest", t);
                 }

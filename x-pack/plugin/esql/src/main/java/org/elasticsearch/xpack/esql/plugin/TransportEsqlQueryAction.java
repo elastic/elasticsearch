@@ -361,6 +361,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             remoteClusterService,
             planRunner,
             services,
+            ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());

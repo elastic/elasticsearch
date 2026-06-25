@@ -51,6 +51,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     private static final int VPC = 128;
 
     private static final IvfSegmentConfig CODEC_DEFAULT = IvfSegmentConfig.fromCodecDefaults(
+        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
         ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
         false
     );
@@ -73,6 +74,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         IvfAutoCalibration selector = new IvfAutoCalibration();
         FieldInfo fieldInfo = vectorFieldInfo("f");
         IvfSegmentConfig codecDefault = IvfSegmentConfig.fromCodecDefaults(
+            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
             ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
             true
         );

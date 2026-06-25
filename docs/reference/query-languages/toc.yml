@@ -393,6 +393,9 @@ toc:
                   - file: esql/functions-operators/mv-functions/mv_union.md
                   - file: esql/functions-operators/mv-functions/mv_zip.md
               - file: esql/functions-operators/operators.md
+      - file: esql/esql-query-performance.md
+        children:
+          - file: esql/esql-query-approximation.md
       - file: esql/esql-multi.md
         children:
           - file: esql/esql-multi-index.md
@@ -405,7 +408,6 @@ toc:
           - file: esql/esql-process-data-with-dissect-grok.md
           - file: esql/esql-enrich-data.md
           - file: esql/esql-lookup-join.md
-          - file: esql/esql-query-approximation.md
       - file: esql/esql-types-and-fields.md
         children:
           - file: esql/esql-implicit-casting.md

@@ -72,7 +72,7 @@ public enum StatelessCacheEvictionPolicyType {
         return resolveEvictionPolicyFromSettings(settings).create(
             clusterService,
             Objects.requireNonNull(indicesService),
-            threadPool != null ? threadPool : clusterService.threadPool()
+            Objects.requireNonNull(threadPool, "threadPool")
         );
     }
 }

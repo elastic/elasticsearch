@@ -19,6 +19,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * Eviction policy that does not evict locally allocated cache regions whose content timestamp
@@ -35,7 +36,7 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
      */
     public static final Setting<TimeValue> PINNED_WINDOW_DURATION_SETTING = Setting.timeSetting(
         "stateless.cache_boost_preference.pinned_window.duration",
-        TimeValue.timeValueDays(1),
+        TimeValue.timeValueHours(12),
         TimeValue.timeValueSeconds(1),
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
@@ -83,24 +84,30 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     }
 
     /**
-     * Returns {@code true} if {@code timestampMillis} is within the pinned window relative to {@link #currentTimeMillis()},
-     * inclusive of the window boundary.
+     * Returns {@code true} if {@code timestampMillis} is within the pinned window relative to
+     * {@code pinnedWindowCutoffMillis}, inclusive of the window boundary.
      */
-    protected boolean isWithinPinnedWindow(long timestampMillis) {
-        return currentTimeMillis() - timestampMillis <= pinnedWindowDuration.getMillis();
+    protected boolean isWithinPinnedWindow(long timestampMillis, long pinnedWindowCutoffMillis) {
+        return timestampMillis >= pinnedWindowCutoffMillis;
     }
 
     @Override
-    public boolean canEvict(CacheRegion<FileCacheKey> region, CacheRegion<FileCacheKey> incoming) {
-        if (isShardLocallyAllocated(region.key().shardId()) == false) {
-            return true;
-        }
-        final long timestampMillis = region.timestampMillis();
-        // Protect locally allocated regions until their content age can be evaluated.
-        if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
-            return false;
-        }
-        return isWithinPinnedWindow(timestampMillis) == false;
+    public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
+        final long pinnedWindowCutoffMillis = currentTimeMillis() - pinnedWindowDuration.getMillis();
+        return region -> {
+            if (isShardLocallyAllocated(region.key().shardId()) == false) {
+                return true;
+            }
+            final long timestampMillis = region.timestampMillis();
+            // Protect locally allocated regions until their content age can be evaluated.
+            // Also protect shards without timestamps.
+            if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+                return false;
+            }
+            // TODO: regions of unboosted shards, and of shards with a boost multiplier of less than 1, should be
+            // evicted irrespective of their timestamp.
+            return isWithinPinnedWindow(timestampMillis, pinnedWindowCutoffMillis) == false;
+        };
     }
 
     @Override

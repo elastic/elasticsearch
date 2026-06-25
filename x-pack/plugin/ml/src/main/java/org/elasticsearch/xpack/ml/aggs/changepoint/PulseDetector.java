@@ -176,15 +176,18 @@ public class PulseDetector {
                 excluded[i] = true;
             }
         }
+        // We exclude the first and last point since we also exclude them as candidates, so the count must be
+        // taken over the same [1, n - 1) range as the fill below -- otherwise the array is oversized and the
+        // trailing slots stay 0.0, injecting phantom zero-valued samples into the KDE null (which, for a series
+        // away from zero, masks dips by making low values look unremarkable).
         int count = 0;
-        for (boolean b : excluded) {
-            if (b == false) {
+        for (int i = 1; i < n - 1; i++) {
+            if (excluded[i] == false) {
                 count++;
             }
         }
         double[] background = new double[count];
         int b = 0;
-        // We exclude the first and last point since we also exclude them as candidates.
         for (int i = 1; i < n - 1; i++) {
             if (excluded[i] == false) {
                 background[b++] = values[i];

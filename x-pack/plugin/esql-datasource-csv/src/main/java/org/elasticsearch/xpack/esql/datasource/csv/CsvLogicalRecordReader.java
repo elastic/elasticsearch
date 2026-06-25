@@ -248,7 +248,7 @@ final class CsvLogicalRecordReader {
         int recordBytes = 0;
 
         while (true) {
-            int ch = readChar();
+            int ch = nextBulkChar();
             if (ch == -1) {
                 return recLen != 0;
             }
@@ -257,7 +257,7 @@ final class CsvLogicalRecordReader {
             if (inQuotes) {
                 if (escapeAware && ch == escapeChar) {
                     appendRecord((char) ch);
-                    int next = readChar();
+                    int next = nextBulkChar();
                     if (next != -1) {
                         recordBytes = addBytes(recordBytes, next);
                         appendRecord((char) next);
@@ -265,7 +265,7 @@ final class CsvLogicalRecordReader {
                     continue;
                 }
                 if (ch == quoteChar) {
-                    int next = readChar();
+                    int next = nextBulkChar();
                     if (next == quoteChar) {
                         recordBytes = addBytes(recordBytes, next);
                         appendRecord((char) ch);
@@ -285,7 +285,7 @@ final class CsvLogicalRecordReader {
 
             if (escapeAware && ch == escapeChar) {
                 appendRecord((char) ch);
-                int next = readChar();
+                int next = nextBulkChar();
                 if (next != -1) {
                     recordBytes = addBytes(recordBytes, next);
                     appendRecord((char) next);
@@ -297,7 +297,7 @@ final class CsvLogicalRecordReader {
                 return true;
             }
             if (ch == '\r') {
-                int next = readChar();
+                int next = nextBulkChar();
                 if (next == '\n') {
                     recordBytes = addBytes(recordBytes, next);
                 } else if (next != -1) {
@@ -337,6 +337,36 @@ final class CsvLogicalRecordReader {
             recBuf = Arrays.copyOf(recBuf, recBuf.length * 2);
         }
         recBuf[recLen++] = c;
+    }
+
+    /**
+     * Bulk-mode next character with the common in-buffer load as the first, inlinable branch. The
+     * pushed-back lookahead and the (rare) chunk refill are handled out of line so the hot per-character
+     * path is just a pending check and an array load. Used only by {@link #nextRecord()}.
+     */
+    private int nextBulkChar() throws IOException {
+        if (pending == NO_PENDING && inPos < inLimit) {
+            return inBuf[inPos++];
+        }
+        return nextBulkCharSlow();
+    }
+
+    private int nextBulkCharSlow() throws IOException {
+        if (pending != NO_PENDING) {
+            int c = pending;
+            pending = NO_PENDING;
+            return c;
+        }
+        if (eof) {
+            return -1;
+        }
+        inLimit = reader.read(inBuf, 0, inBuf.length);
+        inPos = 0;
+        if (inLimit <= 0) {
+            eof = true;
+            return -1;
+        }
+        return inBuf[inPos++];
     }
 
     /**
@@ -385,7 +415,9 @@ final class CsvLogicalRecordReader {
     }
 
     private int addBytes(int recordBytes, int ch) throws CsvRecordTooLargeException {
-        int next = recordBytes + encodedLength(ch);
+        // Hot ASCII fast path: under UTF-8 every code unit <= 0x7f is exactly one byte, which is the
+        // overwhelming majority of CSV content, so skip the encodedLength/charset call chain for it.
+        int next = recordBytes + (utf8 && ch <= 0x7f ? 1 : encodedLength(ch));
         if (next > maxRecordBytes) {
             throw new CsvRecordTooLargeException(maxRecordBytes);
         }

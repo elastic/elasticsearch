@@ -2013,6 +2013,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private boolean naturallyExhausted = false;
         /** Lazily built once the schema and projection are known. {@code null} until the first batch resolves them. */
         private ColumnStatsAccumulator columnStats;
+        /** True when the direct path feeds {@link #columnStats} inline (cacheable read with tracked columns). */
+        private boolean accumulateDirectStats;
+        /** True when the most recent batch already accumulated stats inline, so {@link #captureBlockStats} must skip it. */
+        private boolean lastBatchAccumulatedStats;
 
         /** Pinned at iterator open; closes the open-vs-close mtime-race window for the cache key. */
         private final long pinnedMtimeMillis;
@@ -2166,6 +2170,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (cacheableObject == null || columnCount == 0 || projectedAttrs == null) {
                 return;
             }
+            // The direct path already accumulated this page's stats inline during parsing (see
+            // appendStagedRow); re-walking the blocks here would double count.
+            if (lastBatchAccumulatedStats) {
+                return;
+            }
             if (columnStats == null) {
                 columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
             }
@@ -2254,6 +2263,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private Page readNextBatch() throws IOException {
+            // Reset per batch; only the direct path sets it true (in convertDirectBatchToPage) so that
+            // the sample/boxed page paths still capture stats via the block walk in captureBlockStats.
+            lastBatchAccumulatedStats = false;
             if (schema == null) {
                 if (preResolvedSchema != null) {
                     schema = preResolvedSchema;
@@ -2534,6 +2546,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 stageRef = new BytesRef[columnCount];
                 stageObj = new Object[columnCount];
                 stageNull = new boolean[columnCount];
+                // For cacheable reads, fold the cache's per-column null/min/max stats into the parse
+                // loop (see appendStagedRow) instead of re-walking every built block. Build the
+                // accumulator eagerly here so the staging loop can feed it; captureBlockStats then skips
+                // direct-produced pages (lastBatchAccumulatedStats) to avoid double counting.
+                if (cacheableObject != null) {
+                    columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
+                    accumulateDirectStats = columnStats.isEmpty() == false;
+                }
             }
         }
 
@@ -2725,6 +2745,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private Page convertDirectBatchToPage(int batchSize) throws IOException {
             directBatchRecordsRead = 0;
+            lastBatchAccumulatedStats = accumulateDirectStats;
             if (columnCount == 0) {
                 int acceptedRows = 0;
                 while (directBatchRecordsRead < batchSize) {
@@ -2787,18 +2808,47 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * element type (e.g. an all-null column) falls back to the generic boxed {@code stageObj} slot.
          */
         private void appendStagedRow(BlockUtils.BuilderWrapper[] builders) {
+            final boolean stats = accumulateDirectStats;
             for (int i = 0; i < columnCount; i++) {
                 Block.Builder builder = builders[i].builder();
                 if (stageNull[i]) {
                     builder.appendNull();
+                    if (stats) {
+                        columnStats.acceptNullAt(i);
+                    }
                     continue;
                 }
                 switch (directElements[i]) {
-                    case LONG -> ((LongBlock.Builder) builder).appendLong(stageLong[i]);
-                    case INT -> ((IntBlock.Builder) builder).appendInt(stageInt[i]);
-                    case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(stageDouble[i]);
-                    case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(stageBool[i]);
-                    case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(stageRef[i]);
+                    case LONG -> {
+                        ((LongBlock.Builder) builder).appendLong(stageLong[i]);
+                        if (stats) {
+                            columnStats.acceptLongAt(i, stageLong[i]);
+                        }
+                    }
+                    case INT -> {
+                        ((IntBlock.Builder) builder).appendInt(stageInt[i]);
+                        if (stats) {
+                            columnStats.acceptIntAt(i, stageInt[i]);
+                        }
+                    }
+                    case DOUBLE -> {
+                        ((DoubleBlock.Builder) builder).appendDouble(stageDouble[i]);
+                        if (stats) {
+                            columnStats.acceptDoubleAt(i, stageDouble[i]);
+                        }
+                    }
+                    case BOOLEAN -> {
+                        ((BooleanBlock.Builder) builder).appendBoolean(stageBool[i]);
+                        if (stats) {
+                            columnStats.acceptBooleanAt(i, stageBool[i]);
+                        }
+                    }
+                    case BYTES_REF -> {
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(stageRef[i]);
+                        if (stats) {
+                            columnStats.acceptBytesRefAt(i, stageRef[i]);
+                        }
+                    }
                     default -> builders[i].append().accept(stageObj[i]);
                 }
             }

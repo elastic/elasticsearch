@@ -97,7 +97,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
             compileTask.getJavaCompiler().set(javaToolchains.compilerFor(spec -> {
                 spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));
-                spec.getVendor().set(JvmVendorSpec.ORACLE);
             }));
 
             CompileOptions compileOptions = compileTask.getOptions();

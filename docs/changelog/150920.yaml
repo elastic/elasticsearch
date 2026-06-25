@@ -1,5 +1,5 @@
 pr: 150920
-summary: Make the external text-format aggregate short-circuit deterministic with canonical-stripe statistics
+summary: Add canonical-stripe statistics for warm COUNT/MIN/MAX over external text formats
 area: ES|QL
 type: enhancement
 issues: []

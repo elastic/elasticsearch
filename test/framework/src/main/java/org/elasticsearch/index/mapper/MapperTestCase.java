@@ -1409,8 +1409,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSourceWithTranslogSnapshot() throws IOException {
-        assertSyntheticSourceWithTranslogSnapshot(syntheticSourceSupport(shouldUseIgnoreMalformed()), true);
-        assertSyntheticSourceWithTranslogSnapshot(syntheticSourceSupport(shouldUseIgnoreMalformed()), false);
+        boolean columnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        assertSyntheticSourceWithTranslogSnapshot(
+            columnar ? syntheticSourceSupportColumnar(shouldUseIgnoreMalformed()) : syntheticSourceSupport(shouldUseIgnoreMalformed()),
+            true
+        );
+        assertSyntheticSourceWithTranslogSnapshot(
+            columnar ? syntheticSourceSupportColumnar(shouldUseIgnoreMalformed()) : syntheticSourceSupport(shouldUseIgnoreMalformed()),
+            false
+        );
     }
 
     public void testSyntheticSourceIgnoreMalformedExamples() throws IOException {
@@ -1473,10 +1480,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     private void assertSyntheticSourceWithTranslogSnapshot(SyntheticSourceSupport support, boolean doIndexSort) throws IOException {
         var firstExample = support.example(1);
         int maxDocs = randomIntBetween(20, 50);
-        var settings = Settings.builder()
-            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
-            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
-            .build();
+        var settingsBuilder = Settings.builder().put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true);
+        if (support.isColumnar()) {
+            settingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        } else {
+            settingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
+        }
+        var settings = settingsBuilder.build();
         var mapperService = createMapperService(getVersion(), settings, () -> true, mapping(b -> {
             b.startObject("field");
             firstExample.mapping().accept(b);

@@ -363,7 +363,8 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      *     <li>{@code 8_800_0_03.isPatchFrom(8_800_0_04)}: {@code false}</li>
      *     <li>{@code 8_800_0_04.isPatchFrom(8_800_0_04)}: {@code true}</li>
      *     <li>{@code 8_800_0_49.isPatchFrom(8_800_0_04)}: {@code true}</li>
-     *     <li>{@code 8_800_1_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
+     *     <li>{@code 8_800_1_00.isPatchFrom(8_800_0_04)}: {@code true}</li>
+     *     <li>{@code 8_800_9_99.isPatchFrom(8_800_0_04)}: {@code true}</li>
      *     <li>{@code 8_801_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
      * </ul>
      */

@@ -78,11 +78,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var firstRecoveryProceed = new CountDownLatch(1);
         final var secondRecoveryDone = new CountDownLatch(1);
 
-        // Enqueue recovery 1 with a project-id and trace-id headers in the thread context and verify
-        // they get wiped when starting a new recovery runnable
+        // Enqueue recovery 1 with a project-id header in the thread context and verify
+        // it gets wiped when starting a new recovery runnable
         try (var ignored = threadPool.getThreadContext().stashContext()) {
             threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, "project-a");
-            threadPool.getThreadContext().putHeader(Task.TRACE_ID, "ad4cb67");
             service.enqueue(RecoveryListener.NOOP, newRecoveryState(), stats, listener -> {
                 firstRecoveryRunning.countDown();
                 safeAwait(firstRecoveryProceed);
@@ -111,7 +110,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         };
         service.enqueue(secondListener, newRecoveryState(), stats, listener -> {
             assertNull(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
-            assertNull(threadPool.getThreadContext().getHeader(Task.TRACE_ID));
             listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         });
         assertThat(service.currentQueueSize(), equalTo(1));

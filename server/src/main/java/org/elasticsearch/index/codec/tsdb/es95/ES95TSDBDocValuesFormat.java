@@ -25,7 +25,6 @@ import org.elasticsearch.index.codec.tsdb.SortedFieldObserver;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig.TermsDictConfig;
-import org.elasticsearch.index.codec.tsdb.TSDBOrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
@@ -162,7 +161,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             numericCodecFactory,
             fallbackDecoderFactory
         );
-        final OrdinalBlockCodec ordinalBlockCodec = new TSDBOrdinalBlockCodec();
+        final OrdinalBlockCodec ordinalBlockCodec = new ES95OrdinalCodec(PIPELINE_CONFIG_RESOLVER, fieldContextResolver);
         return new ES95TSDBDocValuesConsumer(
             state,
             enableOptimizedMerge,
@@ -192,7 +191,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             numericCodecFactory,
             fallbackDecoderFactory
         );
-        final OrdinalBlockCodec ordinalBlockCodec = new TSDBOrdinalBlockCodec();
+        final OrdinalBlockCodec ordinalBlockCodec = new ES95OrdinalCodec(PIPELINE_CONFIG_RESOLVER, fieldContextResolver);
         return new ES95TSDBDocValuesProducer(
             state,
             DATA_CODEC,

@@ -38,7 +38,7 @@ final class ES95OrdinalCodec implements OrdinalBlockCodec {
 
     @Override
     public OrdinalFieldReader createReader(final NumericReadContext ctx) {
-        return new ES95OrdinalFieldReader();
+        return new ES95OrdinalFieldReader(ctx.segmentVersion());
     }
 
     @Override

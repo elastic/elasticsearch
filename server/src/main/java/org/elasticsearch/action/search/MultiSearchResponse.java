@@ -200,8 +200,9 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         assert hasReferences();
         DirectoryMetrics merged = DirectoryMetrics.EMPTY;
         for (Item item : items) {
-            if (item.isFailure() == false && item.getResponse() != null) {
-                merged = merged.merge(item.getResponse().getDirectoryMetrics());
+            SearchResponse response = item.getResponse();
+            if (response != null) {
+                merged = merged.merge(response.getDirectoryMetrics());
             }
         }
         return merged;

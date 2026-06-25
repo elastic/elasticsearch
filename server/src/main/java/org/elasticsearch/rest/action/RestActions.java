@@ -310,6 +310,18 @@ public class RestActions {
         }
     }
 
+    /**
+     * Wraps listener to expose the {@link DirectoryMetrics} from the response to the client via HTTP response
+     * header. The header is only added when the extracted metrics are non-empty.
+     * <p>
+     * In case requests fan out into several internal searches; the {@code metricsExtractor} function
+     * is responsible for returning the single, already-merged {@link DirectoryMetrics} for the whole response so that a
+     * single accumulated header is emitted to the client rather than one per search.
+     *
+     * @param threadContext    the thread context the response header is registered on
+     * @param metricsExtractor extracts the (already merged) directory metrics from the response
+     * @param delegate         the listener the response is forwarded to after setting the header
+     */
     public static <Response> ActionListener<Response> wrapWithSearchMetricsHeader(
         ThreadContext threadContext,
         Function<Response, DirectoryMetrics> metricsExtractor,

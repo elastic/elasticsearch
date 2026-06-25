@@ -254,9 +254,7 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/152064
-- class: org.elasticsearch.TransportVersionTests
-  method: testPatchVersionsStillAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/152122
+
 
 # Examples:
 #

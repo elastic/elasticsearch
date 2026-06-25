@@ -138,7 +138,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_alt",
         "logs_dataset",
         "events_hive",
-        "employees_external"
+        "employees_external",
+        "employees_mixed",
+        "stats_ds"
     );
 
     /**
@@ -262,9 +264,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testFromMixedIndexAndDatasetRejected() throws Exception {
-        // Real ES index alongside the dataset so the resolver finds both abstractions and the
-        // mixed-FROM rejection actually fires (rather than the resolver silently filtering an unknown name).
+    public void testFromMixedIndexAndDatasetSucceeds() throws Exception {
+        // Heterogeneous FROM (index + dataset) should succeed rather than reject.
+        // some_real_index has no documents; employees dataset has 3 rows (Alice, Bob, Carol).
         createIndex("some_real_index");
         ensureGreen("some_real_index");
 
@@ -276,8 +278,66 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM some_real_index, employees | LIMIT 1"), TIMEOUT));
-        assertCauseMessageContains(ex, "mixing datasets and non-datasets");
+        // Empty index + 3-row dataset = 3 rows total
+        try (var response = run(syncEsqlQueryRequest("FROM some_real_index, employees | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    public void testFromMixedWithWhere() throws Exception {
+        // Heterogeneous FROM + WHERE: filter pushed into each UnionAll branch.
+        // employees_mixed dataset (CSV): emp_no 1,2,3. ES index "employees_idx_where" is empty.
+        createIndex("employees_idx_where");
+        ensureGreen("employees_idx_where");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_mixed", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees_idx_where, employees_mixed | WHERE emp_no > 1 | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            // 0 from empty index + 2 from dataset (emp_no 2 and 3)
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(2L));
+        }
+    }
+
+    public void testFromMixedWithStatsCount() throws Exception {
+        // Heterogeneous FROM + STATS COUNT: aggregate pushed into each UnionAll branch.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        // Two datasets (3 + 2 = 5 rows) plus an empty index = 5 total.
+        createIndex("employees_idx_stats");
+        ensureGreen("employees_idx_stats");
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_idx_stats, employees, employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
+        }
     }
 
     public void testTSCommandRejectedOnDataset() throws Exception {
@@ -610,10 +670,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testWildcardSpanningIndexAndDatasetRejected() throws Exception {
-        // Real index plus a dataset, both matching the same wildcard. The resolver expands the
-        // pattern through IndexAbstractionResolver and finds both abstractions; the rewriter buckets
-        // them and fires the mixed-FROM rejection — same path as a literal `FROM idx, ds` mix.
+    public void testWildcardSpanningIndexAndDatasetSucceeds() throws Exception {
+        // A wildcard matching both a real index and a dataset should succeed, producing a
+        // heterogeneous UnionAll. logs_index is empty; logs_dataset has 3 rows from the CSV fixture.
         createIndex("logs_index");
         ensureGreen("logs_index");
 
@@ -625,8 +684,12 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_* | LIMIT 1"), TIMEOUT));
-        assertCauseMessageContains(ex, "mixing datasets and non-datasets");
+        // logs_* expands to logs_index (empty) + logs_dataset (3 rows) = 3 total
+        try (var response = run(syncEsqlQueryRequest("FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+        }
     }
 
     public void testFromDatasetExplainDoesNotLeakSecrets() throws Exception {
@@ -675,6 +738,131 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // then attempts to resolve it as an index, which fails. Confirms fall-through to index resolution
         // (regression guard against future "treat unknowns as datasets").
         assertCauseMessageContains(ex, "no_such_thing");
+    }
+
+    /**
+     * Grouped STATS (SUM BY) over a heterogeneous FROM — exercises {@code PushAggregateThroughUnionAll}.
+     *
+     * <p>Setup: ES index {@code mixed_grp_idx} has dept=1,salary=200 and dept=2,salary=300.
+     * Dataset {@code stats_ds} has dept=1,salary=100 and dept=3,salary=400.
+     *
+     * <p>Expected: SUM(salary) BY dept across both sources =
+     * {dept=1 → 300}, {dept=2 → 300}, {dept=3 → 400}.
+     */
+    public void testFromMixedGroupedStats() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("mixed_grp_idx").setMapping("dept", "type=integer", "salary", "type=integer"));
+        prepareIndex("mixed_grp_idx").setSource(Map.of("dept", 1, "salary", 200)).get();
+        prepareIndex("mixed_grp_idx").setSource(Map.of("dept", 2, "salary", 300)).get();
+        client().admin().indices().prepareRefresh("mixed_grp_idx").get();
+
+        Path salaryFixture = createTempFile("salary-fixture-", ".csv");
+        Files.writeString(salaryFixture, "dept:integer,salary:integer\n1,100\n3,400\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("stats_ds", "local_ds", salaryFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM mixed_grp_idx, stats_ds | STATS total = SUM(salary) BY dept | SORT dept"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            int totalIdx = response.columns().stream().map(ColumnInfo::name).toList().indexOf("total");
+            int deptIdx = response.columns().stream().map(ColumnInfo::name).toList().indexOf("dept");
+
+            // dept=1: 200 (ES) + 100 (CSV) = 300
+            assertThat(((Number) rows.get(0).get(deptIdx)).intValue(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(totalIdx)).longValue(), equalTo(300L));
+            // dept=2: 300 (ES only)
+            assertThat(((Number) rows.get(1).get(deptIdx)).intValue(), equalTo(2));
+            assertThat(((Number) rows.get(1).get(totalIdx)).longValue(), equalTo(300L));
+            // dept=3: 400 (CSV only)
+            assertThat(((Number) rows.get(2).get(deptIdx)).intValue(), equalTo(3));
+            assertThat(((Number) rows.get(2).get(totalIdx)).longValue(), equalTo(400L));
+        }
+    }
+
+    /**
+     * MAX and MIN across a heterogeneous FROM — exercises {@code PushAggregateThroughUnionAll} for
+     * Min/Max decomposition.
+     *
+     * <p>Setup: ES index {@code maxmin_idx} has emp_no=10 and emp_no=20.
+     * Dataset {@code employees} (csvFixture) has emp_no=1, 2, 3.
+     *
+     * <p>Expected: MAX(emp_no)=20, MIN(emp_no)=1.
+     */
+    public void testFromMixedMaxMin() throws Exception {
+        assertAcked(
+            client().admin().indices().prepareCreate("maxmin_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
+        );
+        prepareIndex("maxmin_idx").setSource(Map.of("emp_no", 10, "first_name", "Dave")).get();
+        prepareIndex("maxmin_idx").setSource(Map.of("emp_no", 20, "first_name", "Eve")).get();
+        client().admin().indices().prepareRefresh("maxmin_idx").get();
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM maxmin_idx, employees | STATS max_emp = MAX(emp_no), min_emp = MIN(emp_no)"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            int maxIdx = response.columns().stream().map(ColumnInfo::name).toList().indexOf("max_emp");
+            int minIdx = response.columns().stream().map(ColumnInfo::name).toList().indexOf("min_emp");
+            assertThat(((Number) rows.get(0).get(maxIdx)).longValue(), equalTo(20L));
+            assertThat(((Number) rows.get(0).get(minIdx)).longValue(), equalTo(1L));
+        }
+    }
+
+    /**
+     * SORT + LIMIT over a heterogeneous FROM where both sources contain rows —
+     * verifies that global TopN across an ES index and a CSV dataset produces the correct top-N rows.
+     *
+     * <p>Setup: ES index {@code sort_idx} has emp_no=4, emp_no=5.
+     * Dataset {@code employees} (csvFixture) has emp_no=1, 2, 3.
+     *
+     * <p>With {@code | SORT emp_no | LIMIT 3}, the result must be the three smallest values: 1, 2, 3.
+     */
+    public void testFromMixedSortLimit() throws Exception {
+        assertAcked(
+            client().admin().indices().prepareCreate("sort_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
+        );
+        prepareIndex("sort_idx").setSource(Map.of("emp_no", 4, "first_name", "Dave")).get();
+        prepareIndex("sort_idx").setSource(Map.of("emp_no", 5, "first_name", "Eve")).get();
+        client().admin().indices().prepareRefresh("sort_idx").get();
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM sort_idx, employees | SORT emp_no | LIMIT 3"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            int empNoIdx = response.columns().stream().map(ColumnInfo::name).toList().indexOf("emp_no");
+            // The 3 smallest emp_no values (1,2,3) all come from the dataset
+            assertThat(((Number) rows.get(0).get(empNoIdx)).intValue(), equalTo(1));
+            assertThat(((Number) rows.get(1).get(empNoIdx)).intValue(), equalTo(2));
+            assertThat(((Number) rows.get(2).get(empNoIdx)).intValue(), equalTo(3));
+        }
     }
 
     /** Walks the cause chain and asserts a message fragment appears somewhere in it. */

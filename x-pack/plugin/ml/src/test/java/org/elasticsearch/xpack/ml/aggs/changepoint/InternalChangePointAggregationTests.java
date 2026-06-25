@@ -45,10 +45,10 @@ public class InternalChangePointAggregationTests extends AbstractWireSerializing
                 randomFrom(
                     new ChangeType.Stationary(),
                     new ChangeType.NonStationary(randomDouble(), randomDouble(), randomAlphaOfLength(10)),
-                    new ChangeType.Dip(randomDouble(), randomInt(1000)),
-                    new ChangeType.Spike(randomDouble(), randomInt(1000)),
-                    new ChangeType.TrendChange(randomDouble(), randomDouble(), randomInt(1000)),
-                    new ChangeType.DistributionChange(randomDouble(), randomInt(1000))
+                    new ChangeType.Dip(randomDouble(), randomDouble(), randomInt(1000)),
+                    new ChangeType.Spike(randomDouble(), randomDouble(), randomInt(1000)),
+                    new ChangeType.TrendChange(randomDouble(), randomDouble(), randomDouble(), randomInt(1000)),
+                    new ChangeType.DistributionChange(randomDouble(), randomDouble(), randomInt(1000))
                 )
             )
         );

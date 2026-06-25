@@ -326,6 +326,20 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Maximum number of page-fetch tasks a single file may have concurrently queued in the central
+     * {@link #warmByteRangeThrottledTaskRunner}. Keeping this at 1 ensures that later-starting files get their
+     * early pages cached before the warming timeout, because no single file can monopolise the central queue.
+     * Raise this value if the per-file serialisation becomes a throughput bottleneck.
+     */
+    public static final Setting<Integer> WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING = Setting.intSetting(
+        "stateless.blob_cache_warming.warm_byte_range_per_file_concurrency",
+        1,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
@@ -341,6 +355,7 @@ public class SharedBlobCacheWarmingService {
     private volatile boolean prewarmIndexShardForIdLookupsEnabled;
     private volatile double idLookupPrewarmRatio;
     private volatile long maxUploadPrewarmSize;
+    private volatile int warmByteRangePerFileConcurrency;
     private final WarmingRatioProvider warmingRatioProvider;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
@@ -419,6 +434,10 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             value -> this.searchRecoveryWarmingSourceShutdownShareFactor = value
+        );
+        clusterSettings.initializeAndWatch(
+            WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
+            value -> this.warmByteRangePerFileConcurrency = value
         );
     }
 
@@ -1616,6 +1635,13 @@ public class SharedBlobCacheWarmingService {
             }
 
             private void fetchRange(FileCacheKey cacheKey, CacheBlobReader cacheBlobReader, ActionListener<Void> l) {
+                // A per-file runner ensures at most warmByteRangePerFileConcurrency pages from this file queue in the
+                // central runner at a time, so that files warmed later still get early pages into cache before the timeout expires.
+                var perFileRunner = new ThrottledTaskRunner(
+                    "warm-byte-range-per-file",
+                    warmByteRangePerFileConcurrency,
+                    warmByteRangeThrottledTaskRunner.asExecutor()
+                );
                 cacheService.fetchRange(
                     cacheKey,
                     byteRangeToWarm,
@@ -1623,7 +1649,7 @@ public class SharedBlobCacheWarmingService {
                     WarmBlobByteRangeTask.this,
                     writeBuffer::get,
                     totalBytesCopied::addAndGet,
-                    warmByteRangeThrottledTaskRunner.asExecutor(),
+                    perFileRunner.asExecutor(),
                     true,
                     l
                 );

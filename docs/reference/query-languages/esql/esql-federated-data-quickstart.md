@@ -236,10 +236,36 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
 If the query returns results, your data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
 ::::::
 
-<!-- TODO: Heterogeneous FROM (FROM dataset, index) returns "FROM mixing datasets and non-datasets
-     is not supported" as of 9.5 snapshot testing. esql-planning#572 is closed but this may not
-     have landed yet, or may be gated. Revisit before merge — if it works, add a step here
-     showing FROM speedtest_fixed, network_incidents together. -->
+<!-- TODO: Heterogeneous FROM (FROM dataset, index) was not working against the 9.5.0 snapshot
+     used during testing — "FROM mixing datasets and non-datasets is not supported". The fix
+     landed in elastic/elasticsearch#151977 (merged 2026-06-25) after the snapshot was cut.
+     Verify this step works against the 9.5.0 release build before publishing. -->
+
+::::::{step} Query federated and indexed data together
+Datasets share the same namespace as regular indices, so you can query both in a single `FROM`. This lets you correlate external data with indexed data without ingesting anything.
+
+First, index a few sample documents to join against:
+
+```console
+POST /_bulk
+{"index":{"_index":"network_incidents"}}
+{"quadkey":"0320101","type":"outage","duration_min":45}
+{"index":{"_index":"network_incidents"}}
+{"quadkey":"1202032","type":"degradation","duration_min":12}
+{"index":{"_index":"network_incidents"}}
+{"quadkey":"0320101","type":"degradation","duration_min":8}
+```
+
+Now query both sources together. `FROM` resolves each name independently, whether it is an index, an alias, or a dataset:
+
+```esql
+FROM speedtest_fixed, network_incidents
+| WHERE quadkey IS NOT NULL
+| STATS avg_latency = AVG(avg_lat_ms), records = COUNT(*) BY quadkey
+| SORT records DESC
+| LIMIT 20
+```
+::::::
 
 :::::::
 

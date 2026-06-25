@@ -37,6 +37,7 @@ public class Exp extends UnaryScalarFunction {
         .unaryValueTransformation(Exp::new)
         .description("Calculates the exponential function for all elements in the input vector.")
         .example("exp(rate(http_requests_total[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("exp");
 
     @FunctionInfo(

@@ -395,9 +395,7 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
         WorkQueue workQueue;
         if (getJavaLauncher().isPresent()) {
             File javaExecutable = getJavaLauncher().get().getExecutablePath().getAsFile();
-            workQueue = getWorkerExecutor().processIsolation(
-                spec -> spec.forkOptions(opts -> opts.executable(javaExecutable))
-            );
+            workQueue = getWorkerExecutor().processIsolation(spec -> spec.forkOptions(opts -> opts.executable(javaExecutable)));
         } else {
             workQueue = getWorkerExecutor().noIsolation();
         }

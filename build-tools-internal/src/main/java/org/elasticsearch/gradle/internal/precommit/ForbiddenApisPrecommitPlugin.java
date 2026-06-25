@@ -47,7 +47,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
         // Create a convenience task for all checks (this does not conflict with extension, as it has higher priority in DSL):
         var forbiddenTask = project.getTasks()
             .register(FORBIDDEN_APIS_TASK_NAME, task -> { task.setDescription("Runs forbidden-apis checks."); });
-        
+
         TaskProvider<ExportElasticsearchBuildResourcesTask> resourcesTask = project.getTasks()
             .register("forbiddenApisResources", ExportElasticsearchBuildResourcesTask.class);
         File resourcesDir = project.getLayout().getBuildDirectory().dir("forbidden-apis-config").get().getAsFile();

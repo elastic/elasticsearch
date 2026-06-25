@@ -17,7 +17,9 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.Plugin.PluginServices;
 
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -32,26 +34,23 @@ import java.util.List;
  */
 public class SliceIndexingValidationPlugin extends Plugin {
 
-    private static final boolean DISK_BBQ_PRESENT = diskBbqPresent();
+    // Class.forName cannot detect other plugins due to ES plugin classloader isolation.
+    // Instead, detect DiskBBQ presence via the modules directory in createComponents, which
+    // is guaranteed to run before any index creation can occur.
+    private volatile boolean diskBbqPresent = false;
 
-    private static boolean diskBbqPresent() {
-        try {
-            Class.forName("org.elasticsearch.xpack.diskbbq.DiskBBQPlugin");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
+    @Override
+    public Collection<Object> createComponents(PluginServices services) {
+        diskBbqPresent = Files.isDirectory(services.environment().modulesDir().resolve("diskbbq"));
+        return List.of();
     }
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        if (DISK_BBQ_PRESENT) {
-            return List.of();
-        }
         return List.of(new SliceIndexingValidationProvider());
     }
 
-    private static final class SliceIndexingValidationProvider implements IndexSettingProvider {
+    private final class SliceIndexingValidationProvider implements IndexSettingProvider {
         @Override
         public void provideAdditionalSettings(
             String indexName,
@@ -64,7 +63,7 @@ public class SliceIndexingValidationPlugin extends Plugin {
             IndexVersion indexVersion,
             Settings.Builder additionalSettings
         ) {
-            if (IndexSettings.SLICE_ENABLED.get(indexTemplateAndCreateRequestSettings)) {
+            if (diskBbqPresent == false && IndexSettings.SLICE_ENABLED.get(indexTemplateAndCreateRequestSettings)) {
                 additionalSettings.put(IndexSettings.SLICE_VALIDATED.getKey(), "true");
             }
         }

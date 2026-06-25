@@ -1759,7 +1759,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         // coordinator's byte-range cover folds the chunks. statsBaseOffset is the split's
                         // file-global offset; statsFileFinal marks the last split (the only one that may close
                         // its trailing stripe to EOF).
-                        .stats(fileSplit.offset(), statsStripeSize, lastSplit)
+                        .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
                         .build();
                     pages = fileReader.read(obj, ctx);

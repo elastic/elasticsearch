@@ -33,8 +33,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Reproduces the multi-stripe FOLD path that the small-fixture pushdown ITs never exercise: those use files
  * smaller than the default stripe size, so the reader takes the whole-chunk emit path (one authoritative
- * whole-file summary, no fold). Here {@code esql.source.cache.stripe.size} is pinned tiny (4 KB) so a few
- * thousand records span hundreds of canonical stripes, forcing the per-stripe emit + the coordinator's
+ * whole-file summary, no fold). Here {@code esql.source.cache.stripe.size} is pinned to 64 KB so a ~12 MB
+ * NDJSON file (300K rows) spans ~190 canonical stripes across multiple read chunks, forcing the per-stripe emit + the coordinator's
  * {@code 0..K + EOF} interval-cover fold — the path that must complete for a warm aggregate to short-circuit
  * at 100M-row scale. A warm aggregate that re-scans (documentsFound != 0) here is the fold failing to reach
  * whole-file completeness.

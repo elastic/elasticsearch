@@ -399,7 +399,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         assertFalse("PROJECTED+COUNT(*) commits no field b", hasAnyColumnStat(projFrags, "b"));
     }
 
-    private static org.elasticsearch.xpack.esql.core.expression.Attribute longCol(String name) {
+    private static Attribute longCol(String name) {
         return new ReferenceAttribute(Source.EMPTY, null, name, DataType.LONG, Nullability.TRUE, null, false);
     }
 

@@ -37,7 +37,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -154,14 +156,14 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      * file schema"; the leading-block count is captured separately by the caller.
      */
     private static List<String> computeAllColumnDecodeProjection(List<String> projectedColumns, List<Attribute> fileSchema) {
-        java.util.LinkedHashSet<String> ordered = new java.util.LinkedHashSet<>();
+        LinkedHashSet<String> ordered = new LinkedHashSet<>();
         if (projectedColumns != null) {
             ordered.addAll(projectedColumns);
         }
         for (Attribute a : fileSchema) {
             ordered.add(a.name());
         }
-        return new java.util.ArrayList<>(ordered);
+        return new ArrayList<>(ordered);
     }
 
     /**

@@ -69,8 +69,14 @@ public interface SplitStats {
      * implicit-nulls contract for unharvested columns (see
      * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#appliesImplicitNullsForAbsentColumn()})
      * use this to safe-miss instead.
+     *
+     * <p>Defaults to {@code false} (conservative — "no per-column stats observed"). Footer-format
+     * implementations never consult it (they declare {@code appliesImplicitNullsForAbsentColumn}), so
+     * they need not override it; partial-harvest text formats override it with the real predicate.
      */
-    boolean hasColumn(String name);
+    default boolean hasColumn(String name) {
+        return false;
+    }
 
     /**
      * Minimum value for the named column, or {@code null} if unknown or the column

@@ -466,7 +466,7 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static Map<String, Object> mergeWholeFileContributions(List<SourceStatsContribution.WholeFile> wholeFile) {
         // The whole-file column-union below keys off the flat _stats.* layout, so re-serialize the
-        // typed contributions to the wire map at this boundary (mirrors foldDistinctRanges).
+        // typed contributions to the wire map at this boundary (mirrors foldFragments).
         List<Map<String, Object>> maps = new ArrayList<>(wholeFile.size());
         for (SourceStatsContribution.WholeFile wf : wholeFile) {
             maps.add(toFlatMap(wf.stats(), wf.mtimeMillis(), wf.configFingerprint()));

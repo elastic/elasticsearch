@@ -1383,15 +1383,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexVersion indexCreatedVersion;
 
-    /**
-     * True when the in-order binary doc-values path is active AND the field is guaranteed to
-     * receive at most one value per document from a single call site — i.e. no copy_to fields
-     * (the field is neither a source nor a destination), no multi-fields, and no scripted values.
-     * Used by {@link #canRecordSingleValueFastPath} to gate the HashMap-free
-     * {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull#recordSingleValue} path.
-     */
-    private final boolean eligibleForSingleValueFastPath;
-
     private KeywordFieldMapper(
         String simpleName,
         FieldType fieldType,
@@ -1426,10 +1417,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.offsetsFieldName = offsetsFieldName;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         sourceKeepMode = builder.sourceKeepMode.orElse(indexSettings.sourceKeepMode());
-        this.eligibleForSingleValueFastPath = fieldType().usesArrayOrderBinaryDocValues()
-            && copyTo().copyToFields().isEmpty()
-            && hasScript() == false
-            && multiFields().iterator().hasNext() == false;
     }
 
     @Override
@@ -1509,23 +1496,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private boolean indexValue(DocumentParserContext context, String value) {
         return indexValue(context, new Text(value));
-    }
-
-    /**
-     * Returns {@code true} when the current value occurrence may bypass the
-     * {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull#recordValue} keyed-HashMap path
-     * and use the allocation-light
-     * {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull#recordSingleValue} fast path.
-     * <p>
-     * The fast path is safe only when no other write of the same field name can arrive in this
-     * document: the value is not an array element (JSON parent is not {@code START_ARRAY}), not a
-     * copy_to write, and the field is not a known copy_to destination.
-     */
-    private boolean canRecordSingleValueFastPath(DocumentParserContext context) {
-        return eligibleForSingleValueFastPath
-            && context.getImmediateXContentParent() != XContentParser.Token.START_ARRAY
-            && context.isWithinCopyTo() == false
-            && context.isCopyToDestinationField(fieldType().name()) == false;
     }
 
     /**

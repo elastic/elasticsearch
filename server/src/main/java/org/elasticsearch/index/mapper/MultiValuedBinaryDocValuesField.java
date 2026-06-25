@@ -367,24 +367,23 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * <p>
          * Safety net: if a prior occurrence already created a keyed accumulator for {@code fieldName}
          * on this document (e.g. dotted-field flattening writing {@code {"a.b":"x","a":{"b":"y"}}})
-         * this method delegates to {@link #recordValue} so the two values are merged correctly rather
+         * the {@link LuceneDocument#putKeyIfAbsent} call returns the existing accumulator and this
+         * method delegates to {@link #recordValue} so the two values are merged correctly rather
          * than producing a duplicate binary doc-values field.
          */
         public static void recordSingleValue(LuceneDocument doc, String fieldName, BytesRef value) {
-            // Safety net: a prior occurrence already registered an accumulator — merge via the keyed path.
-            if (doc.getByKey(fieldName) != null) {
-                recordValue(doc, fieldName, value);
-                return;
-            }
             var field = new ArrayOrderInlineNull(fieldName);
             field.add(value);  // sets hasNonNullValue, stores in lazy singleSlot
             field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 1);
-            // Use addAll so the binary blob and its .counts companion are added in a single
-            // ArrayList grow (mirrors the rationale at SeparateCount.addToDoc).
-            doc.addAll(List.of(field, field.countField));
-            // Register in keyedFields so any second occurrence of this field name (dotted-field
-            // flattening) finds it via getOrAddWithKey and merges into the same accumulator.
-            doc.onlyAddKey(fieldName, field);
+            // Single HashMap probe: claim the slot if free, otherwise discover the prior accumulator.
+            if (doc.putKeyIfAbsent(fieldName, field) == null) {
+                // Won the slot: add the binary blob and its .counts companion in a single ArrayList grow.
+                doc.addAll(List.of(field, field.countField));
+            } else {
+                // Safety net (rare, e.g. dotted-field flattening): a prior occurrence already registered
+                // an accumulator — merge via the keyed path.
+                recordValue(doc, fieldName, value);
+            }
         }
 
         /**

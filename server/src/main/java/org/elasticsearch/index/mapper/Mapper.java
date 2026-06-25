@@ -346,6 +346,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * field (the {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format), with no sidecar offsets field.
      * Like {@link #supportStoringArrayOffsets()}, this signals to the document parser that the field handles array storage natively and
      * must not be diverted to {@code _ignored_source}.
+     * <p>
+     * <strong>Override contract for {@link FieldMapper} subclasses:</strong> this method is called from {@link FieldMapper}'s constructor,
+     * so overrides must only access {@link FieldMapper#fieldType()} (i.e. the already-constructed {@code mappedFieldType} argument) and
+     * must not read any subclass-owned fields that are initialized after {@code super()} returns.
      */
     public boolean storesArrayValuesInOrder() {
         return false;

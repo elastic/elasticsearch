@@ -114,6 +114,23 @@ public class LuceneDocument implements Iterable<IndexableField> {
     }
 
     /**
+     * Registers {@code field} under {@code key} only if no field is keyed there yet, in a single
+     * HashMap probe. Returns the previously-keyed field, or {@code null} if {@code field} was inserted.
+     * <p>
+     * Unlike {@link #onlyAddKey(Object, IndexableField)} this does not throw on an existing mapping —
+     * the caller inspects the return value to decide whether its eagerly-built field won the slot.
+     * The field is NOT added to the field list; the caller adds it (and any companions) only when this
+     * returns {@code null}.
+     */
+    public IndexableField putKeyIfAbsent(final Object key, final IndexableField field) {
+        assert field != null : "field must not be null";
+        if (keyedFields == null) {
+            keyedFields = new HashMap<>();
+        }
+        return keyedFields.putIfAbsent(key, field);
+    }
+
+    /**
      * Get back fields that have been previously added with {@link #addWithKey(Object, IndexableField)}.
      */
     public IndexableField getByKey(Object key) {

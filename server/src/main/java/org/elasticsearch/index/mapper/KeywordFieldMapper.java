@@ -1581,9 +1581,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             assert fieldType.docValuesType() == DocValuesType.NONE;
             if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
-                // Use the HashMap-free fast path when this occurrence is a lone scalar value that cannot collide with another
-                // write of the same field name in this document (not inside an array, not a copy_to source/destination, etc.).
-                if (canRecordSingleValueFastPath(context)) {
+                // Use the HashMap-free fast path when this occurrence is a lone scalar (not inside an array).
+                if (context.getImmediateXContentParent() != XContentParser.Token.START_ARRAY) {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(context.doc(), fieldType().name(), binaryValue);
                 } else {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);

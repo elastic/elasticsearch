@@ -9,26 +9,33 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmbeddingRequest;
+import org.elasticsearch.inference.InferenceService.ClusterCompatibility;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -40,8 +47,11 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.Compatibility;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.ReasoningTaskSettingsCompatibility;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelCreator;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
@@ -56,6 +66,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -65,6 +76,7 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
 import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
@@ -91,6 +103,8 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         EMBEDDING
     );
     private static final String SERVICE_NAME = "Elastic";
+
+    private static final List<Compatibility> FEATURE_COMPATIBILITY_CHECKS = List.of(new ReasoningTaskSettingsCompatibility());
 
     // TODO: revisit this value once EIS supports dense models
     // The default maximum batch size for dense text embeddings is proactively set to 16.
@@ -193,16 +207,62 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         var completionModel = (ElasticInferenceServiceCompletionModel) model;
         var overriddenModel = ElasticInferenceServiceCompletionModel.of(completionModel, inputs.getRequest());
 
+        // Merge reasoning from stored task settings with the request body (body wins).
+        var effectiveInputs = getUnifiedInputs(overriddenModel, inputs);
+
         actionCreator.create(
             overriddenModel,
             currentTraceInfo,
-            listener.delegateFailureAndWrap((delegate, action) -> action.execute(inputs, timeout, delegate))
+            listener.delegateFailureAndWrap((delegate, action) -> action.execute(effectiveInputs, timeout, delegate))
         );
+    }
+
+    private static UnifiedChatInput getUnifiedInputs(ElasticInferenceServiceCompletionModel model, UnifiedChatInput inputs) {
+        var storedReasoning = model.getTaskSettings() instanceof ElasticInferenceServiceCompletionTaskSettings ts
+            ? ts.reasoning()
+            : null;
+        var mergedReasoning = ElasticInferenceServiceCompletionTaskSettings.mergeReasoning(inputs.getRequest().reasoning(), storedReasoning);
+
+        if (mergedReasoning != null && Objects.equals(mergedReasoning, inputs.getRequest().reasoning()) == false) {
+            return new UnifiedChatInput(
+                new UnifiedCompletionRequest(
+                    inputs.getRequest().messages(),
+                    inputs.getRequest().model(),
+                    inputs.getRequest().maxCompletionTokens(),
+                    inputs.getRequest().stop(),
+                    inputs.getRequest().temperature(),
+                    inputs.getRequest().toolChoice(),
+                    inputs.getRequest().tools(),
+                    inputs.getRequest().topP(),
+                    mergedReasoning
+                ),
+                inputs.stream()
+            );
+        }
+
+        return inputs;
     }
 
     @Override
     protected boolean supportsChatCompletionReasoning() {
         return true;
+    }
+
+    @Override
+    public ClusterCompatibility checkClusterCompatibility(
+        FeatureService featureService,
+        ClusterState state,
+        TaskType taskType,
+        Map<String, Object> config
+    ) {
+        for (var compatibilityCheck : FEATURE_COMPATIBILITY_CHECKS) {
+            var compatibility = compatibilityCheck.clusterCompatibility(featureService, state, taskType, config);
+            if (compatibility.isSupported() == false) {
+                return compatibility;
+            }
+        }
+
+        return ClusterCompatibility.supported();
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -41,13 +42,16 @@ public class ElasticInferenceServiceCompletionModelCreator extends ElasticInfere
         ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata
     ) {
+        var parsedTaskSettings = ElasticInferenceServiceCompletionTaskSettings.fromMap(taskSettings, taskType, context);
+        var effectiveTaskSettings = parsedTaskSettings.isEmpty() ? EmptyTaskSettings.INSTANCE : parsedTaskSettings;
         return new ElasticInferenceServiceCompletionModel(
             inferenceId,
             taskType,
             serviceSettings,
             elasticInferenceServiceComponents,
             context,
-            endpointMetadata
+            endpointMetadata,
+            effectiveTaskSettings
         );
     }
 

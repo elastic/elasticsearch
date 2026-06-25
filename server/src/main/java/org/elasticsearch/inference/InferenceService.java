@@ -12,9 +12,11 @@ package org.elasticsearch.inference;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
 
@@ -328,5 +330,58 @@ public interface InferenceService extends Closeable {
      */
     default ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
         return null;
+    }
+
+    /**
+     * Result type for {@link #checkClusterCompatibility}: indicates whether the cluster supports
+     * creating the endpoint with the supplied configuration.
+     */
+    record ClusterCompatibility(@Nullable String errorMessage) {
+        private static final ClusterCompatibility SUPPORTED = new ClusterCompatibility(null);
+
+        /**
+         * Returns a result indicating the configuration is compatible with all nodes.
+         */
+        public static ClusterCompatibility supported() {
+            return SUPPORTED;
+        }
+
+        /**
+         * Returns a result indicating the configuration is not yet supported by all nodes.
+         * @param errorMessage human-readable explanation to surface to the caller
+         */
+        public static ClusterCompatibility unsupported(String errorMessage) {
+            return new ClusterCompatibility(errorMessage);
+        }
+
+        /**
+         * @return true if all nodes in the cluster support this configuration
+         */
+        public boolean isSupported() {
+            return errorMessage == null;
+        }
+    }
+
+    /**
+     * Checks whether the cluster supports creating an endpoint with the supplied configuration.
+     * Allows services to reject configurations that require cluster-wide feature support.
+     * <p>
+     * The default implementation always returns {@link ClusterCompatibility#supported()}.
+     * Override this method to gate new features behind a
+     * {@link org.elasticsearch.features.NodeFeature}.
+     *
+     * @param featureService the feature service to check cluster-wide feature availability
+     * @param state          the current cluster state
+     * @param taskType       the resolved task type for the endpoint being created
+     * @param config         the raw request map (still contains {@code task_settings} etc.)
+     * @return a {@link ClusterCompatibility} result
+     */
+    default ClusterCompatibility checkClusterCompatibility(
+        FeatureService featureService,
+        ClusterState state,
+        TaskType taskType,
+        Map<String, Object> config
+    ) {
+        return ClusterCompatibility.supported();
     }
 }

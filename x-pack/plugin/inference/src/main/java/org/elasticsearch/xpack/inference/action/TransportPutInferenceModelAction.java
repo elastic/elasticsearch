@@ -194,6 +194,12 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
+        var compatibility = service.get().checkClusterCompatibility(featureService, state, resolvedTaskType, requestAsMap);
+        if (compatibility.isSupported() == false) {
+            listener.onFailure(new ElasticsearchStatusException(compatibility.errorMessage(), RestStatus.BAD_REQUEST));
+            return;
+        }
+
         var assignments = TrainedModelAssignmentUtils.modelAssignments(request.getInferenceEntityId(), clusterService.state());
         if ((assignments == null || assignments.isEmpty()) == false) {
             listener.onFailure(

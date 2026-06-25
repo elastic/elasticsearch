@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
@@ -58,6 +59,30 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
             ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
             elasticInferenceServiceComponents,
             endpointMetadata
+        );
+    }
+
+    public ElasticInferenceServiceCompletionModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> serviceSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ConfigurationParseContext context,
+        @Nullable EndpointMetadata endpointMetadata,
+        TaskSettings taskSettings
+    ) {
+        this(
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                ElasticInferenceService.NAME,
+                ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
+                taskSettings,
+                null,
+                endpointMetadata
+            ),
+            ModelSecrets.emptySecrets(),
+            elasticInferenceServiceComponents
         );
     }
 

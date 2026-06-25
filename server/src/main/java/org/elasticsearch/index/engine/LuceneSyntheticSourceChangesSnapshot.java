@@ -13,10 +13,8 @@ import com.carrotsearch.hppc.IntArrayList;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
@@ -377,19 +375,5 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         RawIdVisitor visitor = new RawIdVisitor();
         context.reader().storedFields().document(segmentDocID, visitor);
         return visitor.idBytes;
-    }
-
-    private static final class RawIdVisitor extends StoredFieldVisitor {
-        private BytesRef idBytes;
-
-        @Override
-        public Status needsField(FieldInfo fieldInfo) {
-            return IdFieldMapper.NAME.equals(fieldInfo.name) ? Status.YES : Status.NO;
-        }
-
-        @Override
-        public void binaryField(FieldInfo fieldInfo, byte[] value) {
-            idBytes = new BytesRef(value);
-        }
     }
 }

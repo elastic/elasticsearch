@@ -101,7 +101,11 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         }
         context.id(context.sourceToParse().id());
         String slice = context.sourceToParse().routing();
-        assert slice != null : "_slice (routing) must be set for slice-enabled indices";
+        if (slice == null) {
+            // Coordinating-node validation normally rejects this first, but parsing can be reached on paths that bypass it,
+            // so fail with the same message as IdFieldMapper.encodeIdentity rather than NPE in Uid.encodeCompoundId below.
+            throw new IllegalArgumentException("unable to create _id as slice is enabled but _slice is null");
+        }
         final String id = context.id();
         // Slice-free search term drives ids/term search; the compound term (== Engine.Operation.uid()) scopes
         // uniqueness/versioning/GET/delete by (slice, id). Both are indexed-only (not stored), in both modes.

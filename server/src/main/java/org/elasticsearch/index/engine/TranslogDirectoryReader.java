@@ -359,8 +359,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
             // A realtime GET seeks the engine identity term. For a slice index that is the compound term, but the
             // translog Index op carries the plain uid + routing, so reconstruct the compound here for the FakeTerms seek.
             // (The fake stored _id below stays plain — it is read straight from operation.uid().)
-            this.uid = engineConfig.getIndexSettings().isSliceEnabled()
-                ? Uid.encodeCompoundId(Uid.decodeId(operation.uid()), operation.routing())
+            // Go through encodeIdentity (the single source of truth) so a missing routing fails with the same clear
+            // IllegalArgumentException as every other path rather than an opaque NPE inside Uid.encodeCompoundId.
+            final boolean sliceEnabled = engineConfig.getIndexSettings().isSliceEnabled();
+            this.uid = sliceEnabled
+                ? IdFieldMapper.encodeIdentity(true, Uid.decodeId(operation.uid()), operation.routing())
                 : operation.uid();
         }
 

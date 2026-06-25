@@ -15,7 +15,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -28,7 +27,6 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -4159,20 +4157,6 @@ public class InternalEngine extends Engine {
         final RawIdVisitor visitor = new RawIdVisitor();
         leaf.reader().storedFields().document(docId, visitor);
         return visitor.idBytes;
-    }
-
-    private static final class RawIdVisitor extends StoredFieldVisitor {
-        private BytesRef idBytes;
-
-        @Override
-        public Status needsField(FieldInfo fieldInfo) {
-            return IdFieldMapper.NAME.equals(fieldInfo.name) ? Status.YES : Status.NO;
-        }
-
-        @Override
-        public void binaryField(FieldInfo fieldInfo, byte[] value) {
-            idBytes = new BytesRef(value);
-        }
     }
 
     @Override

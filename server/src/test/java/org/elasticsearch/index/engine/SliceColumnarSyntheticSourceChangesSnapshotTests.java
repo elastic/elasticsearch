@@ -10,8 +10,9 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.junit.Before;
 
 /**
  * The slice + columnar {@code _id} scenarios from {@link SliceColumnarChangesSnapshotTests} run through
@@ -20,13 +21,9 @@ import org.elasticsearch.index.mapper.FieldMapper;
  */
 public class SliceColumnarSyntheticSourceChangesSnapshotTests extends SliceSyntheticSourceChangesSnapshotTests {
 
-    @Override
-    public void setUp() throws Exception {
-        assumeTrue(
-            "columnar _id requires the extended doc values feature flag",
-            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-        );
-        super.setUp();
+    @Before
+    public void assumeColumnarEnabled() {
+        assumeTrue("columnar _id requires the extended doc values feature flag", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
     }
 
     @Override

@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -200,11 +201,19 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         // TODO plug actual implementation
         return switch (abstraction.getType()) {
             case CONCRETE_INDEX -> resolveIndexSchema(abstraction, primary);
-            // TODO alias and data stream
+            case ALIAS, DATA_STREAM -> resolveCompositeSchema(abstraction, primary);
             case VIEW -> new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), Map.of("f1", "keyword"));
             case DATASET -> new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), Map.of("f1", "keyword"));
-            default -> throw new IllegalArgumentException("unsupported index abstraction type [" + abstraction + "]");
         };
+    }
+
+    private IndexAbstractionSchema resolveCompositeSchema(IndexAbstraction abstraction, FieldCapabilitiesResponse primary) {
+        var backingNames = abstraction.getIndices().stream().map(Index::getName).collect(Collectors.toSet());
+        var schema = new LinkedHashMap<String, String>();
+        primary.getIndexResponses().stream()
+            .filter(r -> backingNames.contains(r.getIndexName()))
+            .forEach(r -> r.get().values().forEach(f -> schema.putIfAbsent(f.name(), f.type())));
+        return new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), schema);
     }
 
     private IndexAbstractionSchema resolveIndexSchema(IndexAbstraction abstraction, FieldCapabilitiesResponse primary) {

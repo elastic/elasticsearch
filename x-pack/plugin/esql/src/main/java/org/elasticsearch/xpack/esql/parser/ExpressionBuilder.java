@@ -1072,11 +1072,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * @param src          source location used for error reporting
      * @param paramDisplay the display text of the enclosing qualified name, used in error messages
      */
-    private Expression resolveParamInIdentifierPosition(
-        EsqlBaseParser.IdentifierPatternContext ctx,
-        Source src,
-        String paramDisplay
-    ) {
+    private Expression resolveParamInIdentifierPosition(EsqlBaseParser.IdentifierPatternContext ctx, Source src, String paramDisplay) {
         ParseTree paramCtx = ctx.parameter();
         ParseTree doubleParamsCtx = ctx.doubleParameter();
         Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);

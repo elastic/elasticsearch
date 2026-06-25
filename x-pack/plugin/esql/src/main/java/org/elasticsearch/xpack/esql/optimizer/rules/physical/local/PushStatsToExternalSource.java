@@ -81,7 +81,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
             return aggregateExec;
         }
         ExternalSourceExec externalExec = info.externalExec();
-        AttributeMap<Attribute> aliasReplacedBy = info.aliasReplacedBy();
+        AttributeMap<Expression> aliasReplacedBy = info.aliasReplacedBy();
         Expression filterCondition = info.filterCondition();
 
         // Consulting the format's implicit-nulls declaration requires the registry. Honor the

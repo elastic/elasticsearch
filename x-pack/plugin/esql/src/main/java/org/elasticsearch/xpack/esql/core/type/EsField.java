@@ -224,6 +224,10 @@ public class EsField implements Writeable {
         return esDataType;
     }
 
+    public EsField withDataType(DataType esDataType) {
+        return esDataType == this.esDataType ? this : new EsField(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType);
+    }
+
     /**
      * This field can be aggregated
      */

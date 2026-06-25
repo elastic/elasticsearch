@@ -65,7 +65,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -3028,22 +3028,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // unsupported / unresolved fields can be explicitly retained
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
+                p -> p.transformExpressionsOnly(
+                    FieldAttribute.class,
+                    fa -> fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk
+                        ? fallbackToMappedType(fa, punk)
+                        : fa.flagTypeConflicts()
+                )
             );
-        }
-
-        /**
-         * Return an {@link UnsupportedAttribute} so the verifier can flag illegal use of fields with type conflicts.
-         * <p>
-         * If the field is mapped to a single type in some indices but unmapped in others: Instead return a regular field attribute with a
-         * single type so that values are loaded from the indices where it is mapped (and null is returned from unmapped indices).
-         * This is a temporary solution until https://github.com/elastic/elasticsearch/issues/141995 is implemented.
-         */
-        private static Attribute cleanTypeConflicts(FieldAttribute fa) {
-            if (fa.field() instanceof PotentiallyUnmappedSingleTypeField punk) {
-                return fallbackToMappedType(fa, punk);
-            }
-            return fa.flagTypeConflicts();
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
@@ -3196,8 +3187,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 return esRelation.transformExpressionsOnly(FieldAttribute.class, fa -> {
                     // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
-                    if (fa.field() instanceof PotentiallyUnmappedSingleTypeField punk) {
-                        DataType mappedType = punk.types().iterator().next();
+                    if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk) {
+                        DataType mappedType = punk.mappedField().getDataType();
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         ConvertFunction convert = convertFactory == null
                             ? null
@@ -3267,31 +3258,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         typeResolutions.put(key, concreteConvert);
     }
 
-    private static FieldAttribute fallbackToMappedType(FieldAttribute fieldAttribute, PotentiallyUnmappedSingleTypeField punk) {
-        // Restore the original mapped field (widening small numerics) so the field behaves exactly as it does without
-        // unmapped_fields="load": loaded where mapped, null where unmapped.
-        EsField mapped = punk.mappedField();
-        DataType widened = mapped.getDataType().widenSmallNumeric();
-        EsField resolvedField = widened == mapped.getDataType()
-            ? mapped
-            : new EsField(
-                mapped.getName(),
-                widened,
-                mapped.getProperties(),
-                mapped.isAggregatable(),
-                mapped.isAlias(),
-                mapped.getTimeSeriesFieldType()
-            );
-        return new FieldAttribute(
-            fieldAttribute.source(),
-            fieldAttribute.parentName(),
-            fieldAttribute.qualifier(),
-            fieldAttribute.name(),
-            resolvedField,
-            fieldAttribute.nullable(),
-            fieldAttribute.id(),
-            fieldAttribute.synthetic()
-        );
+    private static FieldAttribute fallbackToMappedType(FieldAttribute fieldAttribute, PotentiallyUnmappedSingleTypeEsField punk) {
+        return fieldAttribute.withField(punk.mappedField().withDataType(punk.mappedField().getDataType().widenSmallNumeric()));
     }
 
     /**

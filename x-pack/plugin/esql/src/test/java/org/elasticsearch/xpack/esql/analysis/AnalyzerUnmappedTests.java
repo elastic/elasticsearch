@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -904,10 +904,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 "sort_field",
                 new EsField("sort_field", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
                 "test_field",
-                PotentiallyUnmappedSingleTypeField.of(
+                new PotentiallyUnmappedSingleTypeEsField(
                     new EsField("test_field", dataType.widenSmallNumeric(), Map.of(), true, EsField.TimeSeriesFieldType.NONE),
-                    Set.of("test1"),
-                    null
+                    Set.of("test1")
                 )
             );
 
@@ -941,13 +940,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * Regression test for #151525: {@link IndexResolver#wrapPartiallyUnmappedField} must preserve
      * the original type name for small numeric fields (short, byte, float, half_float, scaled_float).
      * The physical layer looks up conversion expressions by the shard-reported type (e.g. "short"),
-     * so the type stored in the {@link PotentiallyUnmappedSingleTypeField} must match, not the widened type.
+     * so the type stored in the {@link PotentiallyUnmappedSingleTypeEsField} must match, not the widened type.
      */
     public void testWrapPartiallyUnmappedFieldPreservesSmallNumericTypes() {
         Set<String> mappedIndices = Set.of("idx_mapped");
         for (DataType smallNumeric : List.of(DataType.SHORT, DataType.BYTE, DataType.FLOAT, DataType.HALF_FLOAT, DataType.SCALED_FLOAT)) {
             EsField field = new EsField("f", smallNumeric, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
-            var wrapped = (PotentiallyUnmappedSingleTypeField) IndexResolver.wrapPartiallyUnmappedField(field, "f", "f", mappedIndices);
+            var wrapped = (PotentiallyUnmappedSingleTypeEsField) IndexResolver.wrapPartiallyUnmappedField(field, "f", "f", mappedIndices);
             assertThat(
                 "Partially-unmapped " + smallNumeric + " field should be stored under its original (non-widened) type name",
                 wrapped.getTypesToIndices(),
@@ -1193,7 +1192,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             "conflicted",
             Map.of(DataType.LONG.typeName(), Set.of("idx_a"), DataType.DOUBLE.typeName(), Set.of("idx_b"))
         );
-        var partialLong = PotentiallyUnmappedSingleTypeField.of(longField("partial_long"), Set.of("idx_a", "idx_b"), null);
+        var partialLong = new PotentiallyUnmappedSingleTypeEsField(longField("partial_long"), Set.of("idx_a", "idx_b"));
         var merged = new EsIndex(
             "idx*",
             Map.of("partial_long", partialLong, "conflicted", conflicted),
@@ -1233,7 +1232,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var pattern = "idx_a,idx_b";
-        var partialLong = PotentiallyUnmappedSingleTypeField.of(longField("partial_long"), Set.of("idx_a"), null);
+        var partialLong = new PotentiallyUnmappedSingleTypeEsField(longField("partial_long"), Set.of("idx_a"));
         var merged = new EsIndex(
             pattern,
             Map.of("partial_long", partialLong, "common", keywordField("common")),
@@ -1250,7 +1249,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var pattern = "idx_a,idx_b";
-        var partialLong = PotentiallyUnmappedSingleTypeField.of(longField("partial_long"), Set.of("idx_a"), null);
+        var partialLong = new PotentiallyUnmappedSingleTypeEsField(longField("partial_long"), Set.of("idx_a"));
         var merged = new EsIndex(
             pattern,
             Map.of("partial_long", partialLong, "common", keywordField("common")),
@@ -1359,7 +1358,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     public void testLoadWithPartiallyMappedNonKeywordDottedPathAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        var sub = PotentiallyUnmappedSingleTypeField.of(longField("sub"), Set.of("idx_mapped"), null);
+        var sub = new PotentiallyUnmappedSingleTypeEsField(longField("sub"), Set.of("idx_mapped"));
         var obj = new EsField("obj", DataType.OBJECT, Map.of("sub", sub), true, EsField.TimeSeriesFieldType.NONE);
         var esIndex = new EsIndex("idx*", Map.of("obj", obj), Map.of("idx_mapped", IndexMode.STANDARD), Map.of(), Map.of());
 

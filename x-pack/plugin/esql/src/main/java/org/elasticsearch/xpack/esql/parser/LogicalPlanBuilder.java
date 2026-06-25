@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -1017,7 +1018,27 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
 
-        return new UnresolvedExternalRelation(source, tablePath, config);
+        // TEMPORARY SHIM — delete when the inline EXTERNAL command is retired in favour of
+        // FROM <dataset>. External metadata is otherwise purely request-driven: a column appears
+        // only when the user names it in a METADATA clause (the FROM path) and surfaces only when
+        // KEEP'd by name. The legacy EXTERNAL command has no METADATA clause, so to preserve its
+        // historical behaviour (_file.* resolvable in WHERE / STATS BY / KEEP) we inject the
+        // _file.* names as if the user had written `METADATA _file.path, _file.name, ...`.
+        // ResolveExternalRelations.bindMetadataFields binds them to ExternalMetadataAttributes; the
+        // surfacing rule still hides them from default output unless explicitly KEEP'd. The schema
+        // auto-attach that used to glue _file.* onto every external source is gone (it leaked the
+        // columns through DROP / wildcard).
+        List<NamedExpression> metadataFields = new ArrayList<>(FileMetadataColumns.NAMES.size());
+        for (String name : FileMetadataColumns.NAMES) {
+            // _file.record_ref is a FROM-only, request-driven column (it drives _id and forces the
+            // reader's row-position channel). The legacy EXTERNAL auto-attach is limited to the
+            // historical per-file constant _file.* columns, so it is deliberately excluded here.
+            if (FileMetadataColumns.RECORD_REF.equals(name)) {
+                continue;
+            }
+            metadataFields.add(new UnresolvedAttribute(source, name));
+        }
+        return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
     }
 
     /**

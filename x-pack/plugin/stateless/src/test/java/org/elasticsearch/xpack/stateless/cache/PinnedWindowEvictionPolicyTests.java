@@ -231,12 +231,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
 
     private PinnedWindowEvictionPolicy fixedTimePolicy(long now, TimeValue pinnedWindowDuration, ShardId... openShards) {
         final Predicate<ShardId> locallyOpenShard = Set.copyOf(Arrays.asList(openShards))::contains;
-        return new FixedTimePinnedWindowEvictionPolicy(
-            clusterService.threadPool(),
-            locallyOpenShard,
-            now,
-            pinnedWindowDuration
-        );
+        return new FixedTimePinnedWindowEvictionPolicy(clusterService.threadPool(), locallyOpenShard, now, pinnedWindowDuration);
     }
 
     private static boolean canEvict(PinnedWindowEvictionPolicy policy, CacheRegion<FileCacheKey> region) {

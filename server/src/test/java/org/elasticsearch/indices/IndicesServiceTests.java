@@ -388,6 +388,23 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testLocallyOpenShardPredicate() {
+        IndicesService indicesService = getIndicesService();
+        var locallyOpenShard = indicesService.locallyOpenShardPredicate();
+        ShardId unknownIndexShard = new ShardId("nonexistent", UUIDs.randomBase64UUID(), 0);
+        assertFalse(locallyOpenShard.test(unknownIndexShard));
+
+        IndexService test = createIndex("test");
+        ShardId openShard = new ShardId(test.index(), 0);
+        assertTrue(locallyOpenShard.test(openShard));
+
+        ShardId missingShard = new ShardId(test.index(), 100);
+        assertFalse(locallyOpenShard.test(missingShard));
+
+        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionTestUtils.assertNoFailureListener(v -> {}));
+        assertFalse(locallyOpenShard.test(openShard));
+    }
+
     public void testDeleteIndexStore() throws Exception {
         IndicesService indicesService = getIndicesService();
         IndexService test = createIndex("test");

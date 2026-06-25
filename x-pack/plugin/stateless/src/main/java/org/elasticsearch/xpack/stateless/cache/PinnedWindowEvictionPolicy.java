@@ -56,11 +56,7 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     /**
      * For test subclasses that override {@link #isShardLocallyAllocated(ShardId)} and optionally {@link #currentTimeMillis()}.
      */
-    protected PinnedWindowEvictionPolicy(
-        ThreadPool threadPool,
-        Predicate<ShardId> locallyOpenShard,
-        TimeValue pinnedWindowDuration
-    ) {
+    protected PinnedWindowEvictionPolicy(ThreadPool threadPool, Predicate<ShardId> locallyOpenShard, TimeValue pinnedWindowDuration) {
         this.locallyOpenShard = Objects.requireNonNull(locallyOpenShard);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.pinnedWindowDuration = pinnedWindowDuration;

@@ -124,7 +124,10 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
             Map<NameId, Attribute> unionToBranch = buildNameResolutionMap(unionAll.output(), branch.output());
 
             // Build grouping Aliases: Alias(name, branchAttr, sharedGroupingId).
-            // The same Alias is placed in both branchGroupings and (as a passthrough) in branchAggs.
+            // The raw resolved attribute goes in branchGroupings — CombineProjections requires
+            // groupings to be plain Attributes, not Aliases. The Alias with the shared ID goes
+            // only in branchAggs so the inner Aggregate's output carries the shared ID that the
+            // outer UnionAll and combiner Aggregate reference.
             List<Expression> branchGroupings = new ArrayList<>(groupings.size());
             Map<NameId, Alias> groupingIdToAlias = new HashMap<>(groupings.size() * 2);
             for (Expression g : groupings) {
@@ -135,7 +138,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                 }
                 NameId sharedId = groupingIdToSharedId.get(gAttr.id());
                 Alias gAlias = new Alias(gAttr.source(), gAttr.name(), resolved, sharedId, true);
-                branchGroupings.add(gAlias);
+                branchGroupings.add(resolved);
                 groupingIdToAlias.put(gAttr.id(), gAlias);
             }
 

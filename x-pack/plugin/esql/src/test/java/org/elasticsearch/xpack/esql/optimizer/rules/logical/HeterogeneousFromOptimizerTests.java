@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -16,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -26,8 +30,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -36,14 +42,21 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -53,6 +66,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Unit tests that verify optimizer pushdown rules behave correctly for the heterogeneous FROM shape —
@@ -441,15 +455,17 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
 
     /**
      * {@link PushAggregateThroughUnionAll} must not push aggregates into a subquery-shape
-     * UnionAll (children are Project → Relation, not bare leaf relations).
+     * UnionAll whose children are doubly-wrapped (Project → Project → Relation), which
+     * does not match the leaf-union pattern ({@link PushDownUtils#isLeafUnionAll}).
      */
     public void testNonLeafUnionAllAggNotPushed() {
         ReferenceAttribute unionField = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
         FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
         EsRelation esRelation = relation().withAttributes(List.of(esEmpNo));
 
-        // Wrap EsRelation in a Project to make this a non-leaf branch
-        Project project = new Project(EMPTY, esRelation, List.of(esEmpNo));
+        // Double-wrap to produce a shape that isLeafUnionAll does not recognise as a leaf
+        Project innerProject = new Project(EMPTY, esRelation, List.of(esEmpNo));
+        Project project = new Project(EMPTY, innerProject, List.of(esEmpNo));
 
         UnionAll unionAll = new UnionAll(EMPTY, List.of(project, project), List.of(unionField));
 
@@ -800,6 +816,198 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(branch1.groupings(), hasSize(2));
         assertThat(branch1.aggregates(), hasSize(3)); // $$partial$$c, dept, salary
     }
+
+    // -------------------------------------------------------------------------
+    // Full-pipeline tests (parse → DatasetRewriter → analyze → optimize)
+    //
+    // Unlike the isolated-rule tests above, these run the complete LogicalPlanOptimizer
+    // pipeline so rule interactions (e.g. PruneColumns handing off to
+    // PushAggregateThroughUnionAll) are exercised and the post-optimization verifier
+    // fires automatically via assertValidPlan.
+    //
+    // Each test requires the external-datasources feature flag to be on; otherwise it
+    // is skipped via assumeTrue (the same approach is used in FromDatasetIT).
+    // -------------------------------------------------------------------------
+
+    /**
+     * Full-pipeline: {@code FROM employees, ext_emps | WHERE emp_no > 1000} runs through
+     * parse→DatasetRewriter→analyze→optimize and verifies that
+     * (a) the plan is internally consistent and
+     * (b) {@link PushDownFilterAndLimitIntoUnionAll} pushed the filter into each branch of
+     * the heterogeneous {@link UnionAll}.
+     */
+    public void testFullPipelineFilterPushedIntoLeafUnionAll() {
+        assumeTrue("requires external datasources feature flag", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan result = optimizedHeterogeneousPlan("FROM employees, ext_emps | WHERE emp_no > 1000");
+        assertValidPlan(result);
+
+        List<UnionAll> unions = new ArrayList<>();
+        result.forEachDown(UnionAll.class, unions::add);
+        assertThat("heterogeneous FROM must produce a UnionAll", unions, hasSize(1));
+        UnionAll unionAll = unions.get(0);
+        assertThat("expected two branches (EsRelation + ExternalRelation)", unionAll.children(), hasSize(2));
+
+        for (LogicalPlan branch : unionAll.children()) {
+            List<Filter> filters = new ArrayList<>();
+            branch.forEachDown(Filter.class, filters::add);
+            assertThat("filter not pushed into branch " + branch.getClass().getSimpleName(), filters, not(empty()));
+        }
+    }
+
+    /**
+     * Full-pipeline: {@code FROM employees, ext_emps | STATS c = COUNT(*)} exercises
+     * {@link PushAggregateThroughUnionAll} through the complete optimizer. Verifies that
+     * (a) the plan is valid and
+     * (b) the outer aggregate wraps partial counts in {@code SUM} over a {@link UnionAll}
+     *     whose branches each contain a {@code COUNT(*)} aggregate — the decomposition shape
+     *     that makes partial aggregation across sources correct.
+     */
+    public void testFullPipelineAggDecomposedThroughLeafUnionAll() {
+        assumeTrue("requires external datasources feature flag", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan result = optimizedHeterogeneousPlan("FROM employees, ext_emps | STATS c = COUNT(*)");
+        assertValidPlan(result);
+
+        // The full optimizer wraps STATS output in a default Limit[1000]
+        Limit limit = as(result, Limit.class);
+        Aggregate outerAgg = as(limit.child(), Aggregate.class);
+        assertThat("output must be exactly [c]", outerAgg.output(), hasSize(1));
+        assertThat(outerAgg.output().get(0).name(), equalTo("c"));
+
+        // Combiner wraps the partial count in SUM
+        Alias cAlias = as(outerAgg.aggregates().get(0), Alias.class);
+        assertThat("outer combiner for COUNT(*) must be SUM", cAlias.child(), instanceOf(Sum.class));
+
+        UnionAll unionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(unionAll.children(), hasSize(2));
+        for (LogicalPlan branch : unionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            Alias partialAlias = as(branchAgg.aggregates().get(0), Alias.class);
+            assertThat("each branch must have a COUNT partial", partialAlias.child(), instanceOf(Count.class));
+        }
+    }
+
+    /**
+     * Full-pipeline: {@code FROM employees, ext_emps | STATS c = COUNT(*) BY salary | KEEP c}
+     * exercises the interaction between {@link PruneColumns} and {@link PushAggregateThroughUnionAll}.
+     * {@code KEEP c} causes PruneColumns to drop {@code salary} from the aggregate's
+     * {@code aggregates()} list while keeping it in {@code groupings()} — the exact shape
+     * that triggered the dangling-reference bug. The plan must pass the consistency check.
+     */
+    public void testFullPipelinePruneGroupingInteractionProducesValidPlan() {
+        assumeTrue("requires external datasources feature flag", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan result = optimizedHeterogeneousPlan("FROM employees, ext_emps | STATS c = COUNT(*) BY salary | KEEP c");
+        assertValidPlan(result);
+        assertThat("output after KEEP c must be exactly [c]", result.output(), hasSize(1));
+        assertThat(result.output().get(0).name(), equalTo("c"));
+    }
+
+    /**
+     * Full-pipeline: {@code FROM employees, ext_emps | SORT emp_no ASC | LIMIT 5} exercises
+     * TopN pushdown ({@link PushDownLimitAndOrderByIntoFork} /
+     * {@link PushDownAndCombineLimits}) into the leaf {@link UnionAll}. Verifies the plan is
+     * valid and that a {@link TopN} appears inside each branch (pushdown happened —
+     * {@code ReplaceLimitAndSortAsTopN} converts the pushed-in {@code Limit→OrderBy} pairs to
+     * {@code TopN} as part of the same full-optimizer run).
+     */
+    public void testFullPipelineTopNPushedIntoLeafUnionAll() {
+        assumeTrue("requires external datasources feature flag", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan result = optimizedHeterogeneousPlan("FROM employees, ext_emps | SORT emp_no ASC | LIMIT 5");
+        assertValidPlan(result);
+
+        List<UnionAll> unions = new ArrayList<>();
+        result.forEachDown(UnionAll.class, unions::add);
+        assertThat("heterogeneous FROM must produce a UnionAll", unions, hasSize(1));
+        UnionAll unionAll = unions.get(0);
+
+        for (LogicalPlan branch : unionAll.children()) {
+            List<TopN> topNs = new ArrayList<>();
+            branch.forEachDown(TopN.class, topNs::add);
+            assertThat("TopN not pushed into branch " + branch.getClass().getSimpleName(), topNs, not(empty()));
+        }
+    }
+
+    /**
+     * Parses {@code query}, directly replaces its {@code FROM} relation with the heterogeneous
+     * {@link UnionAll} structure (one {@link UnresolvedRelation} for {@code employees} and one
+     * {@link UnresolvedExternalRelation} for {@code ext_emps}) that {@code DatasetRewriter} would
+     * produce, analyzes it against the {@code employees} ES index and the external source schema
+     * ({@code emp_no:INTEGER}, {@code salary:INTEGER}), and runs the full
+     * {@link org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer} pipeline.
+     *
+     * <p>We bypass {@code DatasetRewriter.rewriteUnsecured} because it needs the {@code employees}
+     * index present in a real {@code ProjectMetadata} indices-lookup to classify it as a non-dataset;
+     * in tests there is no cluster state, so it would silently drop {@code employees} and produce
+     * only the external relation.
+     *
+     * <p>Callers must guard on {@link EsqlCapabilities.Cap#DATASET_IN_FROM_COMMAND}.
+     */
+    private LogicalPlan optimizedHeterogeneousPlan(String query) {
+        var parsed = TEST_PARSER.parseQuery(query);
+        // Replace the single UnresolvedRelation from "FROM employees, ext_emps" with the
+        // UnionAll structure that DatasetRewriter would have produced.
+        var rewritten = parsed.transformUp(
+            UnresolvedRelation.class,
+            r -> new UnionAll(
+                r.source(),
+                List.of(
+                    new UnresolvedRelation(
+                        r.source(),
+                        new IndexPattern(r.source(), "employees"),
+                        r.frozen(),
+                        List.of(),
+                        r.indexMode(),
+                        null
+                    ),
+                    new UnresolvedExternalRelation(
+                        r.source(),
+                        Literal.keyword(r.source(), EXT_EMPS_RESOURCE),
+                        Map.of(),
+                        List.of(),
+                        "ext_emps"
+                    )
+                ),
+                List.of()
+            )
+        );
+        var extEmpsSource = new ExternalSourceResolution.ResolvedSource(new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return EXT_EMPS_RESOURCE;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return List.of(referenceAttribute("emp_no", INTEGER), referenceAttribute("salary", INTEGER));
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        }, FileList.UNRESOLVED, Map.of());
+        // Use a minimal employees schema (only emp_no and salary) that matches ext_emps exactly.
+        // This prevents resolveFork from adding Eval nodes for missing columns, keeping each
+        // UnionAll branch as Project > EsRelation / Project > ExternalRelation (no Eval wrapper).
+        var employeesIndex = new EsIndex(
+            "employees",
+            Map.of(
+                "emp_no",
+                new EsField("emp_no", INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+                "salary",
+                new EsField("salary", INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Map.of("employees", IndexMode.STANDARD),
+            Map.of(),
+            Map.of()
+        );
+        var analyzed = analyzer().addIndex(employeesIndex)
+            .externalSourceResolution(new ExternalSourceResolution(Map.of(EXT_EMPS_RESOURCE, extEmpsSource)))
+            .buildAnalyzer()
+            .analyze(rewritten);
+        return optimize(analyzed);
+    }
+
+    private static final String EXT_EMPS_RESOURCE = "s3://bucket/ext_emps.parquet";
 
     /**
      * Runs the engine's own {@link PlanConsistencyChecker} over every node in {@code plan}.

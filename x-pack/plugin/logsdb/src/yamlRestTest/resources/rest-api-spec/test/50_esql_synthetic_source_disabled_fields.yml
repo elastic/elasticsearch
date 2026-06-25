@@ -35,7 +35,6 @@ setup:
                   store: false
                 location:
                   type: geo_point
-                  doc_values: false
                   store: false
                 message:
                   type: text
@@ -114,7 +113,7 @@ teardown:
   - match: {values.0.2: "bar"}
   - match: {values.0.3: "PUT"}
   - match: {values.0.4: false}
-  - match: {values.0.5: "POINT (-74.006 40.7128)"}
+  - match: {values.0.5: "POINT (-74.00600004941225 40.712799984030426)"}
   - match: {values.0.6: "Do. Or do not. There is no try."}
   - match: {values.0.7: "Do. Or do not. There is no try."}
   - match: {values.0.8: 102}
@@ -129,12 +128,12 @@ teardown:
   - match: {columns.0.name: "location"}
   - match: {columns.0.type: "geo_point"}
 
-  - match: {values.0.0: "POINT (-74.006 40.7128)"}
-  - match: {values.1.0: "POINT (-74.006 40.7128)"}
-  - match: {values.2.0: "POINT (-74.006 40.7128)"}
-  - match: {values.3.0: "POINT (-74.006 40.7128)"}
-  - match: {values.4.0: "POINT (-74.006 40.7128)"}
-  - match: {values.5.0: "POINT (-74.006 40.7128)"}
+  - match: {values.0.0: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.1.0: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.2.0: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.3.0: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.4.0: "POINT (-74.00600004941225 40.712799984030426)"}
+  - match: {values.5.0: "POINT (-74.00600004941225 40.712799984030426)"}
 
 ---
 "Simple from number fields":
@@ -246,7 +245,6 @@ teardown:
                   store: false
                 location:
                   type: geo_point
-                  doc_values: false
                   store: false
                 message:
                   type: text
@@ -305,7 +303,7 @@ teardown:
   - match: {values.0.2: "bar"}
   - match: {values.0.3: "PUT"}
   - match: {values.0.4: false}
-  - match: {values.0.5: "POINT (-74.006 40.7128)"}
+  - match: {values.0.5: "POINT (-74.00600004941225 40.712799984030426)"}
   - match: {values.0.6: "Do. Or do not. There is no try."}
   - match: {values.0.7: 102}
 

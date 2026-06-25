@@ -763,13 +763,16 @@ create logsdb_columnar data stream with custom sorting and host.name field witho
         - "index template [cl-logs-template] has index patterns [logs-cl-http-dev] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
+  # In logsdb_columnar mode, doc_values:false is silently flipped to true, so the sort field has
+  # doc values and index creation succeeds.
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: logs-cl-http-dev
+  - is_true: acknowledged
 
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "docvalues not found for index sort field:[host.name]" }
+  - do:
+      indices.delete_data_stream:
+        name: logs-cl-http-dev
 
 ---
 create logsdb_columnar data stream with incompatible ignore_above on host.name:

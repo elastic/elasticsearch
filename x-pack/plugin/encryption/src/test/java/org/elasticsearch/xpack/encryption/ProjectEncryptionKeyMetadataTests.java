@@ -457,10 +457,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         // Disk already had keys:{} (a previously-degraded node wrote nothing) — nothing to preserve.
         ToXContent.Params gatewayParams = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
         try (
-            XContentParser parser = createParser(
-                JsonXContent.jsonXContent,
-                "{\"active_key_id\":\"k1\",\"password_id\":\"v1\",\"keys\":{}}"
-            )
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"active_key_id\":\"k1\",\"password_id\":\"v1\",\"keys\":{}}")
         ) {
             ProjectEncryptionKeyMetadata degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, NO_OP_ENCRYPTION);
             assertTrue("must be degraded when disk had empty keys", degraded.isUnwrapFailed());

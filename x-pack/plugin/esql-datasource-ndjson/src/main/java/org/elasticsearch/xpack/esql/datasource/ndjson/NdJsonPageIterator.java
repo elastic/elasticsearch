@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
 import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -40,7 +41,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.TreeMap;
 import java.util.function.Function;
 
 /**
@@ -90,13 +90,14 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     /** True for parallel-parsing chunks — close-time publish carries the partial-chunk marker. */
     private final boolean chunkMode;
     /**
-     * Stripe grid B (bytes). Positive iff this chunk attributes records to the canonical stripe grid
-     * and emits one per-stripe contribution per {@code (chunk, stripe)} at close; -1 disables (whole-file
-     * read, or stripe addressing not wired). The decoder is told to cap pages at stripe lines when this
-     * is positive, so each page folds wholly into one stripe's accumulator.
+     * Stripe grid B (bytes). Positive iff this chunk attributes records to the canonical stripe grid and
+     * emits one per-stripe contribution per {@code (chunk, stripe)} at close via the byte-range cover model;
+     * -1 disables (whole-file read, or stripe addressing not wired). The decoder records each record's own
+     * file-global start offset; the iterator attributes the page's rows to stripes by those offsets — no
+     * page-capping needed.
      */
     private final long statsStripeSize;
-    /** This chunk's absolute first-byte offset in file/decompressed coordinates; stripe ordinals are relative to it. */
+    /** This chunk's absolute first-byte offset in file/decompressed coordinates; the byte-range cover anchors on it. */
     private final long statsBaseOffset;
     /**
      * True iff this chunk reaches the file's true end. Only then may the chunk's last stripe be marked
@@ -136,34 +137,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     /** ALL-scope, non-stripe (whole-file) accumulator over the full file schema. {@code null} until first fed. */
     private ColumnStatsAccumulator allFileColumnStats;
     /**
-     * Per-stripe accumulators keyed by stripe ordinal {@code floor(recordStartOffset / B)}, ordered so
-     * the close-time emission walks stripes ascending. Each holds the stripe's column stats, row count,
-     * record-canonical byte sub-range, and the {@code atStart}/{@code atEnd}/{@code eof} anchors the
-     * coordinator's interval-cover needs.
+     * Shared canonical-stripe harvester (byte-range cover model — the same one the CSV reader uses). Owns the
+     * per-stripe accumulators and the close-time emit loop. {@code null} when stripe capture is off.
      */
-    private final TreeMap<Long, StripeAccum> stripeAccums = new TreeMap<>();
-    /** Ordinal of the last page folded; drives empty-stripe emission when an oversized record skips a grid line. */
-    private long prevPageOrdinal = -1;
-
-    /**
-     * One stripe's running aggregate for the orthogonal per-stripe stats path. Folds whole pages (the
-     * decoder guarantees a page never straddles a stripe line) into a {@link ColumnStatsAccumulator}, and
-     * tracks the record-canonical byte sub-range. Cover anchors are derived at emission from the chunk's
-     * min/max ordinal rather than stored per accumulator.
-     */
-    private static final class StripeAccum {
-        /** Projected-column stats (PROJECTED/ALL), fed from the output page's blocks. */
-        ColumnStatsAccumulator cols;
-        /**
-         * ALL-scope full-file-schema stats, fed from the widened decoded page (every file column, including
-         * the unprojected ones the output page never carries). Merged with {@link #cols} at emission so ALL's
-         * committed column set is a strict superset of PROJECTED's.
-         */
-        ColumnStatsAccumulator allCols;
-        long rows;
-        long startOffset = Long.MAX_VALUE;
-        long endOffset = Long.MIN_VALUE;
-    }
+    private final StripeStatsHarvester stripeHarvester;
+    /** Set when per-stripe capture must safe-miss (page rows don't align with the decoder's offset array). */
+    private boolean stripeCaptureDisabled = false;
 
     /**
      * Widened decode projection for the ALL scope: the query's projected columns first (so the leading
@@ -240,6 +219,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.statsStripeSize = (chunkMode && this.statsColumnScope != StripeColumnScope.NONE) ? statsStripeSize : -1L;
         this.statsBaseOffset = statsBaseOffset;
         this.statsFileFinal = statsFileFinal;
+        this.stripeHarvester = this.statsStripeSize > 0 ? new StripeStatsHarvester(this.statsStripeSize, statsFileFinal) : null;
         InputStream inputStream = object.newStream();
         NdJsonRecordSplitter recordSplitter = new NdJsonRecordSplitter(maxRecordBytes);
         // File-global byte offset of the first byte the decoder will read. When this split starts
@@ -332,11 +312,11 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
         if (this.statsStripeSize > 0) {
-            // Tell the decoder to cap each page at the record where the byte offset crosses a stripe
-            // line, so a page never straddles a stripe and the iterator can fold it wholly into one
-            // accumulator. statsBaseOffset is this chunk's absolute file offset; the decoder adds the
-            // parser's within-chunk byte offset to attribute each record to floor(offset / B).
-            this.pageDecoder.enableStripeAddressing(statsBaseOffset, this.statsStripeSize);
+            // Tell the decoder to record each record's own file-global start offset into a per-page array,
+            // so the iterator can attribute the page's rows to canonical stripes by the byte-range cover
+            // model. statsBaseOffset is this chunk's absolute file offset; the decoder adds the parser's
+            // within-chunk byte offset. No page-capping — a page may span stripes.
+            this.pageDecoder.enableRecordOffsetTracking(statsBaseOffset);
         }
     }
 
@@ -508,40 +488,70 @@ final class NdJsonPageIterator extends BufferingPageIterator {
 
     /**
      * ALL-scope side-pass: fold every FILE column of the widened decoded page into the file-schema
-     * accumulator — including the unprojected columns the output page never carries. On the stripe path the
-     * whole page folds into its stripe's {@code allCols} (the decoder caps pages at stripe boundaries, so a
-     * page never straddles); off the stripe path it folds into the single whole-file accumulator. Synthetic
-     * blocks (e.g. {@code _rowPosition}) map to file-column index {@code -1} and are skipped.
+     * accumulator — including the unprojected columns the output page never carries. On the stripe path each
+     * run of consecutive same-stripe rows folds into that stripe's {@code allCols} (a page may span stripes,
+     * so it is split by the decoder's per-record offsets); off the stripe path the whole page folds into the
+     * single whole-file accumulator. Synthetic blocks (e.g. {@code _rowPosition}) map to file-column index
+     * {@code -1} and are skipped.
      */
     private void harvestAllColumns(Page widePage) {
         if (harvestFileSchema == null || widePage.getBlockCount() == 0) {
             return;
         }
-        ColumnStatsAccumulator acc;
         if (statsStripeSize > 0) {
-            long pageStart = pageDecoder.lastPageStartOffset();
-            long ordinal = pageStart / statsStripeSize;
-            StripeAccum stripe = stripeAccums.computeIfAbsent(ordinal, k -> new StripeAccum());
-            if (stripe.allCols == null) {
-                stripe.allCols = ColumnStatsAccumulator.forSchema(harvestFileSchema);
-            }
-            acc = stripe.allCols;
-        } else {
-            if (allFileColumnStats == null) {
-                allFileColumnStats = ColumnStatsAccumulator.forSchema(harvestFileSchema);
-            }
-            acc = allFileColumnStats;
-        }
-        if (acc.isEmpty()) {
+            forEachStripeRun(widePage, (ordinal, acc, page, from, to) -> {
+                if (acc.allCols == null) {
+                    acc.allCols = ColumnStatsAccumulator.forSchema(harvestFileSchema);
+                }
+                if (acc.allCols.isEmpty()) {
+                    return;
+                }
+                feedFileColumns(acc.allCols, page, from, to);
+            });
             return;
         }
+        if (allFileColumnStats == null) {
+            allFileColumnStats = ColumnStatsAccumulator.forSchema(harvestFileSchema);
+        }
+        if (allFileColumnStats.isEmpty()) {
+            return;
+        }
+        feedFileColumns(allFileColumnStats, widePage, 0, widePage.getPositionCount());
+    }
+
+    /**
+     * Feeds the widened page's file-column blocks (mapped via {@link #harvestBlockToFileColumnIndex}) for
+     * positions {@code [from, to)} into {@code acc}. When the run is the whole page the blocks are fed
+     * directly; otherwise the relevant positions are sliced out first (and released).
+     */
+    private void feedFileColumns(ColumnStatsAccumulator acc, Page widePage, int from, int to) {
+        boolean wholePage = from == 0 && to == widePage.getPositionCount();
+        int[] positions = wholePage ? null : positionRange(from, to);
         int blocks = widePage.getBlockCount();
         for (int b = 0; b < blocks && b < harvestBlockToFileColumnIndex.length; b++) {
             int fileColumn = harvestBlockToFileColumnIndex[b];
-            if (fileColumn >= 0) {
+            if (fileColumn < 0) {
+                continue;
+            }
+            if (wholePage) {
                 acc.acceptBlockAt(fileColumn, widePage.getBlock(b));
+            } else {
+                var filtered = widePage.getBlock(b).filter(false, positions);
+                try {
+                    acc.acceptBlockAt(fileColumn, filtered);
+                } finally {
+                    filtered.close();
+                }
             }
         }
+    }
+
+    private static int[] positionRange(int from, int to) {
+        int[] positions = new int[to - from];
+        for (int p = 0; p < positions.length; p++) {
+            positions[p] = from + p;
+        }
+        return positions;
     }
 
     private void captureBlockStats(Page page) {
@@ -579,53 +589,82 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     }
 
     /**
-     * Attribute a page to its stripe and fold it into that stripe's accumulator. The decoder caps each page
-     * at the first record whose own start crosses a stripe line, so a page never straddles a stripe and
-     * {@code floor(pageStart / B)} identifies the whole page's stripe.
-     *
-     * <p>This only accumulates rows / column stats / byte sub-range and records which ordinals the chunk
-     * touched; the cover anchors ({@code atStart}/{@code atEnd}) are derived at emission from the chunk's
-     * min/max ordinal (see {@link #emitPerStripe}), which is robust to how pages happened to break — a
-     * stripe's last page can end on a batchSize boundary rather than a stripe cap, so per-page cap flags are
-     * not a reliable completeness signal.
-     *
-     * <p>An oversized record (a single record larger than B) skips one or more grid lines: the next page's
-     * ordinal jumps past {@code prevPageOrdinal + 1}, and we materialize explicit empty (zero-row) stripe
-     * accumulators for the skipped ordinals so the cover stays dense.
+     * Attribute the page's rows to canonical stripes by each record's own file-global start offset (the
+     * decoder's per-record offset array), summing rows + projected-column stats per stripe. A page may span
+     * stripes; it is split into runs of consecutive same-stripe rows. This counts each run's rows (the
+     * authoritative per-stripe row count) and folds the projected columns; the byte ranges and cover anchors
+     * are derived from the chunk's byte geometry at emission (the shared {@link StripeStatsHarvester#emit}),
+     * so record attribution stays scan-invariant. The ALL-scope all-column harvest runs separately in
+     * {@link #harvestAllColumns} (no row counting there) so rows are counted exactly once.
      */
     private void captureStripeStats(Page page) {
-        long pageStart = pageDecoder.lastPageStartOffset();
-        long pageEnd = pageDecoder.lastPageEndOffset();
-        long ordinal = pageStart / statsStripeSize;
-        // Oversized record skipped one or more whole stripes — materialize empties so ordinals stay dense.
-        if (prevPageOrdinal >= 0 && ordinal > prevPageOrdinal + 1) {
-            for (long k = prevPageOrdinal + 1; k < ordinal; k++) {
-                StripeAccum empty = stripeAccums.computeIfAbsent(k, x -> new StripeAccum());
-                empty.startOffset = pageStart;
-                empty.endOffset = pageStart;
+        forEachStripeRun(page, (ordinal, acc, p, from, to) -> {
+            acc.rows += (to - from);
+            // COUNT scope harvests rows only — never a column accumulator. PROJECTED builds one for the
+            // projected columns when there are any (a zero-projection COUNT(*) read has none, so acc.cols stays
+            // null and only acc.rows advances). ALL has ALREADY folded every file column (incl. unprojected)
+            // into acc.allCols off the widened page in harvestAllColumns, so the projected re-harvest is
+            // skipped here.
+            if (acc.cols == null && statsColumnScope.harvestsColumns() && harvestOutputColumnCount < 0) {
+                List<Attribute> projected = pageDecoder.projectedAttributes();
+                acc.cols = (projected == null || projected.isEmpty())
+                    ? null
+                    : ColumnStatsAccumulator.forProjectedAttributes(projected.toArray(new Attribute[0]));
             }
-        }
-        StripeAccum acc = stripeAccums.computeIfAbsent(ordinal, k -> new StripeAccum());
-        // COUNT scope harvests rows only — never a column accumulator. PROJECTED builds one for the projected
-        // columns when there are any (a zero-projection COUNT(*) read has none, so acc.cols stays null and only
-        // acc.rows advances). ALL has ALREADY folded every file column (incl. unprojected) into acc.allCols off
-        // the widened page in harvestAllColumns, so the projected re-harvest is skipped here.
-        if (acc.cols == null && statsColumnScope.harvestsColumns() && harvestOutputColumnCount < 0) {
-            List<Attribute> projected = pageDecoder.projectedAttributes();
-            acc.cols = (projected == null || projected.isEmpty())
-                ? null
-                : ColumnStatsAccumulator.forProjectedAttributes(projected.toArray(new Attribute[0]));
-        }
-        if (acc.cols != null && acc.cols.isEmpty() == false) {
-            int blocks = page.getBlockCount();
-            for (int i = 0; i < blocks; i++) {
-                acc.cols.acceptBlockAt(i, page.getBlock(i));
+            if (acc.cols != null && acc.cols.isEmpty() == false) {
+                boolean wholePage = from == 0 && to == p.getPositionCount();
+                int[] positions = wholePage ? null : positionRange(from, to);
+                int blocks = p.getBlockCount();
+                for (int i = 0; i < blocks; i++) {
+                    if (wholePage) {
+                        acc.cols.acceptBlockAt(i, p.getBlock(i));
+                    } else {
+                        var filtered = p.getBlock(i).filter(false, positions);
+                        try {
+                            acc.cols.acceptBlockAt(i, filtered);
+                        } finally {
+                            filtered.close();
+                        }
+                    }
+                }
             }
+        });
+    }
+
+    /** Per-stripe-run callback: {@code acc} is the stripe's accumulator, {@code [from, to)} its rows in {@code page}. */
+    @FunctionalInterface
+    private interface StripeRunConsumer {
+        void accept(long ordinal, StripeStatsHarvester.StripeAccum acc, Page page, int from, int to);
+    }
+
+    /**
+     * Splits {@code page} into maximal runs of consecutive rows sharing a canonical stripe (by the decoder's
+     * per-record start offsets), advancing each run's stripe row count and invoking {@code consumer} once per
+     * run so the caller can fold that run's column stats. If the page's row count does not match the
+     * decoder's recorded offset count, stripe capture safe-misses for the whole file (a warm aggregate
+     * re-scans) rather than risk misattribution.
+     */
+    private void forEachStripeRun(Page page, StripeRunConsumer consumer) {
+        if (stripeCaptureDisabled) {
+            return;
         }
-        acc.rows += page.getPositionCount();
-        acc.startOffset = Math.min(acc.startOffset, pageStart);
-        acc.endOffset = Math.max(acc.endOffset, pageEnd);
-        prevPageOrdinal = ordinal;
+        int n = page.getPositionCount();
+        long[] offsets = pageDecoder.lastPageRecordOffsets();
+        if (pageDecoder.lastPageRecordCount() != n) {
+            stripeCaptureDisabled = true; // alignment lost — safe miss
+            return;
+        }
+        int i = 0;
+        while (i < n) {
+            long ordinal = stripeHarvester.ordinalOf(offsets[i]);
+            int j = i + 1;
+            while (j < n && stripeHarvester.ordinalOf(offsets[j]) == ordinal) {
+                j++;
+            }
+            StripeStatsHarvester.StripeAccum acc = stripeHarvester.getOrCreate(ordinal);
+            consumer.accept(ordinal, acc, page, i, j);
+            i = j;
+        }
     }
 
     @Override
@@ -658,7 +697,19 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             List<Attribute> fullSchema = fingerprintSchema != null ? fingerprintSchema : pageDecoder.projectedAttributes();
             if (fullSchema != null && fullSchema.isEmpty() == false) {
                 if (statsStripeSize > 0) {
-                    emitPerStripe(fullSchema);
+                    // Byte-range cover emit (shared with CSV): one fragment per stripe the chunk's byte range
+                    // overlaps, including empty edge stripes. Safe-miss if row/offset alignment was lost.
+                    if (stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
+                        long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : byteArrayBytesRead;
+                        stripeHarvester.emit(
+                            sourceLocation,
+                            statsBaseOffset,
+                            chunkBytes,
+                            pinnedMtimeMillis,
+                            fingerprinter.apply(fullSchema),
+                            fullSchema
+                        );
+                    }
                 } else {
                     emitWholeChunk(fullSchema);
                 }
@@ -671,31 +722,10 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      * Whole-chunk / whole-file emission: one authoritative contribution carrying the chunk's full row
      * count and column stats. Used when stripe addressing is off (parallelism=1 whole-file read).
      */
-    /**
-     * Folds the projected accumulator and the ALL-scope full-schema accumulator into one committed
-     * column-stats map. The full-schema map (when present) is a superset of the projected one and the two
-     * agree on shared columns, so the projected map is overlaid first and the full-schema map fills in the
-     * rest. Either may be {@code null}: COUNT commits neither, PROJECTED only the projected one, ALL only the
-     * full-schema one (which already contains the projected columns).
-     */
-    private static Map<String, ExternalStats.ColumnStats> mergeColumnStats(ColumnStatsAccumulator projected, ColumnStatsAccumulator all) {
-        Map<String, ExternalStats.ColumnStats> projectedSnapshot = projected == null ? Map.of() : projected.snapshot();
-        Map<String, ExternalStats.ColumnStats> allSnapshot = all == null ? Map.of() : all.snapshot();
-        if (allSnapshot.isEmpty()) {
-            return projectedSnapshot;
-        }
-        if (projectedSnapshot.isEmpty()) {
-            return allSnapshot;
-        }
-        Map<String, ExternalStats.ColumnStats> merged = new java.util.LinkedHashMap<>(projectedSnapshot);
-        merged.putAll(allSnapshot);
-        return merged;
-    }
-
     private void emitWholeChunk(List<Attribute> fullSchema) {
         // PROJECTED/COUNT commit columnStats. ALL commits allFileColumnStats (every file column) instead —
-        // the strict superset of what PROJECTED would commit (see mergeColumnStats).
-        Map<String, ExternalStats.ColumnStats> cols = mergeColumnStats(columnStats, allFileColumnStats);
+        // the strict superset of what PROJECTED would commit (see StripeStatsHarvester.mergeColumnStats).
+        Map<String, ExternalStats.ColumnStats> cols = StripeStatsHarvester.mergeColumnStats(columnStats, allFileColumnStats);
         OptionalLong bytesRead = byteCounter != null
             ? OptionalLong.of(byteCounter.getBytesRead())
             : (byteArrayBytesRead >= 0 ? OptionalLong.of(byteArrayBytesRead) : OptionalLong.empty());
@@ -712,70 +742,6 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
         Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
         ExternalStatsCapture.record(sourceLocation, flat);
-    }
-
-    /**
-     * Orthogonal per-stripe emission: one stripe-addressed fragment per {@code (chunk, stripe)} this chunk
-     * touched. Each carries the stripe ordinal, the record-canonical byte sub-range {@code [start, end)}
-     * this chunk observed, and the {@code atStart}/{@code atEnd}/{@code eof} cover anchors. The coordinator
-     * folds fragments per ordinal by interval-cover — misaligned tilings from sibling scans collapse to the
-     * same per-stripe answer because attribution is record-canonical, not scan-geometry-dependent.
-     */
-    private void emitPerStripe(List<Attribute> fullSchema) {
-        if (stripeAccums.isEmpty()) {
-            return;
-        }
-        long minOrdinal = stripeAccums.firstKey();
-        long maxOrdinal = stripeAccums.lastKey();
-        // The chunk's last stripe must tile to the chunk's true byte boundary, not the parser's offset after
-        // the last record. Jackson's getByteOffset() stops after the final record's closing token and does
-        // NOT count the trailing record terminator (newline), so the parser-derived end falls a terminator
-        // short of the chunk boundary. The next chunk's first record starts at exactly the chunk boundary
-        // (statsBaseOffset + chunkBytes), so closing the last stripe to that boundary keeps sibling chunks'
-        // fragments for a split stripe contiguous (no one-terminator gap that would defeat the cover).
-        long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : byteArrayBytesRead;
-        long chunkAbsEnd = statsBaseOffset + chunkBytes;
-        if (chunkBytes >= 0) {
-            StripeAccum last = stripeAccums.get(maxOrdinal);
-            last.endOffset = Math.max(last.endOffset, chunkAbsEnd);
-        }
-        String fingerprint = fingerprinter.apply(fullSchema);
-        for (Map.Entry<Long, StripeAccum> e : stripeAccums.entrySet()) {
-            long ordinal = e.getKey();
-            StripeAccum acc = e.getValue();
-            // Cover anchors derived from the chunk's ordinal span — robust to page-break geometry:
-            // - atStart: any stripe above the chunk's first ordinal opened inside this chunk (we crossed
-            // into it from a lower stripe), so its first record IS the stripe's first record. The chunk's
-            // first stripe anchors only if the chunk itself began on a stripe line (offset 0 included);
-            // otherwise that stripe's true start lives in the previous chunk, which supplies the anchor.
-            // - atEnd: any stripe below the chunk's last ordinal is complete-on-the-right (the chunk read
-            // on into a higher stripe). The chunk's last stripe is complete only if the chunk ends on a
-            // stripe line, or this is the file-final chunk (ends at true EOF).
-            // - eof: only the file-final chunk's last stripe is the file's terminal stripe.
-            boolean atStart = ordinal > minOrdinal || (statsBaseOffset % statsStripeSize == 0);
-            boolean atEnd = ordinal < maxOrdinal || (chunkAbsEnd % statsStripeSize == 0) || statsFileFinal;
-            boolean eof = ordinal == maxOrdinal && statsFileFinal;
-            long start = acc.startOffset == Long.MAX_VALUE ? acc.endOffset : acc.startOffset;
-            long end = acc.endOffset == Long.MIN_VALUE ? start : acc.endOffset;
-            // PROJECTED/COUNT commit acc.cols; ALL commits acc.allCols (every file column) — the strict
-            // superset of PROJECTED's set.
-            Map<String, ExternalStats.ColumnStats> cols = mergeColumnStats(acc.cols, acc.allCols);
-            ExternalStats.Stats statsRecord = new ExternalStats.Stats(acc.rows, OptionalLong.empty(), cols);
-            SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), fullSchema);
-            Map<String, Object> base = new HashMap<>();
-            base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
-            base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
-            base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
-            base.put(ExternalStats.STRIPE_SIZE_KEY, statsStripeSize);
-            base.put(ExternalStats.STRIPE_ORDINAL_KEY, ordinal);
-            base.put(ExternalStats.COVERAGE_START_KEY, start);
-            base.put(ExternalStats.COVERAGE_END_KEY, end);
-            base.put(ExternalStats.STRIPE_AT_START_KEY, atStart);
-            base.put(ExternalStats.STRIPE_AT_END_KEY, atEnd);
-            base.put(ExternalStats.COVERAGE_IS_LAST_KEY, eof);
-            Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
-            ExternalStatsCapture.record(sourceLocation, flat);
-        }
     }
 
     private OptionalLong sizeInBytesFromLength() {

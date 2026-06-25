@@ -236,7 +236,10 @@ public final class ParallelParsingCoordinator {
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
-            StripeColumnScope.PROJECTED
+            StripeColumnScope.PROJECTED,
+            // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot;
+            // conservatively false preserves the prior never-file-final-for-macro-splits behavior.
+            false
         );
     }
 
@@ -321,7 +324,9 @@ public final class ParallelParsingCoordinator {
             captureSink,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
-            StripeColumnScope.PROJECTED
+            StripeColumnScope.PROJECTED,
+            // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot.
+            false
         );
     }
 
@@ -346,7 +351,8 @@ public final class ParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         int maxRecordBytes,
         long statsStripeSize,
-        StripeColumnScope statsColumnScope
+        StripeColumnScope statsColumnScope,
+        boolean splitIsFileFinal
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -374,6 +380,10 @@ public final class ParallelParsingCoordinator {
             .readSchema(readSchema)
             .splitStartByte(baseFileOffset)
             .maxRecordBytes(maxRecordBytes)
+            // Single-segment fallback reads this whole storage object in one shot, so its trailing stripe is
+            // file-final exactly when this macro-split is the file's final split (splitIsFileFinal). A mid-file
+            // macro-split is never file-final — a later split supplies the terminal stripe.
+            .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
             .statsColumnScope(statsColumnScope)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
@@ -402,7 +412,8 @@ public final class ParallelParsingCoordinator {
             captureSink,
             maxRecordBytes,
             statsStripeSize,
-            statsColumnScope
+            statsColumnScope,
+            splitIsFileFinal
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
@@ -535,6 +546,12 @@ public final class ParallelParsingCoordinator {
         private final long statsStripeSize;
         /** How much per-stripe statistics each segment harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
+        /**
+         * Whether this storage object is the file's final split. Only then may the trailing segment mark its
+         * last stripe file-final ({@code eof}); a mid-file macro-split's trailing segment ends at the range
+         * boundary, and a later split supplies the terminal stripe — so it must never be marked file-final.
+         */
+        private final boolean splitIsFileFinal;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -573,10 +590,12 @@ public final class ParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             int maxRecordBytes,
             long statsStripeSize,
-            StripeColumnScope statsColumnScope
+            StripeColumnScope statsColumnScope,
+            boolean splitIsFileFinal
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
+            this.splitIsFileFinal = splitIsFileFinal;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
@@ -670,13 +689,13 @@ public final class ParallelParsingCoordinator {
             // attribute each record to its canonical stripe — a pure stats overlay; this seekable path
             // gets stripe-addressed stats for free, with no change to how segments are computed or read.
             long baseOffset = (storageObject instanceof RangeStorageObject r ? r.offset() : 0L) + offset;
-            // statsFileFinal: the trailing segment reaches this storage object's end. That equals the
-            // file's true end only when the object is the whole file — for a macro-split RangeStorageObject
-            // the trailing segment ends at the range boundary (mid-file), and a later macro-split continues
-            // the stripe. We conservatively never mark a macro-split read file-final, so it safe-misses
-            // (the file folds only when a whole-file or streaming scan supplies the terminal stripe) rather
-            // than marking a mid-file stripe complete and silently undercounting.
-            boolean statsFileFinal = lastSplit && (storageObject instanceof RangeStorageObject == false);
+            // statsFileFinal: the trailing segment reaches the file's true end only when (a) it is this storage
+            // object's last segment AND (b) this storage object is the file's final split (splitIsFileFinal).
+            // A mid-file macro-split's trailing segment ends at the range boundary, so a later macro-split
+            // supplies the terminal stripe — never mark it file-final (it would mark a mid-file stripe complete
+            // and silently undercount). The file's final macro-split DOES reach EOF, so its trailing segment is
+            // file-final and the byte-range cover can close the last stripe.
+            boolean statsFileFinal = lastSplit && splitIsFileFinal;
 
             // Per-flag semantics:
             // - firstSplit: only segment 0 owns the file's leading bytes (and any header).

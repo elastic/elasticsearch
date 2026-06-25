@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
@@ -87,7 +88,6 @@ import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -1991,8 +1991,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final StripeColumnScope statsColumnScope;
         /** Whether this read reaches the file's true end — only then may its last stripe be terminal. */
         private final boolean statsFileFinal;
-        /** Per-stripe accumulators keyed by ordinal; non-empty only when stripe capture is active. */
-        private final java.util.TreeMap<Long, StripeAccum> stripeAccums = new java.util.TreeMap<>();
+        /**
+         * Shared canonical-stripe harvester (byte-range cover model). Non-null only when stripe capture is
+         * active ({@code statsStripeSize > 0}); owns the per-stripe accumulators and the close-time emit loop.
+         */
+        private final StripeStatsHarvester stripeHarvester;
         /** Set when per-stripe capture must safe-miss (row/page misalignment); suppresses emission. */
         private boolean stripeCaptureDisabled = false;
         /**
@@ -2005,44 +2008,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private com.fasterxml.jackson.databind.MappingIterator<List<?>> bulkRows;
         /** Last bulk-path char offset queried, to enforce the tracker's non-decreasing contract / detect anomalies. */
         private long bulkLastCharOffset = 0L;
-
-        /** One stripe's running stats: row count + per-column min/max/null. Byte ranges and cover anchors
-         *  are derived from the chunk's byte geometry at emit, not accumulated. */
-        private static final class StripeAccum {
-            /** Projected-column stats (PROJECTED/ALL), fed from the output page's blocks. */
-            ColumnStatsAccumulator cols;
-            /**
-             * ALL-scope full-file-schema stats, fed from the raw parsed record (every file column, including
-             * the unprojected ones the output page never carries). The committed snapshot merges this with
-             * {@link #cols} so ALL's column set is a strict superset of PROJECTED's.
-             */
-            ColumnStatsAccumulator allCols;
-            long rows;
-        }
-
-        /**
-         * Folds the projected accumulator and the ALL-scope full-schema accumulator into one committed
-         * column-stats map. The full-schema map (when present) is a superset of the projected one and the
-         * two agree on shared columns (same min/max/null computed for the same column), so the projected
-         * map is overlaid first and the full-schema map fills in (and re-affirms) the rest. Either may be
-         * {@code null}: COUNT commits neither, PROJECTED only the projected one, ALL both.
-         */
-        private static Map<String, ExternalStats.ColumnStats> mergeColumnStats(
-            ColumnStatsAccumulator projected,
-            ColumnStatsAccumulator all
-        ) {
-            Map<String, ExternalStats.ColumnStats> projectedSnapshot = projected == null ? Map.of() : projected.snapshot();
-            Map<String, ExternalStats.ColumnStats> allSnapshot = all == null ? Map.of() : all.snapshot();
-            if (allSnapshot.isEmpty()) {
-                return projectedSnapshot;
-            }
-            if (projectedSnapshot.isEmpty()) {
-                return allSnapshot;
-            }
-            Map<String, ExternalStats.ColumnStats> merged = new LinkedHashMap<>(projectedSnapshot);
-            merged.putAll(allSnapshot);
-            return merged;
-        }
 
         CsvBatchIterator(
             BufferedReader reader,
@@ -2087,6 +2052,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.statsStripeSize = statsStripeSize;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
+            this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal) : null;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -2187,7 +2153,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 while (j < n && Math.floorDiv(rowStartBytes[j], statsStripeSize) == ordinal) {
                     j++;
                 }
-                StripeAccum acc = stripeAccums.computeIfAbsent(ordinal, k -> new StripeAccum());
+                StripeStatsHarvester.StripeAccum acc = stripeHarvester.getOrCreate(ordinal);
                 // COUNT scope harvests rows only — never builds a column accumulator. PROJECTED/ALL build one
                 // for the projected columns when there are any (a zero-projection COUNT(*) read has none, so the
                 // accumulator stays null and only acc.rows advances). ALL's UNPROJECTED file columns are
@@ -2233,47 +2199,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private void emitPerStripe() {
             // chunkAbsEnd is in the same (decompressed) coordinate as the per-record offsets: compression is
-            // a delegating layer (DecompressingStorageObject), so byteCounter counts decompressed bytes.
+            // a delegating layer (DecompressingStorageObject), so byteCounter counts decompressed bytes. The
+            // byte-range cover loop itself lives in the shared StripeStatsHarvester.
             long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : -1L;
-            if (chunkBytes <= 0) {
-                return; // unknown / empty byte range — safe miss
-            }
-            long chunkAbsEnd = splitStartByte + chunkBytes;
-            long firstOrdinal = Math.floorDiv(splitStartByte, statsStripeSize);
-            long lastOrdinal = Math.floorDiv(chunkAbsEnd - 1, statsStripeSize);
-            String fingerprint = computeConfigFingerprint();
-            for (long ordinal = firstOrdinal; ordinal <= lastOrdinal; ordinal++) {
-                long gridStart = ordinal * statsStripeSize;
-                long gridEnd = gridStart + statsStripeSize;
-                long start = Math.max(splitStartByte, gridStart);
-                long end = Math.min(chunkAbsEnd, gridEnd);
-                boolean atStart = splitStartByte <= gridStart;
-                boolean atEnd = chunkAbsEnd >= gridEnd || statsFileFinal;
-                boolean eof = statsFileFinal && ordinal == lastOrdinal;
-                StripeAccum acc = stripeAccums.get(ordinal);
-                long rows = acc == null ? 0L : acc.rows;
-                // PROJECTED/COUNT commit acc.cols (projected columns / none). ALL additionally commits
-                // acc.allCols (every file column), so the committed set is a strict superset of PROJECTED's.
-                Map<String, ExternalStats.ColumnStats> cols = mergeColumnStats(
-                    acc == null ? null : acc.cols,
-                    acc == null ? null : acc.allCols
-                );
-                ExternalStats.Stats statsRecord = new ExternalStats.Stats(rows, OptionalLong.empty(), cols);
-                SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), schema);
-                Map<String, Object> base = new HashMap<>();
-                base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
-                base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
-                base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
-                base.put(ExternalStats.STRIPE_SIZE_KEY, statsStripeSize);
-                base.put(ExternalStats.STRIPE_ORDINAL_KEY, ordinal);
-                base.put(ExternalStats.COVERAGE_START_KEY, start);
-                base.put(ExternalStats.COVERAGE_END_KEY, end);
-                base.put(ExternalStats.STRIPE_AT_START_KEY, atStart);
-                base.put(ExternalStats.STRIPE_AT_END_KEY, atEnd);
-                base.put(ExternalStats.COVERAGE_IS_LAST_KEY, eof);
-                Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
-                ExternalStatsCapture.record(sourceLocation, flat);
-            }
+            stripeHarvester.emit(sourceLocation, splitStartByte, chunkBytes, pinnedMtimeMillis, computeConfigFingerprint(), schema);
         }
 
         /**
@@ -2325,14 +2254,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     && schema != null
                     && statsColumnScope != StripeColumnScope.NONE) {
                     if (rowsSkipped == 0) {
-                        if (statsStripeSize > 0 && stripeCaptureDisabled == false && stripeAccums.isEmpty() == false) {
+                        if (statsStripeSize > 0 && stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
                             // Chunk-parallel read with per-stripe stats: emit one stripe-addressed fragment per
                             // stripe this chunk touched; the coordinator interval-covers and folds them.
                             emitPerStripe();
                         } else {
                             // PROJECTED/COUNT commit columnStats (projected / none). ALL additionally commits
                             // allFileColumnStats (every file column) → strict superset of PROJECTED's set.
-                            Map<String, ExternalStats.ColumnStats> cols = mergeColumnStats(columnStats, allFileColumnStats);
+                            Map<String, ExternalStats.ColumnStats> cols = StripeStatsHarvester.mergeColumnStats(
+                                columnStats,
+                                allFileColumnStats
+                            );
                             OptionalLong bytesRead = byteCounter == null
                                 ? OptionalLong.empty()
                                 : OptionalLong.of(byteCounter.getBytesRead());
@@ -2874,7 +2806,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return; // stripe attribution unavailable -> safe miss (a warm aggregate re-scans)
                 }
                 long ordinal = Math.floorDiv(rowStartBytes[rowIdx], statsStripeSize);
-                StripeAccum stripe = stripeAccums.computeIfAbsent(ordinal, k -> new StripeAccum());
+                StripeStatsHarvester.StripeAccum stripe = stripeHarvester.getOrCreate(ordinal);
                 if (stripe.allCols == null) {
                     stripe.allCols = ColumnStatsAccumulator.forSchema(schema);
                 }

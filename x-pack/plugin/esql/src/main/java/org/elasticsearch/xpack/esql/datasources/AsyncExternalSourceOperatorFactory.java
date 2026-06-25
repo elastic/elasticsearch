@@ -1721,6 +1721,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     withoutRowPosition.remove(compressedRowPosSlot);
                     perFileCols = withoutRowPosition;
                 }
+                // A record-aligned macro-split that owns the file's trailing bytes is file-final; a genuine
+                // whole-file read (offset 0, not record-aligned, last split) is also file-final. Either way the
+                // last split's trailing segment may close its last stripe to EOF.
+                boolean splitIsFileFinal = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY))
+                    || (recordAlignedMacro == false && firstSplit && fileSplit.offset() == 0);
                 pages = openWithParallelism(
                     fileReader,
                     obj,
@@ -1728,6 +1733,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     errorPolicy,
                     recordAlignedMacro,
                     firstSplit,
+                    splitIsFileFinal,
                     perFileReadSchema,
                     fileSplit.offset(),
                     state.buffer.capturedSourceMetadataSink()
@@ -1745,6 +1751,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .readSchema(perFileReadSchema)
                         .splitStartByte(fileSplit.offset())
                         .maxRecordBytes(maxRecordBytes)
+                        // Per-stripe stats addressing for record-aligned macro-splits (a large file read at
+                        // parsing_parallelism<=1 is still cut into newline-aligned macro-splits, each a
+                        // recordAligned chunk). The readers gate stripe harvest on chunkMode == recordAligned,
+                        // so a genuine whole-file read (recordAligned=false) ignores statsStripeSize and keeps
+                        // the authoritative whole-file emit; a macro-split harvests per-stripe and the
+                        // coordinator's byte-range cover folds the chunks. statsBaseOffset is the split's
+                        // file-global offset; statsFileFinal marks the last split (the only one that may close
+                        // its trailing stripe to EOF).
+                        .stats(fileSplit.offset(), statsStripeSize, lastSplit)
+                        .statsColumnScope(statsColumnScope)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -1910,6 +1926,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 errorPolicy,
                 false,
                 true,
+                // Whole-file read of one file in a multi-file list: the file is its own final split, so its
+                // trailing segment reaches EOF and may close the last stripe.
+                true,
                 perFileReadSchema,
                 0L,
                 state.buffer.capturedSourceMetadataSink()
@@ -2010,6 +2029,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 projectedColumns,
                 errorPolicy,
                 false,
+                true,
+                // Single whole-file read: the file is its own final split, so its trailing segment reaches EOF.
                 true,
                 null,
                 0L,
@@ -2254,6 +2275,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ErrorPolicy policy,
         boolean recordAlignedMacroSplit,
         boolean splitIncludesFileLeader,
+        boolean splitIsFileFinal,
         @Nullable List<Attribute> perFileReadSchema,
         long baseFileOffset,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
@@ -2284,7 +2306,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     captureSink,
                     maxRecordBytes,
                     statsStripeSize,
-                    statsColumnScope
+                    statsColumnScope,
+                    splitIsFileFinal
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {

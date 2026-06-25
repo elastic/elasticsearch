@@ -48,10 +48,12 @@ import java.util.concurrent.ConcurrentMap;
  * expected row count — both at the reader's fragment-emission layer and end-to-end through the production
  * coordinator reconciler ({@link ExternalSourceCacheService#reconcileSourceStatsFromContributions}).
  *
- * <p>Stripes are a pure addressing grid; the reader attributes each record to {@code floor(scanStart / B)}
- * (scanStart = the byte position from which the record is scanned, i.e. the end of the previous record or
- * the chunk's first byte) as it parses, and emits one fragment per {@code (chunk, stripe)}. The decoder
- * caps each page at the record where the offset crosses a stripe line, so a page never straddles a stripe.
+ * <p>Stripes are a pure addressing grid; the reader attributes each record to {@code floor(recordStart / B)}
+ * (recordStart = the byte of the record's opening brace) as it parses, and emits one fragment per stripe the
+ * chunk's byte range overlaps using the byte-range cover model shared with the CSV reader (see
+ * {@code StripeStatsHarvester}). A page is NOT capped at stripe lines — it may span stripes; the iterator
+ * splits the page's rows by their recorded offsets. Each fragment's byte sub-range is the chunk range clamped
+ * to the stripe's grid cell, so sibling chunks' fragments for a split stripe tile contiguously.
  */
 public class NdJsonStripeStatsCaptureTests extends ESTestCase {
 
@@ -164,16 +166,19 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
 
     /**
      * Asserts the fragments form a complete, non-double-counting cover of a dense file of {@code totalRows}
-     * records over {@code totalBytes} bytes read by one file-final scan: ordinals are dense from 0, every
-     * stripe is complete on both sides (atStart and atEnd) so the coordinator can fold it without a
-     * continuation, only the terminal stripe is eof, the head covers byte 0, the last stripe closes to the
-     * file's byte length, and the rows sum exactly. (Byte ranges are NOT asserted contiguous across stripe
-     * boundaries — the reconciler folds stripes by ordinal, not by inter-stripe byte adjacency.)
+     * records over {@code totalBytes} bytes read by one file-final scan under the byte-range cover model:
+     * ordinals are dense from 0; every stripe is complete on both sides (atStart and atEnd) so the
+     * coordinator can fold it without a continuation; only the terminal stripe is eof; the head covers byte 0;
+     * the byte sub-ranges tile contiguously across stripe boundaries (each stripe's start == the previous
+     * stripe's end, grid-clamped) and the last stripe closes to the file's byte length; and the rows sum
+     * exactly. Empty (zero-row) stripes carry their grid-width byte sub-range (start &lt; end), not a
+     * zero-length range — that contiguity is what makes a single whole-file scan's cover complete.
      */
     private void assertDenseFileFinalCover(List<Frag> frags, long totalRows, long totalBytes) {
         assertFalse("a non-empty file must emit at least one stripe fragment", frags.isEmpty());
         long rowSum = 0;
         long expectedOrdinal = 0;
+        long expectedStart = 0;
         for (int i = 0; i < frags.size(); i++) {
             Frag f = frags.get(i);
             assertEquals("ordinals must be dense from 0 (empties fill oversized-record gaps)", expectedOrdinal, f.ordinal);
@@ -181,6 +186,8 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             assertTrue("every stripe of a file-final scan must be complete on the right", f.atEnd);
             assertEquals("only the terminal stripe is eof", i == frags.size() - 1, f.eof);
             assertTrue("coverage end must not precede start", f.end >= f.start);
+            assertEquals("byte sub-ranges must tile contiguously across stripe boundaries", expectedStart, f.start);
+            expectedStart = f.end;
             rowSum += f.rows;
             expectedOrdinal++;
         }
@@ -217,11 +224,9 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         assertDenseFileFinalCover(frags, 5, 40);
         long emptyCount = frags.stream().filter(f -> f.rows == 0).count();
         assertTrue("oversized records must create at least one empty stripe", emptyCount > 0);
-        for (Frag f : frags) {
-            if (f.rows == 0) {
-                assertEquals("an empty stripe is zero-length", f.start, f.end);
-            }
-        }
+        // Under the byte-range cover model an empty stripe carries its grid-width sub-range (start < end),
+        // not a zero-length one — that contiguity is exactly what keeps the whole-file cover complete. The
+        // contiguous-tiling check in assertDenseFileFinalCover already pins every fragment's [start, end).
     }
 
     public void testRecordStartOnStripeBoundary() throws Exception {

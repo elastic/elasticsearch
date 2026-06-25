@@ -36,6 +36,8 @@ In {{stack}}, you must always explicitly specify your target indices, data strea
 In {{serverless-short}}, queries automatically run across all linked projects with [cross-project search (CPS)](esql-cross-serverless-projects.md) by default. [Space-level settings](esql-cross-serverless-projects.md) and user or API key permissions can also affect which projects are included. {applies_to}`serverless: preview`
 % TODO: update "Space-level settings" link to docs-content://explore-analyze/cross-project-search/cross-project-search-manage-scope.md once elastic/docs-content#5498 is merged
 
+For performance guidance when querying many indices, remote clusters, or linked projects, refer to [Optimize {{esql}} query performance](/reference/query-languages/esql/esql-query-performance.md).
+
 
 ## Field type mismatches [esql-multi-index-invalid-mapping]
 

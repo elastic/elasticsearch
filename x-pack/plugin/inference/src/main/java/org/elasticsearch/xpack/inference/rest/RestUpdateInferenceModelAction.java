@@ -12,7 +12,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.inference.rest.BaseInferenceAction.parseTimeout;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID_UPDATE_PATH;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_INFERENCE_ID_UPDATE_PATH;
@@ -56,7 +56,7 @@ public class RestUpdateInferenceModelAction extends BaseRestHandler {
             content,
             restRequest.getXContentType(),
             taskType,
-            RestUtils.getMasterNodeTimeout(restRequest)
+            parseTimeout(restRequest)
         );
         return channel -> client.execute(
             UpdateInferenceModelAction.INSTANCE,

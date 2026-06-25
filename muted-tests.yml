@@ -638,12 +638,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/151884
-- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
-  method: testFetchingMixedTextAndImageChunks
-  issue: https://github.com/elastic/elasticsearch/issues/151928
-- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
-  method: testFetchingMixedTextAndImageValues
-  issue: https://github.com/elastic/elasticsearch/issues/151929
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
   issue: https://github.com/elastic/elasticsearch/issues/151992

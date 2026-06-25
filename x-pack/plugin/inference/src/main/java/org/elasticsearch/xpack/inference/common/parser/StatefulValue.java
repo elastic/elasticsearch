@@ -109,6 +109,44 @@ public final class StatefulValue<T> {
         );
     }
 
+    /**
+     * Applies a parsed {@code update} onto the existing value, honouring the tri-state update semantics. The argument order reads
+     * directionally — "apply this update to the current value, falling back to the cleared value":
+     * <ul>
+     *   <li>update {@link #isUndefined() absent} → keep {@code currentValue};</li>
+     *   <li>update explicitly {@link #isNull() nulled} → use {@code clearedValue};</li>
+     *   <li>update {@link #isPresent() carries a value} → use that value.</li>
+     * </ul>
+     *
+     * <p>This is intentionally not the same as {@link #orElse(Object)}, which collapses the absent and null states into a single
+     * fallback; here they stay distinct so an omitted field keeps the current value while an explicit {@code null} resets to a
+     * separate default.</p>
+     *
+     * @param update       the parsed update delta for the field (the only side that carries tri-state)
+     * @param currentValue the value currently stored on the existing settings, used when the update is absent
+     * @param clearedValue the value to use when the update explicitly clears the field
+     * @param <T>          the field value type
+     * @return the value to store on the updated settings
+     */
+    public static <T> T applyUpdate(StatefulValue<T> update, T currentValue, T clearedValue) {
+        if (update.isUndefined()) {
+            return currentValue;
+        }
+        return update.isPresent() ? update.value : clearedValue;
+    }
+
+    /**
+     * Convenience for fields whose cleared state is simply {@code null}.
+     *
+     * @param update       the parsed update delta for the field
+     * @param currentValue the value currently stored on the existing settings
+     * @param <T>          the field value type
+     * @return the value to store on the updated settings
+     */
+    public static <T> T applyUpdate(StatefulValue<T> update, T currentValue) {
+        return applyUpdate(update, currentValue, null);
+    }
+
     private final T value;
     private final boolean isDefined;
 
@@ -147,34 +185,6 @@ public final class StatefulValue<T> {
 
     public T orElse(T other) {
         return isPresent() ? value : other;
-    }
-
-    /**
-     * Resolves the effective value after applying the update: {@code currentValue} when the field was {@link #isUndefined() absent},
-     * {@code clearedValue} when it was explicitly {@link #isNull() nulled}, otherwise the present value.
-     *
-     * <p>Note this differs from {@link #orElse(Object)}, which collapses the absent and null states to the same fallback; this method
-     * keeps them distinct so an omitted field can keep the current value while an explicit {@code null} resets to a separate default.</p>
-     *
-     * @param currentValue the value currently stored on the existing settings
-     * @param clearedValue the value to use when the field was explicitly cleared
-     * @return the value to store on the updated settings
-     */
-    public T resolve(T currentValue, T clearedValue) {
-        if (isUndefined()) {
-            return currentValue;
-        }
-        return isPresent() ? value : clearedValue;
-    }
-
-    /**
-     * Convenience for fields whose cleared state is simply {@code null}.
-     *
-     * @param currentValue the value currently stored on the existing settings
-     * @return the value to store on the updated settings
-     */
-    public T resolve(T currentValue) {
-        return resolve(currentValue, null);
     }
 
     @Override

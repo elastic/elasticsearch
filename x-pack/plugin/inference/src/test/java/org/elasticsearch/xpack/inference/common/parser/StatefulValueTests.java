@@ -112,30 +112,30 @@ public class StatefulValueTests extends ESTestCase {
         assertThat(StatefulValue.<String>nullInstance().orElse(other), is(other));
     }
 
-    public void testResolve_WhenUndefined_KeepsCurrentValue() {
+    public void testApplyUpdate_WhenUndefined_KeepsCurrentValue() {
         var current = randomAlphaOfLength(10);
         var cleared = randomAlphaOfLength(10);
-        assertThat(StatefulValue.<String>undefined().resolve(current, cleared), is(current));
-        assertThat(StatefulValue.<String>undefined().resolve(current), is(current));
+        assertThat(StatefulValue.applyUpdate(StatefulValue.<String>undefined(), current, cleared), is(current));
+        assertThat(StatefulValue.applyUpdate(StatefulValue.<String>undefined(), current), is(current));
     }
 
-    public void testResolve_WhenNull_ReturnsClearedValue() {
+    public void testApplyUpdate_WhenNull_ReturnsClearedValue() {
         var current = randomAlphaOfLength(10);
         var cleared = randomAlphaOfLength(10);
-        assertThat(StatefulValue.<String>nullInstance().resolve(current, cleared), is(cleared));
+        assertThat(StatefulValue.applyUpdate(StatefulValue.<String>nullInstance(), current, cleared), is(cleared));
     }
 
-    public void testResolve_WhenNull_WithoutClearedValue_ReturnsNull() {
+    public void testApplyUpdate_WhenNull_WithoutClearedValue_ReturnsNull() {
         var current = randomAlphaOfLength(10);
-        assertThat(StatefulValue.<String>nullInstance().resolve(current), is(nullValue()));
+        assertThat(StatefulValue.applyUpdate(StatefulValue.<String>nullInstance(), current), is(nullValue()));
     }
 
-    public void testResolve_WhenPresent_ReplacesWithValue() {
+    public void testApplyUpdate_WhenPresent_ReplacesWithValue() {
         var value = randomAlphaOfLength(10);
         var current = randomAlphaOfLength(10);
         var cleared = randomAlphaOfLength(10);
-        assertThat(StatefulValue.of(value).resolve(current, cleared), is(value));
-        assertThat(StatefulValue.of(value).resolve(current), is(value));
+        assertThat(StatefulValue.applyUpdate(StatefulValue.of(value), current, cleared), is(value));
+        assertThat(StatefulValue.applyUpdate(StatefulValue.of(value), current), is(value));
     }
 
     public void testEquals_hashCode() {

@@ -30,6 +30,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
@@ -211,7 +212,7 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
          * the current value, an explicit null resets the field to the default rate limit, and a present value replaces the current one.
          */
         protected RateLimitSettings mergedRateLimitSettings(LlamaServiceSettings existing) {
-            return rateLimitSettings.resolve(existing.rateLimitSettings(), DEFAULT_RATE_LIMIT_SETTINGS);
+            return applyUpdate(rateLimitSettings, existing.rateLimitSettings(), DEFAULT_RATE_LIMIT_SETTINGS);
         }
     }
 }

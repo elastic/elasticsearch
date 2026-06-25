@@ -63,6 +63,24 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "An expression."
+        },
+        {
+          "name" : "inlist",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "A list of items."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "An expression."

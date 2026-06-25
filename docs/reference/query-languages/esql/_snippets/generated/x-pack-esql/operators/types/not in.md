@@ -7,6 +7,7 @@
 | boolean | boolean | boolean |
 | cartesian_point | cartesian_point | boolean |
 | cartesian_shape | cartesian_shape | boolean |
+| date_range | date_range | boolean |
 | double | double | boolean |
 | geo_point | geo_point | boolean |
 | geo_shape | geo_shape | boolean |

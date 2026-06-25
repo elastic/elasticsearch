@@ -57,8 +57,7 @@ public final class ExternalSourceSettings {
         30,
         0,
         300,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     /**

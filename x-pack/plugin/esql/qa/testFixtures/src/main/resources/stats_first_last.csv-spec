@@ -816,3 +816,35 @@ last_hist:exponential_histogram | instance:keyword
 "{""scale"":0}" | dummy-empty
 "{""scale"":0,""zero"":{""threshold"":2.0E-5}}" | dummy-zero_threshold_only
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test last aggregation on tdigest type (NULL sort)
+required_capability: last_agg_extended_types
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS last_td = LAST(responseTime, NULL)
+;
+
+last_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test last aggregation on tdigest type with grouping (NULL sort)
+required_capability: last_agg_extended_types
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance IN ("hand-rolled", "hand-rolled-empty")
+| STATS last_td = LAST(responseTime, NULL) BY instance
+| SORT instance
+;
+
+last_td:tdigest | instance:keyword
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | hand-rolled
+"{""centroids"":[], ""counts"":[]}" | hand-rolled-empty
+;

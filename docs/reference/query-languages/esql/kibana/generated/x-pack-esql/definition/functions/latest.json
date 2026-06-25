@@ -212,6 +212,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "The search field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "tdigest"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "text",
           "optional" : false,
           "description" : "The search field"

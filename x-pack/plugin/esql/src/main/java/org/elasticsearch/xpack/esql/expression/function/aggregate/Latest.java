@@ -57,7 +57,8 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
             "geohex",
             "unsigned_long",
             "dense_vector",
-            "exponential_histogram" },
+            "exponential_histogram",
+            "tdigest" },
         briefSummary = "Returns the latest value of a field sorted by timestamp.",
         description = """
             An alias for [`LAST`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md) where
@@ -89,7 +90,8 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
                 "geohex",
                 "unsigned_long",
                 "dense_vector",
-                "exponential_histogram" },
+                "exponential_histogram",
+                "tdigest" },
             description = "The search field"
         ) Expression field,
         Expression timestamp
@@ -145,7 +147,8 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
                 || dt == DataType.GEOTILE
                 || dt == DataType.GEOHEX
                 || dt == DataType.DENSE_VECTOR
-                || dt == DataType.EXPONENTIAL_HISTOGRAM,
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "boolean",
@@ -154,6 +157,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
             "exponential_histogram",
             "ip",
             "string",
+            "tdigest",
             "numeric except counter types"
         ).and(
             isType(

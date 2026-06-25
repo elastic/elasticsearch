@@ -539,3 +539,19 @@ FROM exp_histo_sample
 last_hist:exponential_histogram
 "{""scale"":0}"
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test latest aggregation on tdigest type
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS last_td = LATEST(responseTime)
+;
+
+last_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;

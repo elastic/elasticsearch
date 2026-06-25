@@ -110,6 +110,7 @@ public class LastOverTimeTests extends AbstractAggregationTestCase {
             }
             String evaluatorStr = switch (type) {
                 case EXPONENTIAL_HISTOGRAM -> "AllLastExponentialHistogramByLong";
+                case TDIGEST -> "AllLastTDigestByLong";
                 default -> standardAggregatorNameAllBytesTheSame("Last", type) + "ByTimestamp";
             };
             return new TestCaseSupplier.TestCase(

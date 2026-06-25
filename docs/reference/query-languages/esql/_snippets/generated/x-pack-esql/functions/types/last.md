@@ -72,6 +72,10 @@
 | long | date_nanos | long |
 | long | integer | long |
 | long | long | long |
+| tdigest {applies_to}`stack: ga 9.5.0` | date | tdigest |
+| tdigest {applies_to}`stack: ga 9.5.0` | date_nanos | tdigest |
+| tdigest {applies_to}`stack: ga 9.5.0` | integer | tdigest |
+| tdigest {applies_to}`stack: ga 9.5.0` | long | tdigest |
 | text | date | keyword |
 | text | date_nanos | keyword |
 | text | integer | keyword |

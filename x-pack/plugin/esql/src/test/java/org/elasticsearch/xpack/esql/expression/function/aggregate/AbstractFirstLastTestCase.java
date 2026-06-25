@@ -59,13 +59,14 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
             DataType.GEOHEX,
             DataType.UNSIGNED_LONG,
             DataType.DENSE_VECTOR,
-            DataType.EXPONENTIAL_HISTOGRAM
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST
         );
         searchFieldTypes.addAll(extraBoth);
         taggedTypes.addAll(extraBoth);
 
         if (isFirst) {
-            List<DataType> extra = List.of(DataType.TDIGEST);
+            List<DataType> extra = List.of();
             searchFieldTypes.addAll(extra);
             taggedTypes.addAll(extra);
             searchFieldTypes.add(DataType.FLATTENED);

@@ -236,6 +236,21 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
 If the query returns results, your external data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
 ::::::
 
+::::::{step} Query external and indexed data together
+Datasets share the same namespace as regular indices, so you can query both in a single `FROM`. This is useful when you have related data split between {{es}} and external storage.
+
+For example, if you have a `network_incidents` index in {{es}}, you can correlate it with the external speedtest data:
+
+```esql
+FROM speedtest_fixed, network_incidents
+| STATS avg_latency = AVG(avg_lat_ms), incident_count = COUNT(*) BY quadkey
+| SORT incident_count DESC
+| LIMIT 20
+```
+
+No special syntax is required. `FROM` resolves each name independently, whether it is an index, an alias, or a dataset.
+::::::
+
 :::::::
 
 ## Use your own data

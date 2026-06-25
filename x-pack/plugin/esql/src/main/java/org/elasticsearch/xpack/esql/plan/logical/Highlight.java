@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -230,13 +231,13 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        verifyEnum(failures, ENCODER, HighlightOptions.ALLOWED_ENCODERS);
-        verifyEnum(failures, BOUNDARY_SCANNER, HighlightOptions.ALLOWED_BOUNDARY_SCANNERS);
-        verifyEnum(failures, ORDER, HighlightOptions.ALLOWED_ORDERS);
+        verifyEnum(failures, ENCODER, HighlightOptions.ALLOWED_ENCODERS, false);
+        verifyEnum(failures, BOUNDARY_SCANNER, HighlightOptions.ALLOWED_BOUNDARY_SCANNERS, true);
+        verifyEnum(failures, ORDER, HighlightOptions.ALLOWED_ORDERS, true);
     }
 
     // Checks that a foldable string option is one of the allowed values.
-    private void verifyEnum(Failures failures, String name, List<String> allowed) {
+    private void verifyEnum(Failures failures, String name, List<String> allowed, boolean caseInsensitive) {
         if (options == null) {
             return;
         }
@@ -245,7 +246,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             return;
         }
         String actual = BytesRefs.toString(value.fold(FoldContext.small()));
-        if (allowed.contains(actual)) {
+        String valueToCheck = caseInsensitive ? actual.toLowerCase(Locale.ROOT) : actual;
+        if (allowed.contains(valueToCheck)) {
             return;
         }
         failures.add(fail(this, "Invalid [{}] value [{}] in HIGHLIGHT, expected one of {}", name, actual, allowed));

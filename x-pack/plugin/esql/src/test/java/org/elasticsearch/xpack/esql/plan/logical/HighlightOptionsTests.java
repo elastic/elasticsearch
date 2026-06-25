@@ -57,6 +57,13 @@ public class HighlightOptionsTests extends ESTestCase {
         assertThat(options.order(), equalTo(HighlightOptions.ORDER_SCORE));
     }
 
+    public void testBoundaryAndOrderOptionsAreNormalizedToLowerCase() {
+        MapExpression map = map(Highlight.BOUNDARY_SCANNER, keyword("WORD"), Highlight.ORDER, keyword("Score"));
+        HighlightOptions options = HighlightOptions.from(map, FoldContext.small());
+        assertThat(options.boundaryScanner(), equalTo(HighlightOptions.BOUNDARY_SCANNER_WORD));
+        assertThat(options.order(), equalTo(HighlightOptions.ORDER_SCORE));
+    }
+
     public void testMaxAnalyzedOffsetAndPhraseLimitAreParsed() {
         MapExpression map = map(Highlight.MAX_ANALYZED_OFFSET, integer(500), Highlight.PHRASE_LIMIT, integer(64));
         HighlightOptions options = HighlightOptions.from(map, FoldContext.small());

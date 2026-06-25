@@ -72,9 +72,9 @@ public record HighlightOptions(
             integer(options.get(Highlight.NUMBER_OF_FRAGMENTS), foldContext, DEFAULT_NUMBER_OF_FRAGMENTS),
             integer(options.get(Highlight.FRAGMENT_SIZE), foldContext, DEFAULT_FRAGMENT_SIZE),
             integer(options.get(Highlight.NO_MATCH_SIZE), foldContext, DEFAULT_NO_MATCH_SIZE),
-            string(options.get(Highlight.BOUNDARY_SCANNER), foldContext, DEFAULT_BOUNDARY_SCANNER),
+            string(options.get(Highlight.BOUNDARY_SCANNER), foldContext, DEFAULT_BOUNDARY_SCANNER).toLowerCase(Locale.ROOT),
             locale(options.get(Highlight.BOUNDARY_SCANNER_LOCALE), foldContext),
-            string(options.get(Highlight.ORDER), foldContext, DEFAULT_ORDER),
+            string(options.get(Highlight.ORDER), foldContext, DEFAULT_ORDER).toLowerCase(Locale.ROOT),
             maxAnalyzedOffset(options.get(Highlight.MAX_ANALYZED_OFFSET), foldContext),
             integer(options.get(Highlight.PHRASE_LIMIT), foldContext, DEFAULT_PHRASE_LIMIT)
         );

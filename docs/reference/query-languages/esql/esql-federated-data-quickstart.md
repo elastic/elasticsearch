@@ -1,6 +1,6 @@
 ---
 navigation_title: "Quickstart"
-description: "Register a data source, create a dataset, and run your first query against external data using {{esql}}."
+description: "Register a data source, create a dataset, and run your first federated data query using {{esql}}."
 applies_to:
   stack: preview =9.5
   serverless: preview
@@ -8,7 +8,7 @@ products:
   - id: elasticsearch
 ---
 
-# {{esql}} external data sources quickstart
+# {{esql}} federated data quickstart
 
 This guide walks you through connecting {{es}} to external data and querying it with {{esql}}. By the end, you will have a working data source, a dataset, and a query returning results from external storage.
 
@@ -24,7 +24,7 @@ Make sure you have the following:
 
 ## Quickstart
 
-These steps walk you through registering a data source, creating a dataset, and querying external data with {{esql}}.
+These steps walk you through registering a data source, creating a dataset, and querying federated data with {{esql}}.
 
 :::::::{stepper}
 
@@ -233,7 +233,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
 
 ::::
 
-If the query returns results, your external data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
+If the query returns results, your data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
 ::::::
 
 <!-- TODO: Heterogeneous FROM (FROM dataset, index) returns "FROM mixing datasets and non-datasets
@@ -261,12 +261,12 @@ PUT /_query/data_source/my_s3_logs
 ```
 
 :::{important}
-When a data source includes credentials, {{es}} encrypts them before storing them in the cluster state. This is handled automatically in {{ech}} and {{serverless-short}} deployments. For self-managed, {{ece}}, and {{eck}} deployments, you must configure [credential encryption](esql-external-data-reference.md#credential-encryption) first.
+When a data source includes credentials, {{es}} encrypts them before storing them in the cluster state. This is handled automatically in {{ech}} and {{serverless-short}} deployments. For self-managed, {{ece}}, and {{eck}} deployments, you must configure [credential encryption](esql-federated-data-reference.md#credential-encryption) first.
 :::
 
 Credential values are never returned in API responses. When you retrieve a data source, secrets are replaced by `::es_redacted::`.
 
 ## Next steps
 
-- For the full API reference, refer to the [external data source reference](esql-external-data-reference.md).
-- For a high-level overview of concepts and capabilities, refer to [query external data with {{esql}}](esql-external-data.md).
+- For the full API reference, refer to the [federated data reference](esql-federated-data-reference.md).
+- For a high-level overview of concepts and capabilities, refer to [{{esql}} federated data](esql-federated-data.md).

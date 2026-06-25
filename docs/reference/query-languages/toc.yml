@@ -402,10 +402,10 @@ toc:
           - file: esql/esql-cross-serverless-projects.md
           - file: esql/esql-subquery.md
           - file: esql/esql-views.md
-      - file: esql/esql-external-data.md
+      - file: esql/esql-federated-data.md
         children:
-          - file: esql/esql-external-data-quickstart.md
-          - file: esql/esql-external-data-reference.md
+          - file: esql/esql-federated-data-quickstart.md
+          - file: esql/esql-federated-data-reference.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md

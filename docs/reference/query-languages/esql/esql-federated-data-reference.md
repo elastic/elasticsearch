@@ -1,6 +1,6 @@
 ---
 navigation_title: "Reference"
-description: "API reference, settings, schema discovery, and limits for {{esql}} external data sources and datasets."
+description: "API reference, settings, schema discovery, and limits for {{esql}} federated data sources and datasets."
 applies_to:
   stack: preview =9.5
   serverless: preview
@@ -8,22 +8,22 @@ products:
   - id: elasticsearch
 ---
 
-# {{esql}} external data sources reference
+# {{esql}} federated data reference
 
-This page covers the full API surface, settings, and operational details for {{esql}} external data sources and datasets. For an introduction to these concepts, refer to [query external data with {{esql}}](esql-external-data.md). For a quickstart guide, refer to [](esql-external-data-quickstart.md).
+This page covers the full API surface, settings, and operational details for {{esql}} federated data sources and datasets. For an introduction to these concepts, refer to [{{esql}} federated data](esql-federated-data.md). For a quickstart guide, refer to [](esql-federated-data-quickstart.md).
 
 ## Supported data source types
 
 The following data source types are supported:
 
-:::{include} _snippets/external-data/supported-data-source-types.md
+:::{include} _snippets/federated-data/supported-data-source-types.md
 :::
 
 ## Supported file formats
 
-External data sources can read the following file formats:
+Federated data sources can read the following file formats:
 
-:::{include} _snippets/external-data/supported-file-formats.md
+:::{include} _snippets/federated-data/supported-file-formats.md
 :::
 
 The format is detected automatically from the file extension. You can override this in the [dataset settings](#common-settings).
@@ -422,7 +422,7 @@ Parquet is self-describing and is read with no settings in the common case. Its 
 | `optimized_reader` | `true` | A read-path optimization. |
 | `late_materialization` | `true` | A read-path optimization. |
 
-## Querying external data
+## Querying federated data
 
 A dataset is a read source for the standard {{esql}} pipeline. Every processing command operates on it as on an index. Filters and limits are applied during the file scan.
 
@@ -476,7 +476,7 @@ Complex Parquet types MAP and nested LIST are not currently supported and return
 <!-- TODO: Confirm whether the schema discovery API (GET /_query/data_source/{name}/_schema) is public.
      Tracked in https://github.com/elastic/esql-planning/issues/288 -->
 
-Because external data does not live in {{es}}, the system discovers schemas before queries can run. How this works depends on the file format.
+Because federated data does not live in {{es}}, the system discovers schemas before queries can run. How this works depends on the file format.
 
 ### Schema sources by format
 

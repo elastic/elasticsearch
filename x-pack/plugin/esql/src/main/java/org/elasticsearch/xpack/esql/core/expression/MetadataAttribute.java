@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
@@ -61,17 +62,24 @@ public final class MetadataAttribute extends TypedAttribute {
             Map.entry(SIZE, new MetadataAttributeConfiguration(DataType.INTEGER, true))
         ),
         // Snapshot only attributes
-        List.of(Map.entry(DataTierFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)))
+        List.of(Map.entry(DataTierFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true))),
+        // Feature-flag gated attributes.
+        // _slice is the virtual routing alias used by slice-enabled indices. Backed by _routing sorted doc values.
+        List.of(Map.entry(SliceIndexing.PARAM_NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)))
     );
 
     @SuppressWarnings("unchecked")
     private static Map<String, MetadataAttributeConfiguration> createMetadataAttributes(
         List<Map.Entry<String, MetadataAttributeConfiguration>> attributes,
-        List<Map.Entry<String, MetadataAttributeConfiguration>> snapshotOnlyAttributes
+        List<Map.Entry<String, MetadataAttributeConfiguration>> snapshotOnlyAttributes,
+        List<Map.Entry<String, MetadataAttributeConfiguration>> featureFlagAttributes
     ) {
         var entries = new ArrayList<>(attributes);
         if (Build.current().isSnapshot()) {
             entries.addAll(snapshotOnlyAttributes);
+        }
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            entries.addAll(featureFlagAttributes);
         }
         return Map.ofEntries(entries.toArray(Map.Entry[]::new));
     }

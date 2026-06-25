@@ -1,11 +1,5 @@
 area: TSDB
-issues: [139189]
-pr: 152091
-summary: Add native support for metric temporality
-type: enhancement
 highlight:
-  notable: true
-  title: Add native support for metric temporality
   body: |-
     TSDB now supports metric temporality natively: Counters and histograms can be ingested through the OTLP endpoint
     with both cumulative and delta temporality. The temporality will be stored as an additional metric dimension
@@ -13,3 +7,9 @@ highlight:
     query syntax for this functionality. Existing queries will continue to work as expected. The temporality is also respected
     and preserved during downsampling. Metrics ingested using other means can use the new `index.time_series.temporality_field`
     index setting to define the dimension field storing the temporality.
+  notable: true
+  title: Add native support for metric temporality
+issues: []
+pr: 152091
+summary: Add native support for metric temporality
+type: enhancement

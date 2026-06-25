@@ -160,6 +160,13 @@ where-punks:
 
 ---
 where-punks-nullified-per-index:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_null_fallback ]
+      reason: 'requires null-fallback for single-type non-keyword PUNKs under unmapped_fields="load"'
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

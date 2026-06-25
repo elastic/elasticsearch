@@ -52,6 +52,13 @@ setup:
           - { "foo": "1"}
 ---
 'to_degrees on single-type punk field':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_null_fallback ]
+      reason: 'requires null-fallback for single-type non-keyword PUNKs under unmapped_fields="load"'
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -68,6 +75,13 @@ setup:
   - match: { values.1: [ "index3", null ] }
 ---
 'to_radians on single-type punk field':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_null_fallback ]
+      reason: 'requires null-fallback for single-type non-keyword PUNKs under unmapped_fields="load"'
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

@@ -1666,6 +1666,49 @@ public class ProjectMetadataTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression for the indices-lookup reuse guard in {@link ProjectMetadata.ProjectMetadataDiff#apply}: a diff that
+     * adds a dataset (and changes nothing else) used to reuse the predecessor's indices lookup, because the guard
+     * checked data-stream and view metadata for identity but not dataset metadata. The stale lookup then failed
+     * {@code build(true)}'s {@code assertIndicesLookupDoesNotNeedToBeRebuilt} ({@code assert false} with assertions on,
+     * as in tests). The fix adds the dataset-metadata identity check to the guard. This exercises the diff-apply path
+     * the bug lived on and asserts (a) apply does not throw and (b) the applied result's indices lookup contains the
+     * new dataset name.
+     */
+    public void testDiffApplyAddingDatasetRebuildsIndicesLookup() {
+        assumeTrue(
+            "datasets are gated by the ES|QL external data sources feature flag",
+            DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+        );
+
+        ProjectId projectId = randomProjectIdOrDefault();
+        // A plain index so the predecessor already has a non-trivial indices lookup to (incorrectly) reuse.
+        IndexMetadata index = IndexMetadata.builder("my-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        ProjectMetadata before = ProjectMetadata.builder(projectId).put(index, false).build();
+        // Materialize and cache `before`'s indices lookup, mirroring a follower that has already served reads.
+        // The bug only manifests when the predecessor's lookup is non-null at apply time, so the guard can (wrongly)
+        // reuse it. Without this the lazily-null lookup would be rebuilt regardless and the regression would not fire.
+        before.getIndicesLookup();
+
+        // Identical to `before` except for the single added dataset.
+        String datasetName = "my-dataset";
+        Dataset dataset = new Dataset(datasetName, new DataSourceReference("my-data-source"), "s3://b/p", null, Map.of());
+        ProjectMetadata after = ProjectMetadata.builder(projectId).put(index, false).datasets(Map.of(datasetName, dataset)).build();
+
+        Diff<ProjectMetadata> diff = after.diff(before);
+
+        // Without the fix, apply reuses `before`'s stale indices lookup and build(true) fires assert false.
+        ProjectMetadata applied = diff.apply(before);
+
+        assertThat(applied.getIndicesLookup(), hasKey(datasetName));
+        assertThat(applied.getIndicesLookup().get(datasetName).getType(), equalTo(IndexAbstraction.Type.DATASET));
+    }
+
     public void testAliasedIndices() {
         int numAliases = randomIntBetween(32, 64);
         int numIndicesPerAlias = randomIntBetween(8, 16);

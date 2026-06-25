@@ -86,18 +86,17 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlo
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -326,7 +325,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Builder(String name, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
             super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
             this.indexSettings = indexSettings;
-            this.docValuesParameters = DocValuesParameter.ofWithCardinality(() -> {
+            this.docValuesParameters = DocValuesParameter.of(() -> {
                 DocValuesParameter.Values defaultDocValues = defaultDocValuesParameters(indexSettings);
                 // In strict-columnar mode, skip the text field's own doc values when a plain keyword multi-field already stores an
                 // identical copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating.
@@ -1111,15 +1110,7 @@ public final class TextFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
             if (usesBinaryDocValues) {
-                return new StringScriptFieldRegexpQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexCreatedVersion),
-                    name(),
-                    value,
-                    syntaxFlags,
-                    matchFlags,
-                    maxDeterminizedStates
-                );
+                return new SlowCustomBinaryDocValuesRegexpQuery(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates);
             }
             if (context.getCircuitBreaker() != null) {
                 Term term = new Term(name(), value);
@@ -1635,7 +1626,8 @@ public final class TextFieldMapper extends FieldMapper {
                     name(),
                     CoreValuesSourceType.KEYWORD,
                     TextDocValuesField::new,
-                    indexCreatedVersion
+                    indexCreatedVersion,
+                    useArrayOrderBinaryDocValues
                 );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(

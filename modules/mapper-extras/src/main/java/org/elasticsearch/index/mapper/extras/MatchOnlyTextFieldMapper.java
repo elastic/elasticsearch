@@ -92,18 +92,17 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomB
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
@@ -186,7 +185,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
             this.indexMode = indexMode;
-            this.docValuesParameters = FieldMapper.DocValuesParameter.ofWithCardinality(() -> {
+            this.docValuesParameters = FieldMapper.DocValuesParameter.of(() -> {
                 FieldMapper.DocValuesParameter.Values defaultDocValues = defaultDocValuesParameters(indexMode);
                 // In strict-columnar mode, skip the field's own doc values when a plain keyword multi-field already stores an identical
                 // copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating the column.
@@ -790,15 +789,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
             if (usesBinaryDocValues) {
-                return new StringScriptFieldRegexpQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
-                    name(),
-                    value,
-                    syntaxFlags,
-                    matchFlags,
-                    maxDeterminizedStates
-                );
+                return new SlowCustomBinaryDocValuesRegexpQuery(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates);
             }
             if (context.getCircuitBreaker() != null) {
                 Term term = new Term(name(), value);
@@ -1092,7 +1083,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private IndexFieldData.Builder fieldDataFromDocValues() {
             if (usesBinaryDocValues) {
-                return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, TextDocValuesField::new, indexVersion);
+                return new BytesBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    TextDocValuesField::new,
+                    indexVersion,
+                    useArrayOrderBinaryDocValues
+                );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(
                     name(),

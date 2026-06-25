@@ -182,7 +182,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
             return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
                 var mapping = new HashMap<>(defaults.mappingGenerator().get());
-                mapping.put("doc_values", forceSingleValueDocValues(mapping.get("doc_values")));
+                mapping.put("doc_values", Map.of("multi_value", false));
                 return mapping;
             });
         }
@@ -206,15 +206,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
         }
 
-        private static Map<String, Object> forceSingleValueDocValues(Object existing) {
-            var docValues = new HashMap<String, Object>();
-            if (existing instanceof Map<?, ?> existingMap && existingMap.get("cardinality") != null) {
-                // Preserve a randomly chosen cardinality (low/high) when the default produced one.
-                docValues.put("cardinality", existingMap.get("cardinality"));
-            }
-            docValues.put("multi_value", false);
-            return docValues;
-        }
     }
 
     @Override

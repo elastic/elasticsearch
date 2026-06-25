@@ -41,6 +41,8 @@ import java.util.stream.Collectors;
  *   <li>{@code store} – not allowed in columnar mode</li>
  *   <li>{@code synthetic_source_keep} – not allowed in columnar mode</li>
  *   <li>{@code subobjects} – not allowed in columnar mode</li>
+ *   <li>{@code copy_to} – not allowed in columnar mode; stripped from both sides so
+ *       the common supported subset is compared without cross-field copying.</li>
  *   <li>{@code dynamic: runtime} – not supported in strict columnar mode</li>
  *   <li>{@code dynamic: false} – logsdb stores ignored field values in {@code _ignored_source}
  *       (they appear in the reconstructed source), but logsdb_columnar drops them entirely
@@ -129,7 +131,7 @@ import java.util.stream.Collectors;
  */
 public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallengeRestIT {
 
-    private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects");
+    private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects", "copy_to");
     private static final Set<String> SHAPE_TYPES = Set.of("geo_shape", "shape");
 
     private Set<String> shapeFieldPaths;

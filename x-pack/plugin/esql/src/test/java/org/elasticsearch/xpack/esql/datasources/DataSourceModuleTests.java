@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -31,7 +32,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -83,7 +86,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Set<FormatSpec> formatSpecs() {
-            return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"));
+            return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"), FormatSpec.of("ndjson", ".ndjson"));
         }
 
         @Override
@@ -93,7 +96,14 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-            return Map.of("csv", (s, bf) -> new MockCsvFormatReader("csv", List.of(".csv")), "tsv", (s, bf) -> new MockTsvFormatReader());
+            return Map.of(
+                "csv",
+                (s, bf) -> new MockCsvFormatReader("csv", List.of(".csv")),
+                "tsv",
+                (s, bf) -> new MockTsvFormatReader(),
+                "ndjson",
+                (s, bf) -> new MockCsvFormatReader("ndjson", List.of(".ndjson"))
+            );
         }
     }
 
@@ -175,6 +185,10 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock CSV format reader for testing.
      */
     private static class MockCsvFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final String format;
         private final List<String> extensions;
@@ -212,6 +226,10 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock TSV format reader for testing.
      */
     private static class MockTsvFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -352,6 +370,10 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     private static class SegmentableTestNdjsonReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -698,6 +720,87 @@ public class DataSourceModuleTests extends ESTestCase {
         assertNotNull(registry.byExtension("data.tsv.gz"));
     }
 
+    /**
+     * On release builds the text-format codec surface is gated to {uncompressed, gzip, zstd}: bzip2, snappy,
+     * lz4, and brotli must be rejected at extension-resolution time on every text format (CSV/TSV/NDJSON) with
+     * a message that names the supported set, while gzip and zstd still resolve. See elastic/esql-planning#938.
+     */
+    public void testTextCodecsRejectedOnReleaseBuilds() {
+        assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        // One disabled codec per text format, covering all four disabled codecs and all three formats.
+        Map<String, String> rejected = new HashMap<>();
+        rejected.put("data.csv.bz2", "bzip2");
+        rejected.put("data.tsv.snappy", "snappy");
+        rejected.put("data.ndjson.lz4", "lz4");
+        rejected.put("data.csv.br", "brotli");
+        for (Map.Entry<String, String> entry : rejected.entrySet()) {
+            String objectName = entry.getKey();
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
+            assertThat(
+                "Expected rejection for " + objectName,
+                ex.getMessage(),
+                org.hamcrest.Matchers.containsString("is not supported; supported: uncompressed, gzip, zstd")
+            );
+            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString(entry.getValue()));
+        }
+
+        // The benchmarked codecs still resolve across the text formats.
+        assertNotNull(registry.byExtension("data.csv.gz"));
+        assertNotNull(registry.byExtension("data.tsv.zst"));
+        assertNotNull(registry.byExtension("data.ndjson.gz"));
+    }
+
+    /**
+     * On snapshot builds the codec gate is bypassed: every registered codec — including bzip2, snappy, lz4, and
+     * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats. See elastic/esql-planning#938.
+     */
+    public void testTextCodecsAllowedOnSnapshotBuilds() {
+        assumeTrue("release builds gate the text-format codec surface", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        List<String> compressed = List.of(
+            "data.csv.gz",
+            "data.tsv.zst",
+            "data.ndjson.gz",
+            "data.csv.bz2",
+            "data.tsv.snappy",
+            "data.ndjson.lz4",
+            "data.csv.br"
+        );
+        for (String objectName : compressed) {
+            FormatReader reader = registry.byExtension(objectName);
+            assertNotNull("Expected " + objectName + " to resolve on snapshot builds", reader);
+            assertTrue(
+                objectName + " should resolve to a CompressionDelegatingFormatReader",
+                reader.getClass().getSimpleName().contains("CompressionDelegating")
+            );
+        }
+    }
+
     public void testFileSourceSplitProviderUsesRegistriesForNdjsonMacroSplits() {
         String fileUri = "file:///tmp/registry-backed.ndjson";
         byte[] payload = buildNdjsonPayload(8_000);
@@ -717,7 +820,7 @@ public class DataSourceModuleTests extends ESTestCase {
             List.of()
         );
 
-        List<ExternalSplit> splits = module.sourceFactories().get("file").splitProvider().discoverSplits(ctx);
+        List<ExternalSplit> splits = module.sourceFactories().get("file").splitProvider().discoverSplits(ctx).splits();
         assertTrue("Expected newline-aligned macro splits from registry-backed provider", splits.size() > 1);
 
         long totalLength = 0;

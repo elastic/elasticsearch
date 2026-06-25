@@ -46,6 +46,7 @@ dependencies {
   implementation project(':libs:grok')
   implementation project(':libs:web-utils')
   implementation project(':libs:user-agent-api')
+  implementation project(':libs:ip-location-api')
   implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
@@ -86,7 +87,15 @@ dependencies {
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('ch.obermuhlner:big-math:2.3.2')
 
+  internalClusterTestImplementation(project('qa:testFixtures')) {
+      transitive = false
+  }
   internalClusterTestImplementation project(":modules:user-agent")
+  internalClusterTestImplementation project(":modules:ip-location")
+  internalClusterTestImplementation(testArtifact(project(":modules:ip-location")))
+  internalClusterTestImplementation(testArtifact(project(":modules:ip-location"), "internalClusterTest"))
+  internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
+  internalClusterTestImplementation project(':modules:reindex')
   internalClusterTestImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
@@ -112,6 +121,13 @@ dependencies {
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
   internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }
+  // NOTE: esql-datasource-orc is intentionally NOT added here. Its plugin jar ships a same-FQN
+  // org.apache.commons.lang3.StringUtils stub (src/main/java/org/apache/commons/lang3) as a
+  // production classloader-isolation trick, which collides with the real commons-lang3 that
+  // parquet/hadoop already pull onto this flat internalClusterTest classpath — the test JVM's
+  // JarHell check aborts boot. There is no Gradle exclusion that strips a class from inside a
+  // module's own jar, so the ORC reader cannot share this classpath; ORC is therefore omitted
+  // from AbstractExternalMetadataMatrixIT's per-format subclasses.
 }
 
 tasks.named('compileInternalClusterTestJava').configure {
@@ -135,6 +151,7 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
   exclude '**/*.avro'
   exclude '**/.*.crc'
+  exclude '**/*.mmdb'
 }
 
 tasks.named("test").configure {
@@ -172,6 +189,7 @@ tasks.named("internalClusterTest").configure {
   systemProperty 'es.esql_external_datasources_feature_flag_enabled', 'true'
   // Data sources require the project encryption key feature (EsqlPlugin fails fast otherwise); pair the flags.
   systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
+  systemProperty 'esql.kibana.docs.dir', "${rootDir}/docs/reference/query-languages/esql/kibana/generated"
 
   def injected = project.objects.newInstance(Injected)
   File snippetsFolder = file("build/testrun/internalClusterTest/temp/esql/_snippets")

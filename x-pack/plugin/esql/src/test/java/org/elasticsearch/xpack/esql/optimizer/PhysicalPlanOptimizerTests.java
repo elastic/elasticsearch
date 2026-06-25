@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialGeometryFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDocValuesFunction;
@@ -4516,6 +4517,184 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 equalTo(withDocValues)
             );
             assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+        }
+    }
+
+    /**
+     * Test that binary spatial geometry functions (ST_UNION, ST_INTERSECTION, ST_DIFFERENCE,
+     * ST_SYMDIFFERENCE) receive doc-values for both arguments when both are geo_point fields
+     * and a stats aggregation triggers doc-values extraction.
+     */
+    public void testSpatialBinaryGeometryFunctionsAndStatsUseDocValues() {
+        for (String function : new String[] { "ST_UNION", "ST_INTERSECTION", "ST_DIFFERENCE", "ST_SYMDIFFERENCE" }) {
+            String query = """
+                FROM airports
+                | EVAL result = FUNCTION(location, city_location)
+                | STATS extent = ST_EXTENT_AGG(location) BY result
+                """.replace("FUNCTION", function);
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? airports : airportsNoDocValues;
+                var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var limit = as(optimized, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, FieldExtractPreference.NONE);
+                assertThat(agg.groupings().size(), equalTo(1));
+                var exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // Below the exchange (in data node) the aggregation is using doc-values
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, fieldExtractPreference);
+                var evalExec = as(agg.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getFirst(), Alias.class);
+                assertThat(alias.name(), equalTo("result"));
+                var binaryFunction = as(alias.child(), BinarySpatialGeometryFunction.class);
+                assertThat(function + ": expected leftDocValues=" + withDocValues, binaryFunction.leftDocValues(), equalTo(withDocValues));
+                assertThat(
+                    function + ": expected rightDocValues=" + withDocValues,
+                    binaryFunction.rightDocValues(),
+                    equalTo(withDocValues)
+                );
+                assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+            }
+        }
+    }
+
+    /**
+     * Test that when one of the binary spatial function's arguments (city_location) is used as
+     * a grouping key in the STATS BY clause, it must survive to the coordinator and therefore
+     * cannot be loaded from doc-values. Only the other argument (location) is consumed solely
+     * by the aggregation and can use doc-values.
+     */
+    public void testSpatialBinaryGeometryFunctionsGroupByFieldNotDocValues() {
+        for (String function : new String[] { "ST_UNION", "ST_INTERSECTION", "ST_DIFFERENCE", "ST_SYMDIFFERENCE" }) {
+            String query = """
+                FROM airports
+                | EVAL result = FUNCTION(location, city_location)
+                | STATS extent = ST_EXTENT_AGG(location) BY city_location, result
+                """.replace("FUNCTION", function);
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var locationPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? airports : airportsNoDocValues;
+                var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var limit = as(optimized, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, FieldExtractPreference.NONE);
+                var exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // location uses doc-values for the aggregation; city_location does not (it's a grouping key)
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, locationPreference);
+                var evalExec = as(agg.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getFirst(), Alias.class);
+                assertThat(alias.name(), equalTo("result"));
+                var binaryFunction = as(alias.child(), BinarySpatialGeometryFunction.class);
+                // location (left) can use doc-values since it's consumed by the aggregation, not passed to the coordinator
+                assertThat(function + ": expected leftDocValues=" + withDocValues, binaryFunction.leftDocValues(), equalTo(withDocValues));
+                // city_location (right) cannot use doc-values since it's in the BY grouping clause
+                assertThat(
+                    function + ": expected rightDocValues=false (city_location is a grouping key)",
+                    binaryFunction.rightDocValues(),
+                    is(false)
+                );
+                // Verify the FieldExtractExec directly: location uses doc-values, city_location always uses source
+                var fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+                assertThat(Expressions.names(fieldExtract.attributesToExtract()), hasItems("location", "city_location"));
+                if (withDocValues) {
+                    assertThat(
+                        function + ": only location should use doc-values",
+                        Expressions.names(fieldExtract.docValuesAttributes()),
+                        contains("location")
+                    );
+                } else {
+                    assertThat(function + ": no doc-values without index support", fieldExtract.docValuesAttributes(), is(empty()));
+                }
+            }
+        }
+    }
+
+    /**
+     * Test that binary spatial geometry functions use doc-values for a geo_point argument
+     * even when the other argument is a geo_shape (which never uses doc-values). This covers
+     * the left-only and right-only doc-values paths, using a SORT to trigger doc-values
+     * extraction.
+     */
+    public void testSpatialBinaryGeometryFunctionsMixedTypesAndSortUseDocValues() {
+        for (String function : new String[] { "ST_UNION", "ST_INTERSECTION", "ST_DIFFERENCE", "ST_SYMDIFFERENCE" }) {
+            // Test left=geo_point (doc-values capable), right=geo_shape (never doc-values)
+            String query = """
+                FROM airport_city_boundaries
+                | EVAL result = FUNCTION(city_location, city_boundary)
+                | SORT abbrev
+                | KEEP abbrev, result
+                """.replace("FUNCTION", function);
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? airportsCityBoundaries : airportsCityBoundariesNoPointDocValues;
+                var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var project = as(optimized, ProjectExec.class);
+                var topNExec = as(project.child(), TopNExec.class);
+                var exchange = as(topNExec.child(), ExchangeExec.class);
+                project = as(exchange.child(), ProjectExec.class);
+                assertThat(
+                    Expressions.names(project.projections()),
+                    allOf(hasItems("abbrev", "result"), not(hasItems("city_location", "city_boundary")))
+                );
+                // sort by keyword field 'abbrev' is pushed into EsQueryExec — no inner TopNExec
+                var fieldExtract = as(project.child(), FieldExtractExec.class);
+                assertThat(
+                    Expressions.names(fieldExtract.attributesToExtract()),
+                    allOf(hasItems("abbrev"), not(hasItems("city_location", "city_boundary")))
+                );
+                var evalExec = as(fieldExtract.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getFirst(), Alias.class);
+                assertThat(alias.name(), equalTo("result"));
+                var binaryFunction = as(alias.child(), BinarySpatialGeometryFunction.class);
+                // city_location (left) is geo_point: uses doc-values when available
+                assertThat(
+                    function + " left(geo_point): expected leftDocValues=" + withDocValues,
+                    binaryFunction.leftDocValues(),
+                    equalTo(withDocValues)
+                );
+                // city_boundary (right) is geo_shape: never uses doc-values
+                assertThat(function + " right(geo_shape): expected rightDocValues=false", binaryFunction.rightDocValues(), is(false));
+                assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+            }
+
+            // Test left=geo_shape (never doc-values), right=geo_point (doc-values capable)
+            String queryReversed = """
+                FROM airport_city_boundaries
+                | EVAL result = FUNCTION(city_boundary, city_location)
+                | SORT abbrev
+                | KEEP abbrev, result
+                """.replace("FUNCTION", function);
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? airportsCityBoundaries : airportsCityBoundariesNoPointDocValues;
+                var plan = physicalPlan(queryReversed.replace("airport_city_boundaries", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var project = as(optimized, ProjectExec.class);
+                var topNExec = as(project.child(), TopNExec.class);
+                var exchange = as(topNExec.child(), ExchangeExec.class);
+                project = as(exchange.child(), ProjectExec.class);
+                // sort by keyword field 'abbrev' is pushed into EsQueryExec — no inner TopNExec
+                var fieldExtract = as(project.child(), FieldExtractExec.class);
+                var evalExec = as(fieldExtract.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getFirst(), Alias.class);
+                assertThat(alias.name(), equalTo("result"));
+                var binaryFunction = as(alias.child(), BinarySpatialGeometryFunction.class);
+                // city_boundary (left) is geo_shape: never uses doc-values
+                assertThat(function + " left(geo_shape): expected leftDocValues=false", binaryFunction.leftDocValues(), is(false));
+                // city_location (right) is geo_point: uses doc-values when available
+                assertThat(
+                    function + " right(geo_point): expected rightDocValues=" + withDocValues,
+                    binaryFunction.rightDocValues(),
+                    equalTo(withDocValues)
+                );
+                assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+            }
         }
     }
 
@@ -9655,6 +9834,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             config,
             new ExchangeSourceHandler(10, null)::createExchangeSource,
             () -> exchangeSinkHandler.createExchangeSink(() -> {}),
+            null,
+            null,
             null,
             null,
             null,

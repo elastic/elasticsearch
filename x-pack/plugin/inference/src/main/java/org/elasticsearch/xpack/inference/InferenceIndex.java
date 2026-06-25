@@ -9,14 +9,6 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class InferenceIndex {
 
@@ -25,9 +17,6 @@ public class InferenceIndex {
     public static final String INDEX_NAME = ".inference";
     public static final String INDEX_PATTERN = INDEX_NAME + "*";
     public static final String INDEX_ALIAS = ".inference-alias";
-
-    // Increment this version number when the mappings change
-    private static final int INDEX_MAPPING_VERSION = 3;
 
     public static Settings settings() {
         return builder().build();
@@ -59,168 +48,166 @@ public class InferenceIndex {
      *
      * @return The index mappings
      */
-    public static XContentBuilder currentMappings() {
-        try {
-            return jsonBuilder().startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field(SystemIndexDescriptor.VERSION_META_KEY, INDEX_MAPPING_VERSION)
-                .endObject()
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("model_id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("task_type")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("service")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("service_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .startObject("task_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .startObject("chunking_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .startObject("strategy")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject("metadata")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .startObject("heuristics")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .startObject("properties")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("status")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("release_date")
-                .field("type", "date")
-                .endObject()
-                .startObject("end_of_life_date")
-                .field("type", "date")
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject("display")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .startObject("name")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject("internal")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .startObject("fingerprint")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("version")
-                .field("type", "long")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build mappings for index " + INDEX_NAME, e);
-        }
+    public static String currentMappings() {
+        return mappingsV3();
     }
 
-    public static XContentBuilder mappingsV2() {
-        try {
-            return jsonBuilder().startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field(SystemIndexDescriptor.VERSION_META_KEY, 2)
-                .endObject()
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("model_id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("task_type")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("service")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("service_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .startObject("task_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .startObject("chunking_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .startObject("strategy")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build mappings for index " + INDEX_NAME, e);
-        }
+    public static String mappingsV3() {
+        return """
+            {
+              "_doc" : {
+                "_meta" : {
+                  "managed_index_mappings_version": 3
+                },
+                "dynamic": "strict",
+                "properties" : {
+                  "model_id": {
+                    "type": "keyword"
+                  },
+                  "task_type": {
+                    "type": "keyword"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "service_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "task_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "chunking_settings": {
+                    "dynamic": false,
+                    "properties": {
+                      "strategy": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "metadata": {
+                    "dynamic": false,
+                    "properties": {
+                      "heuristics": {
+                        "dynamic": false,
+                        "properties": {
+                          "properties": {
+                            "type": "keyword"
+                          },
+                          "status": {
+                            "type": "keyword"
+                          },
+                          "release_date": {
+                            "type": "date"
+                          },
+                          "end_of_life_date": {
+                            "type": "date"
+                          }
+                        }
+                      },
+                      "display": {
+                        "dynamic": false,
+                        "properties": {
+                          "name": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "internal": {
+                        "dynamic": false,
+                        "properties": {
+                          "fingerprint": {
+                            "type": "keyword"
+                          },
+                          "version": {
+                            "type": "long"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """;
     }
 
-    public static XContentBuilder mappingsV1() {
-        try {
-            return jsonBuilder().startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
-                .endObject()
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("model_id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("task_type")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("service")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("service_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .startObject("task_settings")
-                .field("dynamic", "false")
-                .startObject("properties")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build mappings for index " + INDEX_NAME, e);
-        }
+    public static String mappingsV2() {
+        return """
+            {
+              "_doc" : {
+                "_meta" : {
+                  "managed_index_mappings_version": 2
+                },
+                "dynamic": "strict",
+                "properties" : {
+                  "model_id": {
+                    "type": "keyword"
+                  },
+                  "task_type": {
+                    "type": "keyword"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "service_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "task_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "chunking_settings": {
+                    "dynamic": false,
+                    "properties": {
+                      "strategy": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+    }
+
+    public static String mappingsV1() {
+        return """
+            {
+              "_doc" : {
+                "_meta" : {
+                  "managed_index_mappings_version": 1
+                },
+                "dynamic": "strict",
+                "properties" : {
+                  "model_id": {
+                    "type": "keyword"
+                  },
+                  "task_type": {
+                    "type": "keyword"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "service_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "task_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  }
+                }
+              }
+            }
+            """;
     }
 }

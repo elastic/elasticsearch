@@ -13,10 +13,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -41,7 +45,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
-    private static String INFERENCE_ID = "inference-id";
+    private static final String INFERENCE_ID = "inference-id";
+    private static final String INFERENCE_ID = "inference-id";
 
     public SemanticFieldMapperTests(License.OperationMode operationMode) {
         super(operationMode);
@@ -170,7 +175,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "semantic");
-        b.field("inference_id", "inference-id");
+        b.field("inference_id", INFERENCE_ID);
     }
 
     @Override
@@ -195,6 +200,20 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
     @Override
     protected IndexVersion boostNotAllowedIndexVersion() {
         return IndexVersions.SEMANTIC_FIELD_TYPE;
+    }
+
+    @Override
+    public final void testSupportsParsingObject() throws IOException {
+        DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        Object sampleValueForDocument = getSampleObjectForDocument();
+        assertThat(sampleValueForDocument, instanceOf(Map.class));
+        SourceToParse source = source(builder -> {
+            builder.field("field");
+            builder.value(sampleValueForDocument);
+        });
+        ParsedDocument doc = mapper.parse(source);
+        assertNotNull(doc);
     }
 
     public void testCustomInferenceIdIsMandatory() {
@@ -223,7 +242,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
                 MapperParsingException.class,
                 () -> createMapperService(
                     fieldMapping(
-                        b -> b.field("type", "semantic").field(INFERENCE_ID_FIELD, "inference-id").field(SEARCH_INFERENCE_ID_FIELD, "")
+                        b -> b.field("type", "semantic").field(INFERENCE_ID_FIELD, INFERENCE_ID).field(SEARCH_INFERENCE_ID_FIELD, "")
                     )
                 )
             );

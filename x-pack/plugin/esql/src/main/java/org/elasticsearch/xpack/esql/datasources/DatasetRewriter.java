@@ -18,8 +18,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -61,8 +59,6 @@ import java.util.Set;
  * {@link DatasetResolution} to build the plan — they no longer resolve, expand, or gate on authorization.
  */
 public final class DatasetRewriter {
-
-    private static final Logger logger = LogManager.getLogger(DatasetRewriter.class);
 
     /**
      * {@link IndexResolver#DEFAULT_OPTIONS} (which carries {@code ALLOW_UNAVAILABLE_TARGETS}) plus
@@ -285,48 +281,31 @@ public final class DatasetRewriter {
             children.add(buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
         }
 
+        // Index branch: the concrete local non-dataset names plus, under cross-project, any preserved positive
+        // wildcards — joined into one UnresolvedRelation so the resolver dedups a local index matched by both a
+        // concrete name and a wildcard (no double read) and the wildcard's remote half reaches field-caps (closing
+        // #151977's dropped-remote-wildcard gap). The resolveDatasets rail on this branch also fails a remote
+        // dataset/view the wildcard matches. METADATA fields ride along so _index/_id resolve on the index rows.
+        List<String> indexBranch = new ArrayList<>(nonDatasetNamesList);
         if (crossProjectEnabled) {
-            // A single branch reaches the index half, local and remote: the concrete local non-dataset names plus any
-            // preserved positive wildcards, joined into one UnresolvedRelation so the index resolver dedups a local index
-            // that both a concrete name and a wildcard match (no double read), and so the wildcard's remote half reaches
-            // field-caps (closing #151977's dropped-remote-wildcard gap in the heterogeneous case). The resolveDatasets
-            // rail on this branch also fails a remote dataset/view that the wildcard matches.
-            List<String> remoteReaching = new ArrayList<>(nonDatasetNamesList);
-            remoteReaching.addAll(crossProjectPatternsToPreserve(patternsOf(relation)));
-            if (remoteReaching.isEmpty() == false) {
-                children.add(
-                    new UnresolvedRelation(
-                        relation.source(),
-                        new IndexPattern(relation.source(), String.join(",", remoteReaching)),
-                        relation.frozen(),
-                        relation.metadataFields(),
-                        relation.indexMode(),
-                        relation.unresolvedMessage()
-                    )
-                );
-            }
-            // An exact (non-wildcard) dataset name has no wildcard to re-emit above, so its remote half would never reach
-            // field-caps. Emit a DatasetShadowRelation per exact authorized dataset name — the dataset analog of
-            // ViewResolver's OPTIONAL-shadow branch — so the lenient linked pass federates a remote index of the same
-            // name in, while a remote dataset/view of the same name fails (the detection rail). See DatasetShadowRelation
-            // for the full lifecycle.
-            children.addAll(crossProjectExactNameShadows(relation, datasetNames));
-        } else if (nonDatasetNamesList.isEmpty() == false) {
-            // Heterogeneous FROM without cross-project: the local index branch alongside the dataset branches.
+            indexBranch.addAll(crossProjectPatternsToPreserve(patternsOf(relation)));
+        }
+        if (indexBranch.isEmpty() == false) {
             children.add(
                 new UnresolvedRelation(
                     relation.source(),
-                    new IndexPattern(relation.source(), String.join(",", nonDatasetNamesList)),
+                    new IndexPattern(relation.source(), String.join(",", indexBranch)),
                     relation.frozen(),
-                    List.of(),
+                    relation.metadataFields(),
                     relation.indexMode(),
-                    null
+                    relation.unresolvedMessage()
                 )
             );
         }
 
-        // Cap the final branch set. Shadows that strip (no remote namesake) drop out before Fork's post-analysis
-        // checkBranchCount, so the common case keeps the full budget; the matched ones are real reads (see #982/#983).
+        // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
+        // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
+        // shadow is a real read bounded post-analysis by Fork.checkBranchCount. See esql-planning#982/#983.
         if (Fork.exceedsMaxBranches(children.size())) {
             throw new VerificationException(
                 "FROM ["
@@ -337,6 +316,13 @@ public final class DatasetRewriter {
                     + Fork.MAX_BRANCHES
                     + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
             );
+        }
+
+        // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half rides a
+        // DatasetShadowRelation — a remote index of the same name federates in, a remote dataset/view of the same
+        // name fails (the detection rail). See DatasetShadowRelation for the full lifecycle.
+        if (crossProjectEnabled) {
+            children.addAll(crossProjectExactNameShadows(relation, datasetNames));
         }
 
         if (children.size() == 1) {

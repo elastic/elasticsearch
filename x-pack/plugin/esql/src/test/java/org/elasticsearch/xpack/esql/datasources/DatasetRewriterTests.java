@@ -460,6 +460,28 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(((DatasetShadowRelation) children.get(2)).datasetName(), equalTo("logs_dataset"));
     }
 
+    public void testExactDatasetShadowsDoNotConsumeTheRewriteCap() {
+        // The rewrite-time cap counts real reads (datasets + index branch), not the speculative shadows. A shadow
+        // strips when its exact name has no remote namesake (the common case), so it must not eat the per-FROM budget.
+        // Five exact datasets under CPS = 5 externals + 5 shadows = 10 UnionAll children but only 5 real reads, so it
+        // must NOT be rejected at rewrite -- otherwise the shadows would silently halve the dataset budget (#984).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        Set<String> names = new java.util.LinkedHashSet<>();
+        for (int i = 0; i < 5; i++) {
+            datasets.put("ds" + i, new Dataset("ds" + i, new DataSourceReference("s3_parent"), "s3://" + i + "/", null, Map.of()));
+            names.add("ds" + i);
+        }
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds0,ds1,ds2,ds3,ds4"), project, names);
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(10)); // 5 externals + 5 shadows
+        assertThat(union.children().stream().filter(c -> c instanceof DatasetShadowRelation).count(), equalTo(5L));
+    }
+
     public void testNonStringSettingsArePreservedThroughCarrier() {
         // Non-secret DataSourceSetting values can be Integer/Long/Boolean — the carrier (Map<String,
         // Object>) should preserve their type. Plugins that read these don't need to parse strings.

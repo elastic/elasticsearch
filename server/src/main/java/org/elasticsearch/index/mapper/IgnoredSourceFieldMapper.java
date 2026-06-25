@@ -211,6 +211,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) {
+        // Columnar modes rebuild _source purely from doc-value columns and never produce generic per-field ignored
+        // source (canAddIgnoredField() is false): anything not reconstructable from a field-owned doc-value column is
+        // dropped. Assert it to catch regressions that would silently reintroduce source fallback.
+        assert context.indexSettings().getMode().isStrictColumnar() == false || context.getIgnoredFieldValues().isEmpty()
+            : "columnar mode produced generic _ignored_source entries: " + context.getIgnoredFieldValues();
         // Ignored values are only expected in synthetic and columnar_stored modes.
         if (context.mappingLookup().isSourceSynthetic() == false && context.mappingLookup().isSourceColumnarStored() == false) {
             assert context.getIgnoredFieldValues().isEmpty();

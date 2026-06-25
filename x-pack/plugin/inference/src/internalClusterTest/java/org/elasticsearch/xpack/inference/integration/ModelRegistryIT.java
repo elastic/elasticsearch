@@ -1027,6 +1027,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                     InferenceIndex.INDEX_NAME,
                     model.getConfigurations(),
                     false,
+                    true,
                     client()
                 )
             )
@@ -1036,6 +1037,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                     InferenceSecretsIndex.INDEX_NAME,
                     model.getSecrets(),
                     false,
+                    true,
                     client()
                 )
             )

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyDoc;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -52,6 +54,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
 
     private final OriginSettingClient client;
     private final Optional<SecurityContext> securityContext;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportPutRegionPolicyAction(
@@ -59,7 +62,8 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         TransportService transportService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        Client client
+        Client client,
+        ClusterService clusterService
     ) {
         super(
             PutRegionPolicyAction.NAME,
@@ -72,6 +76,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? Optional.of(new SecurityContext(settings, threadPool.getThreadContext()))
             : Optional.empty();
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -114,10 +119,13 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             .setId(RegionPolicyDoc.DOCUMENT_ID)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
+        boolean includeDocType = InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()
+            && InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state().metadata().getProject());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            indexRequestBuilder.setSource(
-                doc.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")))
-            );
+            ToXContent.Params params = includeDocType
+                ? new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
+                : ToXContent.EMPTY_PARAMS;
+            indexRequestBuilder.setSource(doc.toXContent(builder, params));
         } catch (IOException e) {
             listener.onFailure(new IllegalStateException("Failed to serialise region policy", e));
             return;

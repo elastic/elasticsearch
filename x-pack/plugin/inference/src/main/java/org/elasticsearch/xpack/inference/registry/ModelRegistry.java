@@ -34,6 +34,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -53,6 +55,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceIndexDocTypeField;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -632,6 +635,7 @@ public class ModelRegistry implements ClusterStateListener {
             preventDeletionLock.add(inferenceEntityId);
         }
 
+        boolean includeDocType = shouldIncludeDocType();
         SubscribableListener.<BulkResponse>newForked((subListener) -> {
             // in this block, we try to update the stored model configurations
             var configRequestBuilder = createIndexRequestBuilder(
@@ -639,6 +643,7 @@ public class ModelRegistry implements ClusterStateListener {
                 InferenceIndex.INDEX_NAME,
                 newModel.getConfigurations(),
                 true,
+                includeDocType,
                 client
             );
 
@@ -681,6 +686,7 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceSecretsIndex.INDEX_NAME,
                     newModel.getSecrets(),
                     true,
+                    includeDocType,
                     client
                 );
 
@@ -704,6 +710,7 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceIndex.INDEX_NAME,
                     existingModel.getConfigurations(),
                     true,
+                    includeDocType,
                     client
                 );
 
@@ -819,6 +826,7 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        boolean includeDocType = shouldIncludeDocType();
 
         for (var model : models) {
             bulkRequestBuilder.add(
@@ -827,6 +835,7 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceIndex.INDEX_NAME,
                     model.getConfigurations(),
                     allowOverwriting,
+                    includeDocType,
                     client
                 )
             );
@@ -837,6 +846,7 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceSecretsIndex.INDEX_NAME,
                     model.getSecrets(),
                     allowOverwriting,
+                    includeDocType,
                     client
                 )
             );
@@ -1229,16 +1239,25 @@ public class ModelRegistry implements ClusterStateListener {
         return request;
     }
 
+    private boolean shouldIncludeDocType() {
+        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled() == false) {
+            return false;
+        }
+        ProjectMetadata projectMetadata = clusterService.state().metadata().getProject();
+        return InferenceIndex.inferenceIndexHasV4Mappings(projectMetadata);
+    }
+
     // public for testing
     public static IndexRequestBuilder createIndexRequestBuilder(
         String inferenceId,
         String indexName,
         ToXContentObject body,
         boolean allowOverwriting,
+        boolean includeDocType,
         Client client
     ) {
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-            Map<String, String> params = InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()
+            Map<String, String> params = includeDocType
                 ? Map.of(
                     ModelConfigurations.USE_ID_FOR_INDEX,
                     Boolean.TRUE.toString(),

@@ -8,7 +8,12 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+
+import java.util.Map;
 
 public class InferenceIndex {
 
@@ -25,6 +30,35 @@ public class InferenceIndex {
     // Public to allow tests to create the index with custom settings
     public static Settings.Builder builder() {
         return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
+    }
+
+    /**
+     * Returns true when the .inference index already has v4 mappings that include the {@code doc_type} field.
+     * Used to guard against writing {@code doc_type} to an index that still has strict v3 mappings, which
+     * would cause a strict_dynamic_mapping_exception during a rolling upgrade before the mapping migration
+     * completes.
+     */
+    public static boolean inferenceIndexHasV4Mappings(ProjectMetadata projectMetadata) {
+        IndexMetadata indexMetadata = projectMetadata.index(InferenceIndex.INDEX_NAME);
+        if (indexMetadata == null) {
+            return false;
+        }
+        MappingMetadata mappingMetadata = indexMetadata.mapping();
+        if (mappingMetadata == null) {
+            return false;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
+        if (meta == null) {
+            return false;
+        }
+        if (meta.containsKey(SystemIndexDescriptor.VERSION_META_KEY) == false) {
+            return false;
+        }
+        if (meta.get(SystemIndexDescriptor.VERSION_META_KEY) instanceof Integer version) {
+            return version >= 4;
+        }
+        return false;
     }
 
     /**

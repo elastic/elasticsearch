@@ -454,11 +454,8 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             if (preservesExactSource()) {
                 return new SyntheticSourceExample(in, in, this::mapping);
             } else {
-                Stream<Object> nonMalformed = values.stream()
-                    .filter(v -> v.v2() instanceof Number)
-                    .map(t -> round.apply((Number) t.v2()));
-                List<Object> outList = (isColumnar ? nonMalformed : nonMalformed.sorted())
-                    .collect(Collectors.toCollection(ArrayList::new));
+                Stream<Object> nonMalformed = values.stream().filter(v -> v.v2() instanceof Number).map(t -> round.apply((Number) t.v2()));
+                List<Object> outList = (isColumnar ? nonMalformed : nonMalformed.sorted()).collect(Collectors.toCollection(ArrayList::new));
                 List<Object> malformed = values.stream()
                     .filter(v -> false == v.v2() instanceof Number)
                     .map(Tuple::v2)

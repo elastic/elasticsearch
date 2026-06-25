@@ -600,20 +600,16 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         return geoSyntheticSourceSupport(ignoreMalformed, false);
     }
 
-    @Override
-    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
-        return geoSyntheticSourceSupport(ignoreMalformed, true);
+    // Overrides syntheticSourceSupport(boolean, boolean columnReader) from MapperTestCase on main.
+    // Not annotated @Override because the base method does not exist on this branch.
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
+        return geoSyntheticSourceSupport(ignoreMalformed, columnReader);
     }
 
-    private SyntheticSourceSupport geoSyntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
+    private SyntheticSourceSupport geoSyntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
             private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
-
-            @Override
-            public boolean isColumnar() {
-                return columnar;
-            }
 
             @Override
             public SyntheticSourceExample example(int maxVals) {
@@ -623,7 +619,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                         return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
                     }
 
-                    if (columnar) {
+                    if (columnReader) {
                         return new SyntheticSourceExample(v.input, decode(encode(v.output)), this::mapping);
                     }
                     return new SyntheticSourceExample(v.input, v.output, this::mapping);

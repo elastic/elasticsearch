@@ -108,6 +108,7 @@ class TestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
         "org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin",
         "org.elasticsearch.gradle.internal.testfixtures.TestFixturesDeployPlugin",
+        "org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin",
         "org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin",
         "org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin",
 
@@ -118,7 +119,6 @@ class TestCoverageArchUnitSpec extends Specification {
         // their original base class until the harness supports deferred/multi-project application.
         "org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin",
         "org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin",
-        "org.elasticsearch.gradle.internal.doc.DocsTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin",
         "org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin",

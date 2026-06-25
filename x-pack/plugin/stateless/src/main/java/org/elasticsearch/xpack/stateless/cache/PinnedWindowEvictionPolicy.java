@@ -70,7 +70,11 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     }
 
     /**
-     * Returns {@code true} if the shard is open on this node according to {@link IndicesService}.
+     * Returns {@code true} if the shard is open on this node.
+     * <p>
+     * We consult {@link IndicesService} rather than cluster-state routing because routing can lag
+     * behind locally open shards during cluster-state application. Once a shard is open here,
+     * {@link IndicesService} reflects that immediately, which is what the pinned window needs.
      */
     protected boolean isShardLocallyAllocated(ShardId shardId) {
         assert indicesService != null;

@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1279,6 +1280,23 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(limit.output().getFirst().dataType(), is(DataType.KEYWORD));
     }
 
+    public void testAllowLoadWithPartiallyMappedDenseVectorCastNullifiesUnmappedBranch() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(Map.of("partial_dense", denseVectorField("partial_dense")), Set.of("partial_dense"));
+        LogicalPlan plan = analyzer().addIndex(esIndex)
+            .statement(setUnmappedLoad("FROM idx* | EVAL vector = partial_dense::dense_vector | KEEP vector"));
+
+        Set<UnionTypeEsField> unionFields = Collections.newSetFromMap(new IdentityHashMap<>());
+        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+            if (fa.field() instanceof UnionTypeEsField unionField && unionField.getDataType() == DataType.DENSE_VECTOR) {
+                unionFields.add(unionField);
+            }
+        });
+        assertThat(unionFields, hasSize(1));
+        assertThat(unionFields.iterator().next().getUnmappedConversionExpression(), nullValue());
+    }
+
     /**
      * Comma-separated {@code FROM} resolves to one merged {@link EsIndex} named {@code idx_a,idx_b}; partial-field checks must use that
      * resolution (see {@link IndexResolution#matches}).
@@ -1655,6 +1673,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 is(DataType.KEYWORD)
             );
         }
+    }
+
+    private static EsField denseVectorField(String name) {
+        return new EsField(name, DataType.DENSE_VECTOR, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
     }
 
     /**

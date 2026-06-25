@@ -2832,9 +2832,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         return convertExpression;
                     }
 
-                    Expression potentiallyUnmappedConversion = tcf.isPotentiallyUnmapped()
-                        ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, tcf)
-                        : null;
+                    Expression potentiallyUnmappedConversion = null;
+                    // Unmapped dense_vector values come from _source arrays, not the hex strings accepted by TO_DENSE_VECTOR.
+                    if (tcf.isPotentiallyUnmapped() && ((Expression) convert).dataType() != DENSE_VECTOR) {
+                        potentiallyUnmappedConversion = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, tcf);
+                    }
                     EsField resolvedField = resolvedUnionTypeFields(fa, tcf, typeResolutions, potentiallyUnmappedConversion, context);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
@@ -3224,12 +3226,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         Map<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         typeResolutions(convert, mappedType, fa, tcf, typeResolutions);
 
-                        Expression potentiallyUnmappedConversion = ResolveUnionTypes.typeSpecificConvert(
-                            convert,
-                            fa.source(),
-                            KEYWORD,
-                            tcf
-                        );
+                        Expression potentiallyUnmappedConversion = null;
+                        // Unmapped dense_vector values come from _source arrays, not the hex strings accepted by TO_DENSE_VECTOR.
+                        if (mappedType != DENSE_VECTOR) {
+                            potentiallyUnmappedConversion = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, tcf);
+                        }
 
                         EsField resolvedField = ResolveUnionTypes.resolvedUnionTypeFields(
                             fa,

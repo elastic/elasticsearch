@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 152184
+pr: 152213
+summary: Fix partially unmapped dense_vector conversion in ES|QL
+type: bug

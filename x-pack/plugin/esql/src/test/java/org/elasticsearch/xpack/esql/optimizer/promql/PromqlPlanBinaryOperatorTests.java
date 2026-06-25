@@ -454,6 +454,15 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertNoIndexBackedPromqlPlan(plan);
     }
 
+    public void testBinaryOperatorWithDifferentGroupingKeysReturns400() {
+        // sum by (cluster) (...) + sum by (pod) (...) has incompatible groupings — should be a 400, not a 500.
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) + sum by (pod) (network.eth0.rx))")
+        );
+        assertThat(e.getMessage(), containsString("Binary expressions between vectors with different grouping keys are not supported yet"));
+    }
+
     private static void assertNoIndexBackedPromqlPlan(LogicalPlan plan) {
         assertThat(plan.collect(PromqlCommand.class), hasSize(0));
         assertThat(plan.collect(UnresolvedRelation.class), hasSize(0));

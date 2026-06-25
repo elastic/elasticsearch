@@ -439,7 +439,6 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
                 blobCacheMetrics,
                 clusterService,
                 indicesService,
-                threadPool::relativeTimeInNanos,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
         }

@@ -1455,7 +1455,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 blobCacheMetrics,
                 clusterService,
                 indicesService,
-                threadPool::relativeTimeInNanos,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
         }

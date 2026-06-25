@@ -101,12 +101,22 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     @Override
-    public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    public void putView(
+        ProjectId projectId,
+        PutViewAction.Request request,
+        View.DefinerInfo definer,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         try {
+            final View requested = request.view();
+            // Mirror ViewService: stamp the captured definer identity onto a definer-rights view.
+            final View view = requested.rightsMode() == View.RightsMode.DEFINER
+                ? new View(requested.name(), requested.query(), View.RightsMode.DEFINER, definer)
+                : requested;
             // Validate the way we would normally validate in ViewService
-            validatePutView(null, request.view());
+            validatePutView(null, view);
             Map<String, View> existingViews = new HashMap<>(viewMetadata.views());
-            existingViews.put(request.view().name(), request.view());
+            existingViews.put(view.name(), view);
             viewMetadata = new ViewMetadata(existingViews);
             var projectBuilder = ProjectMetadata.builder(projectId).putCustom(ViewMetadata.TYPE, viewMetadata);
             indices.forEach(
@@ -120,6 +130,19 @@ public class InMemoryViewService extends ViewService implements Closeable {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /** Directly install a view (used to install a definer-rights view for resolution-rejection tests). */
+    public void putViewDirect(ProjectId projectId, View view) {
+        Map<String, View> existingViews = new HashMap<>(viewMetadata.views());
+        existingViews.put(view.name(), view);
+        viewMetadata = new ViewMetadata(existingViews);
+        var projectBuilder = ProjectMetadata.builder(projectId).putCustom(ViewMetadata.TYPE, viewMetadata);
+        indices.forEach(index -> projectBuilder.put(IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0))));
+        ClusterServiceUtils.setState(
+            clusterService,
+            new ClusterState.Builder(clusterService.state()).putProjectMetadata(projectBuilder).build()
+        );
     }
 
     public void addIndex(ProjectId projectId, String name) {

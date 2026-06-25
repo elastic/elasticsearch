@@ -904,6 +904,15 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         Map<String, String> viewQueries
     ) {
+        // Definer-rights views are admitted, stored, and serialized, but their execution is not yet implemented. Reject the query
+        // here — at the single point every resolved view body passes through (top-level, nested, and IN-subquery references all reach
+        // this method) — rather than silently running the body with the querying user's rights, which would be a privilege-confusion
+        // footgun. Invoker-rights views (the default and every existing view) are unaffected.
+        if (view.rightsMode() == org.elasticsearch.cluster.metadata.View.RightsMode.DEFINER) {
+            throw new IllegalArgumentException(
+                "view [" + view.name() + "] uses definer rights, which are not yet supported; only invoker-rights views can be queried"
+            );
+        }
         log.debug("Resolving view '{}'", view.name());
         // Store the view query so it can be used during Source deserialization
         viewQueries.put(view.name(), view.query());

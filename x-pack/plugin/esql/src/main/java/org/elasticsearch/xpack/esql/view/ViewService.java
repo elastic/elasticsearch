@@ -90,10 +90,31 @@ public class ViewService {
     }
 
     /**
-     * Adds or modifies a view by name.
+     * Adds or modifies an invoker-rights view by name. Convenience overload for callers that never create a definer-rights view
+     * (the captured definer identity is {@code null}); the production path goes through the {@code definer}-carrying overload.
      */
     public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        final View view = request.view();
+        putView(projectId, request, null, listener);
+    }
+
+    /**
+     * Adds or modifies a view by name.
+     * <p>
+     * For a {@link View.RightsMode#DEFINER} view the caller supplies the {@code definer} identity captured server-side from the
+     * creator's authentication (see {@code TransportPutViewAction}); it is stamped onto the stored view here so the definer cannot be
+     * spoofed via the request body. For an invoker-rights view (the default and every existing view) {@code definer} is {@code null}
+     * and nothing extra is captured.
+     */
+    public void putView(
+        ProjectId projectId,
+        PutViewAction.Request request,
+        @Nullable View.DefinerInfo definer,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final View requested = request.view();
+        final View view = requested.rightsMode() == View.RightsMode.DEFINER
+            ? new View(requested.name(), requested.query(), View.RightsMode.DEFINER, definer)
+            : requested;
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         try {
             validatePutView(metadata, view);

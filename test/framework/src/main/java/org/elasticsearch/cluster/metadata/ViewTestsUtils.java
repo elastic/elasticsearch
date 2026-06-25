@@ -9,9 +9,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.bytes.BytesArray;
+
 import java.util.Locale;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public class ViewTestsUtils {
     public static String randomName() {
@@ -21,5 +24,16 @@ public class ViewTestsUtils {
     public static View randomView(String name) {
         String query = "FROM " + randomAlphaOfLength(10);
         return new View(name, query);
+    }
+
+    /** A definer-rights view with a randomly populated definer identity. */
+    public static View randomDefinerView(String name) {
+        String query = "FROM " + randomAlphaOfLength(10);
+        View.DefinerInfo definer = new View.DefinerInfo(
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(6),
+            randomBoolean() ? BytesArray.EMPTY : new BytesArray(randomAlphaOfLength(12).getBytes(java.nio.charset.StandardCharsets.UTF_8))
+        );
+        return new View(name, query, View.RightsMode.DEFINER, definer);
     }
 }

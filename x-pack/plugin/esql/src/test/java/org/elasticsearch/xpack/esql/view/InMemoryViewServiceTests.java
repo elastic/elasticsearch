@@ -115,6 +115,68 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(viewService.get(projectId, "view3").query(), equalTo("FROM view2"));
     }
 
+    /**
+     * Definer-rights views are admitted and stored but not yet executable: querying one must be rejected with a clear error during
+     * view resolution, never silently run with the querying user's (invoker) rights.
+     */
+    public void testDefinerViewRejectedAtResolution() {
+        View definerView = new View(
+            "definer_view",
+            "FROM emp",
+            View.RightsMode.DEFINER,
+            new View.DefinerInfo("creator", "native", org.elasticsearch.common.bytes.BytesArray.EMPTY)
+        );
+        viewService.putViewDirect(projectId, definerView);
+        LogicalPlan plan = query("FROM definer_view");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> replaceViews(plan));
+        assertThat(e.getMessage(), containsString("definer rights, which are not yet supported"));
+        assertThat(e.getMessage(), containsString("definer_view"));
+    }
+
+    /** A definer-rights view referenced from inside another (invoker) view is still rejected — the choke point catches nested refs. */
+    public void testDefinerViewRejectedWhenNested() {
+        View definerView = new View(
+            "inner_definer",
+            "FROM emp",
+            View.RightsMode.DEFINER,
+            new View.DefinerInfo("creator", "native", org.elasticsearch.common.bytes.BytesArray.EMPTY)
+        );
+        viewService.putViewDirect(projectId, definerView);
+        addView("outer_invoker", "FROM inner_definer");
+        LogicalPlan plan = query("FROM outer_invoker");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> replaceViews(plan));
+        assertThat(e.getMessage(), containsString("definer rights, which are not yet supported"));
+        assertThat(e.getMessage(), containsString("inner_definer"));
+    }
+
+    /**
+     * {@link ViewService#putView} stamps the captured definer identity onto a definer-rights view, ignoring any identity the request
+     * body might carry, so the definer cannot be spoofed by the caller.
+     */
+    public void testPutViewCapturesDefiner() {
+        View.DefinerInfo captured = new View.DefinerInfo("captured_user", "native", org.elasticsearch.common.bytes.BytesArray.EMPTY);
+        // The request body carries no definer identity (mode DEFINER, definer null) — capture happens server-side.
+        PutViewAction.Request request = new PutViewAction.Request(
+            TimeValue.ONE_MINUTE,
+            TimeValue.ONE_MINUTE,
+            new View("captured_view", "FROM emp", View.RightsMode.DEFINER, null)
+        );
+        PlainActionFuture<org.elasticsearch.action.support.master.AcknowledgedResponse> future = new PlainActionFuture<>();
+        viewService.putView(projectId, request, captured, future);
+        future.actionGet();
+        View stored = viewService.get(projectId, "captured_view");
+        assertThat(stored.rightsMode(), equalTo(View.RightsMode.DEFINER));
+        assertThat(stored.definer(), equalTo(captured));
+    }
+
+    /** An invoker-rights put captures nothing: the stored view has no definer identity. */
+    public void testPutInvokerViewCapturesNoDefiner() {
+        addView("invoker_view", "FROM emp");
+        View stored = viewService.get(projectId, "invoker_view");
+        assertThat(stored.rightsMode(), equalTo(View.RightsMode.INVOKER));
+        assertThat(stored.definer(), org.hamcrest.Matchers.nullValue());
+    }
+
     public void testReplaceView() {
         addView("view1", "FROM emp");
         addView("view2", "FROM view1");

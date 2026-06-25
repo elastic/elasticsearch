@@ -8,18 +8,45 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomDefinerView;
 import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomName;
 import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomView;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMetadata> {
+
+    private static final TransportVersion DEFINER_RIGHTS = TransportVersion.fromName("esql_view_definer_rights");
+
+    /** ViewMetadata carrying a definer view round-trips the rights axis through the wire. */
+    public void testDefinerViewMetadataRoundTrip() throws IOException {
+        String name = randomName();
+        ViewMetadata original = new ViewMetadata(Map.of(name, randomDefinerView(name)));
+        ViewMetadata copy = copyInstance(original);
+        assertThat(copy, equalTo(original));
+        assertThat(copy.getView(name).rightsMode(), equalTo(View.RightsMode.DEFINER));
+    }
+
+    /** BWC: a definer view inside ViewMetadata serialized to a pre-seam node is read as invoker, with no definer identity. */
+    public void testDefinerViewMetadataDowngradesToInvoker() throws IOException {
+        String name = randomName();
+        ViewMetadata original = new ViewMetadata(Map.of(name, randomDefinerView(name)));
+        TransportVersion old = TransportVersionUtils.randomVersionNotSupporting(DEFINER_RIGHTS);
+        ViewMetadata asSeenByOldNode = copyInstance(original, old);
+        View view = asSeenByOldNode.getView(name);
+        assertThat(view.rightsMode(), equalTo(View.RightsMode.INVOKER));
+        assertThat(view.definer(), nullValue());
+    }
 
     @Override
     protected ViewMetadata doParseInstance(XContentParser parser) throws IOException {

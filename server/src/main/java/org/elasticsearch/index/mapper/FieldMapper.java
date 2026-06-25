@@ -125,6 +125,7 @@ public abstract class FieldMapper extends Mapper {
     // cache fields that are accessed frequently (and which would result in megamorphic callsites at runtime)
     private SyntheticSourceMode syntheticSourceMode; // lazily cached
     private final String fullPath; // eagerly cached
+
     /**
      * @param simpleName        the leaf name of the mapper
      * @param params            initialization params for this field mapper

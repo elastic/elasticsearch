@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -177,7 +178,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink
+                sink,
+                null
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
                 while (iter.hasNext()) {
@@ -231,7 +233,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink
+                sink,
+                null
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
                 while (iter.hasNext()) {
@@ -293,7 +296,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink
+                sink,
+                null
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
             // Consume one page, then close without draining — an early termination.
@@ -946,6 +950,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 0L,
                 maxRecordBytes,
+                null,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
@@ -992,6 +997,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 0L,
                 maxRecordBytes,
+                null,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
@@ -1020,6 +1026,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 0L,
                 maxRecordBytes,
+                null,
                 null
             );
             List<String> got = collectLines(lenientIterator);
@@ -1033,14 +1040,64 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Under a non-strict policy the truncation must surface a client-visible {@code Warning} header so
-     * the caller knows the results are partial. A same-thread executor runs the segmentator on the test
-     * thread, where {@link org.elasticsearch.test.ESTestCase}'s registered {@code ThreadContext} can
-     * observe the emitted warning (worker-thread warnings land on a separate per-thread struct). The cap
-     * is hit on the very first record (the splitter never reports a boundary), so no chunk is dispatched
-     * and the same-thread executor cannot deadlock on {@code dispatchPermits}.
+     * Under a non-strict policy the truncation must surface a partial-results warning the operator can
+     * relay to the client. The segmentator records that warning through the {@code partialResultsWarningSink}
+     * rather than emitting a {@link HeaderWarning} directly, precisely because it runs on a forked worker
+     * whose response headers never reach the client (see {@code AsyncExternalSourceOperator}, #835). This
+     * runs on a real multi-threaded executor and asserts the sink receives the message regardless of which
+     * thread the segmentator ran on — the property a same-thread executor would have masked. The cap is hit
+     * on the very first record (the splitter never reports a boundary), so no chunk is dispatched.
      */
-    public void testTruncationEmitsClientVisibleWarningUnderLenient() throws Exception {
+    public void testTruncationRoutesWarningToSinkUnderLenient() throws Exception {
+        int maxRecordBytes = 4096;
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < 64 * 1024) {
+            sb.append("some-row-of-bytes-with-a-trailing-newline-and-a-bit-of-padding\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        List<String> sink = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
+            var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.LENIENT,
+                null,
+                0L,
+                maxRecordBytes,
+                null,
+                sink::add
+            );
+            List<String> got = collectLines(iterator);
+            assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertEquals("truncation must record exactly one partial-results warning", 1, sink.size());
+        assertTrue(
+            "expected a partial-results truncation warning, got: " + sink,
+            sink.get(0).contains("results are partial")
+                && sink.get(0).contains("truncated at byte")
+                && sink.get(0).contains("record exceeded max_record_size")
+        );
+    }
+
+    /**
+     * When no sink is wired (tests, benchmarks, and any non-operator caller), the truncation warning
+     * falls back to a direct {@link HeaderWarning} on the segmentator thread. A same-thread executor runs
+     * the segmentator on the test thread so {@link org.elasticsearch.test.ESTestCase}'s registered
+     * {@code ThreadContext} can observe the emitted warning. This locks the fallback contract; the
+     * client-facing propagation is covered by {@code ExternalMaxRecordSizeTruncationIT}.
+     */
+    public void testTruncationFallsBackToHeaderWarningWhenNoSink() throws Exception {
         int maxRecordBytes = 4096;
         StringBuilder sb = new StringBuilder();
         while (sb.length() < 64 * 1024) {
@@ -1062,6 +1119,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             0L,
             maxRecordBytes,
+            null,
             null
         );
         List<String> got = collectLines(iterator);

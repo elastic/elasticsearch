@@ -71,6 +71,18 @@ public final class AsyncExternalSourceBuffer {
     private volatile Map<String, List<Map<String, Object>>> cachedMetadataSnapshot = Map.of();
     private volatile int cachedMetadataPathCount = 0;
 
+    /**
+     * Client-visible partial-results warnings recorded by the background reader path — currently a
+     * streaming {@code max_record_size} truncation under a non-strict {@code error_mode} (see
+     * {@code StreamingParallelParsingCoordinator}). Producer / parse-worker threads append here off
+     * the driver thread; {@link AsyncExternalSourceOperator#close()} drains and re-emits them via
+     * {@link org.elasticsearch.common.logging.HeaderWarning} on the driver thread, whose response
+     * headers {@code DriverRunner} collects into the client response. Emitting from the forked worker
+     * thread directly would land the header on that worker's {@code ThreadContext}, which is never
+     * merged back into the response — so the warning would be invisible to the client.
+     */
+    private final Queue<String> pendingWarnings = new ConcurrentLinkedQueue<>();
+
     private volatile FormatReaderStatus formatReaderStatus = null;
     // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
     // iteration adds a delta to bytesRead, so contention between concurrent producer threads on
@@ -91,6 +103,19 @@ public final class AsyncExternalSourceBuffer {
     /** The mutable per-file capture sink shared with the iterator wrapping. */
     public ConcurrentMap<String, List<Map<String, Object>>> capturedSourceMetadataSink() {
         return capturedSourceMetadata;
+    }
+
+    /**
+     * Records a client-visible partial-results warning to be re-emitted on the driver thread when the
+     * operator closes. Thread-safe: called from the background reader / parse-worker thread.
+     */
+    public void recordWarning(String warning) {
+        pendingWarnings.add(warning);
+    }
+
+    /** Removes and returns the next recorded warning, or {@code null} if none remain. */
+    public String pollWarning() {
+        return pendingWarnings.poll();
     }
 
     /**

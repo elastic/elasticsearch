@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Coordinates parallel parsing of a sequential (non-seekable) decompressed stream
@@ -112,6 +113,7 @@ public final class StreamingParallelParsingCoordinator {
             null,
             0L,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            null,
             null
         );
     }
@@ -136,6 +138,13 @@ public final class StreamingParallelParsingCoordinator {
      * is stamped on every chunk and each chunk carries its decompressed-stream coverage range, so the
      * coordinator reconciler can union the chunks under the real file key (see
      * {@link ParallelParsingCoordinator}).
+     * <p>
+     * {@code partialResultsWarningSink} receives a single client-visible message if a non-strict
+     * {@link ErrorPolicy} truncates the read at a {@code max_record_size} cap-hit. Production passes
+     * {@link AsyncExternalSourceBuffer#recordWarning} so the operator can re-emit it on the driver
+     * thread (the segmentator runs on a forked worker whose response headers never reach the client —
+     * see #835). Pass {@code null} to fall back to a direct {@link HeaderWarning} on the current thread
+     * (tests, benchmarks).
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -149,7 +158,8 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable List<Attribute> readSchema,
         long baseFileOffset,
         int maxRecordBytes,
-        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        @Nullable Consumer<String> partialResultsWarningSink
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -185,7 +195,8 @@ public final class StreamingParallelParsingCoordinator {
             readSchema,
             baseFileOffset,
             maxRecordBytes,
-            captureSink
+            captureSink,
+            partialResultsWarningSink
         );
     }
 
@@ -219,6 +230,14 @@ public final class StreamingParallelParsingCoordinator {
          */
         @Nullable
         private final ConcurrentMap<String, List<Map<String, Object>>> captureSink;
+        /**
+         * Receives the truncation warning when a non-strict policy converts a {@code max_record_size}
+         * cap-hit into a graceful stop. Production wires {@link AsyncExternalSourceBuffer#recordWarning}
+         * so the operator re-emits it on the driver thread; {@code null} falls back to a direct
+         * {@link HeaderWarning} on the segmentator thread (tests / benchmarks). See {@link #emitTruncationWarning}.
+         */
+        @Nullable
+        private final Consumer<String> partialResultsWarningSink;
         /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
         @Nullable
         private final StorageObject storageObject;
@@ -294,7 +313,8 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable List<Attribute> readSchema,
             long baseFileOffset,
             int maxRecordBytes,
-            @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
+            @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+            @Nullable Consumer<String> partialResultsWarningSink
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -305,6 +325,7 @@ public final class StreamingParallelParsingCoordinator {
             this.baseFileOffset = baseFileOffset;
             this.maxRecordBytes = maxRecordBytes;
             this.captureSink = captureSink;
+            this.partialResultsWarningSink = partialResultsWarningSink;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -387,26 +408,40 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * Surfaces a single client-visible {@code Warning} header announcing that the read was
-         * truncated at {@code stoppedAtByte} because an undelimitable record exceeded
-         * {@code max_record_size}. Reuses the same {@link HeaderWarning} channel the non-strict
-         * {@link ErrorPolicy} modes use for skipped rows. A single self-contained line is emitted
-         * (rather than the {@link org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings}
-         * summary+detail pair) because this is a one-shot truncation event, not a per-row skip stream.
+         * Surfaces a single client-visible {@code Warning} announcing that the read was truncated
+         * because an undelimitable record exceeded {@code max_record_size}, returning only the records
+         * parsed before it.
+         * <p>
+         * {@code recordStartByte} is the decompressed byte offset where the oversized record began —
+         * i.e. the point at which good data ended — not where scanning gave up; it advances only after
+         * a successful dispatch, so it is a stable "results truncated here" marker.
+         * <p>
+         * The message is routed through {@link #partialResultsWarningSink} when present so the operator
+         * can re-emit it on the driver thread and the header actually reaches the client (the segmentator
+         * runs on a forked worker whose response headers are never merged back — see #835). Callers
+         * without a sink (tests, benchmarks) fall back to a direct {@link HeaderWarning} on the current
+         * thread. A single self-contained line is emitted (rather than the
+         * {@link org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings} summary+detail pair) because
+         * this is a one-shot truncation event, not a per-row skip stream.
          */
-        private void emitTruncationWarning(long stoppedAtByte, RecordTooLargeException cause) {
-            // Single-arg overload (no varargs): HeaderWarning treats the message as a plain string so a
-            // '{' or '}' in the format-specific hint is never reinterpreted as a placeholder pattern.
-            HeaderWarning.addWarning(
-                "External read stopped at byte ["
-                    + stoppedAtByte
-                    + "]: "
-                    + cause.getMessage()
-                    + "; results are partial (error_mode="
-                    + errorPolicy.modeName()
-                    + ")"
-            );
-            logger.warn("Streaming external read truncated at byte [{}] (non-strict policy): {}", stoppedAtByte, cause.getMessage());
+        private void emitTruncationWarning(long recordStartByte, String causeMessage) {
+            String warning = "External read truncated at byte ["
+                + recordStartByte
+                + "] (start of an oversized record); results are partial (error_mode="
+                + errorPolicy.modeName()
+                + "): "
+                + causeMessage;
+            if (partialResultsWarningSink != null) {
+                partialResultsWarningSink.accept(warning);
+            } else {
+                // No varargs: HeaderWarning treats the message as a plain string so a '{' or '}' in the
+                // format-specific hint is never reinterpreted as a placeholder pattern.
+                HeaderWarning.addWarning(warning);
+            }
+            // INFO, not WARN: a truncation under an explicit non-strict error_mode is an expected,
+            // opted-into degradation (the client gets the prominent Warning above), not an actionable
+            // server-side problem an operator must investigate.
+            logger.info("Streaming external read truncated at byte [{}] (non-strict policy): {}", recordStartByte, causeMessage);
         }
 
         private void runSegmentator(InputStream stream, int chunkSize) {
@@ -547,7 +582,7 @@ public final class StreamingParallelParsingCoordinator {
                     signalReady();
                 } else {
                     truncated = true;
-                    emitTruncationWarning(coverageStart, e);
+                    emitTruncationWarning(coverageStart, e.getMessage());
                     // Fall through to finally: already-dispatched chunks drain and the consumer reaches EOF.
                 }
             } catch (Exception e) {
@@ -780,6 +815,12 @@ public final class StreamingParallelParsingCoordinator {
          *
          * @return a {@link GrowResult} carrying both the grown buffer and the pre-computed boundary
          *         index, so callers can avoid a redundant boundary rescan
+         *
+         * <p><strong>Note on memory:</strong> {@code maxRecordBytes} bounds record <em>acceptance</em>,
+         * not transient allocation. The {@link #growUntilNewline} step below reads to the next raw
+         * {@code \n} (or EOF) before the cap pre-check fires, so a record with no newline for N bytes can
+         * buffer up to ~N bytes (one {@code growBy} chunk past the cap) before being rejected. Bounding
+         * peak buffer growth to {@code maxRecordBytes} itself would be a separate follow-up (#835).
          */
         private GrowResult growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
             byte[] buf = existing;

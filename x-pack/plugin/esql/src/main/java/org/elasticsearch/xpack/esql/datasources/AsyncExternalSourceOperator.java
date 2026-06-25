@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
@@ -105,7 +106,24 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
+        emitPendingWarnings();
         finish();
+    }
+
+    /**
+     * Drains the buffer's recorded partial-results warnings and re-emits them via {@link HeaderWarning}.
+     * The driver invokes {@link #close()} on its own thread during teardown — the same thread whose
+     * response headers {@code DriverRunner} collects into the client response. The producer records these
+     * off a forked reader / parse-worker thread whose own response headers are never merged back, so the
+     * re-emission must happen here, on the driver thread, for the warning to reach the client (see #835).
+     * This mirrors how {@link org.elasticsearch.compute.operator.AsyncOperator} flushes a
+     * {@code ResponseHeadersCollector} from its {@code close()}.
+     */
+    private void emitPendingWarnings() {
+        String warning;
+        while ((warning = buffer.pollWarning()) != null) {
+            HeaderWarning.addWarning(warning);
+        }
     }
 
     @Override

@@ -166,6 +166,8 @@ public class HashAggregationOperator implements Operator {
     public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
 
+    public record OutputOrdering(int aggregatorIndex, boolean asc, int limit) {}
+
     /**
      * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},
      * and {@link #aggregators(List)} are required. The other parameters default to reasonable values
@@ -180,6 +182,7 @@ public class HashAggregationOperator implements Operator {
         private int maxPageSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private AnalysisRegistry analysisRegistry;
+        private OutputOrdering outputOrdering;
 
         public Builder groups(List<BlockHash.GroupSpec> groups) {
             this.groups = groups;
@@ -217,6 +220,11 @@ public class HashAggregationOperator implements Operator {
             return this;
         }
 
+        public Builder outputOrdering(OutputOrdering ordering) {
+            this.outputOrdering = ordering;
+            return this;
+        }
+
         public Factory build() {
             return new Factory(this);
         }
@@ -231,6 +239,7 @@ public class HashAggregationOperator implements Operator {
         private final int maxPageSize;
         private final int aggregationBatchSize;
         private final AnalysisRegistry analysisRegistry;
+        private final OutputOrdering outputOrdering;
 
         protected Factory(Builder builder) {
             this.groups = requireNonNull(builder.groups, "groups");
@@ -241,6 +250,7 @@ public class HashAggregationOperator implements Operator {
             this.maxPageSize = builder.maxPageSize;
             this.aggregationBatchSize = builder.aggregationBatchSize;
             this.analysisRegistry = builder.analysisRegistry;
+            this.outputOrdering = builder.outputOrdering;
         }
 
         @Override
@@ -265,7 +275,7 @@ public class HashAggregationOperator implements Operator {
                     driverContext
                 );
             }
-            return new HashAggregationOperator(
+            HashAggregationOperator op = new HashAggregationOperator(
                 aggregatorMode,
                 aggregators,
                 () -> wrapBlockHash(driverContext, BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, false)),
@@ -274,6 +284,10 @@ public class HashAggregationOperator implements Operator {
                 maxPageSize,
                 driverContext
             );
+            if (outputOrdering != null) {
+                op.outputOrdering = outputOrdering;
+            }
+            return op;
         }
 
         protected BlockHash wrapBlockHash(DriverContext driverContext, BlockHash hash) {
@@ -336,6 +350,8 @@ public class HashAggregationOperator implements Operator {
     protected long emitNanos;
 
     protected long emitCount;
+
+    OutputOrdering outputOrdering;
 
     protected long rowsAddedInCurrentBatch;
 
@@ -852,7 +868,17 @@ public class HashAggregationOperator implements Operator {
             List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators = new ArrayList<>(count);
             boolean success = false;
             try {
-                selected = new Selected(blockHash.nonEmpty(), new IntVector[count]);
+                final IntVector keys;
+                if (outputOrdering != null && outputOrdering.aggregatorIndex() < count) {
+                    try (var allKeys = blockHash.nonEmpty()) {
+                        keys = aggregators.get(outputOrdering.aggregatorIndex())
+                            .aggregatorFunction()
+                            .selectTopN(allKeys, outputOrdering.limit(), outputOrdering.asc());
+                    }
+                } else {
+                    keys = blockHash.nonEmpty();
+                }
+                selected = new Selected(keys, new IntVector[count]);
                 for (int a = 0; a < count; a++) {
                     selected.aggs[a] = customizeSelected(aggregators.get(a), selected.keys);
                     preparedAggregators.add(aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));

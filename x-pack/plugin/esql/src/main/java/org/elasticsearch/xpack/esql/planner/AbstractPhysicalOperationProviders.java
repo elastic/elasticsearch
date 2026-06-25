@@ -204,7 +204,7 @@ public abstract class AbstractPhysicalOperationProviders {
                 );
             } else {
                 QueryPragmas pragmas = context.queryPragmas();
-                operatorFactory = new HashAggregationOperator.Builder().groups(groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList())
+                var builder = new HashAggregationOperator.Builder().groups(groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList())
                     .mode(aggregatorMode)
                     .aggregators(aggregatorFactories)
                     .partialEmit(
@@ -213,8 +213,12 @@ public abstract class AbstractPhysicalOperationProviders {
                     )
                     .maxPageSize(maxPageSize)
                     .aggregationBatchSize(aggregationBatchSize)
-                    .analysisRegistry(analysisRegistry)
-                    .build();
+                    .analysisRegistry(analysisRegistry);
+                if (aggregateExec.topNSort() != null) {
+                    var s = aggregateExec.topNSort();
+                    builder.outputOrdering(new HashAggregationOperator.OutputOrdering(s.sortAggregatorIndex(), s.asc(), s.limit()));
+                }
+                operatorFactory = builder.build();
             }
         }
         if (operatorFactory != null) {

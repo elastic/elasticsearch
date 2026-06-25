@@ -21,7 +21,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.PriorityQueue;
 
 public class CountGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
@@ -307,6 +310,32 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             }
             blocks[offset] = builder.build().asBlock();
         }
+    }
+
+    @Override
+    public IntVector selectTopN(IntVector selected, int limit, boolean asc) {
+        int positionCount = selected.getPositionCount();
+        if (positionCount <= limit) {
+            selected.incRef();
+            return selected;
+        }
+        Comparator<long[]> cmp = asc ? (a, b) -> Long.compare(b[0], a[0]) : (a, b) -> Long.compare(a[0], b[0]);
+        PriorityQueue<long[]> pq = new PriorityQueue<>(limit + 1, cmp);
+        for (int i = 0; i < positionCount; i++) {
+            int groupId = selected.getInt(i);
+            long count = groupId < counts.size() ? counts.get(groupId) : 0L;
+            pq.offer(new long[] { count, groupId });
+            if (pq.size() > limit) {
+                pq.poll();
+            }
+        }
+        int[] topGroupIds = new int[pq.size()];
+        int idx = 0;
+        for (long[] entry : pq) {
+            topGroupIds[idx++] = (int) entry[1];
+        }
+        Arrays.sort(topGroupIds);
+        return driverContext.blockFactory().newIntArrayVector(topGroupIds, topGroupIds.length);
     }
 
     @Override

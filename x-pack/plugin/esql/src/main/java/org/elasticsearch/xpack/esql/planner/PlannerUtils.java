@@ -446,8 +446,11 @@ public class PlannerUtils {
             return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
         });
 
-        PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
-        return resultPlan;
+        if (isCoordPlan.get()) {
+            return physicalOptimizer.localOptimize(plan);
+        } else {
+            return localPhysicalPlan;
+        }
     }
 
     /**

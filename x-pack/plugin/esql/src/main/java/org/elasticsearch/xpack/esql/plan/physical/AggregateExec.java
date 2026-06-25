@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -31,6 +32,8 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         AggregateExec::new
     );
 
+    public record TopNSort(int sortAggregatorIndex, boolean asc, int limit) {}
+
     private final List<? extends Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
     /**
@@ -47,6 +50,9 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
+    @Nullable
+    private final transient TopNSort topNSort;
+
     public AggregateExec(
         Source source,
         PhysicalPlan child,
@@ -56,12 +62,26 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         List<Attribute> intermediateAttributes,
         Integer estimatedRowSize
     ) {
+        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, null);
+    }
+
+    public AggregateExec(
+        Source source,
+        PhysicalPlan child,
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        AggregatorMode mode,
+        List<Attribute> intermediateAttributes,
+        Integer estimatedRowSize,
+        @Nullable TopNSort topNSort
+    ) {
         super(source, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
         this.mode = mode;
         this.intermediateAttributes = intermediateAttributes;
         this.estimatedRowSize = estimatedRowSize;
+        this.topNSort = topNSort;
     }
 
     protected AggregateExec(StreamInput in) throws IOException {
@@ -96,12 +116,22 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<? extends AggregateExec> info() {
-        return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        return NodeInfo.create(
+            this,
+            AggregateExec::new,
+            child(),
+            groupings,
+            aggregates,
+            mode,
+            intermediateAttributes,
+            estimatedRowSize,
+            topNSort
+        );
     }
 
     @Override
     public AggregateExec replaceChild(PhysicalPlan newChild) {
-        return new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        return new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, topNSort);
     }
 
     public List<? extends Expression> groupings() {
@@ -113,11 +143,20 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     public AggregateExec withAggregates(List<? extends NamedExpression> newAggregates) {
-        return new AggregateExec(source(), child(), groupings, newAggregates, mode, intermediateAttributes, estimatedRowSize);
+        return new AggregateExec(source(), child(), groupings, newAggregates, mode, intermediateAttributes, estimatedRowSize, topNSort);
     }
 
     public AggregateExec withMode(AggregatorMode newMode) {
-        return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize);
+        return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize, topNSort);
+    }
+
+    public AggregateExec withTopNSort(TopNSort topNSort) {
+        return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, topNSort);
+    }
+
+    @Nullable
+    public TopNSort topNSort() {
+        return topNSort;
     }
 
     /**
@@ -137,7 +176,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     protected AggregateExec withEstimatedSize(int estimatedRowSize) {
-        return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, topNSort);
     }
 
     public AggregatorMode getMode() {

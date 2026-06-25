@@ -211,6 +211,11 @@ public interface GroupingAggregatorFunction extends Releasable {
      */
     PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx);
 
+    default IntVector selectTopN(IntVector selected, int limit, boolean asc) {
+        selected.incRef();
+        return selected;
+    }
+
     /** The number of blocks used by intermediate state. */
     int intermediateBlockCount();
 }

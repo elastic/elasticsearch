@@ -35,7 +35,11 @@ public class PutRegionPolicyAction extends ActionType<RegionPolicyResponse> {
 
         public static final ParseField REGION_POLICY_FIELD = new ParseField("region_policy");
 
-        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>("put_region_policy_request", false, args -> new Request((RegionPolicy) args[0]));
+        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+            "put_region_policy_request",
+            false,
+            args -> new Request((RegionPolicy) args[0])
+        );
 
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RegionPolicy.STRICT_PARSER, REGION_POLICY_FIELD);

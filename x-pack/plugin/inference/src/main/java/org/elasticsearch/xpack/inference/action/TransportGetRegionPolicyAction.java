@@ -83,6 +83,7 @@ public class TransportGetRegionPolicyAction extends HandledTransportAction<GetRe
 
     private void processSearchResponse(SearchHits searchHits, ActionListener<RegionPolicyResponse> listener) {
         SearchHit[] hits = searchHits.getHits();
+        assert hits.length <= 1 : "multiple region policies found when only one is expected";
         if (hits.length == 0) {
             listener.onFailure(noRegionPolicyConfiguredException());
         } else {

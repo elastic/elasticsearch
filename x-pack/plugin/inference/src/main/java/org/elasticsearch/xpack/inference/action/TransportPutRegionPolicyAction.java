@@ -84,6 +84,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
     private void getRegionPolicyOrNullWhenMissing(ActionListener<RegionPolicyDocWithSeqNo> listener) {
         TransportGetRegionPolicyAction.doSearchRegionPolicy(client, true, ActionListener.wrap(searchResponse -> {
             SearchHit[] hits = searchResponse.getHits().getHits();
+            assert hits.length <= 1 : "multiple region policies found when only one is expected";
             if (hits.length == 0) {
                 listener.onResponse(null);
             } else {

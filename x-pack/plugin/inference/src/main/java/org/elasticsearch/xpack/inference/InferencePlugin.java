@@ -304,33 +304,38 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of(
-            new ActionHandler(InferenceAction.INSTANCE, TransportInferenceAction.class),
-            new ActionHandler(InferenceActionProxy.INSTANCE, TransportInferenceActionProxy.class),
-            new ActionHandler(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
-            new ActionHandler(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
-            new ActionHandler(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
-            new ActionHandler(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
-            new ActionHandler(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
-            new ActionHandler(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
-            new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
-            new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
-            new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
-            new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class),
-            new ActionHandler(StoreInferenceEndpointsAction.INSTANCE, TransportStoreEndpointsAction.class),
-            new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
-            new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
-            new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
-            new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
-            new ActionHandler(ClearOAuth2TokenCacheAction.INSTANCE, ClearOAuth2TokenCacheAction.class),
-            new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
-            new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
-            new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
-            new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
-            new ActionHandler(GetRegionPolicyAction.INSTANCE, TransportGetRegionPolicyAction.class),
-            new ActionHandler(PutRegionPolicyAction.INSTANCE, TransportPutRegionPolicyAction.class),
-            new ActionHandler(DeleteRegionPolicyAction.INSTANCE, TransportDeleteRegionPolicyAction.class)
+        var actions = new ArrayList<ActionHandler>(
+            List.of(
+                new ActionHandler(InferenceAction.INSTANCE, TransportInferenceAction.class),
+                new ActionHandler(InferenceActionProxy.INSTANCE, TransportInferenceActionProxy.class),
+                new ActionHandler(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
+                new ActionHandler(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
+                new ActionHandler(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
+                new ActionHandler(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
+                new ActionHandler(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
+                new ActionHandler(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
+                new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
+                new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
+                new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
+                new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class),
+                new ActionHandler(StoreInferenceEndpointsAction.INSTANCE, TransportStoreEndpointsAction.class),
+                new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
+                new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
+                new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
+                new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
+                new ActionHandler(ClearOAuth2TokenCacheAction.INSTANCE, ClearOAuth2TokenCacheAction.class),
+                new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
+                new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
+                new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
+                new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class)
+            )
         );
+        if (INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
+            actions.add(new ActionHandler(GetRegionPolicyAction.INSTANCE, TransportGetRegionPolicyAction.class));
+            actions.add(new ActionHandler(PutRegionPolicyAction.INSTANCE, TransportPutRegionPolicyAction.class));
+            actions.add(new ActionHandler(DeleteRegionPolicyAction.INSTANCE, TransportDeleteRegionPolicyAction.class));
+        }
+        return actions;
     }
 
     @Override

@@ -40,9 +40,7 @@ public class RestPutRegionPolicyAction extends BaseRestHandler {
         }
 
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            var parsedRequest = PutRegionPolicyAction.Request.parseRequest(
-                parser
-            );
+            var parsedRequest = PutRegionPolicyAction.Request.parseRequest(parser);
             return channel -> client.execute(PutRegionPolicyAction.INSTANCE, parsedRequest, new RestToXContentListener<>(channel));
         }
     }

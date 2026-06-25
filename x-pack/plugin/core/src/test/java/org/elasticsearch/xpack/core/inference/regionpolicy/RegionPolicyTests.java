@@ -71,6 +71,7 @@ public class RegionPolicyTests extends AbstractBWCSerializationTestCase<RegionPo
             case 0 -> allowedGeos = randomValueOtherThan(allowedGeos, () -> randomList(10, () -> randomAlphaOfLength(10)));
             case 1 -> allowedRegions = randomValueOtherThan(allowedRegions, () -> randomList(10, () -> CspRegionTests.createRandom()));
             case 2 -> fallbackRegion = randomValueOtherThan(fallbackRegion, CspRegionTests::createRandom);
+            default -> throw new IllegalStateException("Illegal randomisation branch");
         }
         return new RegionPolicy(allowedGeos, allowedRegions, fallbackRegion);
     }

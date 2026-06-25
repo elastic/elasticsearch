@@ -67,6 +67,7 @@ public class RegionPolicyDocTests extends AbstractBWCSerializationTestCase<Regio
             case 2 -> createdBy = randomValueOtherThan(createdBy, () -> randomBoolean() ? null : randomAlphaOfLength(10));
             case 3 -> updatedAt = randomValueOtherThan(updatedAt, () -> randomBoolean() ? null : randomInstant());
             case 4 -> updatedBy = randomValueOtherThan(updatedBy, () -> randomBoolean() ? null : randomAlphaOfLength(10));
+            default -> throw new IllegalStateException("Illegal randomisation branch");
         }
         return new RegionPolicyDoc(regionPolicy, createdAt, createdBy, updatedAt, updatedBy);
     }

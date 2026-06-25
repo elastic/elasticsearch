@@ -34,10 +34,18 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
  *       longs and produces the same compaction. {@code kMax} is sized from
  *       {@code blockSize} as {@code clamp(blockSize / 32, 4, 64)} so large blocks with
  *       many resets do not bow out under the default cap.</li>
+ *   <li>IP and keyword TSDB dimension fields ({@link MappedFieldType#IP} and
+ *       {@link MappedFieldType#KEYWORD} with {@link FieldContext#isDimension()}) use a
+ *       block size of {@code 4096} ({@code blockShift=12}) regardless of the format-level
+ *       default. Only {@code blockSize()} of the returned config is used for ordinal
+ *       fields; the pipeline stages are never executed. At {@code blockSize=4096},
+ *       {@code maxCycleLength=1024}, covering low-cardinality dimension cycles that
+ *       arise after a {@code _tsid}-sorted merge.</li>
  *   <li>All other fields use the ES819 baseline {@code delta > offset > gcd > bitPack}.</li>
  * </ul>
  *
- * <p>The two production block sizes ({@code 128} and {@code 512}, see
+ * <p>The three known ordinal block sizes ({@code 128}, {@code 512}, and {@code 4096})
+ * and the two numeric production block sizes ({@code 128} and {@code 512}, see
  * {@code ES95TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT} and {@code NUMERIC_LARGE_BLOCK_SHIFT})
  * have their {@link PipelineConfig} precomputed at class load for the baseline, split-delta,
  * ALP-double-gauge, and ALP-double-counter variants, so the per-field write path reuses a
@@ -55,6 +63,7 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
 
     private static final PipelineConfig BLOCK_128 = build(128);
     private static final PipelineConfig BLOCK_512 = build(512);
+    private static final PipelineConfig BLOCK_4096 = build(4096);
     private static final PipelineConfig SPLIT_DELTA_BLOCK_128 = buildSplitDelta(128);
     private static final PipelineConfig SPLIT_DELTA_BLOCK_512 = buildSplitDelta(512);
     private static final PipelineConfig ALP_DOUBLE_GAUGE_BLOCK_128 = buildAlpDoubleGauge(128);
@@ -75,7 +84,17 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
         if (useAlpDoubleGauge(context)) {
             return alpDoubleGaugeConfig(context.blockSize());
         }
+        if (useOrdinalLargeBlock(context)) {
+            return BLOCK_4096;
+        }
         return baselineConfig(context.blockSize());
+    }
+
+    private static boolean useOrdinalLargeBlock(final FieldContext context) {
+        if (context.isDimension() == false) {
+            return false;
+        }
+        return context.mappedFieldType() == MappedFieldType.IP || context.mappedFieldType() == MappedFieldType.KEYWORD;
     }
 
     private static boolean useSplitDelta(final FieldContext context) {
@@ -129,6 +148,9 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
         }
         if (blockSize == 512) {
             return BLOCK_512;
+        }
+        if (blockSize == 4096) {
+            return BLOCK_4096;
         }
         return build(blockSize);
     }

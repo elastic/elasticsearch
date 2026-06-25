@@ -57,6 +57,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
@@ -855,7 +856,15 @@ public class IpFieldMapper extends FieldMapper {
                 assert fieldType().indexType.hasDocValuesSkipper() == false : "skippers are not supported for binary doc values";
                 if (fieldType().usesArrayOrderBinaryDocValues()) {
                     // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
-                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, fieldType().name(), address.binaryValue());
+                    if (context.getImmediateXContentParent() != XContentParser.Token.START_ARRAY) {
+                        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(
+                            doc,
+                            fieldType().name(),
+                            address.binaryValue()
+                        );
+                    } else {
+                        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, fieldType().name(), address.binaryValue());
+                    }
                 } else {
                     dvFactory.addBinaryField(
                         doc,

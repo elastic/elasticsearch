@@ -234,13 +234,13 @@ public final class StreamingParallelParsingCoordinator {
         private final int chunkSize;
         /**
          * Canonical-stripe grid for per-stripe stats accounting, in decompressed-stream bytes
-         * ({@code <= 0} disables). The segmentator adds cut points at stripe boundaries — the first
-         * record boundary at-or-after each {@code k * statsStripeSize} line — so every dispatched
-         * chunk nests within exactly one stripe and its captured stats are stripe-addressable (see
-         * {@link ExternalStats#STRIPE_SIZE_KEY}). This is a stats-accounting overlay only: dispatch
-         * order, parallelism, scheduling, and backpressure are unchanged; the only observable
-         * read-path effect is that a chunk spanning a stripe line is split at the line. When the
-         * grid is finer than {@code chunkSize} this adds roughly one extra dispatch per stripe.
+         * ({@code <= 0} disables). Stripes are orthogonal to chunking: the segmentator still cuts chunks
+         * purely on buffer fill at a record boundary ({@code chunkSize}), never on a {@code k * statsStripeSize}
+         * line, so a dispatched chunk may span several stripes. The reader's decoder caps each page at the
+         * first record crossing a stripe line, so every page folds wholly into one stripe, and the reader
+         * emits one stripe-addressed fragment per stripe the chunk touched (see {@link ExternalStats#STRIPE_SIZE_KEY}).
+         * Pure stats overlay: dispatch order, chunk boundaries, parallelism, scheduling, and backpressure
+         * are all unchanged by this value.
          */
         private final long statsStripeSize;
         /**

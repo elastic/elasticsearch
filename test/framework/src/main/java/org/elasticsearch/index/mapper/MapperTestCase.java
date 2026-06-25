@@ -1635,7 +1635,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SyntheticSourceSupport support = columnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
-        assumeFalse("columnar mode not supported with object wrappers", support.isColumnar());
         SyntheticSourceExample syntheticSourceExample = support.example(5);
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("obj").startObject("properties").startObject("field");
@@ -1747,17 +1746,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInNestedObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        boolean columnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        SyntheticSourceSupport support = columnar
-            ? syntheticSourceSupportColumnar(ignoreMalformed)
-            : syntheticSourceSupport(ignoreMalformed);
-        assumeFalse("columnar mode not supported with nested object wrappers", support.isColumnar());
+        SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
         SyntheticSourceExample syntheticSourceExample = support.example(5);
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("obj").field("type", "nested").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject().endObject().endObject();
-        }), support.isColumnar()).documentMapper();
+        })).documentMapper();
         assertThat(syntheticSource(mapper, b -> {
             b.startObject("obj");
             syntheticSourceExample.buildInput(b);

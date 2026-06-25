@@ -686,33 +686,18 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleRound
   issue: https://github.com/elastic/elasticsearch/issues/152063
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/152081
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testOutageBuffersToDiskAndDrainsOnRecovery
   issue: https://github.com/elastic/elasticsearch/issues/152087
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnQueryRescore
-  issue: https://github.com/elastic/elasticsearch/issues/152093
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnSearchRescore
-  issue: https://github.com/elastic/elasticsearch/issues/152094
 - class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
   method: testGenerateDefinitions
   issue: https://github.com/elastic/elasticsearch/issues/152095
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnRetriever
-  issue: https://github.com/elastic/elasticsearch/issues/152099
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
   method: testEvaluate {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152108
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/152113
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  method: testEsqlTermsAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/152114
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115

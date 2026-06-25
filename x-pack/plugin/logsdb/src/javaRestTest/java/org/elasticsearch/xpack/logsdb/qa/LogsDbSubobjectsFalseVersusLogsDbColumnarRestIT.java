@@ -41,7 +41,8 @@ import java.util.stream.Collectors;
  *   <li>{@code store} – not allowed in columnar mode</li>
  *   <li>{@code synthetic_source_keep} – not allowed in columnar mode</li>
  *   <li>{@code subobjects} – not allowed in columnar mode</li>
- *   <li>{@code copy_to} – not allowed in strict columnar index modes</li>
+ *   <li>{@code copy_to} – not allowed in columnar mode; stripped from both sides so
+ *       the common supported subset is compared without cross-field copying.</li>
  *   <li>{@code dynamic: runtime} – not supported in strict columnar mode</li>
  *   <li>{@code dynamic: false} – logsdb stores ignored field values in {@code _ignored_source}
  *       (they appear in the reconstructed source), but logsdb_columnar drops them entirely

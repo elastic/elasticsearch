@@ -283,7 +283,7 @@ public class NdJsonPageDecoder implements Closeable {
         Check.isTrue(counters != null, "counters must not be null");
         this.errorPolicy = errorPolicy;
         this.counters = counters;
-        this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.DATE_FORMATTER;
+        this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             "NDJSON read from ["

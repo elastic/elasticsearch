@@ -40,6 +40,7 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE = "xpack.stack.querylog.template.version";
 
+    public static final String QUERY_LOGGING_MAPPINGS_RESOURCE = "/activitylog/logs-elasticsearch.querylog@mappings.json";
     public static final String QUERY_LOGGING_MAPPINGS_NAME = "logs-elasticsearch.querylog@mappings";
     public static final String QUERY_LOGGING_SETTINGS_NAME = "logs-elasticsearch.querylog@settings";
     public static final String QUERY_LOGGING_TEMPLATE_NAME = "logs-elasticsearch.querylog@template";
@@ -80,7 +81,7 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
         new IndexTemplateConfig(
             QUERY_LOGGING_MAPPINGS_NAME,
-            "/activitylog/logs-elasticsearch.querylog@mappings.json",
+            QUERY_LOGGING_MAPPINGS_RESOURCE,
             INDEX_TEMPLATE_VERSION,
             QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE
         ),

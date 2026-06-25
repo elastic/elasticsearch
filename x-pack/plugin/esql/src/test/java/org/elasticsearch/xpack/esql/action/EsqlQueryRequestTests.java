@@ -498,7 +498,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testEmptyListNamedParamForIdentifierOrPatternIsRejected() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         String paramsString = """
-            "params":[ {"n1" : {"identifier" : []}}, {"n2" : {"pattern" : []}} ]""";
+            "params":[ {"n1" : {"identifier" : []}}, {"n2" : {"pattern" : []}},
+                        {"n3" : {"identifier" : null}}, {"n4" : {"pattern" : null}} ]""";
         String json = String.format(Locale.ROOT, """
             {
                 %s,
@@ -507,8 +508,12 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
         String message = e.getCause().getMessage();
+        // empty lists: rejected as multivalued (only VALUE params can be multivalued)
         assertThat(message, containsString("n1={identifier=[]} parameter is multivalued, only VALUE parameters can be multivalued"));
         assertThat(message, containsString("n2={pattern=[]} parameter is multivalued, only VALUE parameters can be multivalued"));
+        // explicit nulls: rejected because null is not a valid identifier/pattern string
+        assertThat(message, containsString("[null] is not a valid value for IDENTIFIER parameter"));
+        assertThat(message, containsString("[null] is not a valid value for PATTERN parameter"));
     }
 
     /**

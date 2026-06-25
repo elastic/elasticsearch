@@ -42,8 +42,8 @@ please discuss your idea first on the GitHub issue. If there is no GitHub issue
 for your idea, please open one. It may be that somebody is already working on
 it, or that there are particular complexities that you should know about before
 starting the implementation. There are often a number of ways to fix a problem
-and it is important to find the right approach before spending time on a PR
-that cannot be merged.
+and it is important to find the right approach before spending time or tokens on
+a PR that cannot be merged.
 
 We add the `help wanted` label to existing GitHub issues for which community
 contributions are particularly welcome, and we use the `good first issue` label

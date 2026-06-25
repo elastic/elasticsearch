@@ -232,7 +232,6 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     private PinnedWindowEvictionPolicy fixedTimePolicy(long now, TimeValue pinnedWindowDuration, ShardId... openShards) {
         final Predicate<ShardId> locallyOpenShard = Set.copyOf(Arrays.asList(openShards))::contains;
         return new FixedTimePinnedWindowEvictionPolicy(
-            clusterSettings,
             clusterService.threadPool(),
             locallyOpenShard,
             now,
@@ -259,13 +258,12 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         private final long fixedCurrentTimeMillis;
 
         FixedTimePinnedWindowEvictionPolicy(
-            ClusterSettings clusterSettings,
             ThreadPool threadPool,
             Predicate<ShardId> locallyOpenShard,
             long fixedCurrentTimeMillis,
             TimeValue pinnedWindowDuration
         ) {
-            super(clusterSettings, threadPool, locallyOpenShard, pinnedWindowDuration);
+            super(threadPool, locallyOpenShard, pinnedWindowDuration);
             this.fixedCurrentTimeMillis = fixedCurrentTimeMillis;
         }
 

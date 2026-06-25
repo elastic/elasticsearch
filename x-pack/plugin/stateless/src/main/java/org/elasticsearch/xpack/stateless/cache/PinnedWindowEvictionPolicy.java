@@ -57,7 +57,6 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
      * For test subclasses that override {@link #isShardLocallyAllocated(ShardId)} and optionally {@link #currentTimeMillis()}.
      */
     protected PinnedWindowEvictionPolicy(
-        ClusterSettings clusterSettings,
         ThreadPool threadPool,
         Predicate<ShardId> locallyOpenShard,
         TimeValue pinnedWindowDuration

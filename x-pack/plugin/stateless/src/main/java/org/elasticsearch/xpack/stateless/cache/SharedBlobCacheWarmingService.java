@@ -847,6 +847,27 @@ public class SharedBlobCacheWarmingService {
         return race;
     }
 
+    public void warmCacheForBCCHeadersRead(
+        IndexShard indexShard,
+        BlobStoreCacheDirectory directory,
+        StatelessCompoundCommit.BlobFilesUpperBounds lastCommitBlobs,
+        ActionListener<Void> listener
+    ) {
+        final Store store = indexShard.store();
+        final ShardId shardId = indexShard.shardId();
+        final Type warmingType = Type.INDEXING;
+        final var warmingRun = new WarmingRun(warmingType, shardId, "prewarm", Map.of("prewarming_type", warmingType.name()));
+        if (store.isClosing()) {
+            listener.onFailure(
+                new AlreadyClosedException("Failed to warm cache [" + warmingType + "] for " + shardId + ", store is closing")
+            );
+        } else {
+            try (var warmer = new Region0Warmer(warmingRun, store::isClosing, lastCommitBlobs, directory, listener)) {
+                warmer.run();
+            }
+        }
+    }
+
     private static boolean isRelocationTarget(ShardRouting self) {
         return self.initializing() && self.relocatingNodeId() != null;
     }
@@ -1336,6 +1357,50 @@ public class SharedBlobCacheWarmingService {
                 duration,
                 byteRangeToWarm,
                 tasksCount.get(),
+                totalBytesCopied.get()
+            );
+        }
+    }
+
+    /**
+     * Warms only region 0 (the first {@code regionSize} bytes) of each blob file referenced by a compound commit.
+     * This is used before BCC header reads during indexing shard recovery to avoid cache misses in the read chain.
+     */
+    private class Region0Warmer extends AbstractWarmer {
+        private final StatelessCompoundCommit.BlobFilesUpperBounds blobFiles;
+
+        Region0Warmer(
+            WarmingRun warmingRun,
+            Supplier<Boolean> isStoreClosing,
+            StatelessCompoundCommit.BlobFilesUpperBounds blobFiles,
+            BlobStoreCacheDirectory directory,
+            ActionListener<Void> listener
+        ) {
+            super(warmingRun, isStoreClosing, directory, listener);
+            this.blobFiles = blobFiles;
+        }
+
+        void run() {
+            final int regionSize = cacheService.getRegionSize();
+            for (var blobFile : blobFiles.blobs().entrySet()) {
+                scheduleWarmingTask(
+                    new WarmBlobLocationTask(
+                        new BlobLocation(blobFile.getKey(), 0, Math.min(blobFile.getValue(), regionSize)),
+                        listeners.acquire()
+                    )
+                );
+            }
+        }
+
+        @Override
+        protected void onWarmingSuccess(long duration) {
+            logger.log(
+                duration >= 5000 ? Level.INFO : Level.DEBUG,
+                "{} {} pre-warming region 0 of {} blobs completed in {} ms ({} bytes copied to cache)",
+                warmingRun.shardId(),
+                warmingRun.type(),
+                blobFiles.blobs().size(),
+                duration,
                 totalBytesCopied.get()
             );
         }

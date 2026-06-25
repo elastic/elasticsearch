@@ -1402,22 +1402,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSource() throws IOException {
         boolean columnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        SyntheticSourceSupport support = columnar
-            ? syntheticSourceSupportColumnar(shouldUseIgnoreMalformed())
-            : syntheticSourceSupport(shouldUseIgnoreMalformed());
+        boolean ignoreMalformed = shouldUseIgnoreMalformed();
+        var support = columnar ? syntheticSourceSupportColumnar(ignoreMalformed) : syntheticSourceSupport(ignoreMalformed);
         assertSyntheticSource(support.example(5), support.isColumnar());
     }
 
     public final void testSyntheticSourceWithTranslogSnapshot() throws IOException {
         boolean columnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        assertSyntheticSourceWithTranslogSnapshot(
-            columnar ? syntheticSourceSupportColumnar(shouldUseIgnoreMalformed()) : syntheticSourceSupport(shouldUseIgnoreMalformed()),
-            true
-        );
-        assertSyntheticSourceWithTranslogSnapshot(
-            columnar ? syntheticSourceSupportColumnar(shouldUseIgnoreMalformed()) : syntheticSourceSupport(shouldUseIgnoreMalformed()),
-            false
-        );
+        boolean ignoreMalformed = shouldUseIgnoreMalformed();
+        var support = columnar ? syntheticSourceSupportColumnar(ignoreMalformed) : syntheticSourceSupport(ignoreMalformed);
+        assertSyntheticSourceWithTranslogSnapshot(support, true);
+        assertSyntheticSourceWithTranslogSnapshot(support, false);
     }
 
     public void testSyntheticSourceIgnoreMalformedExamples() throws IOException {

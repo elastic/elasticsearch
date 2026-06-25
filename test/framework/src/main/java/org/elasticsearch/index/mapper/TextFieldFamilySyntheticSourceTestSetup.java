@@ -161,9 +161,18 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
 
         @Override
         public boolean preservesEmptyArray() {
-            // Columnar mode preserves empty arrays via the offsets sidecar only when doc values are enabled
-            // and multi_value is not forced to false (which would skip offset recording).
-            return isColumnar && docValues.enabled() && docValues.multiValue();
+            if (store) {
+                return false;
+            }
+            if (isColumnar) {
+                if (docValues.enabled()) {
+                    // columnar mode preserves empty arrays via the offsets sidecar only when multi_value is enabled
+                    return docValues.multiValue();
+                }
+                // doc values disabled — falls back to keyword sub-field in columnar mode
+                return keywordMultiFieldSyntheticSourceSupport.preservesEmptyArray();
+            }
+            return preservesExactSource();
         }
 
         @Override

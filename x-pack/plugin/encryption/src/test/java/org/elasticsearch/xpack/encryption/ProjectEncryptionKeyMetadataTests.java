@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.encryption;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
@@ -319,7 +321,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         assertEquals(2, wrapCount.get());
     }
 
-    public void testGatewaySerializationWritesEmptyKeysWhenWrapFails() throws IOException {
+    public void testGatewaySerializationFailsLoudlyWhenWrapFails() {
         PekEncryption failing = new PekEncryption() {
             @Override
             public String activePasswordId() {
@@ -346,9 +348,125 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
             failing
         );
 
-        // Wrap failure must not propagate — the blob should have an empty keys object instead.
-        String json = chunkedToXContent(metadata, gatewayParams);
-        assertThat("wrap failure must write empty keys", json, containsString("\"keys\":{}"));
+        // Wrap failure must propagate — writing empty keys would destroy a recoverable on-disk blob.
+        expectThrows(IllegalStateException.class, () -> chunkedToXContent(metadata, gatewayParams));
+    }
+
+    public void testDegradedInstancePreservesWrappedBytesForRecovery() throws IOException {
+        byte[] keyBytes = randomPlaintextBytes();
+        // NO_OP_ENCRYPTION: wrap returns bytes as-is, so wrapped == plaintext here (test only).
+        ProjectEncryptionKeyMetadata healthy = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", new KeyEntry(keyBytes, 42L)),
+            "k1",
+            "v1",
+            Map.of("handler", "k1"),
+            NO_OP_ENCRYPTION
+        );
+
+        ToXContent.Params gatewayParams = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
+        String originalBlob = chunkedToXContent(healthy, gatewayParams);
+        assertThat(originalBlob, containsString("\"bytes\""));
+
+        // Parse the blob with a PekEncryption whose unwrap always fails (simulates wrong password).
+        PekEncryption wrongPassword = new PekEncryption() {
+            @Override
+            public String activePasswordId() {
+                return "v1";
+            }
+
+            @Override
+            public WrappedKey wrap(byte[] plaintext) {
+                return new WrappedKey("v1", plaintext.clone());
+            }
+
+            @Override
+            public byte[] unwrap(byte[] wrapped, String passwordId) {
+                throw new IllegalStateException("wrong password");
+            }
+        };
+
+        ProjectEncryptionKeyMetadata degraded;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, originalBlob)) {
+            degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, wrongPassword);
+        }
+        assertTrue("instance must be degraded after unwrap failure", degraded.isUnwrapFailed());
+
+        // Re-serializing the degraded instance must reproduce the original key material, not empty.
+        String repersisted = chunkedToXContent(degraded, gatewayParams);
+        assertThat("re-persisted degraded blob must retain active_key_id", repersisted, containsString("\"active_key_id\":\"k1\""));
+        assertThat("re-persisted degraded blob must retain password_id", repersisted, containsString("\"password_id\":\"v1\""));
+        assertThat("re-persisted degraded blob must retain wrapped bytes, not empty keys", repersisted, containsString("\"bytes\""));
+        assertThat("re-persisted degraded blob must not be empty keys", repersisted, not(containsString("\"keys\":{}")));
+    }
+
+    public void testDegradedInstanceRoundTripsOverTransport() throws IOException {
+        byte[] keyBytes = randomPlaintextBytes();
+        ProjectEncryptionKeyMetadata healthy = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", new KeyEntry(keyBytes, 42L)),
+            "k1",
+            "v1",
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+
+        ToXContent.Params gatewayParams = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
+        String originalBlob = chunkedToXContent(healthy, gatewayParams);
+
+        PekEncryption wrongPassword = new PekEncryption() {
+            @Override
+            public String activePasswordId() {
+                return "v1";
+            }
+
+            @Override
+            public WrappedKey wrap(byte[] plaintext) {
+                return new WrappedKey("v1", plaintext.clone());
+            }
+
+            @Override
+            public byte[] unwrap(byte[] wrapped, String passwordId) {
+                throw new IllegalStateException("wrong password");
+            }
+        };
+
+        // Degrade on the "master" node.
+        ProjectEncryptionKeyMetadata degraded;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, originalBlob)) {
+            degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, wrongPassword);
+        }
+        assertTrue(degraded.isUnwrapFailed());
+
+        // Simulate master publishing to a peer node via transport.
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(ProjectEncryptionKeyMetadata.PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT);
+        degraded.writeTo(out);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(ProjectEncryptionKeyMetadata.PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT);
+        ProjectEncryptionKeyMetadata received = new ProjectEncryptionKeyMetadata(in, wrongPassword);
+
+        assertTrue("degraded flag must survive transport round-trip", received.isUnwrapFailed());
+
+        // The peer node then persists to its own disk — ciphertext must be preserved.
+        String peerBlob = chunkedToXContent(received, gatewayParams);
+        assertThat("peer disk blob must retain wrapped bytes", peerBlob, containsString("\"bytes\""));
+        assertThat("peer disk blob must not be empty keys", peerBlob, not(containsString("\"keys\":{}")));
+    }
+
+    public void testDegradedWithoutMaterialWritesEmptyKeys() throws IOException {
+        // Disk already had keys:{} (a previously-degraded node wrote nothing) — nothing to preserve.
+        ToXContent.Params gatewayParams = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
+        try (
+            XContentParser parser = createParser(
+                JsonXContent.jsonXContent,
+                "{\"active_key_id\":\"k1\",\"password_id\":\"v1\",\"keys\":{}}"
+            )
+        ) {
+            ProjectEncryptionKeyMetadata degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, NO_OP_ENCRYPTION);
+            assertTrue("must be degraded when disk had empty keys", degraded.isUnwrapFailed());
+            String json = chunkedToXContent(degraded, gatewayParams);
+            assertThat("nothing to preserve — must write empty keys", json, containsString("\"keys\":{}"));
+        }
     }
 
     public void testFindRetireableKeyIdsKeyDeactivatedAtRotation() {

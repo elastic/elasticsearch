@@ -33,6 +33,7 @@ public class Atan extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Atan::new)
         .description("Calculates the arctangent of all elements in the input vector.")
         .example("atan(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("atan");
 
     @FunctionInfo(

@@ -10,97 +10,115 @@
 package org.elasticsearch.iplocation.api;
 
 /**
- * A flat collector interface with default no-op methods for all IP location
- * properties. The core lookup logic pushes results to the collector, and each
- * consumer provides its own implementation.
+ * A collector interface for all IP location properties. Each method corresponds 1:1
+ * to a {@link DatabaseProperty} enum value. The core lookup logic pushes results to
+ * the collector, and each consumer provides its own implementation.
+ * <p>
+ * Methods are intentionally abstract (no defaults) so that adding a new
+ * {@link DatabaseProperty} and its corresponding method here forces a compile error
+ * in all implementors, ensuring they handle the new property.
  * <p>
  * Ingest uses {@link IpLocationInfoMapCollector} (puts field values into a map).
- * ES|QL can use a block-writing collector that writes directly to output blocks,
+ * ES|QL uses a block-writing collector that writes directly to output blocks,
  * avoiding per-row Map allocation.
  */
 public interface IpLocationInfoCollector {
 
-    default void ip(String ip) {}
+    void ip(String ip);
 
-    default void countryInEuropeanUnion(boolean val) {}
+    void countryInEuropeanUnion(boolean val);
 
-    default void countryIsoCode(String code) {}
+    void countryIsoCode(String code);
 
-    default void countryName(String name) {}
+    void countryName(String name);
 
-    default void continentCode(String code) {}
+    void continentCode(String code);
 
-    default void continentName(String name) {}
+    void continentName(String name);
 
-    default void regionIsoCode(String code) {}
+    void regionIsoCode(String code);
 
-    default void regionName(String name) {}
+    void regionName(String name);
 
-    default void cityName(String name) {}
+    void cityName(String name);
 
-    default void timezone(String tz) {}
+    void timezone(String tz);
 
-    default void location(double lat, double lon) {}
+    void location(double lat, double lon);
 
-    default void postalCode(String code) {}
+    void postalCode(String code);
 
-    default void accuracyRadius(int radius) {}
+    void accuracyRadius(int radius);
 
-    default void asn(long asn) {}
+    void asn(long asn);
 
-    default void organizationName(String name) {}
+    void organizationName(String name);
 
-    default void network(String network) {}
+    void network(String network);
 
-    default void hostingProvider(boolean val) {}
+    void hostingProvider(boolean val);
 
-    default void torExitNode(boolean val) {}
+    void torExitNode(boolean val);
 
-    default void anonymousVpn(boolean val) {}
+    void anonymousVpn(boolean val);
 
-    default void anonymous(boolean val) {}
+    void anonymous(boolean val);
 
-    default void publicProxy(boolean val) {}
+    void publicProxy(boolean val);
 
-    default void residentialProxy(boolean val) {}
+    void residentialProxy(boolean val);
 
-    default void domain(String domain) {}
+    void domain(String domain);
 
-    default void connectionType(String type) {}
+    void connectionType(String type);
 
-    default void isp(String isp) {}
+    void isp(String isp);
 
-    default void ispOrganizationName(String name) {}
+    void ispOrganizationName(String name);
 
-    default void mobileCountryCode(String code) {}
+    void mobileCountryCode(String code);
 
-    default void mobileNetworkCode(String code) {}
+    void mobileNetworkCode(String code);
 
-    default void userType(String type) {}
+    void userType(String type);
 
-    default void type(String type) {}
+    void type(String type);
 
-    default void countryConfidence(int confidence) {}
+    void countryConfidence(int confidence);
 
-    default void cityConfidence(int confidence) {}
+    void cityConfidence(int confidence);
 
-    default void postalConfidence(int confidence) {}
+    void postalConfidence(int confidence);
 
-    default void registeredCountryInEuropeanUnion(boolean val) {}
+    void registeredCountryInEuropeanUnion(boolean val);
 
-    default void registeredCountryIsoCode(String code) {}
+    void registeredCountryIsoCode(String code);
 
-    default void registeredCountryName(String name) {}
+    void registeredCountryName(String name);
 
-    default void hosting(boolean val) {}
+    void hosting(boolean val);
 
-    default void proxy(boolean val) {}
+    void proxy(boolean val);
 
-    default void relay(boolean val) {}
+    void relay(boolean val);
 
-    default void tor(boolean val) {}
+    void tor(boolean val);
 
-    default void vpn(boolean val) {}
+    void vpn(boolean val);
 
-    default void service(String service) {}
+    void service(String service);
+
+    void anycast(boolean val);
+
+    void mobile(boolean val);
+
+    void satellite(boolean val);
+
+    void dmaCode(String code);
+
+    void geonameId(String id);
+
+    void asnChangedDate(String date);
+
+    void geoChangedDate(String date);
 }

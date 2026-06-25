@@ -30,7 +30,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -1012,7 +1011,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final FeatureFlag INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG = new FeatureFlag("index_disabled_by_default");
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.index_disabled_by_default",
         settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar()),
@@ -1021,12 +1019,43 @@ public final class IndexSettings {
     );
 
     /**
+     * Controls whether columnar id mode is used. This is a proxy setting for the default based on index.mode setting.
+     * Proxy mainly exists for tests to easily randomly test with columnar id mode.
+     */
+    public static final Setting<Boolean> USE_COLUMNAR_ID_BY_DEFAULT = Setting.boolSetting(
+        "index.mapping.use_columnar_id_mode_by_default",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            IndexVersion indexVersionCreated = SETTING_INDEX_VERSION_CREATED.get(settings);
+            if (indexVersionCreated.before(IndexVersions.MAPPING_ID_MODE_DEFAULT)) {
+                return Boolean.FALSE.toString();
+            }
+            IndexMode indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode.isStrictColumnar());
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * Opt in setting that enables the ES95 TSDB doc values codec for a given time series index.
-     * Registered only when {@link #ES95_CODEC_FEATURE_FLAG} is enabled, defaults to {@code false}.
+     * Registered only when {@link #ES95_CODEC_FEATURE_FLAG} is enabled. Defaults to {@code true}
+     * for time series indices created on or after
+     * {@link IndexVersions#TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG}, {@code false} otherwise.
      */
     public static final Setting<Boolean> TIME_SERIES_ES95_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es95_codec.enabled",
-        false,
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
+            boolean isTimeSeries = IndexMode.TIME_SERIES.equals(MODE.get(settings));
+            boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG);
+            return Boolean.toString(isTimeSeries && onByDefault);
+        },
         Property.IndexScope,
         Property.Final
     );
@@ -1230,10 +1259,10 @@ public final class IndexSettings {
             return Boolean.toString(disableAutoTextByDefault == false);
         },
         value -> {
-            if (value == false && FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+            if (value == false && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
                 throw new IllegalArgumentException(
                     "[index.mapping.dynamic_strings.auto_text] can only be disabled when the"
-                        + " extended_doc_values_options feature flag is enabled"
+                        + " columnar_index_mode feature flag is enabled"
                 );
             }
         },
@@ -1346,6 +1375,7 @@ public final class IndexSettings {
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
+    private final boolean useColumnarIdByDefault;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1565,7 +1595,8 @@ public final class IndexSettings {
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
-        indexDisabledByDefault = INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
+        indexDisabledByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
+        useColumnarIdByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
@@ -2402,6 +2433,10 @@ public final class IndexSettings {
 
     public boolean isIndexDisabledByDefault() {
         return indexDisabledByDefault;
+    }
+
+    public boolean isUseColumnarIdByDefault() {
+        return useColumnarIdByDefault;
     }
 
     /**

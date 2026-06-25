@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -62,7 +64,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     /**
      * Node-level setting for the parallel-parsing segment size. Larger segments amortise the fixed
      * Java/Jackson per-segment setup cost; smaller segments enable parallelism on smaller files.
-     * Also overridable per-query via the {@code segment_size} key in {@code WITH (...)}.
+     * Also overridable per-query via the {@code segment_size} key in {@code WITH {...}}.
      */
     public static final String SEGMENT_SIZE_SETTING = "esql.datasource.ndjson.segment_size";
 
@@ -446,6 +448,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
             chunkMode,
             counters,
+            context.splitStartByte(),
             context.maxRecordBytes()
         );
     }
@@ -475,7 +478,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     /**
      * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the {@code segment_size}
-     * key in the per-query {@code WITH (...)} config. Defaults to {@link #DEFAULT_SEGMENT_SIZE}.
+     * key in the per-query {@code WITH {...}} config. Defaults to {@link #DEFAULT_SEGMENT_SIZE}.
      */
     @Override
     public long minimumSegmentSize() {
@@ -495,6 +498,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     @Override
     public org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport aggregatePushdownSupport() {
         return new org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport();
+    }
+
+    @Override
+    public RowPositionStrategy rowPositionStrategy() {
+        // NdJsonPageDecoder fills the {@code _rowPosition} slot natively from the file-global
+        // byte offset of each record (see {@code NdJsonPageDecoder.recordFileOffset}).
+        return PassThroughRowPositionStrategy.INSTANCE;
     }
 
     @Override

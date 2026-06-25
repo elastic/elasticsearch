@@ -10,21 +10,14 @@ package org.elasticsearch.xpack.prometheus.rest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
 
 import java.time.Instant;
 import java.util.List;
@@ -33,7 +26,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
 
@@ -150,79 +142,16 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
         assertThat(plan, notNullValue());
     }
 
-    public void testBuildSelectorConditionReturnsNullForBareMetricName() {
-        // A bare metric name like "up" carries only an EQ __name__ matcher; the resulting
-        // condition should be IsNotNull(series), not null.
-        InstantSelector selector = parseInstantSelector("up");
-        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
-        // "up" has an EQ __name__ matcher, so result is not null
-        assertThat(cond, notNullValue());
-        assertThat(cond, instanceOf(IsNotNull.class));
-    }
-
-    public void testBuildSelectorConditionForSingleLabelMatcher() {
-        InstantSelector selector = parseInstantSelector("{job=\"myjob\"}");
-        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
-        assertThat(cond, notNullValue());
-        // Should contain an Equals on job
-        assertThat(containsExpressionOfType(cond, Equals.class), is(true));
-        assertThat(containsAttribute(cond, "job"), is(true));
-    }
-
-    public void testBuildSelectorConditionForMultipleLabelMatchers() {
-        InstantSelector selector = parseInstantSelector("{job=\"myjob\",env=\"prod\"}");
-        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
-        assertThat(cond, notNullValue());
-        assertThat(cond, instanceOf(And.class));
-        assertThat(containsAttribute(cond, "job"), is(true));
-        assertThat(containsAttribute(cond, "env"), is(true));
-    }
-
-    public void testBuildSelectorConditionForNameEqMatcherUsesIsNotNull() {
-        InstantSelector selector = parseInstantSelector("{__name__=\"up\"}");
-        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
-        assertThat(cond, instanceOf(IsNotNull.class));
-    }
-
-    public void testBuildSelectorConditionForNameRegexMatcherUsesLabelsName() {
-        InstantSelector selector = parseInstantSelector("{__name__=~\"http.*\"}");
-        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
-        assertThat(cond, notNullValue());
-        assertThat(containsAttribute(cond, "__name__"), is(true));
-    }
-
-    public void testBuildSelectorConditionForNameRegexMatcherAlsoAddsIsNotNull() {
-        // NEQ/REG/NREG on __name__ must also verify the field exists (IsNotNull)
-        InstantSelector selector = parseInstantSelector("{__name__=~\"http.*\"}");
-        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
-        assertThat(containsExpressionOfType(cond, IsNotNull.class), is(true));
-    }
-
-    public void testBuildSelectorConditionEmptyLabelMatchersReturnsNull() {
-        // A selector with no label matchers (catch-all) returns null.
-        // {} is rejected by the PromQL parser, so construct the selector directly.
-        InstantSelector selector = new InstantSelector(Source.EMPTY, null, List.of(), LabelMatchers.EMPTY, Evaluation.NONE);
-        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
-        assertThat(cond, nullValue());
-    }
-
-    private static InstantSelector parseInstantSelector(String selector) {
-        PromqlParser parser = new PromqlParser();
-        LogicalPlan parsed = parser.createStatement(selector);
-        assertThat("Expected InstantSelector for [" + selector + "]", parsed, instanceOf(InstantSelector.class));
-        return (InstantSelector) parsed;
-    }
-
-    /** Walks through UnaryPlan nodes to find the innermost Filter. */
+    /** Walks through UnaryPlan nodes to find the pre-info Filter (child of UnresolvedRelation). */
     private static Filter findFilter(LogicalPlan plan) {
         LogicalPlan current = plan;
         while (current instanceof org.elasticsearch.xpack.esql.plan.logical.UnaryPlan unary) {
-            if (current instanceof Filter filter) {
+            if (current instanceof Filter filter && filter.child() instanceof UnresolvedRelation) {
                 return filter;
             }
             current = unary.child();
         }
-        throw new AssertionError("No Filter node found in plan: " + plan);
+        throw new AssertionError("No pre-info Filter node found in plan: " + plan);
     }
 
     /** Returns true if the expression tree contains an {@link IsNotNull} whose inner field is an
@@ -239,7 +168,6 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
         return false;
     }
 
-    /** Returns true if the expression tree contains an {@link UnresolvedAttribute} with the given name. */
     private static boolean containsAttribute(Expression expr, String name) {
         if (expr instanceof UnresolvedAttribute attr && name.equals(attr.name())) {
             return true;
@@ -252,7 +180,6 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
         return false;
     }
 
-    /** Returns true if the expression tree contains any node of the given type. */
     private static boolean containsExpressionOfType(Expression expr, Class<? extends Expression> type) {
         if (type.isInstance(expr)) {
             return true;

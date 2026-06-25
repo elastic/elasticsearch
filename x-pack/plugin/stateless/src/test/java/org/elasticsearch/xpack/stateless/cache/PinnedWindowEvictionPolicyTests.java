@@ -241,7 +241,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.clusterService()).thenReturn(clusterService);
         final Predicate<ShardId> locallyOpenShard = Set.copyOf(Arrays.asList(openShards))::contains;
-        when(indicesService.locallyOpenShardPredicate()).thenReturn(locallyOpenShard);
+        when(indicesService.hasShardPredicate()).thenReturn(locallyOpenShard);
         return indicesService;
     }
 

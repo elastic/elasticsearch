@@ -40,7 +40,7 @@ public enum StatelessCacheEvictionPolicyType {
                 threadPool,
                 // We consult {@link IndicesService} rather than cluster-state routing because routing can lag behind locally open shards
                 // during cluster-state application. Once a shard is open here, {@link IndicesService} reflects that immediately.
-                indicesService.locallyOpenShardPredicate()
+                indicesService.hasShardPredicate()
             );
         }
     },

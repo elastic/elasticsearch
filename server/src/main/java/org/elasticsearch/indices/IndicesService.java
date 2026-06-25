@@ -650,7 +650,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a predicate that is {@code true} for shards open on this node.
      */
-    public Predicate<ShardId> locallyOpenShardPredicate() {
+    public Predicate<ShardId> hasShardPredicate() {
         return shardId -> {
             final IndexService indexService = indexService(shardId.getIndex());
             return indexService != null && indexService.hasShard(shardId.id());

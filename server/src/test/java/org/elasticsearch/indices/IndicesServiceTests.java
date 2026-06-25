@@ -390,7 +390,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public void testLocallyOpenShardPredicate() {
         IndicesService indicesService = getIndicesService();
-        var locallyOpenShard = indicesService.locallyOpenShardPredicate();
+        var locallyOpenShard = indicesService.hasShardPredicate();
         ShardId unknownIndexShard = new ShardId("nonexistent", UUIDs.randomBase64UUID(), 0);
         assertFalse(locallyOpenShard.test(unknownIndexShard));
 

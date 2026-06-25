@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -345,9 +344,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             return baseline;
         }
         try {
-            return DateFormatter.forPattern(value.toString()).withZone(ZoneOffset.UTC);
+            return DateFormatter.forPattern(value.toString());
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid datetime_format [" + value + "]: " + e.getMessage(), e);
+            throw new IllegalArgumentException("Invalid datetime_format [" + value + "]", e);
         }
     }
 

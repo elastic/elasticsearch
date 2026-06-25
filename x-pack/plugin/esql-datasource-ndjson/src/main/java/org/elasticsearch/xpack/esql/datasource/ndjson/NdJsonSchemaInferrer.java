@@ -160,7 +160,7 @@ public class NdJsonSchemaInferrer {
             case VALUE_STRING -> {
                 String text = parser.getText();
                 // All-digit strings (e.g. book ids) must not be inferred as years / partial dates.
-                if (field.types.contains(DataType.KEYWORD) == false && isLikelyDateString(text) && dateFormatter.tryParse(text) != null) {
+                if (field.types.contains(DataType.KEYWORD) == false && dateFormatter.tryParse(text) != null) {
                     field.addType(DataType.DATETIME);
                 } else {
                     field.addType(DataType.KEYWORD);
@@ -300,22 +300,5 @@ public class NdJsonSchemaInferrer {
         var copy = EnumSet.copyOf(values);
         copy.removeAll(from);
         return copy.isEmpty();
-    }
-
-    /**
-     * {@code strict_date_optional_time} accepts year-only forms that collide with numeric identifiers
-     * (e.g. book numbers). Skip date inference for all-ASCII-digit tokens.
-     */
-    private static boolean isLikelyDateString(String text) {
-        if (text.isEmpty()) {
-            return false;
-        }
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c < '0' || c > '9') {
-                return true;
-            }
-        }
-        return false;
     }
 }

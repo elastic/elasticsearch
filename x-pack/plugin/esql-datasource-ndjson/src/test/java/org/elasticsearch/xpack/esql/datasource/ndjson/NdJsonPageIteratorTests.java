@@ -1964,6 +1964,202 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Fractional seconds in ISO-8601 datetime strings: the {@code strict_date_optional_time}
+     * formatter must preserve millisecond precision when decoding to epoch-milliseconds.
+     */
+    public void testDatetimeWithMilliseconds() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        String ndjson = """
+            {"ts":"2024-03-10T15:30:45.123Z"}
+            {"ts":"2024-03-10T15:30:45.999Z"}
+            {"ts":"2024-03-10T15:30:45.000Z"}
+            """;
+        var object = new BytesStorageObject("file:///ms.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME");
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(Instant.parse("2024-03-10T15:30:45.123Z").toEpochMilli(), ts.getLong(0));
+            assertEquals(Instant.parse("2024-03-10T15:30:45.999Z").toEpochMilli(), ts.getLong(1));
+            assertEquals(Instant.parse("2024-03-10T15:30:45.000Z").toEpochMilli(), ts.getLong(2));
+        }
+    }
+
+    /**
+     * Non-UTC timezone offsets: datetime strings with {@code +HH:mm} and {@code -HH:mm} must be
+     * normalised to their UTC equivalent epoch-milliseconds.
+     */
+    public void testDatetimeWithTimezoneOffset() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        String ndjson = """
+            {"ts":"2024-06-15T12:00:00+05:30"}
+            {"ts":"2024-06-15T10:00:00-08:00"}
+            {"ts":"2024-06-15T10:00:00+00:00"}
+            """;
+        var object = new BytesStorageObject("file:///tz.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME");
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(Instant.parse("2024-06-15T06:30:00Z").toEpochMilli(), ts.getLong(0)); // 12:00+05:30 → 06:30Z
+            assertEquals(Instant.parse("2024-06-15T18:00:00Z").toEpochMilli(), ts.getLong(1)); // 10:00-08:00 → 18:00Z
+            assertEquals(Instant.parse("2024-06-15T10:00:00Z").toEpochMilli(), ts.getLong(2)); // +00:00 = Z
+        }
+    }
+
+    /**
+     * When a field mixes datetime-parseable strings with non-parseable ones, schema inference must
+     * widen to KEYWORD — the resulting block is a {@link BytesRefBlock} with the raw string values.
+     */
+    public void testDatetimeMixedWithNonDatetimeStringFallsBackToKeyword() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        String ndjson = """
+            {"tag":"2024-01-01T00:00:00Z"}
+            {"tag":"not-a-date"}
+            {"tag":"2024-06-01T12:00:00Z"}
+            """;
+        var object = new BytesStorageObject("file:///mixed-dt.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "tag:KEYWORD");
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            assertThat(page.getBlock(0), Matchers.instanceOf(BytesRefBlock.class));
+        }
+    }
+
+    /**
+     * {@code epoch_millis} format ({@link org.elasticsearch.common.time.FormatNames#EPOCH_MILLIS}):
+     * string values containing the milliseconds-since-epoch count (digit-only strings that the
+     * default {@code strict_date_optional_time} formatter cannot parse) are inferred and decoded
+     * as DATETIME.
+     */
+    public void testDatetimeFormatEpochMillis() throws IOException {
+        // 1704067200000 ms = 2024-01-01T00:00:00Z; 1719835200000 ms = 2024-07-01T12:00:00Z
+        String ndjson = "{\"ts\":\"1704067200000\",\"id\":1}\n" + "{\"ts\":\"1719835200000\",\"id\":2}\n";
+        var object = new BytesStorageObject("file:///epoch-ms.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "epoch_millis")
+        );
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME, id:INTEGER");
+
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts", "id")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertFalse(iterator.hasNext());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(2, ts.getPositionCount());
+            assertEquals(1704067200000L, ts.getLong(0));
+            assertEquals(1719835200000L, ts.getLong(1));
+        }
+    }
+
+    /**
+     * {@code epoch_second} format ({@link org.elasticsearch.common.time.FormatNames#EPOCH_SECOND}):
+     * string values containing the seconds-since-epoch count are inferred and decoded as DATETIME,
+     * stored as epoch-milliseconds (× 1000).
+     */
+    public void testDatetimeFormatEpochSecond() throws IOException {
+        // 1704067200 s = 2024-01-01T00:00:00Z; 1719835200 s = 2024-07-01T12:00:00Z
+        String ndjson = "{\"ts\":\"1704067200\",\"id\":1}\n" + "{\"ts\":\"1719835200\",\"id\":2}\n";
+        var object = new BytesStorageObject("file:///epoch-s.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "epoch_second")
+        );
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME, id:INTEGER");
+
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts", "id")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertFalse(iterator.hasNext());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(2, ts.getPositionCount());
+            assertEquals(1704067200L * 1_000, ts.getLong(0));
+            assertEquals(1719835200L * 1_000, ts.getLong(1));
+        }
+    }
+
+    /**
+     * {@code basic_date_time} format ({@link org.elasticsearch.common.time.FormatNames#BASIC_DATE_TIME}):
+     * compact ISO-8601 without separators ({@code yyyyMMdd'T'HHmmss.SSSZ}) — not parseable by
+     * the default {@code strict_date_optional_time} which requires dashes.
+     */
+    public void testDatetimeFormatBasicDateTime() throws IOException {
+        // 20240601T120000.000Z = 2024-06-01T12:00:00Z; 20241231T235959.999Z = 2024-12-31T23:59:59.999Z
+        String ndjson = "{\"ts\":\"20240601T120000.000Z\"}\n" + "{\"ts\":\"20241231T235959.999Z\"}\n";
+        var object = new BytesStorageObject("file:///basic-dt.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "basic_date_time")
+        );
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME");
+
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertFalse(iterator.hasNext());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(2, ts.getPositionCount());
+            assertEquals(Instant.parse("2024-06-01T12:00:00Z").toEpochMilli(), ts.getLong(0));
+            assertEquals(Instant.parse("2024-12-31T23:59:59.999Z").toEpochMilli(), ts.getLong(1));
+        }
+    }
+
+    /**
+     * {@code basic_date_time} with a non-UTC compact offset ({@code +HHmm} / {@code -HHmm}):
+     * the compact form has no colon separator between hours and minutes and is recognised by
+     * the {@code TIME_ZONE_FORMATTER_NO_COLON} parser variant.  Values are normalised to UTC
+     * epoch-milliseconds.
+     */
+    public void testDatetimeFormatBasicDateTimeNonUtcTimezone() throws IOException {
+        // 20240601T120000.000+0530 = 2024-06-01T12:00:00+05:30 → UTC 2024-06-01T06:30:00Z
+        // 20241231T200000.000-0800 = 2024-12-31T20:00:00-08:00 → UTC 2025-01-01T04:00:00Z
+        String ndjson = "{\"ts\":\"20240601T120000.000+0530\"}\n" + "{\"ts\":\"20241231T200000.000-0800\"}\n";
+        var object = new BytesStorageObject("file:///basic-dt-tz.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "basic_date_time")
+        );
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME");
+
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertFalse(iterator.hasNext());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(2, ts.getPositionCount());
+            assertEquals(Instant.parse("2024-06-01T06:30:00Z").toEpochMilli(), ts.getLong(0));
+            assertEquals(Instant.parse("2025-01-01T04:00:00Z").toEpochMilli(), ts.getLong(1));
+        }
+    }
+
     public void testDefaultErrorPolicyIsStrictLikeOtherFormats() {
         assertEquals(ErrorPolicy.STRICT, new NdJsonFormatReader(Settings.EMPTY, blockFactory).defaultErrorPolicy());
     }

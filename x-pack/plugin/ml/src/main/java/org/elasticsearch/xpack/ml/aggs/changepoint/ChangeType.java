@@ -104,8 +104,8 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
                 out.writeDouble(logPValue);
-                out.writeVInt(changePoint);
                 out.writeDouble(magnitudePercent);
+                out.writeVInt(changePoint);
             } else {
                 out.writeDouble(pValue());
                 out.writeVInt(changePoint);

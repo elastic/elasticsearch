@@ -53,6 +53,10 @@ public class LatestTests extends AbstractFirstLastTestCase {
         return List.of(params.get(0));
     }
 
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
     public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
         assertThat(params, hasSize(2));
         assertThat(

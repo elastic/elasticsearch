@@ -112,8 +112,14 @@ public class TRange extends EsqlConfigurationFunction
                  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds.
                 """
         ) Expression first,
-        @Param(name = END_TIME_PARAMETER, type = { "keyword", "long", "date", "date_nanos" }, description = """
-            Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""", optional = true) Expression second,
+        @Param(
+            name = END_TIME_PARAMETER,
+            type = { "keyword", "long", "date", "date_nanos" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = """
+                Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""",
+            optional = true
+        ) Expression second,
         Expression timestamp,
         Configuration configuration
     ) {

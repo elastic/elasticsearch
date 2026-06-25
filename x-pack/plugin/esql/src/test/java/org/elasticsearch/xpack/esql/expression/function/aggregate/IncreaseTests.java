@@ -180,6 +180,10 @@ public class IncreaseTests extends AbstractAggregationTestCase {
         return result;
     }
 
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
     public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
         assertThat(params, hasSize(5));
         assertThat(params.get(1).type(), equalTo(DataType.DATETIME));

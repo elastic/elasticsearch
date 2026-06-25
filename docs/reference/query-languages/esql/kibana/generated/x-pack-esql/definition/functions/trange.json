@@ -19,7 +19,10 @@
           "name" : "end_time",
           "type" : "date",
           "optional" : true,
-          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds."
+          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -40,7 +43,10 @@
           "name" : "end_time",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds."
+          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -76,7 +82,10 @@
           "name" : "end_time",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds."
+          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -97,7 +106,10 @@
           "name" : "end_time",
           "type" : "long",
           "optional" : true,
-          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds."
+          "description" : "Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,

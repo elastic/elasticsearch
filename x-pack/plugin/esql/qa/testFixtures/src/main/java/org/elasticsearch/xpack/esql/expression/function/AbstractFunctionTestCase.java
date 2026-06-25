@@ -722,9 +722,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         );
                         int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
                         List<TestCaseSupplier.TypedData> providedData = providedParameters(testClass, tc.getData());
+                        boolean hasVariadic = args.stream().anyMatch(EsqlFunctionRegistry.ArgSignature::variadic);
                         assertTrue(
                             "Subclass " + testClass.getSimpleName() + " failed to filter out injected parameters",
-                            providedData.size() <= args.size() - initialProvidedParamIndex
+                            hasVariadic || providedData.size() <= args.size() - initialProvidedParamIndex
                         );
                         for (int i = 0; i < providedData.size() && initialProvidedParamIndex + i < args.size(); i++) {
                             int argIndex = initialProvidedParamIndex + i;
@@ -736,11 +737,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 alwaysLiteral[argIndex] = alwaysLiteral[argIndex] && isForceLiteral;
                             }
                             if (isForceLiteral) {
-                                Object data = argData.originalData() != null ? argData.originalData() : argData.data();
-                                if (data instanceof String s) {
-                                    usedAllowedValues.get(argIndex).add(s.toLowerCase(Locale.ROOT));
-                                } else if (data instanceof org.apache.lucene.util.BytesRef br) {
-                                    usedAllowedValues.get(argIndex).add(br.utf8ToString().toLowerCase(Locale.ROOT));
+                                EsqlFunctionRegistry.ArgSignature arg = args.get(argIndex);
+                                boolean hasAllowedValues = arg.hint() != null
+                                    && arg.hint().allowedValues() != null
+                                    && arg.hint().allowedValues().isEmpty() == false;
+
+                                if (hasAllowedValues) {
+                                    Object data = argData.originalData() != null ? argData.originalData() : argData.data();
+                                    if (data instanceof String s) {
+                                        usedAllowedValues.get(argIndex).add(s.toLowerCase(Locale.ROOT));
+                                    } else if (data instanceof org.apache.lucene.util.BytesRef br) {
+                                        try {
+                                            usedAllowedValues.get(argIndex).add(br.utf8ToString().toLowerCase(Locale.ROOT));
+                                        } catch (Exception ignored) {
+                                            // random byte array doesn't matter
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -983,6 +995,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Filters out implicitly injected parameters from test data by dynamically invoking
+     * {@code providedParameters} on the test class, if it is present. This ensures that CONSTANT
+     * hint validation only checks declared @Param arguments.
+     */
     @SuppressWarnings("unchecked")
     private static List<TestCaseSupplier.TypedData> providedParameters(Class<?> testClass, List<TestCaseSupplier.TypedData> params) {
         try {

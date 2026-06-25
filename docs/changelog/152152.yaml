@@ -1,5 +1,6 @@
 area: Aggregations
-issues: []
+issues:
+ - 136639
 pr: 152152
 summary: Fix NPE issue caused null value to call toString() in param scripts
 type: bug

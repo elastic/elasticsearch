@@ -266,9 +266,9 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     /**
      * Optional Java toolchain launcher. When set, the forbidden-apis checker runs in a
      * forked process using this launcher's JVM, so signature resolution uses that JVM's
-     * bootclasspath. This should match the project's compile toolchain (set automatically
-     * by {@link org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin}). When
-     * absent the checker falls back to running in the Gradle daemon ({@code noIsolation}).
+     * bootclasspath. {@link ForbiddenApisPrecommitPlugin} sets this when the project's
+     * minimum runtime differs from the Gradle daemon JVM. When absent the checker falls
+     * back to running in the Gradle daemon ({@code noIsolation}).
      */
     @Nested
     @Optional

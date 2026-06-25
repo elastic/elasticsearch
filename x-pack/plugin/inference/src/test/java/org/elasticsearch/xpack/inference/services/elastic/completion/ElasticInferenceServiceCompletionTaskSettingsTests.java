@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.TaskType;
@@ -148,7 +147,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsTests extends Inferenc
     public void testFromMap_NonChatCompletionTaskType_WithReasoning_Throws() {
         var map = Map.<String, Object>of(REASONING_FIELD, Map.of("effort", "low"));
         var ex = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> ElasticInferenceServiceCompletionTaskSettings.fromMap(map, TaskType.COMPLETION, ConfigurationParseContext.REQUEST)
         );
         assertThat(ex.getMessage(), containsString("[reasoning] is only supported for the [chat_completion] task type"));

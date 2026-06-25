@@ -21,7 +21,12 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REAS
 public class ReasoningTaskSettingsCompatibility implements Compatibility {
 
     @Override
-    public InferenceService.ClusterCompatibility clusterCompatibility(FeatureService featureService, ClusterState state, TaskType taskType, Map<String, Object> config) {
+    public InferenceService.ClusterCompatibility clusterCompatibility(
+        FeatureService featureService,
+        ClusterState state,
+        TaskType taskType,
+        Map<String, Object> config
+    ) {
         if (taskType == TaskType.CHAT_COMPLETION
             && config.get(ModelConfigurations.TASK_SETTINGS) instanceof Map<?, ?> ts
             && ts.containsKey(REASONING_FIELD)

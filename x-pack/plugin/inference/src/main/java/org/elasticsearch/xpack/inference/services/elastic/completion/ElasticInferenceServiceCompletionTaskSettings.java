@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,7 +18,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.Reasoning;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Task settings for the Elastic Inference Service {@code chat_completion} task type, holding
@@ -44,22 +43,12 @@ public class ElasticInferenceServiceCompletionTaskSettings implements TaskSettin
         "inference_api_eis_reasoning_task_settings"
     );
 
-    private static final ConstructingObjectParser<ElasticInferenceServiceCompletionTaskSettings, ConfigurationParseContext> REQUEST_PARSER =
-        createParser(false);
-    private static final ConstructingObjectParser<
-        ElasticInferenceServiceCompletionTaskSettings,
-        ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
 
-    static ConstructingObjectParser<ElasticInferenceServiceCompletionTaskSettings, ConfigurationParseContext> createParser(
-        boolean ignoreUnknownFields
-    ) {
-        ConstructingObjectParser<ElasticInferenceServiceCompletionTaskSettings, ConfigurationParseContext> parser =
-            new ConstructingObjectParser<>(
-                NAME,
-                ignoreUnknownFields,
-                args -> new ElasticInferenceServiceCompletionTaskSettings((Reasoning) args[0])
-            );
-        parser.declareObject(optionalConstructorArg(), (p, c) -> Reasoning.PARSER.apply(p, null), new ParseField(REASONING_FIELD));
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        var parser = new ObjectParser<Builder, ConfigurationParseContext>(NAME, ignoreUnknownFields, Builder::new);
+        parser.declareObject(Builder::setReasoning, (p, c) -> Reasoning.PARSER.apply(p, null), new ParseField(REASONING_FIELD));
         return parser;
     }
 
@@ -71,7 +60,7 @@ public class ElasticInferenceServiceCompletionTaskSettings implements TaskSettin
      * @param map     the raw task settings map (may be null or empty)
      * @param taskType the task type for the endpoint being created
      * @param context  whether the settings come from a request or persisted storage
-     * @throws ValidationException       if {@code reasoning} is present but {@code taskType} is not
+     * @throws IllegalArgumentException    if {@code reasoning} is present but {@code taskType} is not
      *                                   {@link TaskType#CHAT_COMPLETION}
      * @throws ElasticsearchParseException if XContent parsing fails
      */
@@ -80,27 +69,12 @@ public class ElasticInferenceServiceCompletionTaskSettings implements TaskSettin
         TaskType taskType,
         ConfigurationParseContext context
     ) {
-        if (map == null || map.isEmpty()) {
-            return new ElasticInferenceServiceCompletionTaskSettings((Reasoning) null);
-        }
-
-        ElasticInferenceServiceCompletionTaskSettings settings;
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
-            settings = parser.apply(xParser, null);
+            return parser.apply(xParser, context).build(taskType);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.TASK_SETTINGS);
         }
-
-        if (settings.reasoning != null && taskType != TaskType.CHAT_COMPLETION) {
-            var validationException = new ValidationException();
-            validationException.addValidationError(
-                "[" + REASONING_FIELD + "] is only supported for the [" + TaskType.CHAT_COMPLETION + "] task type"
-            );
-            throw validationException;
-        }
-
-        return settings;
     }
 
     /**
@@ -129,7 +103,6 @@ public class ElasticInferenceServiceCompletionTaskSettings implements TaskSettin
     /**
      * @return the stored reasoning configuration, or {@code null} if none was set
      */
-    @Nullable
     public Reasoning reasoning() {
         return reasoning;
     }
@@ -195,6 +168,27 @@ public class ElasticInferenceServiceCompletionTaskSettings implements TaskSettin
 
     @Override
     public String toString() {
-        return "ElasticInferenceServiceCompletionTaskSettings{reasoning=" + reasoning + "}";
+        return Strings.toString(this);
+    }
+
+    private static class Builder {
+        private Reasoning reasoning;
+
+        private void setReasoning(Reasoning reasoning) {
+            this.reasoning = reasoning;
+        }
+
+        private ElasticInferenceServiceCompletionTaskSettings build(TaskType taskType) {
+            validateReasoning(taskType);
+            return new ElasticInferenceServiceCompletionTaskSettings(reasoning);
+        }
+
+        private void validateReasoning(TaskType taskType) {
+            if (reasoning != null && taskType != TaskType.CHAT_COMPLETION) {
+                throw new IllegalArgumentException(
+                    Strings.format("[%s] is only supported for the [%s] task type", REASONING_FIELD, TaskType.CHAT_COMPLETION)
+                );
+            }
+        }
     }
 }

@@ -106,7 +106,7 @@ public class DatasetResolver {
                     new ThreadedActionListener<>(executor, l.delegateFailureAndWrap((delegate, response) -> {
                         resolutions.put(
                             relation,
-                            new DatasetResolution(response.datasets(), response.hasNonDatasetTargets(), response.explicitUnauthorized())
+                            new DatasetResolution(response.datasets(), response.nonDatasetNames(), response.explicitUnauthorized())
                         );
                         delegate.onResponse(null);
                     }))

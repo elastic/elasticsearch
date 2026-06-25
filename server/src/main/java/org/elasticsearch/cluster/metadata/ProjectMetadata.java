@@ -125,6 +125,16 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
     );
 
+    public static final ClusterBlock PROJECT_UNDER_CREATION_BLOCK = new ClusterBlock(
+        16,
+        "project is under creation",
+        true,
+        false,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
+        EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
+    );
+
     @SuppressWarnings("this-escape")
     private ProjectMetadata(
         ProjectId id,

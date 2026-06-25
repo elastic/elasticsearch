@@ -166,7 +166,7 @@ public class DatasetResolverTests extends ESTestCase {
                 ) {
                 assertSame(EsqlResolveDatasetAction.TYPE, action);
                 localCalls.incrementAndGet();
-                listener.onResponse((Response) new EsqlResolveDatasetAction.Response(Set.of(DATASET_NAME), false, Set.of()));
+                listener.onResponse((Response) new EsqlResolveDatasetAction.Response(Set.of(DATASET_NAME), Set.of(), Set.of()));
             }
         };
     }

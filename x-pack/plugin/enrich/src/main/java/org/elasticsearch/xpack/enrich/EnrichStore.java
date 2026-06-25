@@ -43,15 +43,18 @@ public final class EnrichStore {
      * this method throws an {@link IllegalArgumentException}.
      * This method can only be invoked on the elected master node.
      *
-     * @param projectId The project ID
-     * @param name      The unique name of the policy
-     * @param policy    The policy to store
-     * @param handler   The handler that gets invoked if policy has been stored or a failure has occurred.
+     * @param projectId   The project ID
+     * @param name        The unique name of the policy
+     * @param policy      The policy to store
+     * @param maxPolicies The maximum number of policies that may exist; storing the new policy is rejected once this many already exist.
+     *                    This is only enforced when creating a new policy, so existing policies above the limit are left untouched.
+     * @param handler     The handler that gets invoked if policy has been stored or a failure has occurred.
      */
     public static void putPolicy(
         final ProjectId projectId,
         final String name,
         final EnrichPolicy policy,
+        final int maxPolicies,
         final ClusterService clusterService,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Consumer<Exception> handler
@@ -87,6 +90,15 @@ public final class EnrichStore {
             final Map<String, EnrichPolicy> originalPolicies = getPolicies(project);
             if (originalPolicies.containsKey(name)) {
                 throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
+            }
+            if (originalPolicies.size() >= maxPolicies) {
+                throw new IllegalArgumentException(
+                    "could not store policy ["
+                        + name
+                        + "] because the maximum number of enrich policies ["
+                        + maxPolicies
+                        + "] would be exceeded; this limit is controlled by the [enrich.max_policies] setting"
+                );
             }
             for (String indexExpression : policy.getIndices()) {
                 // indices field in policy can contain wildcards, aliases etc.

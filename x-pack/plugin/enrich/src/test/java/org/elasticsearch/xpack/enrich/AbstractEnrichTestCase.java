@@ -38,7 +38,7 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.putPolicy(Metadata.DEFAULT_PROJECT_ID, name, policy, clusterService, resolver, e -> {
+        EnrichStore.putPolicy(Metadata.DEFAULT_PROJECT_ID, name, policy, Integer.MAX_VALUE, clusterService, resolver, e -> {
             error.set(e);
             latch.countDown();
         });

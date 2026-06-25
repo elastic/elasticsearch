@@ -165,6 +165,7 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
                 Metadata.DEFAULT_PROJECT_ID,
                 policyName,
                 policy,
+                Integer.MAX_VALUE,
                 clusterService,
                 resolver,
                 exceptionConsumer

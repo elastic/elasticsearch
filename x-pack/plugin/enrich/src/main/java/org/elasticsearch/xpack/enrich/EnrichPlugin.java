@@ -117,6 +117,43 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         Setting.Property.NodeScope
     );
 
+    /**
+     * The maximum number of enrich policies that may exist at once. Enrich policies are stored in the cluster state, which is held in
+     * heap on every node and serialized on every cluster state update, so an unbounded number of policies can destabilize the cluster.
+     * This is a safety limit; it is only enforced when creating a new policy, so existing policies above the limit continue to work.
+     */
+    public static final Setting<Integer> ENRICH_MAX_POLICIES = Setting.intSetting(
+        "enrich.max_policies",
+        1000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The maximum length (in characters) allowed for the {@code match_field} and each entry of {@code enrich_fields} of an enrich policy.
+     * These are document field names, which are realistically short; bounding their length keeps a single policy from bloating the cluster
+     * state. This is a safety limit and is only enforced when creating a new policy.
+     */
+    public static final Setting<Integer> ENRICH_MAX_FIELD_NAME_LENGTH = Setting.intSetting(
+        "enrich.max_field_name_length",
+        1024,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The maximum serialized size of a single enrich policy. This bounds the total contribution of one policy (including its query,
+     * indices, and fields) to the cluster state. This is a safety limit and is only enforced when creating a new policy.
+     */
+    public static final Setting<ByteSizeValue> ENRICH_MAX_POLICY_SIZE = Setting.byteSizeSetting(
+        "enrich.max_policy_size",
+        ByteSizeValue.ofMb(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final String QUEUE_CAPACITY_SETTING_NAME = "enrich.coordinator_proxy.queue_capacity";
     public static final Setting<Integer> COORDINATOR_PROXY_QUEUE_CAPACITY = new Setting<>(QUEUE_CAPACITY_SETTING_NAME, settings -> {
         int maxConcurrentRequests = COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings);
@@ -295,6 +332,9 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
             COORDINATOR_PROXY_QUEUE_CAPACITY,
             ENRICH_MAX_FORCE_MERGE_ATTEMPTS,
+            ENRICH_MAX_POLICIES,
+            ENRICH_MAX_FIELD_NAME_LENGTH,
+            ENRICH_MAX_POLICY_SIZE,
             CACHE_SIZE,
             CACHE_SIZE_BWC
         );

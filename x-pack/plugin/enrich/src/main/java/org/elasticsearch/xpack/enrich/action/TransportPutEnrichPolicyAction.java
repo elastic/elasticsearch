@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
 public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterNodeProjectAction<PutEnrichPolicyAction.Request> {
@@ -113,13 +115,34 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
     }
 
     private void putPolicy(ProjectId projectId, PutEnrichPolicyAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        EnrichStore.putPolicy(projectId, request.getName(), request.getPolicy(), clusterService, indexNameExpressionResolver, e -> {
-            if (e == null) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            } else {
-                listener.onFailure(e);
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        // Reject policies that would bloat the cluster state before they are stored. The limits are read live so that operators can adjust
+        // them via the cluster settings API without a restart.
+        try {
+            request.getPolicy()
+                .validate(
+                    clusterSettings.get(EnrichPlugin.ENRICH_MAX_FIELD_NAME_LENGTH),
+                    clusterSettings.get(EnrichPlugin.ENRICH_MAX_POLICY_SIZE)
+                );
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        EnrichStore.putPolicy(
+            projectId,
+            request.getName(),
+            request.getPolicy(),
+            clusterSettings.get(EnrichPlugin.ENRICH_MAX_POLICIES),
+            clusterService,
+            indexNameExpressionResolver,
+            e -> {
+                if (e == null) {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    listener.onFailure(e);
+                }
             }
-        });
+        );
     }
 
     @Override

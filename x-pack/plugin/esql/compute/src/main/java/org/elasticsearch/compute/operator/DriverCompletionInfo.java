@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *                  values-source operators on worker threads, and planner-time Lucene directory I/O
  *                  on the data node SEARCH thread (query rewriting, weight construction,
  *                  {@code SearchStats} field lookups, sort builders, etc.).
- *                  TODO: Enrich/Lookup reads are not included yet here.
+ *                  TODO: Lookup join streaming reads are not included yet here.
  * @param readNanos Total wall time format readers spent reading on producer threads, in nanoseconds.
  *                  Lucene contributes 0; only external-source operators populate this.
  * @param cpuNanos Total CPU time across all drivers (sum of per-driver CPU time).

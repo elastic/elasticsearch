@@ -257,6 +257,62 @@ public class MetadataSliceIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * Verifies that {@code _slice} works correctly when the filter <em>cannot</em> be pushed
+     * to Lucene and must be evaluated in the compute engine via the block loader.
+     * {@code SUBSTRING(_slice, 1, 1)} is not a pushable predicate, so the optimizer keeps
+     * the filter above the Lucene reader; ES|QL must load {@code _slice} values from doc
+     * values and apply the condition in-memory.
+     */
+    public void testNonPushdownFilterViaBlockLoader() throws IOException {
+        String index = "slice_test_non_pushdown";
+        createSliceIndex(index);
+
+        indexDocWithSlice(index, "1", "apple");
+        indexDocWithSlice(index, "2", "apricot");
+        indexDocWithSlice(index, "3", "banana");
+
+        refreshIndex(index);
+
+        // SUBSTRING is not a Lucene pushdown predicate, so the filter stays in the compute engine
+        RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
+            .query("FROM " + index + " METADATA _slice | WHERE SUBSTRING(_slice, 1, 1) == \"a\" | KEEP _slice | SORT _slice");
+        Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
+
+        @SuppressWarnings("unchecked")
+        List<List<?>> values = (List<List<?>>) result.get("values");
+        assertEquals("SUBSTRING filter should match 'apple' and 'apricot' but not 'banana'", 2, values.size());
+        assertEquals("apple", values.get(0).get(0));
+        assertEquals("apricot", values.get(1).get(0));
+    }
+
+    /**
+     * Verifies that {@code _slice} can be used in a STATS aggregation, which reads values
+     * via the block loader without any filter pushdown.
+     */
+    public void testStatsGroupBySlice() throws IOException {
+        String index = "slice_test_stats";
+        createSliceIndex(index);
+
+        indexDocWithSlice(index, "1", "s1");
+        indexDocWithSlice(index, "2", "s1");
+        indexDocWithSlice(index, "3", "s2");
+
+        refreshIndex(index);
+
+        RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
+            .query("FROM " + index + " METADATA _slice | STATS c = COUNT(*) BY _slice | SORT _slice");
+        Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
+
+        @SuppressWarnings("unchecked")
+        List<List<?>> values = (List<List<?>>) result.get("values");
+        assertEquals("should have two groups: s1 and s2", 2, values.size());
+        assertEquals("s1", values.get(0).get(1));
+        assertEquals(2, ((Number) values.get(0).get(0)).intValue());
+        assertEquals("s2", values.get(1).get(1));
+        assertEquals(1, ((Number) values.get(1).get(0)).intValue());
+    }
+
     // ---- helpers ----
 
     /**
@@ -269,7 +325,6 @@ public class MetadataSliceIT extends ESRestTestCase {
             {
               "settings": {
                 "index.slice.enabled": true,
-                "index.slice.validated": true,
                 "index.number_of_shards": 1,
                 "index.number_of_replicas": 0
               }
@@ -279,12 +334,12 @@ public class MetadataSliceIT extends ESRestTestCase {
     }
 
     /**
-     * Indexes a document using the given routing value as its {@code _slice}.
-     * In slice mode the routing parameter IS the slice value.
+     * Indexes a document using the given slice value.
+     * Slice-enabled indices require the {@code _slice} parameter rather than {@code routing}.
      */
     private void indexDocWithSlice(String index, String id, String slice) throws IOException {
         Request req = new Request("PUT", "/" + index + "/_doc/" + id);
-        req.addParameter("routing", slice);
+        req.addParameter("_slice", slice);
         req.setJsonEntity("{\"value\":\"" + id + "\"}");
         assertOK(client().performRequest(req));
     }

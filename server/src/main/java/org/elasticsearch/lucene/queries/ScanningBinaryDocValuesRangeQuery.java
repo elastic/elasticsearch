@@ -26,14 +26,14 @@ import java.util.function.Predicate;
  * This implementation is slow, because it potentially scans binary doc values for each document.
  * <p>
  * When the lower and upper bound are identical, {@link #rewrite(IndexSearcher)} returns a
- * {@link SlowCustomBinaryDocValuesTermQuery}.
+ * {@link ScanningBinaryDocValuesTermQuery}.
  */
-public final class SlowCustomBinaryDocValuesRangeQuery extends AbstractBinaryDocValuesQuery {
+public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocValuesQuery {
 
     private final BytesRef lower;
     private final BytesRef upper;
 
-    public SlowCustomBinaryDocValuesRangeQuery(String fieldName, BytesRef lower, BytesRef upper) {
+    public ScanningBinaryDocValuesRangeQuery(String fieldName, BytesRef lower, BytesRef upper) {
         super(fieldName, rangeMatcher(Objects.requireNonNull(lower), Objects.requireNonNull(upper)));
         assert lower.compareTo(upper) <= 0;
         this.lower = lower;
@@ -47,7 +47,7 @@ public final class SlowCustomBinaryDocValuesRangeQuery extends AbstractBinaryDoc
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         if (lower.bytesEquals(upper)) {
-            return new SlowCustomBinaryDocValuesTermQuery(fieldName, lower);
+            return new ScanningBinaryDocValuesTermQuery(fieldName, lower);
         }
         return super.rewrite(indexSearcher);
     }
@@ -59,7 +59,7 @@ public final class SlowCustomBinaryDocValuesRangeQuery extends AbstractBinaryDoc
 
     @Override
     public String toString(String field) {
-        return "SlowCustomBinaryDocValuesRangeQuery(fieldName=" + field + ",lower=" + lower.toString() + ",upper=" + upper.toString() + ")";
+        return "ScanningBinaryDocValuesRangeQuery(fieldName=" + field + ",lower=" + lower.toString() + ",upper=" + upper.toString() + ")";
     }
 
     @Override
@@ -70,7 +70,7 @@ public final class SlowCustomBinaryDocValuesRangeQuery extends AbstractBinaryDoc
         if (sameClassAs(o) == false) {
             return false;
         }
-        SlowCustomBinaryDocValuesRangeQuery that = (SlowCustomBinaryDocValuesRangeQuery) o;
+        ScanningBinaryDocValuesRangeQuery that = (ScanningBinaryDocValuesRangeQuery) o;
         return Objects.equals(fieldName, that.fieldName) && lower.bytesEquals(that.lower) && upper.bytesEquals(that.upper);
     }
 

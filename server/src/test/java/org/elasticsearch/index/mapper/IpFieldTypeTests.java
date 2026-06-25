@@ -18,7 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRangeQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
@@ -85,7 +85,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(ip, MOCK_CONTEXT));
         BytesRef encodedIp = new BytesRef(InetAddressPoint.encode(inetIp));
         assertEquals(
-            new SlowCustomBinaryDocValuesRangeQuery("field", encodedIp, encodedIp),
+            new ScanningBinaryDocValuesRangeQuery("field", encodedIp, encodedIp),
             ftOnlyBinaryDocValues.termQuery(ip, MOCK_CONTEXT)
         );
 
@@ -97,7 +97,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(ip, MOCK_CONTEXT));
         encodedIp = new BytesRef(InetAddressPoint.encode(inetIp));
         assertEquals(
-            new SlowCustomBinaryDocValuesRangeQuery("field", encodedIp, encodedIp),
+            new ScanningBinaryDocValuesRangeQuery("field", encodedIp, encodedIp),
             ftOnlyBinaryDocValues.termQuery(ip, MOCK_CONTEXT)
         );
 
@@ -109,7 +109,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(query, ftOnlyIndex.termQuery(prefix, MOCK_CONTEXT));
         assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(prefix, MOCK_CONTEXT));
         assertEquals(
-            new SlowCustomBinaryDocValuesRangeQuery(
+            new ScanningBinaryDocValuesRangeQuery(
                 "field",
                 new BytesRef(((PointRangeQuery) query).getLowerPoint()),
                 new BytesRef(((PointRangeQuery) query).getUpperPoint())

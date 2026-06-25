@@ -343,9 +343,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
   issue: https://github.com/elastic/elasticsearch/issues/150188
-- class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
-  method: testPointInTimeRelocationClosingSourceContexts
-  issue: https://github.com/elastic/elasticsearch/issues/150288
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/150294
@@ -734,9 +731,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalSourceProfileIT
   method: testCsvCountStarScansColdThenSkipsWarm
   issue: https://github.com/elastic/elasticsearch/issues/152132
-- class: org.elasticsearch.TransportVersionTests
-  method: testPatchVersionsStillAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/152122
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:lookup-join.remoteEnrichBetweenLookupJoins}
   issue: https://github.com/elastic/elasticsearch/issues/152137
@@ -758,3 +752,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:stats_sparkline.weightedAvgAndSparklineWithSameWeightedAvg}
   issue: https://github.com/elastic/elasticsearch/issues/152162
+- class: org.elasticsearch.indices.recovery.ThrottlingRecoveryServiceTests
+  method: testQueuedRecoveryIsDispatchedWithCleanThreadContext
+  issue: https://github.com/elastic/elasticsearch/issues/152183

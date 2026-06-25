@@ -124,6 +124,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
                     request.index(),
                     shardId.id(),
                     new String[] { request.id() },
+                    new String[] { request.routing() },
                     request.getSplitShardCountSummary()
                 );
                 ensureDocsSearchableRequest.setParentTask(clusterService.localNode().getId(), request.getParentTask().getId());

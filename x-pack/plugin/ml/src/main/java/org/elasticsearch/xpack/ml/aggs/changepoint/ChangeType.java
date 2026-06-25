@@ -22,9 +22,8 @@ import java.util.Objects;
  */
 public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
-    // Multi change points. Before this version the result carried had a single optional change on the wire;
-    // from this version it carries a (possibly null-containing) list of changes.
-    public static final TransportVersion MULTI_CHANGE_POINT = TransportVersion.fromName("multi_change_point");
+    // After this version we store log probabilities and record the change percent.
+    TransportVersion MULTI_CHANGE_POINT = TransportVersion.fromName("multi_change_point");
 
     int NO_CHANGE_POINT = -1;
 

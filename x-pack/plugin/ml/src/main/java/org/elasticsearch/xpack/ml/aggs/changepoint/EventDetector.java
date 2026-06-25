@@ -156,9 +156,10 @@ public class EventDetector {
             int cp = events.get(i).changePoint();
             boolean tooClose = false;
             for (ChangeType k : kept) {
-                if (Math.abs(cp - k.changePoint()) < minSegmentLength) {
+                int gap = cp - k.changePoint();
+                if (gap < minSegmentLength && gap > -minSegmentLength) {
                     logger.trace(
-                        "suppressing event at index [{}] with p-value [{}] because it is within [{}] of more significant event at index [{}]",
+                        "suppressing event at [{}] with p-value [{}] because it is within [{}] of more significant event at [{}]",
                         cp,
                         events.get(i).pValue(),
                         minSegmentLength,

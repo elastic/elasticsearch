@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -490,26 +491,40 @@ public class ExternalSourceResolver {
             }
         }
 
-        // Capture pre-enrichment schema: partition columns are added by VirtualColumnIterator
-        // at read time, so per-file readSchema must NOT include them.
-        List<Attribute> dataOnlySchema = extMetadata.schema();
+        // The anchor's pre-enrichment schema is the physical read schema every file's reader parses.
+        // Partition columns are path-derived (injected by VirtualColumnIterator at read time), so they
+        // are never part of the physical read schema; the data-only view below drives the mapping
+        // output width.
+        List<Attribute> physicalSchema = extMetadata.schema();
+        List<Attribute> dataOnlySchema = physicalSchema;
 
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+            // Shadow same-named physical columns: when a physical column collides with a partition
+            // key, the partition (path-derived) value wins (Spark/DuckDB semantics). The reader still
+            // parses the physical column (CSV is positional), but the per-file mapping drops it from
+            // the output so the mapping width agrees with the data-only unified schema at
+            // ColumnMapping#pruneToPerFileQuery and with queryDataSchema at the SchemaAdaptingIterator
+            // guard. enrichSchemaWithPartitionColumns appends the partition column and warns.
+            dataOnlySchema = ExternalSchema.dataAttributesOf(physicalSchema, partitionMetadata.partitionColumns().keySet()).attributes();
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
         // _file.* columns are request-driven now; no auto-attach to the schema. See
         // ResolveExternalRelations / the EXTERNAL shim.
 
-        // FFW: every file's readSchema is the anchor's data-only schema, identity mapping.
+        // FFW: every file's readSchema is the anchor's physical schema; the mapping is identity unless
+        // a partition key shadows a physical column, in which case it narrows the output to the
+        // data-only columns (the shadowed physical column is parsed but not emitted).
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
-        if (dataOnlySchema != null && dataOnlySchema.isEmpty() == false) {
+        if (physicalSchema != null && physicalSchema.isEmpty() == false) {
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = Maps.newHashMapWithExpectedSize(listing.fileCount());
-            ColumnMapping identityMapping = new ColumnMapping(identityMapping(dataOnlySchema.size()), null);
-            ExternalSchema dataOnly = new ExternalSchema(dataOnlySchema);
+            ExternalSchema fileSchema = new ExternalSchema(physicalSchema);
+            ColumnMapping mapping = dataOnlySchema.size() == physicalSchema.size()
+                ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
+                : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
             for (int i = 0; i < listing.fileCount(); i++) {
-                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(dataOnly, identityMapping, null));
+                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null));
             }
             schemaMap = Collections.unmodifiableMap(perFileInfo);
         } else {
@@ -636,6 +651,21 @@ public class ExternalSourceResolver {
             result = SchemaReconciliation.reconcileUnionByName(allMetadata);
         }
 
+        // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
+        // value wins (Spark/DuckDB semantics), so the unified schema and every per-file mapping's
+        // output must drop the physical column. The file (physical) schema is preserved so positional
+        // readers (CSV) still parse the column; enrichSchemaWithPartitionColumns re-adds the partition
+        // column to the coordinator-facing schema below. Keeping the mapping width data-only keeps it
+        // in agreement with the data-only unified schema at ColumnMapping#pruneToPerFileQuery and with
+        // queryDataSchema at the data-node SchemaAdaptingIterator guard.
+        //
+        // Ordering matters: shadowPartitionCollisions emits the single shadow warning and prunes the
+        // collision here, so the enrichSchemaWithPartitionColumns call below sees a data-only schema and
+        // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
+        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
+        Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
+        result = shadowPartitionCollisions(result, partitionNames);
+
         List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
         SourceMetadata firstMeta = allMetadata.get(firstFile);
         // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
@@ -650,8 +680,13 @@ public class ExternalSourceResolver {
             extMetadata = markStatsAsPartial(extMetadata);
         }
 
-        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+            // No-double-warning invariant: shadowPartitionCollisions above already pruned any physical
+            // column that collides with a partition key (and emitted the one shadow warning), so the
+            // post-shadow schema must be collision-free before enrich runs its own shadow detection.
+            assert extMetadata.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
+                : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
+                    + "column still collides with a partition key, which would warn twice";
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
@@ -660,6 +695,49 @@ public class ExternalSourceResolver {
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
         return new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
+    }
+
+    /**
+     * Returns a copy of {@code result} with physical columns shadowed by Hive partition keys removed
+     * from the unified schema and from every per-file mapping's output, while each file's physical
+     * schema is preserved so positional readers (e.g. CSV) still parse every column. The partition
+     * (path-derived) value wins (Spark/DuckDB semantics); {@link #enrichSchemaWithPartitionColumns}
+     * later re-adds the partition column to the coordinator schema. Emits one client-facing warning
+     * per shadowed column (see {@link #warnOnShadowedColumns(List)}). Returns {@code result}
+     * unchanged when {@code partitionColumnNames} is empty or nothing is shadowed.
+     */
+    private static SchemaReconciliation.Result shadowPartitionCollisions(
+        SchemaReconciliation.Result result,
+        Set<String> partitionColumnNames
+    ) {
+        if (partitionColumnNames.isEmpty()) {
+            return result;
+        }
+        List<Attribute> unified = result.unifiedSchema().attributes();
+        List<Attribute> dataOnlyUnified = new ArrayList<>(unified.size());
+        List<String> shadowedColumns = new ArrayList<>();
+        for (Attribute attr : unified) {
+            if (partitionColumnNames.contains(attr.name())) {
+                shadowedColumns.add(attr.name());
+            } else {
+                dataOnlyUnified.add(attr);
+            }
+        }
+        if (shadowedColumns.isEmpty()) {
+            return result;
+        }
+        warnOnShadowedColumns(shadowedColumns);
+        // Order is irrelevant: Map.copyOf below discards insertion order and FileSplitProvider looks
+        // up per-file info by key (matches reconcileUnionByName's own Map.copyOf pattern).
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = Maps.newHashMapWithExpectedSize(result.perFileInfo().size());
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> entry : result.perFileInfo().entrySet()) {
+            SchemaReconciliation.FileSchemaInfo info = entry.getValue();
+            // Recompute the mapping against the data-only unified schema; the file (physical) schema is
+            // unchanged so the reader still parses every column, including the shadowed one.
+            ColumnMapping mapping = SchemaReconciliation.computeMapping(dataOnlyUnified, info.fileSchema().attributes());
+            perFileInfo.put(entry.getKey(), new SchemaReconciliation.FileSchemaInfo(info.fileSchema(), mapping, info.statistics()));
+        }
+        return new SchemaReconciliation.Result(new ExternalSchema(dataOnlyUnified), Map.copyOf(perFileInfo));
     }
 
     /** Per-file metadata, in parallel. When {@code cacheable} is true, each resolve goes through
@@ -1012,12 +1090,21 @@ public class ExternalSourceResolver {
 
         Set<String> partitionNames = new LinkedHashSet<>(partitionColumns.keySet());
         List<Attribute> enrichedSchema = new ArrayList<>();
+        // Physical columns dropped because a same-named partition key shadows them. Collected in
+        // schema order (deduped) so we can emit one client-facing warning per shadowed column.
+        List<String> shadowedColumns = new ArrayList<>();
 
         for (Attribute attr : originalSchema) {
             if (partitionNames.contains(attr.name()) == false) {
                 enrichedSchema.add(attr);
+            } else if (shadowedColumns.contains(attr.name()) == false) {
+                // Partition (path-derived) value wins; the physical column is hidden (Spark/DuckDB
+                // semantics). The escape hatch to read the physical column is hive_partitioning:false.
+                shadowedColumns.add(attr.name());
             }
         }
+
+        warnOnShadowedColumns(shadowedColumns);
 
         // Per-query nullability: a partition column is non-nullable when no file in the matched
         // fileset has a null value for it. The Hive sentinel __HIVE_DEFAULT_PARTITION__ is decoded
@@ -1037,6 +1124,30 @@ public class ExternalSourceResolver {
         }
 
         return withSchema(metadata, List.copyOf(enrichedSchema));
+    }
+
+    /**
+     * Emits one client-facing response-header WARN per physical column that a same-named Hive
+     * partition key shadows. Shadowing follows Spark (SPARK-27356) and DuckDB: the partition
+     * (path-derived) value wins and the physical column is hidden. The warning lets clients notice
+     * silent data substitution and points at the {@code hive_partitioning: false} escape hatch.
+     * <p>
+     * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail and
+     * routes through {@link org.elasticsearch.common.logging.HeaderWarning}; when no thread context
+     * is bound (e.g. some unit tests) the writes are silently dropped. A no-op when nothing is
+     * shadowed.
+     */
+    private static void warnOnShadowedColumns(List<String> shadowedColumns) {
+        if (shadowedColumns.isEmpty()) {
+            return;
+        }
+        SkipWarnings warnings = new SkipWarnings(
+            "one or more physical columns are shadowed by same-named Hive partition keys; "
+                + "the partition (path-derived) value is used. Set hive_partitioning to false to read the physical column instead."
+        );
+        for (String name : shadowedColumns) {
+            warnings.add("physical column [" + name + "] is shadowed by a same-named Hive partition key");
+        }
     }
 
     /**

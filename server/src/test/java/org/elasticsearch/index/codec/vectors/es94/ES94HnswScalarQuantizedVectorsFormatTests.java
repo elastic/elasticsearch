@@ -17,7 +17,6 @@ import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -36,13 +35,8 @@ import static org.hamcrest.Matchers.is;
 
 public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnswVectorsFormatTestCase {
 
-    private int bits;
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        bits = randomFrom(1, 2, 4, 7);
-        super.setUp();
+    private static int randomBitsPerValue() {
+        return randomFrom(1, 2, 4, 7);
     }
 
     @Override
@@ -51,14 +45,20 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            bits,
+            randomBitsPerValue(),
             false
         );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES94HnswScalarQuantizedVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT, bits, false);
+        return new ES94HnswScalarQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            randomBitsPerValue(),
+            false
+        );
     }
 
     @Override
@@ -67,7 +67,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            bits,
+            randomBitsPerValue(),
             false,
             numMergeWorkers,
             service
@@ -131,7 +131,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            bits,
+            randomBitsPerValue(),
             false,
             numMergeWorkers,
             service,

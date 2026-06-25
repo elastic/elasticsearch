@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -16,6 +18,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
@@ -26,6 +29,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -112,6 +116,28 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
             FuzzyQueries.estimateBytes(fq),
             visitor.getEstimatedBytes()
         );
+    }
+
+    public void testChargesPointRangeQueryStructuralOnly() {
+        PointRangeQuery prq = (PointRangeQuery) LongPoint.newRangeQuery("f", 1L, 100L);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        prq.visit(visitor);
+
+        long structuralOnly = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate();
+        assertEquals(structuralOnly, visitor.getEstimatedBytes());
+        assertEquals(1, visitor.getNumClauses());
+    }
+
+    public void testPointRangeStructuralChargeIsIndependentOfReaderSize() {
+        PointRangeQuery prq = (PointRangeQuery) IntPoint.newRangeQuery("f", 1, 100);
+
+        MaxClauseCountQueryVisitor first = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null);
+        prq.visit(first);
+        MaxClauseCountQueryVisitor second = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        prq.visit(second);
+
+        assertEquals(second.getEstimatedBytes(), first.getEstimatedBytes());
+        assertEquals(new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate(), first.getEstimatedBytes());
     }
 
     public void testAccumulatesBytesAcrossAllLeavesInABooleanQuery() {

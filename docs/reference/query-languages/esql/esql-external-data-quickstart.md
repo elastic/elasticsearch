@@ -236,20 +236,10 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
 If the query returns results, your external data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
 ::::::
 
-::::::{step} Query external and indexed data together
-Datasets share the same namespace as regular indices, so you can query both in a single `FROM`. This is useful when you have related data split between {{es}} and external storage.
-
-For example, if you have a `network_incidents` index in {{es}}, you can correlate it with the external speedtest data:
-
-```esql
-FROM speedtest_fixed, network_incidents
-| STATS avg_latency = AVG(avg_lat_ms), incident_count = COUNT(*) BY quadkey
-| SORT incident_count DESC
-| LIMIT 20
-```
-
-No special syntax is required. `FROM` resolves each name independently, whether it is an index, an alias, or a dataset.
-::::::
+<!-- TODO: Heterogeneous FROM (FROM dataset, index) returns "FROM mixing datasets and non-datasets
+     is not supported" as of 9.5 snapshot testing. esql-planning#572 is closed but this may not
+     have landed yet, or may be gated. Revisit before merge — if it works, add a step here
+     showing FROM speedtest_fixed, network_incidents together. -->
 
 :::::::
 

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -34,6 +35,69 @@ public class HighlightOptionsTests extends ESTestCase {
         assertThat(options.numberOfFragments(), equalTo(HighlightOptions.DEFAULT_NUMBER_OF_FRAGMENTS));
         assertThat(options.fragmentSize(), equalTo(HighlightOptions.DEFAULT_FRAGMENT_SIZE));
         assertThat(options.noMatchSize(), equalTo(HighlightOptions.DEFAULT_NO_MATCH_SIZE));
+        assertThat(options.boundaryScanner(), equalTo(HighlightOptions.DEFAULT_BOUNDARY_SCANNER));
+        assertThat(options.boundaryScannerLocale(), equalTo(HighlightOptions.DEFAULT_BOUNDARY_SCANNER_LOCALE));
+        assertThat(options.order(), equalTo(HighlightOptions.DEFAULT_ORDER));
+        assertThat(options.maxAnalyzedOffset(), equalTo(HighlightOptions.DEFAULT_MAX_ANALYZED_OFFSET));
+        assertThat(options.phraseLimit(), equalTo(HighlightOptions.DEFAULT_PHRASE_LIMIT));
+    }
+
+    public void testBoundaryAndOrderOptionsAreParsed() {
+        MapExpression map = map(
+            Highlight.BOUNDARY_SCANNER,
+            keyword(HighlightOptions.BOUNDARY_SCANNER_WORD),
+            Highlight.BOUNDARY_SCANNER_LOCALE,
+            keyword("en-US"),
+            Highlight.ORDER,
+            keyword(HighlightOptions.ORDER_SCORE)
+        );
+        HighlightOptions options = HighlightOptions.from(map, FoldContext.small());
+        assertThat(options.boundaryScanner(), equalTo(HighlightOptions.BOUNDARY_SCANNER_WORD));
+        assertThat(options.boundaryScannerLocale(), equalTo(Locale.forLanguageTag("en-US")));
+        assertThat(options.order(), equalTo(HighlightOptions.ORDER_SCORE));
+    }
+
+    public void testBoundaryAndOrderOptionsAreNormalizedToLowerCase() {
+        MapExpression map = map(Highlight.BOUNDARY_SCANNER, keyword("WORD"), Highlight.ORDER, keyword("Score"));
+        HighlightOptions options = HighlightOptions.from(map, FoldContext.small());
+        assertThat(options.boundaryScanner(), equalTo(HighlightOptions.BOUNDARY_SCANNER_WORD));
+        assertThat(options.order(), equalTo(HighlightOptions.ORDER_SCORE));
+    }
+
+    public void testMaxAnalyzedOffsetAndPhraseLimitAreParsed() {
+        MapExpression map = map(Highlight.MAX_ANALYZED_OFFSET, integer(500), Highlight.PHRASE_LIMIT, integer(64));
+        HighlightOptions options = HighlightOptions.from(map, FoldContext.small());
+        assertThat(options.maxAnalyzedOffset(), equalTo(500));
+        assertThat(options.phraseLimit(), equalTo(64));
+    }
+
+    public void testMaxAnalyzedOffsetAllowsMinusOne() {
+        HighlightOptions options = HighlightOptions.from(map(Highlight.MAX_ANALYZED_OFFSET, integer(-1)), FoldContext.small());
+        assertThat(options.maxAnalyzedOffset(), equalTo(-1));
+    }
+
+    public void testMaxAnalyzedOffsetRejectsZero() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightOptions.from(map(Highlight.MAX_ANALYZED_OFFSET, integer(0)), FoldContext.small())
+        );
+        assertThat(e.getMessage(), containsString("[max_analyzed_offset] must be a positive integer, or -1"));
+    }
+
+    public void testMaxAnalyzedOffsetRejectsBelowMinusOne() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightOptions.from(map(Highlight.MAX_ANALYZED_OFFSET, integer(-2)), FoldContext.small())
+        );
+        assertThat(e.getMessage(), containsString("[max_analyzed_offset] must be a positive integer, or -1"));
+    }
+
+    public void testNegativePhraseLimitIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightOptions.from(map(Highlight.PHRASE_LIMIT, integer(-1)), FoldContext.small())
+        );
+        assertThat(e.getMessage(), containsString("must be >= 0"));
     }
 
     public void testTagAsScalarString() {

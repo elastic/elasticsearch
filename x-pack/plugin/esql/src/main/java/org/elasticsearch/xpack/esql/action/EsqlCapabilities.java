@@ -3190,7 +3190,7 @@ public class EsqlCapabilities {
          * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes the
          * generated {@code highlight_*} columns. Snapshot-only.
          */
-        HIGHLIGHT_V1(Build.current().isSnapshot()),
+        HIGHLIGHT_V2(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

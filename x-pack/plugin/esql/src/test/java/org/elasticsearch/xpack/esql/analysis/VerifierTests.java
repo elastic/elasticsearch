@@ -4495,6 +4495,20 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
+    public void testHighlightRejectsInvalidEnumOptions() {
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assertInvalidHighlightOption("encoder", "xml");
+        assertInvalidHighlightOption("boundary_scanner", "chars");
+        assertInvalidHighlightOption("order", "doc");
+    }
+
+    private void assertInvalidHighlightOption(String optionName, String optionValue) {
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"" + optionName + "\": \"" + optionValue + "\" }",
+            containsString("Invalid [" + optionName + "] value [" + optionValue + "] in HIGHLIGHT")
+        );
+    }
+
     /**
      * A second {@code STATS} on a time-series pipeline becomes a regular {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate};
      * {@code WITHOUT} is only valid on {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate} until non-TS support exists.

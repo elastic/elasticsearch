@@ -138,11 +138,11 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
-                    ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
-                    : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                    ? DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.read(in)
+                    : DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.NO_DATA,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
-                    ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
-                    : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                    ? DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.read(in)
+                    : DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.NO_DATA,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
                     ? in.readMap(DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats::new)
                     : Map.of()

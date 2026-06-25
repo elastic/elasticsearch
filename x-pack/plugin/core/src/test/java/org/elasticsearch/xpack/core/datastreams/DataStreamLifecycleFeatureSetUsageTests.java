@@ -50,10 +50,10 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
         return new DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    static DataStreamLifecycleFeatureSetUsage.RetentionStats generateRetentionStats() {
+    static DataStreamLifecycleFeatureSetUsage.TimeThresholdStats generateRetentionStats() {
         return randomBoolean()
-            ? DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA
-            : new DataStreamLifecycleFeatureSetUsage.RetentionStats(
+            ? DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.NO_DATA
+            : new DataStreamLifecycleFeatureSetUsage.TimeThresholdStats(
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 110.0, false),
                 randomNonNegativeLong(),

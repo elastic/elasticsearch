@@ -285,7 +285,11 @@ public class FileSplitProvider implements SplitProvider {
                     if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
                         // Fused narrowing: output dimension goes from Unified to Query, read
                         // dimension goes from File to per-file Query projection. See the
-                        // four-schema doc on SchemaReconciliation.
+                        // four-schema doc on SchemaReconciliation. For Hive-partitioned sources
+                        // context.unifiedSchema() is the post-shadow data-only schema (partition
+                        // columns are appended only to the coordinator-facing schema, never here), so
+                        // its width matches each per-file mapping built by shadowPartitionCollisions and
+                        // satisfies pruneToPerFileQuery's unifiedSchema.size() == index.length assertion.
                         mapping = mapping.pruneToPerFileQuery(unifiedSchema, info.fileSchema(), fileBackedQuerySchema);
                     }
                     if (mapping != null && mapping.isIdentity() == false) {

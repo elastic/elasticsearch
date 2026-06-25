@@ -394,6 +394,34 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         }
     }
 
+    /**
+     * Extends {@link #assertCCSExecutionInfoDetails} with exact shard-level checks for each cluster.
+     * Every cluster that appears in execution info must appear in {@code expectedTotalShardsPerCluster}
+     * and vice-versa; mismatches (unexpected cluster, missing cluster, wrong count) all cause assertion
+     * failures. Include the local cluster (key {@code ""}) when the query accesses local indices.
+     */
+    protected static void assertCCSExecutionInfoDetailsWithShards(
+        EsqlExecutionInfo executionInfo,
+        Map<String, Integer> expectedTotalShardsPerCluster
+    ) {
+        assertCCSExecutionInfoDetails(executionInfo);
+        assertThat(
+            "mismatch in the number of expected clusters in the status output",
+            executionInfo.clusterAliases().size(),
+            equalTo(expectedTotalShardsPerCluster.size())
+        );
+        for (String clusterAlias : executionInfo.clusterAliases()) {
+            Integer expected = expectedTotalShardsPerCluster.get(clusterAlias);
+            assertNotNull("cluster [" + clusterAlias + "] found in execution info but not in expected map", expected);
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            assertThat("cluster [" + clusterAlias + "] total shards", cluster.getTotalShards(), equalTo(expected));
+            assertThat("cluster [" + clusterAlias + "] all shards should have succeeded", cluster.getSuccessfulShards(), equalTo(expected));
+        }
+        for (String clusterAlias : expectedTotalShardsPerCluster.keySet()) {
+            assertNotNull("expected cluster [" + clusterAlias + "] is missing from execution info", executionInfo.getCluster(clusterAlias));
+        }
+    }
+
     protected void setupAlias(String clusterAlias, String indexName, String aliasName) {
         Client client = client(clusterAlias);
         IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = client.admin()

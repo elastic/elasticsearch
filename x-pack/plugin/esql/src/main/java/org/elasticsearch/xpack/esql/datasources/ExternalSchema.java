@@ -33,19 +33,39 @@ public final class ExternalSchema implements Iterable<Attribute> {
 
     /**
      * Returns the data-attribute view of {@code attributes} as an {@link ExternalSchema}: the
-     * input list with virtual columns filtered out (relative order preserved). Used by
-     * external-source operator factories on the data node to derive the data-only schema once at
-     * construction rather than re-slicing per page; virtual columns ({@link MetadataAttribute}
-     * for ES document metadata, any {@link VirtualAttribute} for engine-synthesized columns like
-     * {@code _file.*}) are appended on the producer thread by {@code VirtualColumnIterator} and
-     * must not appear in the data-channel layout the format reader sees. Hive-style partition
-     * columns are real {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}s
-     * here and pass through; their projection stripping happens at the projection seam by name.
+     * input list with virtual columns filtered out (relative order preserved). Equivalent to
+     * {@link #dataAttributesOf(List, Set)} with an empty partition-column set; callers that track
+     * Hive-style partition columns must use that overload so the resulting width agrees with the
+     * file-backed {@code ColumnMapping}.
      */
     public static ExternalSchema dataAttributesOf(List<Attribute> attributes) {
+        return dataAttributesOf(attributes, Set.of());
+    }
+
+    /**
+     * Returns the data-attribute view of {@code attributes} as an {@link ExternalSchema}: the
+     * input list with virtual columns <em>and</em> Hive-style partition columns filtered out
+     * (relative order preserved). Used by external-source operator factories on the data node to
+     * derive the data-only schema once at construction rather than re-slicing per page.
+     * <p>
+     * Two classes of column are excluded because the format reader never produces them in the
+     * data channel — both are appended on the producer thread by {@code VirtualColumnIterator}:
+     * <ul>
+     *   <li>Virtual columns ({@link MetadataAttribute} for ES document metadata, any
+     *   {@link VirtualAttribute} for engine-synthesized columns like {@code _file.*}).</li>
+     *   <li>Hive-style partition columns — real
+     *   {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}s whose name is in
+     *   {@code partitionColumnNames}. Their values are derived from the file path, not the file
+     *   body. Excluding them keeps the data-only width in agreement with the file-backed
+     *   {@code ColumnMapping}; otherwise the {@code SchemaAdaptingIterator} size-vs-width guard
+     *   misfires whenever a partition key shadows a same-named physical column (the path-derived
+     *   value wins and the physical column is hidden, matching Spark and DuckDB).</li>
+     * </ul>
+     */
+    public static ExternalSchema dataAttributesOf(List<Attribute> attributes, Set<String> partitionColumnNames) {
         List<Attribute> data = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
-            if (PushdownPredicates.isVirtualColumn(attr) == false) {
+            if (PushdownPredicates.isVirtualColumn(attr) == false && partitionColumnNames.contains(attr.name()) == false) {
                 data.add(attr);
             }
         }

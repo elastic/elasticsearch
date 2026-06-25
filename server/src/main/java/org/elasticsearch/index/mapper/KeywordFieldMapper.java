@@ -76,6 +76,7 @@ import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
@@ -92,7 +93,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldRangeQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.Text;
@@ -186,7 +186,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
         }
 
@@ -293,7 +293,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.script.precludesParameters(nullValue);
 
-            this.docValuesParameters = DocValuesParameter.ofWithCardinality(
+            this.docValuesParameters = DocValuesParameter.of(
                 defaultDocValuesParameters(indexSettings),
                 m -> toType(m).docValuesParameters()
             );
@@ -1289,11 +1289,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else {
                 value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
                 if (usesBinaryDocValues) {
-                    return new StringScriptFieldRegexpQuery(
-                        new Script(""),
-                        ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
+                    return new SlowCustomBinaryDocValuesRegexpQuery(
                         name(),
-                        value,
+                        indexedValueForSearch(value).utf8ToString(),
                         syntaxFlags,
                         matchFlags,
                         maxDeterminizedStates

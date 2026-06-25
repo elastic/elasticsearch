@@ -245,7 +245,7 @@ public class StorageProviderRegistry implements Closeable {
         ConcurrencyLimiter limiter = limiterForScheme(scheme);
         StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
         // The adaptive backoff is selected per throttle scope (per-bucket/account) at read time, not baked in here:
-        // a hot bucket backs off only its own traffic, not every read on the same store. See #896.
+        // a hot bucket backs off only its own traffic, not every read on the same store.
         return new RetryableStorageProvider(limited, retryScheduler, this::retryPolicyForScope);
     }
 

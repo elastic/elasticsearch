@@ -29,7 +29,7 @@ public class ConcurrencyLimiterTests extends ESTestCase {
     }
 
     public void testWideFanOutAllCompletesWhenDemandExceedsPermits() throws Exception {
-        // Core #896 regression: a fan-out wider than the permit pool must all COMPLETE (queue and wait), never
+        // Core regression: a fan-out wider than the permit pool must all COMPLETE (queue and wait), never
         // be dropped or failed. Each acquirer holds exactly one permit and releases before the next is served, so
         // blocking is deadlock-free even when demand (32) far exceeds supply (4). This is the property that lets
         // the old fail-on-timeout go away.

@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 152171
+summary: "PromQL: Support `histogram_quantile` for exponential histograms"
+type: enhancement

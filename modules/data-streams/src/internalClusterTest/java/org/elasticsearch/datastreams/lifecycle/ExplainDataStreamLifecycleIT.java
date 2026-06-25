@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +51,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.dataStreamIndexEqualTo;
@@ -426,6 +429,12 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         // let's ensure that the failure store is initialised
         List<String> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
         String firstGenerationFailureIndex = failureIndices.get(0);
+        GetSettingsResponse settingsResponse = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, firstGenerationFailureIndex)
+            .get();
+
+        assertThat(settingsResponse.getSetting(firstGenerationFailureIndex, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
         assertThat(firstGenerationFailureIndex, dataStreamIndexEqualTo(dataStreamName, 2, true));
 
         // prevent new indices from being created (ie. future rollovers)
@@ -490,9 +499,8 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                  * succeed, and there will always be an error in the error store. This behavior is subject to change in the future.
                  */
                 assertThat(response.getIndices().get(0).getError(), is(notNullValue()));
-                assertThat(response.getIndices().get(0).getError().error(), containsString("Force merge request "));
-                assertThat(response.getIndices().get(1).getError(), is(notNullValue()));
-                assertThat(response.getIndices().get(1).getError().error(), containsString("Force merge request "));
+                assertThat(Objects.requireNonNull(response.getIndices().get(0).getError()).error(), containsString("Force merge request "));
+                assertThat(response.getIndices().get(1).getError(), is(nullValue()));
             }
         });
     }

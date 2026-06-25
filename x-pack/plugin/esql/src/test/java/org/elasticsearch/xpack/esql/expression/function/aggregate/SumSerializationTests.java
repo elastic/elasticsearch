@@ -120,7 +120,14 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
      */
     public void testSerializeSumWithOverflowingLongSupplier() throws IOException {
         var transportVersion = TransportVersionUtils.randomVersionSupporting(Sum.ESQL_SUM_LONG_OVERFLOW_FIX);
-        var sum = new Sum(randomSource(), randomChild(), randomChild(), randomChild(), randomChild(), Sum.LONG_OVERFLOW_THROW);
+        var sum = new Sum(
+            randomSource(),
+            randomChildSupportedOn(transportVersion),
+            randomChildSupportedOn(transportVersion),
+            randomChildSupportedOn(transportVersion),
+            randomChildSupportedOn(transportVersion),
+            Sum.LONG_OVERFLOW_THROW
+        );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planOut = new PlanStreamOutput(out, configuration());
             planOut.setTransportVersion(transportVersion);

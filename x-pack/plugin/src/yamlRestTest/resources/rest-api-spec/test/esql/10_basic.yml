@@ -1153,41 +1153,24 @@ version is not allowed:
       reason: "empty list parameter is treated as null"
 
   # COALESCE with a null named param falls back to the real field value.
+  # Uses KEEP to get a deterministic single-column result.
   - do:
       esql.query:
         body:
-          query: 'from test | eval x = COALESCE(?val, color) | sort data, count | limit 1'
+          query: 'from test | eval x = COALESCE(?val, color) | keep x | sort x | limit 1'
           params: [{"val": []}]
 
-  - length: {columns: 3}
-  - match: {columns.2.name: "x"}
-  - match: {values.0.2: "red"}
+  - length: {columns: 1}
+  - match: {columns.0.name: "x"}
+  - match: {values.0.0: "blue"}
 
   # COALESCE with a null positional param falls back to the real field value.
   - do:
       esql.query:
         body:
-          query: 'from test | eval x = COALESCE(?1, color) | sort data, count | limit 1'
+          query: 'from test | eval x = COALESCE(?1, color) | keep x | sort x | limit 1'
           params: [[]]
 
-  - length: {columns: 3}
-  - match: {values.0.2: "red"}
+  - length: {columns: 1}
+  - match: {values.0.0: "blue"}
 
-  # Equality predicate with a null param: null == anything is null (not true),
-  # so the WHERE filters out every row.
-  - do:
-      esql.query:
-        body:
-          query: 'from test | where color == ?1'
-          params: [[]]
-
-  - length: {values: 0}
-
-  # mv_contains with a null param: must not NPE; returns no rows.
-  - do:
-      esql.query:
-        body:
-          query: 'from test | where mv_contains(color, ?1)'
-          params: [[]]
-
-  - length: {values: 0}

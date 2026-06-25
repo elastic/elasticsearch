@@ -690,8 +690,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             List.of()
         );
         var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
-        // mergedResolution builds the field on the current version (compact, type-keyed conversions), so the analyzer must resolve it on a
-        // version that supports the compact path too. In production both gates read the same resolution min version, so they always agree.
         TestAnalyzer ta = analyzer().minimumTransportVersion(CompactMultiTypeEsField.CompactMultiTypeEsField);
         for (var entry : resolutions.entrySet()) {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
@@ -1289,27 +1287,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
-    /**
-     * A partially unmapped non-keyword field that cannot be auto-cast (TEXT has no KEYWORD converter) falls back to its mapped type and may
-     * be renamed under {@code unmapped_fields="load"}, behaving exactly as it does without {@code load}.
-     */
-    public void testLoadWithPartiallyMappedNonKeywordInRenameFallsBack() {
-        assumeTrue(
-            "Requires OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED.isEnabled()
-        );
-
-        var partialText = new EsField("partial_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
-        var esIndex = partialIndex(Map.of("partial_text", partialText, "common", keywordField("common")), Set.of("partial_text"));
-        var analyzer = analyzer().addIndex(esIndex);
-
-        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | RENAME partial_text AS pt"));
-        assertOutputContainsType(plan, "pt", DataType.TEXT);
-
-        plan = analyzer.statement(setUnmappedLoad("FROM idx* | RENAME common as c, partial_text AS pt"));
-        assertOutputContainsType(plan, "pt", DataType.TEXT);
-    }
-
     public void testLoadWithPartiallyMappedNonKeywordInSortAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
@@ -1663,8 +1640,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     private static void assertSingleOutputType(LogicalPlan plan, String fieldName, DataType dataType) {
-        assertThat(Expressions.names(plan.output()), is(List.of(fieldName)));
-        assertThat(plan.output().getFirst().dataType(), is(dataType));
+        var attribute = EsqlTestUtils.singleValue(plan.output());
+        assertThat(attribute.name(), equalTo(fieldName));
+        assertThat(attribute.dataType(), equalTo(dataType));
     }
 
     private static void assertOutputContainsType(LogicalPlan plan, String fieldName, DataType dataType) {

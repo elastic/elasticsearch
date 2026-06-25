@@ -100,7 +100,6 @@ public class QuerySettings {
         - Referencing subfields of `flattened` parents is not supported.
         - Partially unmapped non-keyword fields can be used in expressions. Values remain typed where mapped and are `null`
           for rows from indices where the field is unmapped.
-        - `RENAME` of partially unmapped non-keyword fields is not supported unless the field can be implicitly cast to its mapped type.
         """)
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,

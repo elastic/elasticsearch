@@ -33,11 +33,11 @@ public final class InvalidMappedField extends TypeConflictedField {
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
         // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
-        this(name, new TreeMap<>(), typesToIndices, false);
+        this(name, new TreeMap<>(), typesToIndices, false, TimeSeriesFieldType.UNKNOWN);
     }
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices, Map<String, EsField> properties) {
-        this(name, properties, typesToIndices, false);
+        this(name, properties, typesToIndices, false, TimeSeriesFieldType.UNKNOWN);
     }
 
     /**
@@ -47,16 +47,17 @@ public final class InvalidMappedField extends TypeConflictedField {
      */
     public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
         // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
-        return new InvalidMappedField(name, new TreeMap<>(), typesToIndices, true);
+        return new InvalidMappedField(name, new TreeMap<>(), typesToIndices, true, TimeSeriesFieldType.UNKNOWN);
     }
 
     private InvalidMappedField(
         String name,
         Map<String, EsField> properties,
         Map<String, Set<String>> typesToIndices,
-        boolean isPotentiallyUnmapped
+        boolean isPotentiallyUnmapped,
+        TimeSeriesFieldType type
     ) {
-        super(name, DataType.UNSUPPORTED, properties, false, TimeSeriesFieldType.UNKNOWN);
+        super(name, DataType.UNSUPPORTED, properties, false, type);
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }

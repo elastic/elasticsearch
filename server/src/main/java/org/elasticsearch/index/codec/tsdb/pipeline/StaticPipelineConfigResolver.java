@@ -34,18 +34,18 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
  *       longs and produces the same compaction. {@code kMax} is sized from
  *       {@code blockSize} as {@code clamp(blockSize / 32, 4, 64)} so large blocks with
  *       many resets do not bow out under the default cap.</li>
- *   <li>IP and keyword TSDB dimension fields ({@link MappedFieldType#IP} and
- *       {@link MappedFieldType#KEYWORD} with {@link FieldContext#isDimension()}) use a
- *       block size of {@code 1024} ({@code blockShift=10}) regardless of the format-level
- *       default. Only {@code blockSize()} of the returned config is used for ordinal
- *       fields; the pipeline stages are never executed. At {@code blockSize=1024},
- *       {@code maxCycleLength=256}, covering low-cardinality dimension cycles that
+ *   <li>IP TSDB dimension fields ({@link MappedFieldType#IP} with
+ *       {@link FieldContext#isDimension()}) use a block size of {@code 1024}
+ *       ({@code blockShift=10}) regardless of the format-level default. Only
+ *       {@code blockSize()} of the returned config is used for ordinal fields; the
+ *       pipeline stages are never executed. At {@code blockSize=1024},
+ *       {@code maxCycleLength=256}, covering low-cardinality IP dimension cycles that
  *       arise after a {@code _tsid}-sorted merge.</li>
  *   <li>All other fields use the ES819 baseline {@code delta > offset > gcd > bitPack}.</li>
  * </ul>
  *
- * <p>The three known ordinal block sizes ({@code 128}, {@code 512}, and {@code 1024})
- * and the two numeric production block sizes ({@code 128} and {@code 512}, see
+ * <p>The known ordinal block sizes ({@code 128}, {@code 512}, and {@code 1024})
+ * and the numeric production block sizes ({@code 128} and {@code 512}, see
  * {@code ES95TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT} and {@code NUMERIC_LARGE_BLOCK_SHIFT})
  * have their {@link PipelineConfig} precomputed at class load for the baseline, split-delta,
  * ALP-double-gauge, and ALP-double-counter variants, so the per-field write path reuses a
@@ -94,7 +94,7 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
         if (context.isDimension() == false) {
             return false;
         }
-        return context.mappedFieldType() == MappedFieldType.IP || context.mappedFieldType() == MappedFieldType.KEYWORD;
+        return context.mappedFieldType() == MappedFieldType.IP;
     }
 
     private static boolean useSplitDelta(final FieldContext context) {

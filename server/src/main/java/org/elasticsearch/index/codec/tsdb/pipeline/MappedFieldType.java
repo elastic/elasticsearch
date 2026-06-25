@@ -25,7 +25,5 @@ public enum MappedFieldType {
     /** Maps to {@code DateFieldMapper}. */
     DATE,
     /** Maps to {@code IpFieldMapper}. */
-    IP,
-    /** Maps to {@code KeywordFieldMapper}. */
-    KEYWORD
+    IP
 }

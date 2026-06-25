@@ -273,22 +273,6 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         assertEquals(1024, config.blockSize());
     }
 
-    public void testKeywordDimensionFieldUsesBlockSize1024() {
-        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
-        final FieldContext context = new FieldContext(
-            randomFrom(128, 512),
-            randomNonTimestampFieldName(),
-            null,
-            null,
-            MappedFieldType.KEYWORD,
-            true
-        );
-
-        final PipelineConfig config = resolver.resolve(context);
-
-        assertEquals(1024, config.blockSize());
-    }
-
     public void testIpNonDimensionFieldUsesFormatDefaultBlockSize() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomFrom(128, 512);
@@ -299,10 +283,12 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         assertEquals(blockSize, config.blockSize());
     }
 
-    public void testKeywordNonDimensionFieldUsesFormatDefaultBlockSize() {
+    public void testKeywordDimensionFieldUsesFormatDefaultBlockSize() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomFrom(128, 512);
-        final FieldContext context = new FieldContext(blockSize, randomNonTimestampFieldName(), null, null, MappedFieldType.KEYWORD, false);
+        // Keyword fields are not routed to the larger IP block size; PerFieldFormatSupplier
+        // emits mappedFieldType=null for keyword fields so they fall through to baselineConfig.
+        final FieldContext context = new FieldContext(blockSize, randomNonTimestampFieldName(), null, null, null, true);
 
         final PipelineConfig config = resolver.resolve(context);
 

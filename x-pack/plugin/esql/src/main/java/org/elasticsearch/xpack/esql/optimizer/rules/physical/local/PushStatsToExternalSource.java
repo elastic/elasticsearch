@@ -81,7 +81,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             return aggregateExec;
         }
         ExternalSourceExec externalExec = info.externalExec();
-        AttributeMap<Attribute> aliasReplacedBy = info.aliasReplacedBy();
+        AttributeMap<Expression> aliasReplacedBy = info.aliasReplacedBy();
         Expression filterCondition = info.filterCondition();
 
         AggregatorMode mode = aggregateExec.getMode();

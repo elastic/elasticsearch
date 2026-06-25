@@ -69,9 +69,12 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(
-            // Set up fast publishing of new memory metrics, so the tests can run fast.
+            // Publish memory metrics frequently so the tests run fast, but not so frequently that the constant publication traffic
+            // saturates the master's transport/management pools. The tests synchronize on publications via per-node latches
+            // (see HeapUsagePublicationInterceptor#waitForNextPublication), so a tighter cadence buys nothing and only adds load
+            // that can delay the node-stats fetch behind refreshClusterInfo() and time it out.
             ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING.getKey(),
-            TimeValue.timeValueMillis(10)
+            TimeValue.timeValueMillis(100)
         )
             .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
             // Ensure the decider is enabled even for the small (512 MB) test JVM.

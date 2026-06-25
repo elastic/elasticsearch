@@ -734,3 +734,15 @@ tests:
 - class: org.elasticsearch.index.engine.InternalEngineTests
   method: testLookupSeqNoByIdInLucene
   issue: https://github.com/elastic/elasticsearch/issues/152120
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:views.notInSubqueryReferencingView}
+  issue: https://github.com/elastic/elasticsearch/issues/152126
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:mv_expand.keepStarMvExpand}
+  issue: https://github.com/elastic/elasticsearch/issues/152129
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681

@@ -11,8 +11,14 @@ redirects:
   # Indexing pressure documents node setting indexing_pressure.memory.limit, not index-level settings
   'reference/elasticsearch/index-settings/pressure.md': 'reference/elasticsearch/configuration-reference/indexing-pressure-settings.md'
 
+  # Manage plugins and extensions API guide moved to docs-content
+  'reference/elasticsearch-plugins/cloud/ec-plugins-guide.md': 'docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md'
+
   # Related to https://github.com/elastic/elasticsearch/pull/130716/
   'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'
+
+  # Custom plugins and bundles moved to docs-content (narrative ECH deployment docs)
+  'reference/elasticsearch-plugins/cloud/ec-custom-bundles.md': 'docs-content://deploy-manage/deploy/elastic-cloud/upload-custom-plugins-bundles.md'
 
   # https://github.com/elastic/elasticsearch/pull/131385
   'reference/elasticsearch/rest-apis/retrievers.md':

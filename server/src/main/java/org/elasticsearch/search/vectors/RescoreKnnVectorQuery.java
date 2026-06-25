@@ -14,7 +14,6 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConjunctionUtils;
-import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnByteVectorQuery;
@@ -202,7 +201,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
     private static class DirectRescoreKnnVectorQuery extends Query {
         private static final int PREFETCH_BUFFER_SIZE = 100;
-        private static final int BULK_SCORE_SIZE = 32;
 
         private final float[] floatTarget;
         private final String fieldName;
@@ -227,7 +225,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             }
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 
-            DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
             List<ScoreDoc> results = new ArrayList<>(10);
             int[] ringDocIDs = new int[PREFETCH_BUFFER_SIZE];
             int[] ringDocBases = new int[PREFETCH_BUFFER_SIZE];
@@ -257,7 +254,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 KnnVectorValues.DocIndexIterator vectorIter = knnVectorValues.iterator();
                 DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIter, filterIterator));
                 VectorScorer vecScorer = knnVectorValues.rescorer(floatTarget);
-
                 int doc;
                 while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                     assert doc == vectorIter.docID();
@@ -268,10 +264,9 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     }
 
                     if (ringCount == PREFETCH_BUFFER_SIZE) {
-                        int scored = scoreEntries(ringDocIDs, ringDocBases, ringScorers, ringHead, ringCount, buffer, results);
-                        assert scored > 0;
-                        ringHead = (ringHead + scored) % PREFETCH_BUFFER_SIZE;
-                        ringCount -= scored;
+                        scoreEntry(ringDocIDs[ringHead], ringDocBases[ringHead], ringScorers[ringHead], results);
+                        ringHead = (ringHead + 1) % PREFETCH_BUFFER_SIZE;
+                        ringCount--;
                     }
 
                     int ringTail = (ringHead + ringCount) % PREFETCH_BUFFER_SIZE;
@@ -282,83 +277,26 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 }
             }
 
-            while (ringCount > 0) {
-                int scored = scoreEntries(ringDocIDs, ringDocBases, ringScorers, ringHead, ringCount, buffer, results);
-                assert scored > 0;
-                ringHead = (ringHead + scored) % PREFETCH_BUFFER_SIZE;
-                ringCount -= scored;
+            for (int i = 0; i < ringCount; i++) {
+                int idx = (ringHead + i) % PREFETCH_BUFFER_SIZE;
+                scoreEntry(ringDocIDs[idx], ringDocBases[idx], ringScorers[idx], results);
             }
 
-            return new KnnScoreDocQuery(results.toArray(ScoreDoc[]::new), indexSearcher.getIndexReader());
+            ScoreDoc[] arrayResults = results.toArray(new ScoreDoc[0]);
+            return new KnnScoreDocQuery(arrayResults, indexSearcher.getIndexReader());
         }
 
         private static IndexInput getIndexSliceOrNull(KnnVectorValues vectorValues) {
             return vectorValues instanceof HasIndexSlice h ? h.getSlice() : null;
         }
 
-        private static int scoreEntries(
-            int[] ringDocIds,
-            int[] ringDocBases,
-            VectorScorer[] ringScorers,
-            int ringHead,
-            int ringCount,
-            DocAndFloatFeatureBuffer buffer,
-            List<ScoreDoc> results
-        ) throws IOException {
-            int docBase = ringDocBases[ringHead];
-            VectorScorer scorer = ringScorers[ringHead];
-
-            // find up to BULK_SCORE_SIZE docs for this scorer to score
-            int count = 1;
-            for (; count < BULK_SCORE_SIZE && count < ringCount; count++) {
-                int idx = (ringHead + count) % PREFETCH_BUFFER_SIZE;
-                if (ringScorers[idx] != scorer || ringDocBases[idx] != docBase) break;    // scorer has changed - stop there
+        private static void scoreEntry(int docID, int docBase, VectorScorer scorer, List<ScoreDoc> results) throws IOException {
+            int target = scorer.iterator().advance(docID);
+            assert target == docID;
+            float score = scorer.score();
+            if (Float.isNaN(score) == false) {
+                results.add(new ScoreDoc(docID + docBase, score));
             }
-
-            final int docIdCount = count;
-            DocIdSetIterator iterator = new DocIdSetIterator() {
-                private int idx = 0;    // just start at 0, we know where we're going from
-
-                private int docID(int idx) {
-                    assert idx < docIdCount;
-                    return ringDocIds[(ringHead + idx) % PREFETCH_BUFFER_SIZE];
-                }
-
-                @Override
-                public int docID() {
-                    return idx == docIdCount ? DocIdSetIterator.NO_MORE_DOCS : docID(idx);
-                }
-
-                @Override
-                public int nextDoc() {
-                    if (idx < docIdCount) idx++;
-                    return docID();
-                }
-
-                @Override
-                public int advance(int target) throws IOException {
-                    return slowAdvance(target);
-                }
-
-                @Override
-                public long cost() {
-                    return docIdCount;
-                }
-            };
-
-            scorer.iterator().advance(ringDocIds[ringHead]);
-
-            scorer.bulk(iterator).nextDocsAndScores(DocIdSetIterator.NO_MORE_DOCS, null, buffer);
-            assert buffer.size == count;
-
-            for (int d = 0; d < buffer.size; d++) {
-                if (!Float.isNaN(buffer.features[d])) {
-                    results.add(new ScoreDoc(buffer.docs[d] + docBase, buffer.features[d]));
-                }
-            }
-
-            // return the number of docs scored
-            return count;
         }
 
         @Override

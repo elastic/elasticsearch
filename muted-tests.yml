@@ -247,9 +247,6 @@ tests:
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/149040
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=data_stream/110_update_by_query/Update by query from data stream}
-  issue: https://github.com/elastic/elasticsearch/issues/149042
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:fuse.fuseWithRowRRFAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/149046
@@ -343,9 +340,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
   issue: https://github.com/elastic/elasticsearch/issues/150188
-- class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
-  method: testPointInTimeRelocationClosingSourceContexts
-  issue: https://github.com/elastic/elasticsearch/issues/150288
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/150294
@@ -386,15 +380,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
   method: testRefreshesAreBlockedUntilBlockIsRemoved
   issue: https://github.com/elastic/elasticsearch/issues/150492
-- class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
-  method: testFeatureImportanceValues
-  issue: https://github.com/elastic/elasticsearch/issues/150493
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTSTypeConflictTimeseriesStatsWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150495
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
-  method: testRegisterUnpromotableRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/150514
 - class: org.elasticsearch.xpack.stateless.StatelessSearchIT
   method: testSearchTriggeredDownloadsTelemetry
   issue: https://github.com/elastic/elasticsearch/issues/150540
@@ -500,15 +488,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testUnhollowOnUpdates
   issue: https://github.com/elastic/elasticsearch/issues/151100
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
-  method: testEvaluate {TestCase=<integer>, <dense_vector>}
-  issue: https://github.com/elastic/elasticsearch/issues/151114
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
-  method: testEvaluate {TestCase=<double>, <dense_vector>}
-  issue: https://github.com/elastic/elasticsearch/issues/151115
-- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
-  method: testEvaluate {TestCase=<long>, <dense_vector>}
-  issue: https://github.com/elastic/elasticsearch/issues/151116
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/151117
@@ -554,6 +533,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load four indices with single conversion function TO_IP}
   issue: https://github.com/elastic/elasticsearch/issues/151413
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/250_columnar_keyword/Test mv_min}
+  issue: https://github.com/elastic/elasticsearch/issues/147379
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/250_columnar_keyword/Test mv max}
+  issue: https://github.com/elastic/elasticsearch/issues/147379
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
@@ -641,27 +626,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testScrollDisableBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/151862
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:string.convertFromUnsignedLong}
   issue: https://github.com/elastic/elasticsearch/issues/151871
-- class: org.elasticsearch.index.store.BytesReadHeaderIT
-  method: testMultipleIndicesAccumulateBytesRead
-  issue: https://github.com/elastic/elasticsearch/issues/151874
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/151884
-- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
-  method: testFetchingMixedTextAndImageChunks
-  issue: https://github.com/elastic/elasticsearch/issues/151928
-- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
-  method: testFetchingMixedTextAndImageValues
-  issue: https://github.com/elastic/elasticsearch/issues/151929
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:ip_location.*}
-  issue: https://github.com/elastic/elasticsearch/issues/151950
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
   issue: https://github.com/elastic/elasticsearch/issues/151992
@@ -683,9 +653,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalParquetStringTopNSideChannelIT
   method: testNullsFirstEarlyTermination
   issue: https://github.com/elastic/elasticsearch/issues/152038
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=indices.refresh/10_basic/Indices refresh test _all}
-  issue: https://github.com/elastic/elasticsearch/issues/152039
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:views.mixedIndexWithViewRowInFromSubquery}
   issue: https://github.com/elastic/elasticsearch/issues/152040
@@ -713,9 +680,75 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleRound
   issue: https://github.com/elastic/elasticsearch/issues/152063
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/152081
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testOutageBuffersToDiskAndDrainsOnRecovery
   issue: https://github.com/elastic/elasticsearch/issues/152087
+- class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
+  method: testGenerateDefinitions
+  issue: https://github.com/elastic/elasticsearch/issues/152095
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
+  method: testEvaluate {TestCase=geo_shape and geo_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152108
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:stats.sumWithOverflowGroupingRow}
+  issue: https://github.com/elastic/elasticsearch/issues/152113
+- class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
+  method: testMappingsUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/152115
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRestartAfterCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/152116
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testSearchPhaseFailureLeak
+  issue: https://github.com/elastic/elasticsearch/issues/152117
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=geo_shape and geo_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152119
+- class: org.elasticsearch.index.engine.InternalEngineTests
+  method: testLookupSeqNoByIdInLucene
+  issue: https://github.com/elastic/elasticsearch/issues/152120
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:views.notInSubqueryReferencingView}
+  issue: https://github.com/elastic/elasticsearch/issues/152126
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:mv_expand.keepStarMvExpand}
+  issue: https://github.com/elastic/elasticsearch/issues/152129
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.xpack.ml.datafeed.CredentialTransitionsTests
+  method: testValidateSearchBeforeMintWhenProbeReturnsNoMatchingProjectShouldDeferToRuntime
+  issue: https://github.com/elastic/elasticsearch/issues/152130
+- class: org.elasticsearch.xpack.ml.datafeed.CredentialTransitionsTests
+  method: testValidateSearchBeforeMintWhenProbeReturnsNoMatchingProjectForQualifiedIndexShouldFail
+  issue: https://github.com/elastic/elasticsearch/issues/152131
+- class: org.elasticsearch.xpack.esql.action.ExternalSourceProfileIT
+  method: testCsvCountStarScansColdThenSkipsWarm
+  issue: https://github.com/elastic/elasticsearch/issues/152132
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join.remoteEnrichBetweenLookupJoins}
+  issue: https://github.com/elastic/elasticsearch/issues/152137
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:in_subquery.inSubqueryWithIndexPatternMixedWithRow}
+  issue: https://github.com/elastic/elasticsearch/issues/152138
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:in_subquery.textInKeyword}
+  issue: https://github.com/elastic/elasticsearch/issues/152139
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.sparklineWithWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152159
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.avgAndSparklineWithWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152160
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.weightedAvgAndTwoSparklinesWithSameWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152161
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats_sparkline.weightedAvgAndSparklineWithSameWeightedAvg}
+  issue: https://github.com/elastic/elasticsearch/issues/152162
+- class: org.elasticsearch.indices.recovery.ThrottlingRecoveryServiceTests
+  method: testQueuedRecoveryIsDispatchedWithCleanThreadContext
+  issue: https://github.com/elastic/elasticsearch/issues/152183

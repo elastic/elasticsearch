@@ -83,8 +83,7 @@ import java.util.Set;
  *        (one {@code STATS} after the fork, none inside branches) or
  *        {@code FROM | STATS | FORK (...)} (exactly one {@code STATS} per branch)
  *   <li> the other processing commands are from the supported set
- *        ({@link ApproximationVerifier#SUPPORTED_COMMANDS}); this set contains almost all
- *        unary commands, and some non-unary ones; most notably not {@code FORK}.
+ *        ({@link ApproximationVerifier#SUPPORTED_COMMANDS})
  *   <li> the aggregate functions are from the supported set
  *        ({@link ApproximationVerifier#SUPPORTED_SINGLE_VALUED_AGGS} and
  *         {@link ApproximationVerifier#SUPPORTED_MULTIVALUED_AGGS})

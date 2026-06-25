@@ -142,10 +142,6 @@ public class ApproximationSupportTests extends ESTestCase {
         TimeSeriesAggregate.class,
         TimeSeriesCollapse.class,
 
-        // SurrogateLogicalPlans: present in the analyzed plan but rewritten during the optimizer's
-        // substitutions phase, before any approximation logic runs.
-        Dedup.class, // rewritten to LimitBy
-
         // HIGHLIGHT is not supported;
         Highlight.class,
 
@@ -192,8 +188,9 @@ public class ApproximationSupportTests extends ESTestCase {
         CompoundOutputEval.class,
         AbstractSubqueryJoin.class,
 
-        // These plans don't occur in a correct analyzed query.
+        // These plans don't occur in a correct analyzed/optimzed query.
         AntiJoin.class,
+        Dedup.class,
         Drop.class,
         InlineStats.class,
         Keep.class,

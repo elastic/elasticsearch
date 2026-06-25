@@ -38,8 +38,8 @@ public enum StatelessCacheEvictionPolicyType {
             return new PinnedWindowEvictionPolicy(
                 clusterService.getClusterSettings(),
                 threadPool,
-                // We consult {@link IndicesService} rather than cluster-state routing because routing can lag behind locally open shards
-                // during cluster-state application. Once a shard is open here, {@link IndicesService} reflects that immediately.
+                // We consult IndicesService rather than cluster-state routing because routing can lag behind locally open shards
+                // during cluster-state application. Once a shard is open here, IndicesService reflects that immediately.
                 indicesService.hasShardPredicate()
             );
         }
@@ -72,7 +72,7 @@ public enum StatelessCacheEvictionPolicyType {
         return resolveEvictionPolicyFromSettings(settings).create(
             clusterService,
             Objects.requireNonNull(indicesService),
-            Objects.requireNonNull(threadPool, "threadPool")
+            Objects.requireNonNull(threadPool)
         );
     }
 }

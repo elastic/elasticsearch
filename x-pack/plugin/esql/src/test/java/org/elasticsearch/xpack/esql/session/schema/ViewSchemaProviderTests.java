@@ -103,7 +103,7 @@ public class ViewSchemaProviderTests extends ESTestCase {
 
     private SchemaContext viewSchemaContext() {
         // The view path needs only the parser and (CPS) project routing from the context; the rest is unused here.
-        return new SchemaContext(null, null, null, null, false, Set.of(), null, null, this::parse);
+        return new SchemaContext(null, null, null, null, false, Set.of(), null, null, this::parse, null);
     }
 
     private LogicalPlan parse(String query, String viewName) {

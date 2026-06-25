@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -94,12 +95,69 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
     }
 
     /**
+     * The single source of truth for one index-resolve field-caps request: a per-pattern bundle of the inputs the
+     * field-caps fetch is a pure function of. {@code flat} selects the CPS flat/lenient path
+     * ({@link IndexResolver#resolveFlatIndicesVersioned}) and carries {@code lenient}/{@code projectRouting}; the
+     * non-flat path is the cross-cluster main resolution ({@link IndexResolver#resolveMainIndicesVersioned}). Building
+     * the request once — with the real {@code projectRouting} and CPS flags — and dispatching through the umbrella is
+     * the CPS lesson carried forward from the view fix: there is no second, degraded request shape.
+     */
+    public record IndexSchemaRequest(
+        String pattern,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        boolean includeAllDimensions,
+        TransportVersion minimumVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
+        boolean trackUnmappedFieldIndices,
+        boolean flat,
+        boolean lenient,
+        String projectRouting
+    ) {}
+
+    /**
+     * The per-pattern fetch the index orchestration sources its {@link IndexResolution}s from, supplied by the schema
+     * umbrella and backed by its singular {@code resolveSchema} dispatch. Mirrors the dataset cutover's config-resolver
+     * callback: the orchestration in this provider stays put (CCS-state init, the time-series retry, version
+     * accumulation, telemetry, lookup validation), only the field-caps fetch moves behind the umbrella.
+     *
+     * <p>{@link #fetch} is the main / flat (CPS) resolution that drives the per-pattern minimum transport version;
+     * {@link #fetchLookup} is the lookup-index resolution, which uses lookup-specific field-caps options and does not
+     * update the minimum version (the comment on {@code preAnalyzeLookupIndex} explains why). Both route through the
+     * umbrella, so the lookup field-caps call is no longer issued inline either.
+     */
+    public interface IndexResolutionFetcher {
+        void fetch(IndexSchemaRequest request, ActionListener<Versioned<IndexResolution>> listener);
+
+        void fetchLookup(
+            String indexExpression,
+            Set<String> fieldNames,
+            TransportVersion minimumVersion,
+            ActionListener<IndexResolution> listener
+        );
+    }
+
+    private IndexResolutionFetcher fetcher;
+
+    /**
+     * Wire the umbrella-backed fetch the orchestration calls per pattern. The session installs this once before driving
+     * {@link #resolveMainIndices}/{@link #resolveLookupIndices}, so every field-caps fetch routes through the singular
+     * {@code resolveSchema} dispatch rather than calling {@link IndexResolver} inline — behaviour-identical, since the
+     * dispatch issues the same field-caps request and returns the same {@link Versioned} resolution.
+     */
+    void useFetcher(IndexResolutionFetcher fetcher) {
+        this.fetcher = fetcher;
+    }
+
+    /**
      * The unified-dispatch entry: resolve each index/alias/data-stream name to a {@link ResolvedSchema.Index}. This is
-     * the per-name field-caps fetch only — intentionally pre-orchestration. The cross-cluster setup the live query path
-     * needs ({@link org.elasticsearch.xpack.esql.session.EsqlCCSUtils#initCrossClusterState}, the CPS strict/lenient
-     * two-pass, linked-index handling, per-pattern {@link org.elasticsearch.xpack.esql.action.EsqlExecutionInfo}
-     * bookkeeping) lives in {@link #resolveMainIndices} and is not duplicated here, so this must not be wired as a
-     * drop-in replacement for the live path until that coordination is folded in or hoisted to the umbrella.
+     * the per-name field-caps fetch only — the context-free production behind the index orchestration. Each name's
+     * field-caps request is carried on the {@link SchemaContext} (its {@code indexRequestFor} provides the per-pattern
+     * inputs); the cross-cluster setup, the CPS strict/lenient two-pass sequencing, the time-series retry and the
+     * per-pattern execution-info bookkeeping stay in {@link #resolveMainIndices}/{@link #resolveLookupIndices}, which
+     * wrap this fetch.
      */
     @Override
     public void resolveSchema(
@@ -108,21 +166,47 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
         List<String> names,
         ActionListener<List<ResolvedSchema>> listener
     ) {
-        PreAnalyzer.PreAnalysis preAnalysis = ctx.preAnalysis();
         var grouped = new GroupedActionListener<ResolvedSchema>(names.size(), listener.map(c -> c.stream().toList()));
         for (String name : names) {
+            IndexSchemaRequest request = ctx.indexRequestFor(name);
+            fetchIndexResolution(request, grouped.map(versioned -> new ResolvedSchema.Index(name, versioned)));
+        }
+    }
+
+    /**
+     * Issue the field-caps fetch for a single index pattern: the flat (CPS) path when {@code flat}, else the
+     * cross-cluster main path. This is the one place the field-caps request is built, from the single-source
+     * {@link IndexSchemaRequest} — no degraded second request shape.
+     */
+    void fetchIndexResolution(IndexSchemaRequest request, ActionListener<Versioned<IndexResolution>> listener) {
+        if (request.flat()) {
+            indexResolver.resolveFlatIndicesVersioned(
+                request.lenient(),
+                request.pattern(),
+                request.projectRouting(),
+                request.fieldNames(),
+                request.requestFilter(),
+                request.includeAllDimensions(),
+                request.minimumVersion(),
+                request.useAggregateMetricDoubleWhenNotSupported(),
+                request.useDenseVectorWhenNotSupported(),
+                request.hasTimeSeriesAggregation(),
+                request.trackUnmappedFieldIndices(),
+                listener
+            );
+        } else {
             indexResolver.resolveMainIndicesVersioned(
-                name,
-                ctx.fieldNames(),
-                ctx.requestFilter(),
-                false,
-                ctx.minimumVersion(),
-                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
-                preAnalysis.useDenseVectorWhenNotSupported(),
-                preAnalysis.hasTimeSeriesAggregation(),
-                ctx.trackUnmappedFieldIndices(),
+                request.pattern(),
+                request.fieldNames(),
+                request.requestFilter(),
+                request.includeAllDimensions(),
+                request.minimumVersion(),
+                request.useAggregateMetricDoubleWhenNotSupported(),
+                request.useDenseVectorWhenNotSupported(),
+                request.hasTimeSeriesAggregation(),
+                request.trackUnmappedFieldIndices(),
                 indicesExpressionGrouper,
-                grouped.map(versioned -> new ResolvedSchema.Index(name, versioned.inner()))
+                listener
             );
         }
     }
@@ -220,42 +304,50 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
             executionInfo.queryProfile().incFieldCapsCalls();
-            indexResolver.resolveMainIndicesVersioned(
-                indexPattern.indexPattern(),
-                result.fieldNames(),
-                createQueryFilter(indexMode, requestFilter),
-                indexMode == IndexMode.TIME_SERIES,
-                // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
-                // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
-                // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
-                // in the end because we keep updating the PreAnalysisResult after each resolution; but the EsIndex objects may be
-                // inconsistent with this version:
-                // The main index pattern from a subquery that we resolve first may have a higher min version in the field caps response
-                // than an index pattern that we resolve later.
-                // Thus, the EsIndex for `FROM remote1:*` may contain data types that aren't supported on the overall minimum version
-                // if we only find out that the overall version is actually lower when resolving `FROM remote2:*`.
-                result.minimumTransportVersion(),
-                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
-                preAnalysis.useDenseVectorWhenNotSupported(),
-                preAnalysis.hasTimeSeriesAggregation(),
-                trackUnmappedFieldIndices,
-                indicesExpressionGrouper,
+            fetcher.fetch(
+                new IndexSchemaRequest(
+                    indexPattern.indexPattern(),
+                    result.fieldNames(),
+                    createQueryFilter(indexMode, requestFilter),
+                    indexMode == IndexMode.TIME_SERIES,
+                    // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
+                    // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
+                    // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
+                    // in the end because we keep updating the PreAnalysisResult after each resolution; but the EsIndex objects may be
+                    // inconsistent with this version:
+                    // The main index pattern from a subquery that we resolve first may have a higher min version in the field caps response
+                    // than an index pattern that we resolve later.
+                    // Thus, the EsIndex for `FROM remote1:*` may contain data types that aren't supported on the overall minimum version
+                    // if we only find out that the overall version is actually lower when resolving `FROM remote2:*`.
+                    result.minimumTransportVersion(),
+                    preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                    preAnalysis.useDenseVectorWhenNotSupported(),
+                    preAnalysis.hasTimeSeriesAggregation(),
+                    trackUnmappedFieldIndices,
+                    false,
+                    false,
+                    null
+                ),
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                     maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                         executionInfo.queryProfile().incFieldCapsCalls();
-                        indexResolver.resolveMainIndicesVersioned(
-                            indexPattern.indexPattern(),
-                            result.fieldNames(),
-                            requestFilter,
-                            false,
-                            indexResolution.minimumVersion(),
-                            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
-                            preAnalysis.useDenseVectorWhenNotSupported(),
-                            false,
-                            trackUnmappedFieldIndices,
-                            indicesExpressionGrouper,
+                        fetcher.fetch(
+                            new IndexSchemaRequest(
+                                indexPattern.indexPattern(),
+                                result.fieldNames(),
+                                requestFilter,
+                                false,
+                                indexResolution.minimumVersion(),
+                                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                                preAnalysis.useDenseVectorWhenNotSupported(),
+                                false,
+                                trackUnmappedFieldIndices,
+                                false,
+                                false,
+                                null
+                            ),
                             retryListener
                         );
                     });
@@ -279,18 +371,21 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
-        indexResolver.resolveFlatIndicesVersioned(
-            linkedIndexPattern.kind() == LinkedIndexPattern.Kind.OPTIONAL,
-            linkedIndexPattern.pattern().indexPattern(),
-            projectRouting,
-            result.fieldNames(),
-            createQueryFilter(IndexMode.STANDARD, requestFilter),
-            false /* not time-series — shadows are always STANDARD */,
-            result.minimumTransportVersion(),
-            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
-            preAnalysis.useDenseVectorWhenNotSupported(),
-            preAnalysis.hasTimeSeriesAggregation(),
-            trackUnmappedFieldIndices,
+        fetcher.fetch(
+            new IndexSchemaRequest(
+                linkedIndexPattern.pattern().indexPattern(),
+                result.fieldNames(),
+                createQueryFilter(IndexMode.STANDARD, requestFilter),
+                false /* not time-series — shadows are always STANDARD */,
+                result.minimumTransportVersion(),
+                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                preAnalysis.useDenseVectorWhenNotSupported(),
+                preAnalysis.hasTimeSeriesAggregation(),
+                trackUnmappedFieldIndices,
+                true,
+                linkedIndexPattern.kind() == LinkedIndexPattern.Kind.OPTIONAL,
+                projectRouting
+            ),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -314,19 +409,22 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
-        indexResolver.resolveFlatIndicesVersioned(
-            false /* lenient */,
-            indexPattern.indexPattern(),
-            projectRouting,
-            result.fieldNames(),
-            createQueryFilter(indexMode, requestFilter),
-            indexMode == IndexMode.TIME_SERIES,
-            // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
-            result.minimumTransportVersion(),
-            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
-            preAnalysis.useDenseVectorWhenNotSupported(),
-            preAnalysis.hasTimeSeriesAggregation(),
-            trackUnmappedFieldIndices,
+        fetcher.fetch(
+            new IndexSchemaRequest(
+                indexPattern.indexPattern(),
+                result.fieldNames(),
+                createQueryFilter(indexMode, requestFilter),
+                indexMode == IndexMode.TIME_SERIES,
+                // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
+                result.minimumTransportVersion(),
+                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                preAnalysis.useDenseVectorWhenNotSupported(),
+                preAnalysis.hasTimeSeriesAggregation(),
+                trackUnmappedFieldIndices,
+                true,
+                false /* lenient */,
+                projectRouting
+            ),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -335,18 +433,21 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                     executionInfo.queryProfile().incFieldCapsCalls();
-                    indexResolver.resolveFlatIndicesVersioned(
-                        false /* lenient */,
-                        indexPattern.indexPattern(),
-                        projectRouting,
-                        result.fieldNames(),
-                        requestFilter,
-                        false,
-                        indexResolution.minimumVersion(),
-                        preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
-                        preAnalysis.useDenseVectorWhenNotSupported(),
-                        false,
-                        trackUnmappedFieldIndices,
+                    fetcher.fetch(
+                        new IndexSchemaRequest(
+                            indexPattern.indexPattern(),
+                            result.fieldNames(),
+                            requestFilter,
+                            false,
+                            indexResolution.minimumVersion(),
+                            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                            preAnalysis.useDenseVectorWhenNotSupported(),
+                            false,
+                            trackUnmappedFieldIndices,
+                            true,
+                            false /* lenient */,
+                            projectRouting
+                        ),
                         retryListener
                     );
                 });
@@ -446,7 +547,7 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
         executionInfo.queryProfile().incFieldCapsCalls();
-        indexResolver.resolveLookupIndices(
+        fetcher.fetchLookup(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames(),
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
@@ -456,6 +557,16 @@ final class IndexSchemaProvider implements AbstractionSchemaProvider {
             result.minimumTransportVersion(),
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
+    }
+
+    /** Issue the lookup-index field-caps fetch — the single place that request is built. */
+    void fetchLookupResolution(
+        String indexExpression,
+        Set<String> fieldNames,
+        TransportVersion minimumVersion,
+        ActionListener<IndexResolution> listener
+    ) {
+        indexResolver.resolveLookupIndices(indexExpression, fieldNames, minimumVersion, listener);
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {

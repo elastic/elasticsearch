@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.schema.IndexSchemaProvider.IndexSchemaRequest;
 
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -29,6 +30,11 @@ import java.util.function.BiFunction;
  * dataset-resolution call sites do not run view resolution and leave them unset; only the view-schema path reads
  * them. A {@code (query, viewName) -> LogicalPlan} parser is what {@code ViewResolver} needs to expand a stored
  * view query into its body plan.
+ *
+ * <p>{@code indexRequest} carries the single per-pattern field-caps request when the index orchestration drives one
+ * fetch through the umbrella's {@code resolveSchema} dispatch — it is the single source of truth for that request
+ * (real {@code projectRouting} and CPS flags included). It is null on the dataset/view paths, which don't issue a
+ * field-caps fetch.
  */
 public record SchemaContext(
     EsqlExecutionInfo executionInfo,
@@ -39,7 +45,8 @@ public record SchemaContext(
     Set<String> fieldNames,
     TransportVersion minimumVersion,
     @Nullable String projectRouting,
-    @Nullable BiFunction<String, String, LogicalPlan> viewParser
+    @Nullable BiFunction<String, String, LogicalPlan> viewParser,
+    @Nullable IndexSchemaRequest indexRequest
 ) {
     /**
      * Build a context for the index/dataset resolution call sites, which do not drive view resolution and so leave
@@ -54,6 +61,32 @@ public record SchemaContext(
         Set<String> fieldNames,
         TransportVersion minimumVersion
     ) {
-        this(executionInfo, configuration, preAnalysis, requestFilter, trackUnmappedFieldIndices, fieldNames, minimumVersion, null, null);
+        this(
+            executionInfo,
+            configuration,
+            preAnalysis,
+            requestFilter,
+            trackUnmappedFieldIndices,
+            fieldNames,
+            minimumVersion,
+            null,
+            null,
+            null
+        );
+    }
+
+    /**
+     * The per-pattern field-caps request for {@code name}, carried for the umbrella's index-schema arm. Asserts the
+     * carried request targets {@code name}; the index fetcher builds one context per fetch, so exactly one request is
+     * carried at a time.
+     */
+    public IndexSchemaRequest indexRequestFor(String name) {
+        assert indexRequest != null && indexRequest.pattern().equals(name) : "no index request for [" + name + "] in this SchemaContext";
+        return indexRequest;
+    }
+
+    /** A context carrying a single per-pattern index field-caps request for the umbrella's index-schema arm. */
+    public static SchemaContext forIndexRequest(IndexSchemaRequest indexRequest) {
+        return new SchemaContext(null, null, null, null, false, null, null, null, null, indexRequest);
     }
 }

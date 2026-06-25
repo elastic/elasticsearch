@@ -1283,92 +1283,100 @@ public class EsqlSession {
             result.fieldNames(),
             result.minimumTransportVersion()
         );
-        SubscribableListener.<PreAnalysisResult>newForked(l -> schemaService.resolveMainIndices(schemaCtx, result, l)).andThenApply(r -> {
-            if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
-                && executionInfo.isCrossClusterSearch()
-                && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
-                LOGGER.debug("No more clusters to search, ending analysis stage");
-                throw new NoClustersToSearchException();
-            }
-            // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
-            // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
-            // take care of removing the subquery during analysis.
-            // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
-            if (r.indexResolution.isEmpty() == false // it is not a row
-                && r.indexResolution.size() > 1 // there is a subquery
-                && executionInfo.isCrossClusterSearch()) {
-                Collection<IndexResolution> indexResolutions = r.indexResolution.values();
-                boolean hasInvalid = indexResolutions.stream().anyMatch(ir -> ir.isValid() == false);
-                boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
-                // Only if there is partial invalid index resolutions in subqueries
-                if (hasInvalid && hasValid) {
-                    // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
-                    r.indexResolution.forEach((indexPattern, indexResolution) -> {
-                        if (indexResolution.isValid() == false) {
-                            LOGGER.debug("Index pattern [{}] does not match valid indices, pruning the subquery", indexPattern);
-                            r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
-                        }
-                    });
-                    // check if there is a cluster that does not have any valid index resolution, if so mark it as skipped
-                    executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
-                        boolean clusterHasValidIndex = r.indexResolution.values()
-                            .stream()
-                            .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
-                        if (clusterHasValidIndex == false) {
-                            String errorMsg = "no valid indices found in any subquery {}";
-                            LOGGER.debug(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias));
-                            EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                                executionInfo,
-                                clusterAlias,
-                                EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                                new VerificationException(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias))
-                            );
-                        }
-                    });
+        SubscribableListener.<PreAnalysisResult>newForked(l -> schemaService.resolveMainIndices(schemaCtx, projectMetadata, result, l))
+            .andThenApply(r -> {
+                if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
+                    && executionInfo.isCrossClusterSearch()
+                    && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
+                    LOGGER.debug("No more clusters to search, ending analysis stage");
+                    throw new NoClustersToSearchException();
                 }
-            }
-            return r;
-        }).<PreAnalysisResult>andThen((l, r) -> schemaService.resolveLookupIndices(schemaCtx, r, l)).andThenApply(r -> {
-            executionInfo.queryProfile().indicesResolutionMarker().stop();
-            return r;
-        }).<PreAnalysisResult>andThen((l, r) -> {
-            if (preAnalysis.icebergPaths().isEmpty()) {
-                l.onResponse(r);
-            } else {
-                schemaService.resolveExternalSources(parsed, preAnalysis.icebergPaths(), l.map(r::withExternalSourceResolution));
-            }
-        }).<PreAnalysisResult>andThen((l, r) -> {
-            // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
-            executionInfo.queryProfile().enrichResolutionMarker().start();
-            enrichPolicyResolver.resolvePolicies(
-                preAnalysis.enriches(),
-                executionInfo,
-                r.minimumTransportVersion(),
-                l.delegateFailureAndWrap((ll, enrichResolution) -> {
-                    executionInfo.queryProfile().enrichResolutionMarker().stop();
-                    ll.onResponse(r.withEnrichResolution(enrichResolution));
-                })
-            );
-        }).<PreAnalysisResult>andThen((l, r) -> {
-            executionInfo.queryProfile().inferenceResolutionMarker().start();
-            inferenceService.resolveInferenceIds(preAnalysis.inferenceIds(), l.delegateFailureAndWrap((ll, inferenceResolution) -> {
-                executionInfo.queryProfile().inferenceResolutionMarker().stop();
-                ll.onResponse(r.withInferenceResolution(inferenceResolution));
-            }));
-        }).<Versioned<LogicalPlan>>andThen((l, r) -> {
-            analyzeWithRetry(
-                parsed,
-                nullify ? UnmappedResolution.NULLIFY : unmappedResolution,
-                configuration,
-                executionInfo,
-                description,
-                requestFilter,
-                timestampBounds,
-                preAnalysis,
-                r,
-                l
-            );
-        }).addListener(logicalPlanListener);
+                // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
+                // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
+                // take care of removing the subquery during analysis.
+                // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
+                if (r.indexResolution.isEmpty() == false // it is not a row
+                    && r.indexResolution.size() > 1 // there is a subquery
+                    && executionInfo.isCrossClusterSearch()) {
+                    Collection<IndexResolution> indexResolutions = r.indexResolution.values();
+                    boolean hasInvalid = indexResolutions.stream().anyMatch(ir -> ir.isValid() == false);
+                    boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
+                    // Only if there is partial invalid index resolutions in subqueries
+                    if (hasInvalid && hasValid) {
+                        // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
+                        r.indexResolution.forEach((indexPattern, indexResolution) -> {
+                            if (indexResolution.isValid() == false) {
+                                LOGGER.debug("Index pattern [{}] does not match valid indices, pruning the subquery", indexPattern);
+                                r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
+                            }
+                        });
+                        // check if there is a cluster that does not have any valid index resolution, if so mark it as skipped
+                        executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
+                            boolean clusterHasValidIndex = r.indexResolution.values()
+                                .stream()
+                                .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
+                            if (clusterHasValidIndex == false) {
+                                String errorMsg = "no valid indices found in any subquery {}";
+                                LOGGER.debug(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias));
+                                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                                    executionInfo,
+                                    clusterAlias,
+                                    EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                                    new VerificationException(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias))
+                                );
+                            }
+                        });
+                    }
+                }
+                return r;
+            })
+            .<PreAnalysisResult>andThen((l, r) -> schemaService.resolveLookupIndices(schemaCtx, projectMetadata, r, l))
+            .andThenApply(r -> {
+                executionInfo.queryProfile().indicesResolutionMarker().stop();
+                return r;
+            })
+            .<PreAnalysisResult>andThen((l, r) -> {
+                if (preAnalysis.icebergPaths().isEmpty()) {
+                    l.onResponse(r);
+                } else {
+                    schemaService.resolveExternalSources(parsed, preAnalysis.icebergPaths(), l.map(r::withExternalSourceResolution));
+                }
+            })
+            .<PreAnalysisResult>andThen((l, r) -> {
+                // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
+                executionInfo.queryProfile().enrichResolutionMarker().start();
+                enrichPolicyResolver.resolvePolicies(
+                    preAnalysis.enriches(),
+                    executionInfo,
+                    r.minimumTransportVersion(),
+                    l.delegateFailureAndWrap((ll, enrichResolution) -> {
+                        executionInfo.queryProfile().enrichResolutionMarker().stop();
+                        ll.onResponse(r.withEnrichResolution(enrichResolution));
+                    })
+                );
+            })
+            .<PreAnalysisResult>andThen((l, r) -> {
+                executionInfo.queryProfile().inferenceResolutionMarker().start();
+                inferenceService.resolveInferenceIds(preAnalysis.inferenceIds(), l.delegateFailureAndWrap((ll, inferenceResolution) -> {
+                    executionInfo.queryProfile().inferenceResolutionMarker().stop();
+                    ll.onResponse(r.withInferenceResolution(inferenceResolution));
+                }));
+            })
+            .<Versioned<LogicalPlan>>andThen((l, r) -> {
+                analyzeWithRetry(
+                    parsed,
+                    nullify ? UnmappedResolution.NULLIFY : unmappedResolution,
+                    configuration,
+                    executionInfo,
+                    description,
+                    requestFilter,
+                    timestampBounds,
+                    preAnalysis,
+                    r,
+                    l
+                );
+            })
+            .addListener(logicalPlanListener);
     }
 
     private void analyzeWithRetry(

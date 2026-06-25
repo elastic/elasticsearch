@@ -10,15 +10,17 @@ package org.elasticsearch.xpack.esql.session.schema;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.List;
 import java.util.Map;
 
 /**
  * The per-abstraction result of {@code resolve_schema}, one variant per kind. Rich, not flattened: the index variant
- * carries the full {@link IndexResolution} (modes, concrete indices, failures, min-transport-version) so routing
- * indices through the umbrella is not lossy; views and datasets carry what their kinds need. {@link Attribute} is the
- * merge currency the analyzer consumes, rebuilt from these.
+ * carries the full {@link IndexResolution} (modes, concrete indices, failures) plus the minimum transport version the
+ * field-caps fetch observed (as a {@link Versioned}) so routing indices through the umbrella is not lossy — the session
+ * still accumulates that per-pattern version into its overall minimum. Views and datasets carry what their kinds need.
+ * {@link Attribute} is the merge currency the analyzer consumes, rebuilt from these.
  *
  * <p>This is the local carrier; the cross-cluster wire form (a {@code Writeable} response built from these) lands with
  * the federation leg. The {@link View} variant will additionally carry a remote-execution handle once the view
@@ -29,8 +31,11 @@ public sealed interface ResolvedSchema permits ResolvedSchema.Index, ResolvedSch
     /** The resolved abstraction's name (as written in the query, qualified for remotes). */
     String name();
 
-    /** An index / alias / data stream — the field-caps result behind the index provider. */
-    record Index(String name, IndexResolution resolution) implements ResolvedSchema {}
+    /**
+     * An index / alias / data stream — the field-caps result behind the index provider, wrapped in the {@link Versioned}
+     * the fetch returns so the session can thread the per-pattern minimum transport version into its accumulation.
+     */
+    record Index(String name, Versioned<IndexResolution> resolution) implements ResolvedSchema {}
 
     /**
      * A view — its result schema (the contract callers plan against) plus the unwrapped plan of its stored query

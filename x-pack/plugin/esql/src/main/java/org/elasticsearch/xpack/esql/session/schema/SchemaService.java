@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session.schema;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -18,9 +19,11 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
@@ -28,6 +31,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
@@ -182,13 +186,73 @@ public final class SchemaService {
     /**
      * Resolve the main index patterns of the query: run the field-caps fetch for each pattern, init cross-cluster
      * state, and accumulate the resolution (plus the minimum transport version) into {@code result}.
+     *
+     * <p>The per-pattern field-caps fetch is sourced through the singular {@link #resolveSchema} dispatch — the index
+     * provider's orchestration (CCS-state init, the time-series retry, version accumulation, telemetry) wraps the
+     * umbrella fetch rather than calling {@code IndexResolver} inline. The fetch is byte-identical either way, so
+     * routing it through the umbrella is behaviour-identical.
      */
-    public void resolveMainIndices(SchemaContext ctx, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
+    public void resolveMainIndices(
+        SchemaContext ctx,
+        ProjectMetadata projectMetadata,
+        PreAnalysisResult result,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        indexProvider.useFetcher(indexFetcher(projectMetadata));
         indexProvider.resolveMainIndices(ctx, result, listener);
     }
 
-    /** Resolve every lookup index referenced by the query, validating each resolves to a single lookup-mode index. */
-    public void resolveLookupIndices(SchemaContext ctx, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
+    /**
+     * Resolve every lookup index referenced by the query, validating each resolves to a single lookup-mode index. The
+     * lookup field-caps fetch is sourced through the umbrella too; the validation (which reads the cross-cluster state
+     * the main resolution populated) stays in the index provider.
+     */
+    public void resolveLookupIndices(
+        SchemaContext ctx,
+        ProjectMetadata projectMetadata,
+        PreAnalysisResult result,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        indexProvider.useFetcher(indexFetcher(projectMetadata));
         indexProvider.resolveLookupIndices(ctx, result, listener);
+    }
+
+    /**
+     * The umbrella-backed fetch the index orchestration sources each field-caps resolution from. {@code fetch} routes a
+     * single, already-known-index pattern through the umbrella's index-schema arm — pinned to that arm rather than
+     * re-running the type-based {@link #resolveSchema} routing, because the orchestration's patterns are genuine indices
+     * (views and datasets are rewritten out of the plan before main-index resolution, and a CPS linked pattern is an
+     * index name that may shadow a local view — re-routing by local type would misroute it). It wraps the request in a
+     * one-shot {@link SchemaContext} and pulls the {@link ResolvedSchema.Index} resolution out. {@code fetchLookup}
+     * routes the lookup-index fetch through the provider's lookup arm (its lookup-specific field-caps shape has no
+     * per-name umbrella variant). The captured {@code projectMetadata} satisfies the arm's signature.
+     */
+    private IndexSchemaProvider.IndexResolutionFetcher indexFetcher(ProjectMetadata projectMetadata) {
+        return new IndexSchemaProvider.IndexResolutionFetcher() {
+            @Override
+            public void fetch(IndexSchemaProvider.IndexSchemaRequest request, ActionListener<Versioned<IndexResolution>> listener) {
+                indexProvider.resolveSchema(
+                    SchemaContext.forIndexRequest(request),
+                    projectMetadata,
+                    List.of(request.pattern()),
+                    listener.map(resolved -> {
+                        if (resolved.size() != 1 || resolved.get(0) instanceof ResolvedSchema.Index == false) {
+                            throw new IllegalStateException("expected a single index schema for [" + request.pattern() + "]");
+                        }
+                        return ((ResolvedSchema.Index) resolved.get(0)).resolution();
+                    })
+                );
+            }
+
+            @Override
+            public void fetchLookup(
+                String indexExpression,
+                Set<String> fieldNames,
+                TransportVersion minimumVersion,
+                ActionListener<IndexResolution> listener
+            ) {
+                indexProvider.fetchLookupResolution(indexExpression, fieldNames, minimumVersion, listener);
+            }
+        };
     }
 }

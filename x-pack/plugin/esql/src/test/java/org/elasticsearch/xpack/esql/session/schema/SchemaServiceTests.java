@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session.schema;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -59,7 +61,14 @@ public class SchemaServiceTests extends ESTestCase {
         ) {
             batches.add(List.copyOf(names));
             listener.onResponse(
-                names.stream().map(n -> (ResolvedSchema) new ResolvedSchema.Index(n, IndexResolution.notFound(n))).toList()
+                names.stream()
+                    .map(
+                        n -> (ResolvedSchema) new ResolvedSchema.Index(
+                            n,
+                            new Versioned<>(IndexResolution.notFound(n), TransportVersion.current())
+                        )
+                    )
+                    .toList()
             );
         }
     }

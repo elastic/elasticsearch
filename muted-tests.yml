@@ -626,9 +626,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testScrollDisableBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/151862
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:string.convertFromUnsignedLong}
   issue: https://github.com/elastic/elasticsearch/issues/151871
@@ -743,3 +740,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.xpack.ml.datafeed.CredentialTransitionsTests
+  method: testValidateSearchBeforeMintWhenProbeReturnsNoMatchingProjectShouldDeferToRuntime
+  issue: https://github.com/elastic/elasticsearch/issues/152130
+- class: org.elasticsearch.xpack.ml.datafeed.CredentialTransitionsTests
+  method: testValidateSearchBeforeMintWhenProbeReturnsNoMatchingProjectForQualifiedIndexShouldFail
+  issue: https://github.com/elastic/elasticsearch/issues/152131
+- class: org.elasticsearch.xpack.esql.action.ExternalSourceProfileIT
+  method: testCsvCountStarScansColdThenSkipsWarm
+  issue: https://github.com/elastic/elasticsearch/issues/152132
+- class: org.elasticsearch.TransportVersionTests
+  method: testPatchVersionsStillAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/152122

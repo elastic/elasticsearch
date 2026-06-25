@@ -247,9 +247,25 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     // TODO: see ResolveUnmapped#patchFork comment
     private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
 
-        // exit early for UnionAll
-        if (fork instanceof UnionAll) {
-            return fork;
+        if (fork instanceof UnionAll unionAll) {
+            if (PushDownUtils.isLeafUnionAll(unionAll) == false) {
+                // Subquery-shape UnionAll: each branch's Project is pruned by the transformDown
+                // traversal when it reaches the branch; skip here to avoid double-pruning.
+                return fork;
+            }
+            // Direct-leaf UnionAll (heterogeneous FROM): prune ExternalRelation children so the
+            // format reader only loads the columns actually needed. EsRelation children are left
+            // intact — InsertFieldExtraction handles field-level extraction at execution time.
+            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+            boolean changed = false;
+            for (LogicalPlan child : unionAll.children()) {
+                LogicalPlan newChild = child instanceof ExternalRelation ext ? pruneColumnsInExternalRelation(ext, used) : child;
+                if (newChild != child) {
+                    changed = true;
+                }
+                newChildren.add(newChild);
+            }
+            return changed ? unionAll.replaceChildren(newChildren) : unionAll;
         }
 
         // prune the output attributes of fork based on usage from the rest of the plan

@@ -11,6 +11,8 @@ package org.elasticsearch.foreign.processor;
 
 import junit.framework.TestCase;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -29,7 +31,7 @@ import javax.tools.ToolProvider;
 
 abstract class ProcessorTestCase extends TestCase {
 
-    record CompilationResult(boolean success, List<String> notes, List<String> errors, Path outputDir) {
+    record CompilationResult(boolean success, List<String> notes, List<String> warnings, List<String> errors, Path outputDir) {
         /** Reads a resource file (relative to the compilation output dir) as a String, or returns null if missing. */
         String readResource(String relativePath) throws Exception {
             if (outputDir == null) {
@@ -68,6 +70,9 @@ abstract class ProcessorTestCase extends TestCase {
         }
     }
 
+    @SuppressForbidden(
+        reason = "StandardJavaFileManager.setLocation() requires java.io.File; no NIO alternative exists in the javax.tools API"
+    )
     protected CompilationResult compile(String className, String source) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         assertNotNull("System Java compiler not available", compiler);
@@ -86,9 +91,9 @@ abstract class ProcessorTestCase extends TestCase {
         };
 
         try {
-            Path outputDir = Files.createTempDirectory("native-lib-gen-test");
+            Path outputDir = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "native-lib-gen-test");
             try (var fileManager = compiler.getStandardFileManager(diagnostics, null, null)) {
-                fileManager.setLocation(StandardLocation.CLASS_OUTPUT, List.of(outputDir.toFile()));
+                fileManager.setLocation(StandardLocation.CLASS_OUTPUT, List.of(outputDir.toFile())); // required by javax.tools API
 
                 List<String> options = new ArrayList<>();
                 options.add("-classpath");
@@ -100,17 +105,20 @@ abstract class ProcessorTestCase extends TestCase {
                 boolean success = task.call();
 
                 List<String> notes = new ArrayList<>();
+                List<String> warnings = new ArrayList<>();
                 List<String> errors = new ArrayList<>();
                 for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
                     String msg = d.getMessage(null);
                     if (d.getKind() == Diagnostic.Kind.NOTE) {
                         notes.add(msg);
+                    } else if (d.getKind() == Diagnostic.Kind.WARNING || d.getKind() == Diagnostic.Kind.MANDATORY_WARNING) {
+                        warnings.add(msg);
                     } else if (d.getKind() == Diagnostic.Kind.ERROR) {
                         errors.add(msg);
                     }
                 }
 
-                return new CompilationResult(success, notes, errors, outputDir);
+                return new CompilationResult(success, notes, warnings, errors, outputDir);
             }
         } catch (Exception e) {
             throw new RuntimeException("Compilation setup failed", e);

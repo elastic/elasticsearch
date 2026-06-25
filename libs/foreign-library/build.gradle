@@ -15,9 +15,15 @@ apply plugin: 'elasticsearch.mrjar'
 dependencies {
   api project(':libs:core')
   api project(':libs:logging')
+
+  testImplementation buildLibs.junit
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
   // :libs:foreign-library does not depend on server (and so not on lucene)
   replaceSignatureFiles 'jdk-signatures'
 }
+
+// Tests extend junit.framework.TestCase directly rather than LuceneTestCase, which
+// is incompatible with the ES testing-conventions baseline (same reason as the processor).
+tasks.named('testTestingConventions').configure { enabled = false }

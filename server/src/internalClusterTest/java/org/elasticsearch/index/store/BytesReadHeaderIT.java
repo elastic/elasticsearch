@@ -52,6 +52,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.search.SearchService.FETCH_PHASE_CHUNKED_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -317,16 +318,26 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         final String firstIndex = setupIndex(between(2, 4), numDocs);
         final String secondIndex = setupIndex(between(2, 4), numDocs);
 
+        assertNoFailures(indicesAdmin().prepareForceMerge(firstIndex, secondIndex).setMaxNumSegments(1).get());
+
         int fetchAll = numDocs * 2;
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).size(fetchAll);
 
-        long firstBytesRead = assertBytesReadHeader(new SearchRequest(firstIndex).source(source));
-        long secondBytesRead = assertBytesReadHeader(new SearchRequest(secondIndex).source(source));
-        long combinedBytesRead = assertBytesReadHeader(new SearchRequest(firstIndex, secondIndex).source(source));
+        // close+reopen before each search so every query reads from a cold store (no cached readers)
+        long firstBytesRead = assertColdBytesRead(new SearchRequest(firstIndex).source(source), firstIndex);
+        long secondBytesRead = assertColdBytesRead(new SearchRequest(secondIndex).source(source), secondIndex);
+        long combinedBytesRead = assertColdBytesRead(new SearchRequest(firstIndex, secondIndex).source(source), firstIndex, secondIndex);
 
         assertThat(firstBytesRead, greaterThan(0L));
         assertThat(secondBytesRead, greaterThan(0L));
         assertThat(combinedBytesRead, greaterThanOrEqualTo(firstBytesRead + secondBytesRead));
+    }
+
+    private long assertColdBytesRead(SearchRequest request, String... indices) throws InterruptedException {
+        assertAcked(indicesAdmin().prepareClose(indices));
+        assertAcked(indicesAdmin().prepareOpen(indices));
+        ensureGreen(indices);
+        return assertBytesReadHeader(request);
     }
 
     public void testFullShardFailureDoesNotSetBytesReadHeader() throws InterruptedException {

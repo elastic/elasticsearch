@@ -63,7 +63,7 @@ final class FieldTypeLookup {
         Collection<FieldAliasMapper> fieldAliasMappers,
         Collection<PassThroughFieldSource> passThroughSources,
         Collection<RuntimeField> runtimeFields,
-        Map<String, Integer> passthroughByPrefix
+        Map<String, PrefixProperties> prefixProperties
     ) {
 
         final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
@@ -72,11 +72,11 @@ final class FieldTypeLookup {
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         final Set<String> copiedFields = new HashSet<>();
 
-        // For strict columnar mode: build prefix→fieldType with priority-conflict resolution so that
+        // For strict columnar mode: build alias→fieldType with priority-conflict resolution so that
         // short-name aliases can be registered for flat fields that originated from passthrough objects.
         // Conflicts (same alias from two passthroughs) are resolved by keeping the highest priority.
-        Map<String, Integer> ptAliasPriorities = passthroughByPrefix.isEmpty() ? Map.of() : new HashMap<>();
-        Map<String, MappedFieldType> ptAliasTypes = passthroughByPrefix.isEmpty() ? Map.of() : new HashMap<>();
+        Map<String, Integer> ptAliasPriorities = new HashMap<>();
+        Map<String, MappedFieldType> ptAliasTypes = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.fullPath();
@@ -97,12 +97,15 @@ final class FieldTypeLookup {
                 }
                 fieldToCopiedFields.get(targetField).add(fieldName);
             }
-            if (passthroughByPrefix.isEmpty() == false) {
-                for (Map.Entry<String, Integer> ptEntry : passthroughByPrefix.entrySet()) {
+            if (prefixProperties.isEmpty() == false) {
+                for (Map.Entry<String, PrefixProperties> ptEntry : prefixProperties.entrySet()) {
+                    Integer priority = ptEntry.getValue().passthrough();
+                    if (priority == null) {
+                        continue;
+                    }
                     String ptPrefix = ptEntry.getKey() + ".";
                     if (fieldName.startsWith(ptPrefix)) {
                         String alias = fieldName.substring(ptPrefix.length());
-                        int priority = ptEntry.getValue();
                         Integer existing = ptAliasPriorities.get(alias);
                         if (existing == null || priority > existing) {
                             ptAliasPriorities.put(alias, priority);

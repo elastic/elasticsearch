@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,15 +56,15 @@ public class StSimplify extends SpatialDocValuesFunction {
         .name("st_simplify");
     private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(
         UNSPECIFIED,
-        DouglasPeuckerSimplifier::simplify
+        IterativeDouglasPeuckerSimplifier::simplify
     );
     private static final SpatialGeometryBlockProcessor geoProcessor = new SpatialGeometryBlockProcessor(
         GEO,
-        DouglasPeuckerSimplifier::simplify
+        IterativeDouglasPeuckerSimplifier::simplify
     );
     private static final SpatialGeometryBlockProcessor cartesianProcessor = new SpatialGeometryBlockProcessor(
         CARTESIAN,
-        DouglasPeuckerSimplifier::simplify
+        IterativeDouglasPeuckerSimplifier::simplify
     );
     private final Expression geometry;
     private final Expression tolerance;

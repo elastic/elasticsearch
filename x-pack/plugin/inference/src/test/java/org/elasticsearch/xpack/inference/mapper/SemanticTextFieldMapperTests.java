@@ -1024,6 +1024,58 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testUpdateInferenceId_GivenNoModelSettings() throws IOException {
+        for (int randomizedRun = 0; randomizedRun < 10; randomizedRun++) {
+            String fieldName = randomAlphaOfLengthBetween(5, 15);
+            String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
+
+            TestModel oldModel = null;
+            if (randomBoolean()) {
+                oldModel = TestModel.createRandomInstance();
+                givenModelSettings(oldInferenceId, new MinimalServiceSettings(oldModel));
+            }
+
+            var mapperService = createMapperService(
+                mapping(
+                    b -> b.startObject(fieldName)
+                        .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
+                        .field(INFERENCE_ID_FIELD, oldInferenceId)
+                        .endObject()
+                ),
+                useLegacyFormat
+            );
+
+            assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
+            assertSemanticTextField(mapperService, fieldName, false, null, null);
+            if (oldModel != null) {
+                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, oldModel);
+            }
+
+            String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
+            TestModel newModel = null;
+            if (randomBoolean()) {
+                newModel = TestModel.createRandomInstance();
+                givenModelSettings(newInferenceId, new MinimalServiceSettings(newModel));
+            }
+
+            merge(
+                mapperService,
+                mapping(
+                    b -> b.startObject(fieldName)
+                        .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
+                        .field(INFERENCE_ID_FIELD, newInferenceId)
+                        .endObject()
+                )
+            );
+
+            assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
+            assertSemanticTextField(mapperService, fieldName, false, null, null);
+            if (newModel != null) {
+                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, newModel);
+            }
+        }
+    }
+
     private static void assertEmbeddingsFieldMapperMatchesModel(MapperService mapperService, String fieldName, Model model) {
         Mapper embeddingsFieldMapper = mapperService.mappingLookup().getMapper(getEmbeddingsFieldName(fieldName));
         switch (model.getTaskType()) {

@@ -3183,6 +3183,11 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_SUM_COUNT_AVG,
 
         /**
+         * Support for PromQL {@code increase()} on exponential histograms.
+         */
+        PROMQL_INCREASE_ON_HISTOGRAM,
+
+        /**
          * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
          * throws "not implemented yet". Snapshot-only.
          */

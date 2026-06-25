@@ -112,7 +112,7 @@ public class PrometheusSeriesRestIT extends AbstractPrometheusRestIT {
         Request request = prometheusReadRequest(
             "/_prometheus/api/v1/series",
             new BasicNameValuePair("match[]", "multi_series_selector_a"),
-            new BasicNameValuePair("match[]", "multi_series_selector_b")
+            new BasicNameValuePair("match[]", "{__name__=~\"multi_series_selector_b\"}")
         );
         List<Map<String, Object>> data = seriesData(client().performRequest(request));
 

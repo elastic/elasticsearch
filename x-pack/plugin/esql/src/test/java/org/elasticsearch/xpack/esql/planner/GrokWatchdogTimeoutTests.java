@@ -25,4 +25,9 @@ public class GrokWatchdogTimeoutTests extends ESTestCase {
         RuntimeException ex = expectThrows(RuntimeException.class, () -> parser.grok().match("aaaaaaaaX"));
         assertThat(ex.getMessage(), containsString("interrupted"));
     }
+
+    public void testNoopWatchdogDoesNotInterruptSimplePattern() {
+        Grok.Parser parser = Grok.pattern(Source.EMPTY, "%{IP:client_ip}", MatcherWatchdog.noop());
+        assertNotNull(parser.grok().captures("192.168.1.1"));
+    }
 }

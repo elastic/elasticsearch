@@ -373,14 +373,14 @@ public interface InferenceService extends Closeable {
      * @param featureService the feature service to check cluster-wide feature availability
      * @param state          the current cluster state
      * @param taskType       the resolved task type for the endpoint being created
-     * @param config         the raw request map (still contains {@code task_settings} etc.)
+     * @param model          the parsed model
      * @return a {@link ClusterCompatibility} result
      */
     default ClusterCompatibility checkClusterCompatibility(
         FeatureService featureService,
         ClusterState state,
         TaskType taskType,
-        Map<String, Object> config
+        Model model
     ) {
         return ClusterCompatibility.supported();
     }

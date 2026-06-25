@@ -194,12 +194,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        var compatibility = service.get().checkClusterCompatibility(featureService, state, resolvedTaskType, requestAsMap);
-        if (compatibility.isSupported() == false) {
-            listener.onFailure(new ElasticsearchStatusException(compatibility.errorMessage(), RestStatus.BAD_REQUEST));
-            return;
-        }
-
         var assignments = TrainedModelAssignmentUtils.modelAssignments(request.getInferenceEntityId(), clusterService.state());
         if ((assignments == null || assignments.isEmpty()) == false) {
             listener.onFailure(
@@ -217,7 +211,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             resolvedTaskType,
             requestAsMap,
             resolveTimeoutForTaskType(resolvedTaskType, request.getTimeout()),
-            state.metadata(),
+            state,
             listener
         );
     }
@@ -228,7 +222,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         TaskType taskType,
         Map<String, Object> config,
         TimeValue timeout,
-        Metadata metadata,
+        ClusterState state,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
@@ -253,10 +247,16 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
         ActionListener<Model> existingUsesListener = storeModelListener.delegateFailureAndWrap((delegate, model) -> {
             // Execute in another thread because checking for existing uses requires reading from indices
-            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> checkForExistingUsesOfInferenceId(metadata, model, delegate));
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> checkForExistingUsesOfInferenceId(state.metadata(), model, delegate));
         });
 
         ActionListener<Model> modelValidatingListener = existingUsesListener.delegateFailureAndWrap((delegate, model) -> {
+            var compatibility = service.checkClusterCompatibility(featureService, state, taskType, model);
+            if (compatibility.isSupported() == false) {
+                listener.onFailure(new ElasticsearchStatusException(compatibility.errorMessage(), RestStatus.BAD_REQUEST));
+                return;
+            }
+
             if (skipValidationAndStart) {
                 delegate.onResponse(model);
             } else {

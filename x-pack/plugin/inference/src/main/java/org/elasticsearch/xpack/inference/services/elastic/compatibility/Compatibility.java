@@ -11,14 +11,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.TaskType;
-
-import java.util.Map;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
 public interface Compatibility {
     InferenceService.ClusterCompatibility clusterCompatibility(
         FeatureService featureService,
         ClusterState state,
         TaskType taskType,
-        Map<String, Object> config
+        ElasticInferenceServiceModel model
     );
 }

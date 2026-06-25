@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModelCreator;
+import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.util.Map;
 
@@ -36,14 +37,19 @@ public class ElasticInferenceServiceCompletionModelCreator extends ElasticInfere
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        @Nullable Map<String, Object> taskSettings,
+        Map<String, Object> taskSettings,
         @Nullable ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata
     ) {
-        var parsedTaskSettings = ElasticInferenceServiceCompletionTaskSettings.fromMap(taskSettings, taskType, context);
-        var effectiveTaskSettings = parsedTaskSettings.isEmpty() ? EmptyTaskSettings.INSTANCE : parsedTaskSettings;
+        TaskSettings effectiveTaskSettings;
+        if (taskType == TaskType.CHAT_COMPLETION) {
+            effectiveTaskSettings = ElasticInferenceServiceChatCompletionTaskSettings.fromMap(taskSettings, taskType, context);
+        } else {
+            effectiveTaskSettings = ImmutableEmptyTaskSettings.fromMap(taskSettings, context);
+        }
+
         return new ElasticInferenceServiceCompletionModel(
             inferenceId,
             taskType,

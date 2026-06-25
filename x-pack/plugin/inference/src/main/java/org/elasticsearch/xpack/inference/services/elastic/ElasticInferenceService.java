@@ -11,13 +11,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmbeddingRequest;
-import org.elasticsearch.inference.InferenceService.ClusterCompatibility;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -46,9 +46,9 @@ import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.compatibility.Compatibility;
 import org.elasticsearch.xpack.inference.services.elastic.compatibility.ReasoningTaskSettingsCompatibility;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelCreator;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
@@ -214,8 +214,10 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     private static UnifiedChatInput getUnifiedInputs(ElasticInferenceServiceCompletionModel model, UnifiedChatInput inputs) {
-        var storedReasoning = model.getTaskSettings() instanceof ElasticInferenceServiceCompletionTaskSettings ts ? ts.reasoning() : null;
-        var mergedReasoning = ElasticInferenceServiceCompletionTaskSettings.mergeReasoning(
+        var storedReasoning = model.getTaskSettings() instanceof ElasticInferenceServiceChatCompletionTaskSettings ts
+            ? ts.reasoning()
+            : null;
+        var mergedReasoning = ElasticInferenceServiceChatCompletionTaskSettings.mergeReasoning(
             inputs.getRequest().reasoning(),
             storedReasoning
         );
@@ -250,10 +252,18 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         FeatureService featureService,
         ClusterState state,
         TaskType taskType,
-        Map<String, Object> config
+        Model model
     ) {
+        if (model instanceof ElasticInferenceServiceModel == false) {
+            return ClusterCompatibility.unsupported(
+                Strings.format("Invalid model type [%s] for service [%s]", model.getClass().getSimpleName(), NAME)
+            );
+        }
+
+        var elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
+
         for (var compatibilityCheck : FEATURE_COMPATIBILITY_CHECKS) {
-            var compatibility = compatibilityCheck.clusterCompatibility(featureService, state, taskType, config);
+            var compatibility = compatibilityCheck.clusterCompatibility(featureService, state, taskType, elasticInferenceServiceModel);
             if (compatibility.isSupported() == false) {
                 return compatibility;
             }
@@ -320,6 +330,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         } else {
             listener.onFailure(createUnsupportedTaskTypeStatusException(model, EnumSet.of(EMBEDDING)));
         }
+    }
+
+    @Override
+    public boolean usesParserForTaskSettings() {
+        return true;
     }
 
     @Override

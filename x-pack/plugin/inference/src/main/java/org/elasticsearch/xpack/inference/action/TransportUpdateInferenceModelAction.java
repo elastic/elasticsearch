@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -76,6 +77,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     private final InferenceServiceRegistry serviceRegistry;
     private final Client client;
     private final ProjectResolver projectResolver;
+    private final FeatureService featureService;
 
     @Inject
     public TransportUpdateInferenceModelAction(
@@ -87,7 +89,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         Client client,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        FeatureService featureService
     ) {
         super(
             UpdateInferenceModelAction.NAME,
@@ -104,6 +107,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         this.serviceRegistry = serviceRegistry;
         this.client = client;
         this.projectResolver = projectResolver;
+        this.featureService = featureService;
     }
 
     @Override
@@ -150,6 +154,13 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             .<Boolean>andThen((listener, existingUnparsedModel) -> {
 
                 Model existingParsedModel = service.get().parsePersistedConfig(existingUnparsedModel);
+
+                var compatibility = service.get()
+                    .checkClusterCompatibility(featureService, state, existingParsedModel.getTaskType(), existingParsedModel);
+                if (compatibility.isSupported() == false) {
+                    listener.onFailure(new ElasticsearchStatusException(compatibility.errorMessage(), RestStatus.BAD_REQUEST));
+                    return;
+                }
 
                 validateResolvedTaskType(existingParsedModel, resolvedTaskType);
 

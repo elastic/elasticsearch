@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -127,6 +128,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private ModelRegistry mockModelRegistry;
     private InferenceServiceRegistry mockInferenceServiceRegistry;
     private InferenceService service;
+    private FeatureService featureService;
 
     @Before
     public void createAction() throws Exception {
@@ -143,6 +145,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             listener.onResponse(null);
             return null;
         }).when(service).onModelUpdated(any(), any(), any());
+        featureService = mock(FeatureService.class);
         action = new TransportUpdateInferenceModelAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -152,7 +155,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             mockModelRegistry,
             mockInferenceServiceRegistry,
             mock(Client.class),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            featureService
         );
     }
 

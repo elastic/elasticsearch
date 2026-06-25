@@ -70,9 +70,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setUpDiversifyingChildrenIVFKnnFloatSlicedVectorQuery() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, RoutingFieldMapper.NAME);
     }
 

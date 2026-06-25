@@ -18,22 +18,32 @@ import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -42,7 +52,7 @@ import java.util.stream.Collectors;
  * API without risking breaking the external field-caps API. For now, this API delegates to the field-caps API, but gradually,
  * we will decouple this API completely from the field-caps.
  */
-public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabilitiesRequest, EsqlResolveFieldsResponse> {
+public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveFieldsRequest, EsqlResolveFieldsResponse> {
     public static final String NAME = "indices:data/read/esql/resolve_fields";
     public static final ActionType<EsqlResolveFieldsResponse> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<EsqlResolveFieldsResponse> RESOLVE_REMOTE_TYPE = new RemoteClusterActionType<>(
@@ -54,6 +64,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     private final ClusterService clusterService;
     private final ViewResolutionService viewResolutionService;
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public EsqlResolveFieldsAction(
@@ -65,29 +76,33 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         ProjectResolver projectResolver
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(NAME, transportService, actionFilters, EsqlResolveFieldsRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.fieldCapsAction = fieldCapsAction;
         this.clusterService = clusterService;
         this.viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
-    protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
+    protected void doExecute(Task task, EsqlResolveFieldsRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
+        var fieldCapsRequest = request.fieldCapsRequest();
         // During CCS, resolveViews is only set on a request from the originating cluster and is therefore only true on a remote cluster
-        if (request.indicesOptions().indexAbstractionOptions().resolveViews()) {
+        if (fieldCapsRequest.indicesOptions().indexAbstractionOptions().resolveViews()) {
             Set<String> viewsLocalToRemoteCluster = getViews(
-                request.indices(),
-                request.indicesOptions(),
-                request.getResolvedIndexExpressions()
+                fieldCapsRequest.indices(),
+                fieldCapsRequest.indicesOptions(),
+                fieldCapsRequest.getResolvedIndexExpressions()
             );
             if (viewsLocalToRemoteCluster.isEmpty() == false) {
-                listener.onFailure(remoteViewDetectedException(request.clusterAlias(), viewsLocalToRemoteCluster));
+                listener.onFailure(remoteViewDetectedException(fieldCapsRequest.clusterAlias(), viewsLocalToRemoteCluster));
                 return;
             }
         }
 
-        fieldCapsAction.executeRequest(task, request, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
+        var combinedSchema = new LinkedHashMap<String, List<IndexAbstractionSchema>>();
+
+        fieldCapsAction.executeRequest(task, fieldCapsRequest, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
             public void executeRemoteRequest(
                 TransportService transportService,
@@ -118,8 +133,18 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
             }
 
             @Override
+            public void onRemoteResponse(EsqlResolveFieldsResponse response) {
+                response.schema().forEach((key, list) -> combinedSchema.merge(key, list, CollectionUtils::combine));
+            }
+
+            @Override
             public EsqlResolveFieldsResponse wrapPrimary(FieldCapabilitiesResponse primary) {
-                return new EsqlResolveFieldsResponse(primary);
+                var localSchema = Maps.transformValues(
+                    resolveIndexAbstractions(fieldCapsRequest),
+                    abstractions -> abstractions.stream().map(abstraction -> resolveSchema(abstraction, primary)).toList()
+                );
+                localSchema.forEach((key, list) -> combinedSchema.merge(key, list, CollectionUtils::combine));
+                return new EsqlResolveFieldsResponse(primary, combinedSchema);
             }
 
             @Override
@@ -138,5 +163,78 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     private RemoteViewNotSupportedException remoteViewDetectedException(String clusterAlias, Set<String> detectedViews) {
         List<String> qualifiedViews = detectedViews.stream().sorted().map(v -> clusterAlias + ":" + v).toList();
         return new RemoteViewNotSupportedException(qualifiedViews);
+    }
+
+    private Map<String, List<IndexAbstraction>> resolveIndexAbstractions(FieldCapabilitiesRequest request) {
+        var projectState = projectResolver.getProjectState(clusterService.state());
+        var indicesLookup = projectState.metadata().getIndicesLookup();
+        var indicesOptions = IndicesOptions.builder(request.indicesOptions())
+            .indexAbstractionOptions(
+                IndicesOptions.IndexAbstractionOptions.builder(request.indicesOptions().indexAbstractionOptions())
+                    .resolveViews(true)
+                    .resolveDatasets(true)
+            )
+            .build();
+        var indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+        var resolvedExpressions = indexAbstractionResolver.resolveIndexAbstractions(
+            List.of(request.indices()),
+            indicesOptions,
+            projectState.metadata(),
+            componentSelector -> indicesLookup.keySet(),
+            (index, selector) -> true,
+            true
+        );
+        Map<String, List<IndexAbstraction>> result = new LinkedHashMap<>();
+        for (var expression : resolvedExpressions.expressions()) {
+            if (expression.localExpressions().indices().isEmpty() == false) {
+                result.put(
+                    RemoteClusterAware.buildRemoteIndexName(request.clusterAlias(), expression.original()),
+                    expression.localExpressions().indices().stream().map(indicesLookup::get).filter(Objects::nonNull).toList()
+                );
+            }
+        }
+        return result;
+    }
+
+    private IndexAbstractionSchema resolveSchema(IndexAbstraction abstraction, FieldCapabilitiesResponse primary) {
+        // TODO plug actual implementation
+        return switch (abstraction.getType()) {
+            case CONCRETE_INDEX -> resolveIndexSchema(abstraction, primary);
+            // TODO alias and data stream
+            case VIEW -> new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), Map.of("f1", "keyword"));
+            case DATASET -> new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), Map.of("f1", "keyword"));
+            default -> throw new IllegalArgumentException("unsupported index abstraction type [" + abstraction + "]");
+        };
+    }
+
+    private IndexAbstractionSchema resolveIndexSchema(IndexAbstraction abstraction, FieldCapabilitiesResponse primary) {
+        assert abstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
+        var index = primary.getIndexResponses()
+            .stream()
+            .filter(i -> Objects.equals(i.getIndexName(), abstraction.getName()))
+            .findFirst()
+            .orElseThrow();
+        var schema = new LinkedHashMap<String, String>();
+        for (var field : index.get().values()) {
+            schema.put(field.name(), field.type());
+        }
+        return new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), schema);
+    }
+
+    public record IndexAbstractionSchema(String name, IndexAbstraction.Type type, Map<String, String> attributes) implements Writeable {
+        public static IndexAbstractionSchema readFrom(StreamInput in) throws IOException {
+            return new IndexAbstractionSchema(
+                in.readString(),
+                IndexAbstraction.Type.valueOf(in.readString()),
+                in.readMap(StreamInput::readString)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeString(type.name());
+            out.writeMap(attributes, StreamOutput::writeString);
+        }
     }
 }

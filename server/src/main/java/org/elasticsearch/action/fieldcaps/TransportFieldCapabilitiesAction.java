@@ -478,11 +478,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             transportService,
                             conn,
                             remoteRequest,
-                            new ActionListenerResponseHandler<>(
-                                responseListener,
-                                in -> linkedRequestExecutor.unwrapPrimary(linkedRequestExecutor.read(in)),
-                                singleThreadedExecutor
-                            )
+                            new ActionListenerResponseHandler<>(responseListener, in -> {
+                                R remoteResponse = linkedRequestExecutor.read(in);
+                                linkedRequestExecutor.onRemoteResponse(remoteResponse);
+                                return linkedRequestExecutor.unwrapPrimary(remoteResponse);
+                            }, singleThreadedExecutor)
                         )
                     )
                 );
@@ -541,6 +541,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         );
 
         R read(StreamInput in) throws IOException;
+
+        /**
+         * Called with each remote response before {@link #unwrapPrimary(ActionResponse)} discards the wrapper.
+         * Override to accumulate any extra fields carried by {@code R} from remote clusters.
+         */
+        default void onRemoteResponse(R response) {}
 
         R wrapPrimary(FieldCapabilitiesResponse primary);
 

@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
@@ -118,7 +119,7 @@ public class IndexResolver {
         ActionListener<IndexResolution> listener
     ) {
         doResolveIndices(
-            createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
+            new EsqlResolveFieldsRequest(createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false), 0),
             indexPattern,
             false, /* lookup indices should do not be empty */
             minimumVersion,
@@ -166,7 +167,10 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
+            new EsqlResolveFieldsRequest(
+                createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
+                0
+            ),
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
@@ -209,7 +213,10 @@ public class IndexResolver {
     ) {
         IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
         doResolveIndices(
-            createFieldCapsRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
+            new EsqlResolveFieldsRequest(
+                createFieldCapsRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
+                0
+            ),
             indexPattern,
             true, /* flat index expression could resolve to empty */
             minimumVersion,
@@ -229,7 +236,7 @@ public class IndexResolver {
     }
 
     private void doResolveIndices(
-        FieldCapabilitiesRequest request,
+        EsqlResolveFieldsRequest request,
         String indexPattern,
         boolean allowEmpty,
         TransportVersion minimumVersion,

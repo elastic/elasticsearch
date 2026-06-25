@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -390,19 +391,21 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public void testHasShardPredicate() {
         IndicesService indicesService = getIndicesService();
-        var locallyOpenShard = indicesService.hasShardPredicate();
+        var hasShardPredicate = indicesService.hasShardPredicate();
         ShardId unknownIndexShard = new ShardId("nonexistent", UUIDs.randomBase64UUID(), 0);
-        assertFalse(locallyOpenShard.test(unknownIndexShard));
+        assertFalse(hasShardPredicate.test(unknownIndexShard));
 
         IndexService test = createIndex("test");
         ShardId openShard = new ShardId(test.index(), 0);
-        assertTrue(locallyOpenShard.test(openShard));
+        assertTrue(hasShardPredicate.test(openShard));
 
         ShardId missingShard = new ShardId(test.index(), 100);
-        assertFalse(locallyOpenShard.test(missingShard));
+        assertFalse(hasShardPredicate.test(missingShard));
 
-        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionTestUtils.assertNoFailureListener(v -> {}));
-        assertFalse(locallyOpenShard.test(openShard));
+        final PlainActionFuture<Void> shardRemoved = new PlainActionFuture<>();
+        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, shardRemoved);
+        shardRemoved.actionGet();
+        assertFalse(hasShardPredicate.test(openShard));
     }
 
     public void testDeleteIndexStore() throws Exception {

@@ -12,7 +12,7 @@ products:
 
 This guide walks you through connecting {{es}} to external data and querying it with {{esql}}. By the end, you will have a working data source, a dataset, and a query returning results from external storage.
 
-The example uses a publicly accessible S3 dataset, so you can follow along without AWS credentials.
+The example uses the [Ookla Open Speedtest dataset](https://github.com/teamookla/ookla-open-data), a publicly accessible collection of internet performance metrics aggregated by geographic tile. Because the bucket allows anonymous access, you can follow along without AWS credentials.
 
 ## Before you begin
 
@@ -39,28 +39,28 @@ This example registers a data source pointing at a public S3 bucket with anonymo
 :::{tab-item} Console
 :sync: console
 ```console
-PUT /_query/data_source/public_blockchain
+PUT /_query/data_source/ookla_speedtest
 {
   "type": "s3",
   "settings": {
-    "region": "us-east-2",
+    "region": "us-east-1",
     "auth": "none" <1>
   }
 }
 ```
-1. `auth: "none"` enables anonymous access for public buckets. For private data, supply `access_key` and `secret_key` instead.
+1. Enables anonymous access for public buckets. For private data, supply `access_key` and `secret_key` instead.
 :::
 
 :::{tab-item} curl
 :sync: curl
 ```bash
-curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/public_blockchain" \
+curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/ookla_speedtest" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
   "type": "s3",
   "settings": {
-    "region": "us-east-2",
+    "region": "us-east-1",
     "auth": "none"
   }
 }'
@@ -77,14 +77,14 @@ Confirm that the data source was created by retrieving it:
 :::{tab-item} Console
 :sync: console
 ```console
-GET /_query/data_source/public_blockchain
+GET /_query/data_source/ookla_speedtest
 ```
 :::
 
 :::{tab-item} curl
 :sync: curl
 ```bash
-curl -X GET "${ELASTICSEARCH_URL}/_query/data_source/public_blockchain" \
+curl -X GET "${ELASTICSEARCH_URL}/_query/data_source/ookla_speedtest" \
   -H "Authorization: ApiKey ${API_KEY}"
 ```
 :::
@@ -97,10 +97,10 @@ The response includes all data source settings:
 {
   "data_sources": [
     {
-      "name": "public_blockchain",
+      "name": "ookla_speedtest",
       "type": "s3",
       "settings": {
-        "region": "us-east-2",
+        "region": "us-east-1",
         "auth": "none"
       }
     }
@@ -116,7 +116,7 @@ Creating a data source does not validate connectivity to the external system. To
 ::::::{step} Create a dataset
 A dataset points at specific files within a data source and makes them queryable as a virtual index. It references a data source by name and specifies a resource path that identifies the files to read.
 
-This example creates a dataset that points at Bitcoin transaction Parquet files in the AWS Public Blockchain Data bucket:
+This example creates a dataset over one quarter of Ookla's fixed-broadband performance data. Each Parquet file contains speedtest results aggregated into geographic tiles, with columns for download and upload throughput (`avg_d_kbps`, `avg_u_kbps`), latency (`avg_lat_ms`), and the number of tests and devices per tile.
 
 ::::{tab-set}
 :group: api-examples
@@ -124,25 +124,25 @@ This example creates a dataset that points at Bitcoin transaction Parquet files 
 :::{tab-item} Console
 :sync: console
 ```console
-PUT /_query/dataset/btc_transactions
+PUT /_query/dataset/speedtest_fixed
 {
-  "data_source": "public_blockchain", <1>
-  "resource": "s3://aws-public-blockchain/v1.0/btc/transactions/**/*.parquet" <2>
+  "data_source": "ookla_speedtest", <1>
+  "resource": "s3://ookla-open-data/parquet/performance/type=fixed/year=2024/quarter=1/*.parquet" <2>
 }
 ```
 1. The name of the data source to connect through.
-2. A glob pattern that matches the files to query. The `**` wildcard matches any number of subdirectories.
+2. A glob pattern matching all Parquet files for Q1 2024 fixed-broadband tests. The `*` wildcard matches any filename in that directory.
 :::
 
 :::{tab-item} curl
 :sync: curl
 ```bash
-curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/btc_transactions" \
+curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/speedtest_fixed" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-  "data_source": "public_blockchain",
-  "resource": "s3://aws-public-blockchain/v1.0/btc/transactions/**/*.parquet"
+  "data_source": "ookla_speedtest",
+  "resource": "s3://ookla-open-data/parquet/performance/type=fixed/year=2024/quarter=1/*.parquet"
 }'
 ```
 :::
@@ -157,14 +157,14 @@ Confirm that the dataset was created:
 :::{tab-item} Console
 :sync: console
 ```console
-GET /_query/dataset/btc_transactions
+GET /_query/dataset/speedtest_fixed
 ```
 :::
 
 :::{tab-item} curl
 :sync: curl
 ```bash
-curl -X GET "${ELASTICSEARCH_URL}/_query/dataset/btc_transactions" \
+curl -X GET "${ELASTICSEARCH_URL}/_query/dataset/speedtest_fixed" \
   -H "Authorization: ApiKey ${API_KEY}"
 ```
 :::
@@ -177,9 +177,9 @@ The response includes the full dataset definition:
 {
   "datasets": [
     {
-      "name": "btc_transactions",
-      "data_source": "public_blockchain",
-      "resource": "s3://aws-public-blockchain/v1.0/btc/transactions/**/*.parquet"
+      "name": "speedtest_fixed",
+      "data_source": "ookla_speedtest",
+      "resource": "s3://ookla-open-data/parquet/performance/type=fixed/year=2024/quarter=1/*.parquet"
     }
   ]
 }
@@ -187,7 +187,7 @@ The response includes the full dataset definition:
 ::::::
 
 ::::::{step} Query the dataset
-Once a dataset exists, query it with `FROM` just like any {{es}} index:
+Once a dataset exists, query it with `FROM` just like any {{es}} index. This query calculates global averages across all tiles:
 
 ::::{tab-set}
 :group: query-examples
@@ -195,10 +195,17 @@ Once a dataset exists, query it with `FROM` just like any {{es}} index:
 :::{tab-item} {{esql}}
 :sync: esql
 ```esql
-FROM btc_transactions
-| WHERE fee > 0
-| STATS tx_count = COUNT(*), avg_fee = AVG(fee) BY is_coinbase
-| SORT tx_count DESC
+FROM speedtest_fixed
+| STATS
+    avg_download = AVG(avg_d_kbps), // Average download speed across all tiles, in kbps
+    avg_upload   = AVG(avg_u_kbps), // Average upload speed across all tiles, in kbps
+    avg_latency  = AVG(avg_lat_ms), // Average latency in milliseconds
+    total_tests  = SUM(tests)       // Total number of speedtests in Q1 2024
+| EVAL
+    avg_download_mbps = ROUND(avg_download / 1000, 1),
+    avg_upload_mbps   = ROUND(avg_upload / 1000, 1),
+    avg_latency       = ROUND(avg_latency, 1)
+| KEEP avg_download_mbps, avg_upload_mbps, avg_latency, total_tests
 ```
 :::
 
@@ -207,7 +214,7 @@ FROM btc_transactions
 ```console
 POST /_query
 {
-  "query": "FROM btc_transactions | WHERE fee > 0 | STATS tx_count = COUNT(*), avg_fee = AVG(fee) BY is_coinbase | SORT tx_count DESC"
+  "query": "FROM speedtest_fixed | STATS avg_download = AVG(avg_d_kbps), avg_upload = AVG(avg_u_kbps), avg_latency = AVG(avg_lat_ms), total_tests = SUM(tests) | EVAL avg_download_mbps = ROUND(avg_download / 1000, 1), avg_upload_mbps = ROUND(avg_upload / 1000, 1), avg_latency = ROUND(avg_latency, 1) | KEEP avg_download_mbps, avg_upload_mbps, avg_latency, total_tests"
 }
 ```
 :::
@@ -219,7 +226,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-  "query": "FROM btc_transactions | WHERE fee > 0 | STATS tx_count = COUNT(*), avg_fee = AVG(fee) BY is_coinbase | SORT tx_count DESC"
+  "query": "FROM speedtest_fixed | STATS avg_download = AVG(avg_d_kbps), avg_upload = AVG(avg_u_kbps), avg_latency = AVG(avg_lat_ms), total_tests = SUM(tests) | EVAL avg_download_mbps = ROUND(avg_download / 1000, 1), avg_upload_mbps = ROUND(avg_upload / 1000, 1), avg_latency = ROUND(avg_latency, 1) | KEEP avg_download_mbps, avg_upload_mbps, avg_latency, total_tests"
 }'
 ```
 :::

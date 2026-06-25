@@ -90,8 +90,8 @@ PUT /_query/data_source/prod_s3_logs
   "description": "Production S3 logs bucket, us-east-1",
   "settings": {
     "region": "us-east-1",
-    "access_key": "AKIA...",
-    "secret_key": "wJal..."
+    "access_key": "<AWS_ACCESS_KEY_ID>",
+    "secret_key": "<AWS_SECRET_ACCESS_KEY>"
   }
 }
 ```
@@ -108,8 +108,8 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
   "description": "Production S3 logs bucket, us-east-1",
   "settings": {
     "region": "us-east-1",
-    "access_key": "AKIA...",
-    "secret_key": "wJal..."
+    "access_key": "<AWS_ACCESS_KEY_ID>",
+    "secret_key": "<AWS_SECRET_ACCESS_KEY>"
   }
 }'
 ```

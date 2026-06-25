@@ -242,8 +242,8 @@ PUT /_query/data_source/my_s3_logs
   "description": "Production logs bucket",
   "settings": {
     "region": "us-east-1",
-    "access_key": "AKIA...",
-    "secret_key": "wJal..."
+    "access_key": "<AWS_ACCESS_KEY_ID>",
+    "secret_key": "<AWS_SECRET_ACCESS_KEY>"
   }
 }
 ```

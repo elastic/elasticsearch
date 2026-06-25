@@ -30,13 +30,17 @@ public final class SqrtDoubleEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator val;
 
+  private final boolean allowNonFinite;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public SqrtDoubleEvaluator(Source source, ExpressionEvaluator val, DriverContext driverContext) {
+  public SqrtDoubleEvaluator(Source source, ExpressionEvaluator val, boolean allowNonFinite,
+      DriverContext driverContext) {
     this.source = source;
     this.val = val;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -74,7 +78,7 @@ public final class SqrtDoubleEvaluator implements ExpressionEvaluator {
         }
         double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Sqrt.process(val));
+          result.appendDouble(Sqrt.process(val, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -89,7 +93,7 @@ public final class SqrtDoubleEvaluator implements ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         double val = valVector.getDouble(p);
         try {
-          result.appendDouble(Sqrt.process(val));
+          result.appendDouble(Sqrt.process(val, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -121,14 +125,17 @@ public final class SqrtDoubleEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory val;
 
-    public Factory(Source source, ExpressionEvaluator.Factory val) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory val, boolean allowNonFinite) {
       this.source = source;
       this.val = val;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public SqrtDoubleEvaluator get(DriverContext context) {
-      return new SqrtDoubleEvaluator(source, val.get(context), context);
+      return new SqrtDoubleEvaluator(source, val.get(context), allowNonFinite, context);
     }
 
     @Override

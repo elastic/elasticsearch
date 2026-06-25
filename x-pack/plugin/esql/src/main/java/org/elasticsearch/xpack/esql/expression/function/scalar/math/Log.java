@@ -11,7 +11,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -34,22 +36,32 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
-public class Log extends EsqlScalarFunction implements OptionalArgument {
+public class Log extends EsqlScalarFunction implements OptionalArgument, NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Log", Log::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Log.class).binary(Log::new).name("log");
+    // Log casts both operands to double internally, so no ToDouble wrap is needed here; only the non-finite-preserving
+    // flag is set so that PromQL log2/ln of non-positive inputs follow IEEE-754 (NaN/-Inf) instead of being dropped.
     public static final PromqlFunctionDefinition PROMQL_LOG2_DEFINITION = PromqlFunctionDefinition.def()
-        .unaryValueTransformation((source, value) -> new Log(source, Literal.fromDouble(source, 2d), value))
+        .unaryValueTransformation((source, value) -> new Log(source, Literal.fromDouble(source, 2d), value, true))
         .description("Calculates the binary logarithm for all elements in the input vector.")
         .example("log2(memory_usage_bytes)")
         .name("log2");
     public static final PromqlFunctionDefinition PROMQL_LN_DEFINITION = PromqlFunctionDefinition.def()
-        .unaryValueTransformation((source, value) -> new Log(source, value, null))
+        .unaryValueTransformation((source, value) -> new Log(source, value, null, true))
         .description("Calculates the natural logarithm for all elements in the input vector.")
         .example("ln(memory_usage_bytes)")
         .name("ln");
 
     private final Expression base;
     private final Expression value;
+
+    /**
+     * When {@code true}, non-finite results ({@code NaN}/{@code ±Inf}) are returned as-is instead of being
+     * rejected to {@code null}. Set only by the PromQL translation so that PromQL log functions follow IEEE-754
+     * semantics (e.g. {@code ln(0)} returns {@code -Inf} and {@code ln(-x)} returns {@code NaN}); the default is
+     * {@code false}, meaning non-positive inputs are rejected.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         returnType = "double",
@@ -75,16 +87,22 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
             description = "Numeric expression. If `null`, the function returns `null`."
         ) Expression value
     ) {
+        this(source, base, value, false);
+    }
+
+    public Log(Source source, Expression base, Expression value, boolean allowNonFinite) {
         super(source, value != null ? Arrays.asList(base, value) : Arrays.asList(base));
         this.value = value != null ? value : base;
         this.base = value != null ? base : null;
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Log(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.readOptionalNamedWriteable(Expression.class),
+            NonFiniteSupport.readNonFinite(in)
         );
     }
 
@@ -94,6 +112,7 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
         assert children().size() == 1 || children().size() == 2;
         out.writeNamedWriteable(children().get(0));
         out.writeOptionalNamedWriteable(children().size() == 2 ? children().get(1) : null);
+        writeNonFinite(out);
     }
 
     @Override
@@ -123,34 +142,49 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = { ArithmeticException.class })
-    static double process(double value) throws ArithmeticException {
-        if (value <= 0d) {
+    static double process(double value, @Fixed(includeInToString = false) boolean allowNonFinite) throws ArithmeticException {
+        if (allowNonFinite == false && value <= 0d) {
             throw new ArithmeticException("Log of non-positive number");
         }
         return Math.log(value);
     }
 
     @Evaluator(warnExceptions = { ArithmeticException.class })
-    static double process(double base, double value) throws ArithmeticException {
-        if (base <= 0d || value <= 0d) {
-            throw new ArithmeticException("Log of non-positive number");
-        }
-        if (base == 1d) {
-            throw new ArithmeticException("Log of base 1");
+    static double process(double base, double value, @Fixed(includeInToString = false) boolean allowNonFinite) throws ArithmeticException {
+        if (allowNonFinite == false) {
+            if (base <= 0d || value <= 0d) {
+                throw new ArithmeticException("Log of non-positive number");
+            }
+            if (base == 1d) {
+                throw new ArithmeticException("Log of base 1");
+            }
         }
         return Math.log10(value) / Math.log10(base);
     }
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
-        return new Log(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
+        return new Log(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null, allowNonFinite);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
         Expression b = base != null ? base : value;
         Expression v = base != null ? value : null;
-        return NodeInfo.create(this, Log::new, b, v);
+        return NodeInfo.create(this, Log::new, b, v, allowNonFinite);
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        // The (base, value) arguments are reconstructed the same way as in info() to preserve the unary/binary form.
+        Expression b = base != null ? base : value;
+        Expression v = base != null ? value : null;
+        return new Log(source(), b, v, false);
     }
 
     @Override
@@ -163,9 +197,9 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
         var valueEval = Cast.cast(source(), value.dataType(), DataType.DOUBLE, toEvaluator.apply(value));
         if (base != null) {
             var baseEval = Cast.cast(source(), base.dataType(), DataType.DOUBLE, toEvaluator.apply(base));
-            return new LogEvaluator.Factory(source(), baseEval, valueEval);
+            return new LogEvaluator.Factory(source(), baseEval, valueEval, allowNonFinite);
         }
-        return new LogConstantEvaluator.Factory(source(), valueEval);
+        return new LogConstantEvaluator.Factory(source(), valueEval, allowNonFinite);
     }
 
     Expression value() {

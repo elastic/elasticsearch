@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,14 +29,23 @@ import java.util.List;
 /**
  * Sine hyperbolic function.
  */
-public class Sinh extends AbstractTrigonometricFunction {
+public class Sinh extends AbstractTrigonometricFunction implements NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sinh", Sinh::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sinh.class).unary(Sinh::new).name("sinh");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .unaryValueTransformation(Sinh::new)
+        // The input is cast to double by AbstractTrigonometricFunction, so no ToDouble wrap is needed here; only the
+        // non-finite-preserving flag is set so that an overflowing result follows IEEE-754 (±Inf) instead of being dropped.
+        .unaryValueTransformation((source, field) -> new Sinh(source, field, true))
         .description("Calculates the hyperbolic sine of all elements in the input vector.")
         .example("sinh(some_metric)")
         .name("sinh");
+
+    /**
+     * When {@code true}, an overflowing result ({@code ±Inf}) is returned as-is instead of being rejected to
+     * {@code null}. Set only by the PromQL translation so that PromQL math follows IEEE-754 semantics; the default
+     * is {@code false}, meaning overflow is rejected.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         returnType = "double",
@@ -49,11 +61,23 @@ public class Sinh extends AbstractTrigonometricFunction {
             description = "Numeric expression. If `null`, the function returns `null`."
         ) Expression angle
     ) {
+        this(source, angle, false);
+    }
+
+    public Sinh(Source source, Expression angle, boolean allowNonFinite) {
         super(source, angle);
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Sinh(StreamInput in) throws IOException {
         super(in);
+        this.allowNonFinite = NonFiniteSupport.readNonFinite(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeNonFinite(out);
     }
 
     @Override
@@ -63,23 +87,33 @@ public class Sinh extends AbstractTrigonometricFunction {
 
     @Override
     protected ExpressionEvaluator.Factory doubleEvaluator(ExpressionEvaluator.Factory field) {
-        return new SinhEvaluator.Factory(source(), field);
+        return new SinhEvaluator.Factory(source(), field, allowNonFinite);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Sinh(source(), newChildren.get(0));
+        return new Sinh(source(), newChildren.get(0), allowNonFinite);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Sinh::new, field());
+        return NodeInfo.create(this, Sinh::new, field(), allowNonFinite);
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Sinh(source(), field(), false);
     }
 
     @Evaluator(warnExceptions = ArithmeticException.class)
-    static double process(double val) {
+    static double process(double val, @Fixed(includeInToString = false) boolean allowNonFinite) {
         double res = Math.sinh(val);
-        if (Double.isNaN(res) || Double.isInfinite(res)) {
+        if (allowNonFinite == false && (Double.isNaN(res) || Double.isInfinite(res))) {
             throw new ArithmeticException("sinh overflow");
         }
         return res;

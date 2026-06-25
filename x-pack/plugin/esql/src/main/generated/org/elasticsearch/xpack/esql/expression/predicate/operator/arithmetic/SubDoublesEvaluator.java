@@ -32,15 +32,18 @@ public final class SubDoublesEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator rhs;
 
+  private final boolean allowNonFinite;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public SubDoublesEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator rhs,
-      DriverContext driverContext) {
+      boolean allowNonFinite, DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -97,7 +100,7 @@ public final class SubDoublesEvaluator implements ExpressionEvaluator {
         double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
         double rhs = rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Sub.processDoubles(lhs, rhs));
+          result.appendDouble(Sub.processDoubles(lhs, rhs, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -113,7 +116,7 @@ public final class SubDoublesEvaluator implements ExpressionEvaluator {
         double lhs = lhsVector.getDouble(p);
         double rhs = rhsVector.getDouble(p);
         try {
-          result.appendDouble(Sub.processDoubles(lhs, rhs));
+          result.appendDouble(Sub.processDoubles(lhs, rhs, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -147,16 +150,19 @@ public final class SubDoublesEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory rhs;
 
-    public Factory(Source source, ExpressionEvaluator.Factory lhs,
-        ExpressionEvaluator.Factory rhs) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs,
+        boolean allowNonFinite) {
       this.source = source;
       this.lhs = lhs;
       this.rhs = rhs;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public SubDoublesEvaluator get(DriverContext context) {
-      return new SubDoublesEvaluator(source, lhs.get(context), rhs.get(context), context);
+      return new SubDoublesEvaluator(source, lhs.get(context), rhs.get(context), allowNonFinite, context);
     }
 
     @Override

@@ -30,12 +30,14 @@ public final class VectorBinaryArithmetic extends VectorBinaryOperator {
         @Override
         public ScalarFunctionFactory asFunction() {
             return switch (this) {
-                case ADD -> Add::new;
-                case SUB -> Sub::new;
-                case MUL -> (s, l, r, c) -> new Mul(s, l, r);
-                case DIV -> (s, l, r, c) -> new Div(s, l, r);
-                case MOD -> (s, l, r, c) -> new Mod(s, l, r);
-                case POW -> (s, l, r, c) -> new Pow(s, l, r);
+                // allowNonFinite=true: PromQL arithmetic follows IEEE-754, surfacing NaN/±Inf (e.g. metric * Inf,
+                // metric / 0) and keeping the series instead of dropping it the way ES|QL's finite-only arithmetic does.
+                case ADD -> (s, l, r, c) -> new Add(s, l, r, c, true);
+                case SUB -> (s, l, r, c) -> new Sub(s, l, r, c, true);
+                case MUL -> (s, l, r, c) -> new Mul(s, l, r, true);
+                case DIV -> (s, l, r, c) -> new Div(s, l, r, null, true);
+                case MOD -> (s, l, r, c) -> new Mod(s, l, r, true);
+                case POW -> (s, l, r, c) -> new Pow(s, l, r, true);
             };
         }
     }

@@ -9,22 +9,33 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Mod extends EsqlArithmeticOperation {
+public class Mod extends EsqlArithmeticOperation implements NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mod", Mod::new);
+
+    /**
+     * When {@code true}, the scalar double remainder follows IEEE-754: {@code x % 0} yields {@code NaN} (and other
+     * non-finite results are returned as-is) instead of being rejected to {@code null}. Set only by the PromQL
+     * translation, where Prometheus defines {@code %} via {@code math.Mod} ({@code x % 0 == NaN}, series kept). The
+     * default is {@code false}, preserving ES|QL's divide-by-zero error. Only the scalar double path honors this flag.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         operator = "%",
@@ -37,6 +48,10 @@ public class Mod extends EsqlArithmeticOperation {
         @Param(name = "lhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression left,
         @Param(name = "rhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression right
     ) {
+        this(source, left, right, false);
+    }
+
+    public Mod(Source source, Expression left, Expression right, boolean allowNonFinite) {
         super(
             source,
             left,
@@ -45,27 +60,33 @@ public class Mod extends EsqlArithmeticOperation {
             ModIntsEvaluator.Factory::new,
             ModLongsEvaluator.Factory::new,
             ModUnsignedLongsEvaluator.Factory::new,
-            ModDoublesEvaluator.Factory::new,
-            ModIntsByConstantEvaluator.Factory::new,
-            ModLongsByConstantEvaluator.Factory::new,
-            ModDoublesByConstantEvaluator.Factory::new,
+            (s, lhs, rhs) -> new ModDoublesEvaluator.Factory(s, lhs, rhs, allowNonFinite),
+            // The lenient (PromQL) path disables the constant-RHS fast path so all double remainder flows through the
+            // binary evaluator above, which surfaces NaN (including x%0). The strict path keeps the fast path.
+            allowNonFinite ? null : ModIntsByConstantEvaluator.Factory::new,
+            allowNonFinite ? null : ModLongsByConstantEvaluator.Factory::new,
+            allowNonFinite ? null : ModDoublesByConstantEvaluator.Factory::new,
             /* excludeZeroRhs */ true
         );
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Mod(StreamInput in) throws IOException {
-        super(
-            in,
-            MOD,
-            ModIntsEvaluator.Factory::new,
-            ModLongsEvaluator.Factory::new,
-            ModUnsignedLongsEvaluator.Factory::new,
-            ModDoublesEvaluator.Factory::new,
-            ModIntsByConstantEvaluator.Factory::new,
-            ModLongsByConstantEvaluator.Factory::new,
-            ModDoublesByConstantEvaluator.Factory::new,
-            /* excludeZeroRhs */ true
+        // Children are serialized by BinaryScalarFunction#writeTo (source, left, right); the non-finite flag, when
+        // present, follows them, so read it last to match. Bypassing the base StreamInput constructor lets the flag
+        // reach the double-evaluator factories.
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            NonFiniteSupport.readNonFinite(in)
         );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeNonFinite(out);
     }
 
     @Override
@@ -75,12 +96,22 @@ public class Mod extends EsqlArithmeticOperation {
 
     @Override
     protected NodeInfo<Mod> info() {
-        return NodeInfo.create(this, Mod::new, left(), right());
+        return NodeInfo.create(this, Mod::new, left(), right(), allowNonFinite);
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Mod(source(), left(), right(), false);
     }
 
     @Override
     protected Mod replaceChildren(Expression left, Expression right) {
-        return new Mod(source(), left, right);
+        return new Mod(source(), left, right, allowNonFinite);
     }
 
     @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
@@ -108,9 +139,10 @@ public class Mod extends EsqlArithmeticOperation {
     }
 
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
-    static double processDoubles(double lhs, double rhs) {
+    static double processDoubles(double lhs, double rhs, @Fixed(includeInToString = false) boolean allowNonFinite) {
         double value = lhs % rhs;
-        if (Double.isNaN(value) || Double.isInfinite(value)) {
+        if (allowNonFinite == false && (Double.isNaN(value) || Double.isInfinite(value))) {
+            // Prometheus defines x % 0 as NaN (via math.Mod) with the series kept; the strict path rejects it instead.
             throw new ArithmeticException("/ by zero");
         }
         return value;

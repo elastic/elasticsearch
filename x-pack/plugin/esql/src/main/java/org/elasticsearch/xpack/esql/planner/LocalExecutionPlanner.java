@@ -1809,7 +1809,9 @@ public class LocalExecutionPlanner {
             }
         }
         // Carries every name VirtualColumnIterator should materialise: Hive-style partition columns
-        // plus always-on _file.* metadata. Passed through SourceOperatorContext.partitionColumnNames
+        // plus the _file.* metadata columns the user actually requested (these reach the relation
+        // output only via METADATA, or the temporary EXTERNAL shim — they are no longer auto-attached
+        // to every external schema). Passed through SourceOperatorContext.partitionColumnNames
         // (legacy method name kept to avoid an SPI rename on this PR).
         Set<String> virtualColumnNames = new LinkedHashSet<>();
         if (fileList != null) {
@@ -1846,6 +1848,8 @@ public class LocalExecutionPlanner {
             .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
+            .datasetName(externalSource.datasetName())
+            .deferredExtraction(externalSource.deferredExtraction())
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);

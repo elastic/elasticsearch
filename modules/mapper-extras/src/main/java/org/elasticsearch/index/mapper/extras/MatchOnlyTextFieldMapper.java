@@ -186,7 +186,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
             this.indexMode = indexMode;
-            this.docValuesParameters = FieldMapper.DocValuesParameter.ofWithCardinality(() -> {
+            this.docValuesParameters = FieldMapper.DocValuesParameter.of(() -> {
                 FieldMapper.DocValuesParameter.Values defaultDocValues = defaultDocValuesParameters(indexMode);
                 // In strict-columnar mode, skip the field's own doc values when a plain keyword multi-field already stores an identical
                 // copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating the column.
@@ -1092,7 +1092,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private IndexFieldData.Builder fieldDataFromDocValues() {
             if (usesBinaryDocValues) {
-                return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, TextDocValuesField::new, indexVersion);
+                return new BytesBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    TextDocValuesField::new,
+                    indexVersion,
+                    useArrayOrderBinaryDocValues
+                );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(
                     name(),

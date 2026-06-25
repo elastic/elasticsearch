@@ -33,7 +33,6 @@ import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -102,7 +101,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
             assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
 
-            // Releasing primary1's block lets its recovery fail, which frees a slot and starts primary3.
+            // Releasing primary1's block lets its recovery fail, which frees a slot and starts primary2.
             block1.close();
             safeAwait(completedListener);
 
@@ -574,7 +573,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         }
     }
 
-    public void testDynamicLimitDecreaseQueuesNewRequests() throws IOException {
+    public void testDynamicLimitDecreaseQueuesNewRequests() throws Exception {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(3);
@@ -602,7 +601,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         }
     }
 
-    public void testDynamicLimitDecreaseDoesNotAffectActiveRecoveries() throws IOException {
+    public void testDynamicLimitDecreaseDoesNotAffectActiveRecoveries() throws Exception {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
@@ -636,7 +635,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         }
     }
 
-    public void testDynamicLimitDecreaseDoesNotNotifySchedulingListeners() throws IOException {
+    public void testDynamicLimitDecreaseDoesNotNotifySchedulingListeners() throws Exception {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
@@ -677,7 +676,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         }
     }
 
-    public void testDynamicLimitIncreaseWithEmptyQueueDoesNotNotifySchedulingListeners() throws IOException {
+    public void testDynamicLimitIncreaseWithEmptyQueueDoesNotNotifySchedulingListeners() throws Exception {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
@@ -711,7 +710,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         }
     }
 
-    public void testDynamicLimitIncreaseAllowsDirectStart() throws IOException {
+    public void testDynamicLimitIncreaseAllowsDirectStart() throws Exception {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);

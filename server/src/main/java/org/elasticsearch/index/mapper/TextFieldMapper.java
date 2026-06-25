@@ -1898,7 +1898,6 @@ public final class TextFieldMapper extends FieldMapper {
             if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls. The
                 // BytesRef built from the String above already owns a fresh byte[], so no defensive copy is needed.
-                // Use the HashMap-free fast path when this occurrence is a lone scalar (not inside an array).
                 if (context.getImmediateXContentParent() != XContentParser.Token.START_ARRAY) {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(context.doc(), fieldType().name(), binaryValue);
                 } else {

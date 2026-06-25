@@ -16,8 +16,10 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -60,6 +62,23 @@ public final class ColumnStatsAccumulator {
         return new ColumnStatsAccumulator(s, names);
     }
 
+    /**
+     * Builds an accumulator keyed to a file's FULL positional schema, for the {@link
+     * org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope#ALL ALL} harvest scope. Identical
+     * machinery to {@link #forProjectedAttributes} — every tracked file column gets a {@link ColumnState}
+     * indexed by its position in {@code fileSchema} — but the row-format readers feed it raw parsed/typed
+     * values via {@link #acceptValueAt(int, Object)} (one per file column, regardless of projection) rather
+     * than output {@link Block}s, because the output page only carries the query's projected columns. Feeding
+     * a Block via {@link #acceptBlockAt(int, Block)} and feeding a single value via {@link #acceptValueAt}
+     * update the same per-column state, so a mixed call sequence is well-defined.
+     */
+    public static ColumnStatsAccumulator forSchema(List<Attribute> fileSchema) {
+        if (fileSchema == null || fileSchema.isEmpty()) {
+            return new ColumnStatsAccumulator(new ColumnState[0], new String[0]);
+        }
+        return forProjectedAttributes(fileSchema.toArray(new Attribute[0]));
+    }
+
     private ColumnStatsAccumulator(ColumnState[] states, String[] columnNames) {
         this.states = states;
         this.columnNames = columnNames;
@@ -80,6 +99,27 @@ public final class ColumnStatsAccumulator {
             return;
         }
         states[blockIndex].accept(block, scratch);
+    }
+
+    /**
+     * Feeds a single already-typed value into the accumulator at column position {@code columnIndex}.
+     * This is the {@link StripeColumnScope#ALL ALL}-scope entry point: the row-format readers hand a
+     * boxed value parsed straight from the raw record (no output {@link Block} exists for an unprojected
+     * file column). Accepted value shapes match what the readers' type-conversion produces:
+     * <ul>
+     *   <li>{@code null} — counts toward {@code nullCount}.</li>
+     *   <li>{@link Boolean} / {@link Integer} / {@link Long} / {@link Double} / {@link BytesRef} —
+     *   a single value, folded into min/max for tracked types.</li>
+     *   <li>{@link List} — a multi-valued cell; every element folds individually (matching the Block
+     *   path's per-value contract). An empty list counts as null.</li>
+     * </ul>
+     * Out-of-range indices are silently ignored, matching {@link #acceptBlockAt}.
+     */
+    public void acceptValueAt(int columnIndex, Object value) {
+        if (columnIndex < 0 || columnIndex >= states.length) {
+            return;
+        }
+        states[columnIndex].acceptValue(value);
     }
 
     /**
@@ -164,6 +204,48 @@ public final class ColumnStatsAccumulator {
                         default -> throw new AssertionError("unexpected type ordinal: " + t);
                     }
                 }
+            }
+        }
+
+        /**
+         * Value-oriented twin of {@link #accept(Block, BytesRef)} for the ALL-scope side-pass: folds one
+         * boxed value (or every element of a multi-valued {@link List}) into this column's running stats.
+         * Null and empty-list both count toward {@code nullCount}; untracked types contribute null counts
+         * only, exactly like the Block path.
+         */
+        void acceptValue(Object value) {
+            if (value == null) {
+                nullCount++;
+                return;
+            }
+            if (value instanceof List<?> list) {
+                if (list.isEmpty()) {
+                    nullCount++;
+                    return;
+                }
+                for (Object element : list) {
+                    acceptScalar(element);
+                }
+                return;
+            }
+            acceptScalar(value);
+        }
+
+        private void acceptScalar(Object value) {
+            if (value == null) {
+                nullCount++;
+                return;
+            }
+            switch (typeOrdinal) {
+                case T_UNTRACKED -> {
+                    // Null count only — mirrors the Block path's universal null tracking for untracked types.
+                }
+                case T_BOOLEAN -> updateBoolean((Boolean) value);
+                case T_INT -> updateInt((Integer) value);
+                case T_LONG -> updateLong((Long) value);
+                case T_DOUBLE -> updateDouble((Double) value);
+                case T_BYTESREF -> updateBytesRef((BytesRef) value);
+                default -> throw new AssertionError("unexpected type ordinal: " + typeOrdinal);
             }
         }
 

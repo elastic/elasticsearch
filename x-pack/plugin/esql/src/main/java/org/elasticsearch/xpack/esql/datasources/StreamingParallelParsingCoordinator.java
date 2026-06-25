@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -112,7 +113,8 @@ public final class StreamingParallelParsingCoordinator {
             0L,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             null,
-            -1L
+            -1L,
+            StripeColumnScope.PROJECTED
         );
     }
 
@@ -150,7 +152,8 @@ public final class StreamingParallelParsingCoordinator {
         long baseFileOffset,
         int maxRecordBytes,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-        long statsStripeSize
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -170,6 +173,7 @@ public final class StreamingParallelParsingCoordinator {
                 .readSchema(readSchema)
                 .splitStartByte(baseFileOffset)
                 .maxRecordBytes(maxRecordBytes)
+                .statsColumnScope(statsColumnScope)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -187,7 +191,8 @@ public final class StreamingParallelParsingCoordinator {
             baseFileOffset,
             maxRecordBytes,
             captureSink,
-            statsStripeSize
+            statsStripeSize,
+            statsColumnScope
         );
     }
 
@@ -243,6 +248,8 @@ public final class StreamingParallelParsingCoordinator {
          * are all unchanged by this value.
          */
         private final long statsStripeSize;
+        /** How much per-stripe statistics each chunk harvests (row count only / + projected / + all / nothing). */
+        private final StripeColumnScope statsColumnScope;
         /**
          * Grow-loop bound. In production it comes from the {@code max_record_size} pragma (default
          * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
@@ -300,7 +307,8 @@ public final class StreamingParallelParsingCoordinator {
             long baseFileOffset,
             int maxRecordBytes,
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-            long statsStripeSize
+            long statsStripeSize,
+            StripeColumnScope statsColumnScope
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -312,6 +320,7 @@ public final class StreamingParallelParsingCoordinator {
             this.maxRecordBytes = maxRecordBytes;
             this.captureSink = captureSink;
             this.statsStripeSize = statsStripeSize;
+            this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -629,6 +638,7 @@ public final class StreamingParallelParsingCoordinator {
                     .splitStartByte(baseFileOffset + chunk.coverageStart())
                     .maxRecordBytes(maxRecordBytes)
                     .stats(chunk.coverageStart(), statsStripeSize, chunk.last())
+                    .statsColumnScope(statsColumnScope)
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook reaches the
                 // same map the consumer-thread StatsCapturingIterator binds. The pages iterator is

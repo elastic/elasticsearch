@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -176,7 +177,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 sink,
-                -1L
+                -1L,
+                StripeColumnScope.PROJECTED
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
                 while (iter.hasNext()) {
@@ -234,7 +236,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 sink,
-                -1L
+                -1L,
+                StripeColumnScope.PROJECTED
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
             // Consume one page, then close without draining — an early termination.
@@ -888,7 +891,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 maxRecordBytes,
                 null,
-                -1L
+                -1L,
+                StripeColumnScope.PROJECTED
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");

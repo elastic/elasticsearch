@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.junit.After;
 
 import java.io.ByteArrayInputStream;
@@ -287,6 +288,208 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         frags.addAll(captureRaw(slice(full, cut, full.length), cut, false, true, 7, stripe));
 
         assertFoldsTo(frags, total);
+    }
+
+    // ---- Harvest-scope tests (esql.source.cache.stripe.columns) -------------------------------------
+
+    /**
+     * COUNT(*) — zero projected columns — must still harvest each stripe's row count under count/projected/all
+     * and fold to the exact total. The NDJSON mirror of the regression: {@code captureBlockStats} used to
+     * return early on a zero-block page, harvesting nothing for COUNT(*).
+     */
+    public void testCountStarHarvestsRowCountUnderCountProjectedAll() throws Exception {
+        for (StripeColumnScope scope : List.of(StripeColumnScope.COUNT, StripeColumnScope.PROJECTED, StripeColumnScope.ALL)) {
+            int total = 10;
+            byte[] full = ndjson(1, total);
+            int cut = 4 * RECORD_BYTES;
+            long stripe = 16;
+            List<Map<String, Object>> frags = new ArrayList<>();
+            frags.addAll(captureScoped(slice(full, 0, cut), 0, true, false, 1000, stripe, null, scope));
+            frags.addAll(captureScoped(slice(full, cut, full.length), cut, false, true, 1000, stripe, null, scope));
+            assertFoldsTo(frags, total);
+        }
+    }
+
+    /** NONE harvests nothing — no contributions at all. */
+    public void testNoneHarvestsNothing() throws Exception {
+        byte[] full = ndjson(1, 10);
+        List<Map<String, Object>> frags = captureScoped(full, 0, true, true, 1000, 16, null, StripeColumnScope.NONE);
+        assertTrue("NONE must emit no stripe contributions", frags.isEmpty());
+    }
+
+    /** COUNT harvests rows but no per-column min/max; PROJECTED harvests min/max for the projected column "a". */
+    public void testCountVsProjectedColumnHarvest() throws Exception {
+        int total = 10;
+        byte[] full = ndjson(0, total);
+        long stripe = 1024; // one stripe over the whole file
+
+        List<Map<String, Object>> countFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of("a"), StripeColumnScope.COUNT);
+        assertEquals("count scope folds row count", total, foldedRowCount(countFrags));
+        assertFalse("count scope must NOT carry per-column stats", hasAnyColumnStat(countFrags, "a"));
+
+        List<Map<String, Object>> projFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of("a"), StripeColumnScope.PROJECTED);
+        assertEquals("projected scope folds row count", total, foldedRowCount(projFrags));
+        assertTrue("projected scope must carry per-column stats for a", hasAnyColumnStat(projFrags, "a"));
+    }
+
+    /**
+     * ALL scope, projecting only field "a", must harvest per-stripe stats for the NON-projected field "b" too
+     * — absent under PROJECTED. NDJSON is self-describing: ALL widens the decode to the full file schema, so
+     * "b" lands in the folded whole-file summary even though the query never read it.
+     */
+    public void testAllScopeHarvestsUnprojectedField() throws Exception {
+        byte[] full = ndjsonTwoField(10); // a=0..9, b=100..109 (LONG)
+        long stripe = 4096; // one stripe over the whole file
+        List<Attribute> twoFieldSchema = List.of(longCol("a"), longCol("b"));
+
+        List<Map<String, Object>> allFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of("a"), StripeColumnScope.ALL);
+        Map<String, Object> meta = reconcileToMetadata(allFrags, twoFieldSchema);
+        assertEquals("ALL folds the exact row count", 10L, ((Number) meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertEquals(
+            "ALL harvests unprojected field b min",
+            100L,
+            ((Number) SourceStatisticsSerializer.extractColumnMin(meta, "b")).longValue()
+        );
+        assertEquals(
+            "ALL harvests unprojected field b max",
+            109L,
+            ((Number) SourceStatisticsSerializer.extractColumnMax(meta, "b")).longValue()
+        );
+        assertEquals(
+            "ALL harvests unprojected field b null_count",
+            0L,
+            SourceStatisticsSerializer.extractColumnNullCount(meta, "b").longValue()
+        );
+
+        // Russian-doll superset: PROJECTED("a") commits "a" but NOT "b"; ALL commits both.
+        List<Map<String, Object>> projFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of("a"), StripeColumnScope.PROJECTED);
+        assertTrue("PROJECTED commits the projected field a", hasAnyColumnStat(projFrags, "a"));
+        assertFalse("PROJECTED must NOT commit the unprojected field b", hasAnyColumnStat(projFrags, "b"));
+        assertTrue("ALL commits the projected field a", hasAnyColumnStat(allFrags, "a"));
+        assertTrue("ALL commits the unprojected field b (superset of PROJECTED)", hasAnyColumnStat(allFrags, "b"));
+    }
+
+    /**
+     * ALL under a COUNT(*) read (zero projected columns) still harvests every file field, while PROJECTED over
+     * the same read commits no column stats — the Russian-doll superset (NONE ⊂ COUNT ⊂ PROJECTED ⊂ ALL).
+     */
+    public void testAllScopeUnderCountStarHarvestsEveryField() throws Exception {
+        byte[] full = ndjsonTwoField(10);
+        long stripe = 4096;
+        List<Attribute> twoFieldSchema = List.of(longCol("a"), longCol("b"));
+
+        List<Map<String, Object>> allFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of(), StripeColumnScope.ALL);
+        Map<String, Object> meta = reconcileToMetadata(allFrags, twoFieldSchema);
+        assertEquals(
+            "ALL+COUNT(*) folds the exact row count",
+            10L,
+            ((Number) meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
+        assertEquals("ALL+COUNT(*) harvests a", 0L, ((Number) SourceStatisticsSerializer.extractColumnMin(meta, "a")).longValue());
+        assertEquals("ALL+COUNT(*) harvests b", 100L, ((Number) SourceStatisticsSerializer.extractColumnMin(meta, "b")).longValue());
+
+        List<Map<String, Object>> projFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of(), StripeColumnScope.PROJECTED);
+        assertEquals("COUNT(*) still folds rows under PROJECTED", 10L, foldedRowCount(projFrags));
+        assertFalse("PROJECTED+COUNT(*) commits no field a", hasAnyColumnStat(projFrags, "a"));
+        assertFalse("PROJECTED+COUNT(*) commits no field b", hasAnyColumnStat(projFrags, "b"));
+    }
+
+    private static org.elasticsearch.xpack.esql.core.expression.Attribute longCol(String name) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, DataType.LONG, Nullability.TRUE, null, false);
+    }
+
+    // {"a":N,"b":100+N}\n — two LONG fields, fixed structure.
+    private static byte[] ndjsonTwoField(int count) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            sb.append("{\"a\":").append(i).append(",\"b\":").append(100 + i).append("}\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** Reconciles fragments through the production cache service and returns the enriched safeMetadata. */
+    private Map<String, Object> reconcileToMetadata(List<Map<String, Object>> fragments, List<Attribute> schema) throws Exception {
+        assertFalse("expected real reader fragments", fragments.isEmpty());
+        String fingerprint = (String) fragments.get(0).get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+        long mtime = ((Number) fragments.get(0).get(ExternalStats.MTIME_MILLIS_KEY)).longValue();
+        String path = "memory://stripe-fold-" + UUID.randomUUID() + ".ndjson";
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of());
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(schema, "ndjson", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
+            );
+            service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
+            SchemaCacheEntry enriched = service.getOrComputeSchema(
+                key,
+                k -> { throw new AssertionError("schema entry must remain cached"); }
+            );
+            return enriched.safeMetadata();
+        }
+    }
+
+    private List<Map<String, Object>> captureScoped(
+        byte[] bytes,
+        long baseOffset,
+        boolean firstSplit,
+        boolean fileFinal,
+        int batchSize,
+        long stripeSize,
+        List<String> projectedColumns,
+        StripeColumnScope scope
+    ) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(batchSize)
+            .recordAligned(true)
+            .firstSplit(firstSplit)
+            .lastSplit(true)
+            .stats(baseOffset, stripeSize, fileFinal)
+            .statsColumnScope(scope)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    /** True iff any stripe fragment carries a {@code _stats.columns.<name>.*} key. */
+    private static boolean hasAnyColumnStat(List<Map<String, Object>> fragments, String column) {
+        String prefix = SourceStatisticsSerializer.STATS_COL_PREFIX + column + ".";
+        for (Map<String, Object> frag : fragments) {
+            for (String key : frag.keySet()) {
+                if (key.startsWith(prefix)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Sums every fragment's row count (each fragment is a per-stripe partial). */
+    private static long foldedRowCount(List<Map<String, Object>> fragments) {
+        long total = 0;
+        for (Map<String, Object> frag : fragments) {
+            Object rc = frag.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
+            if (rc instanceof Number n) {
+                total += n.longValue();
+            }
+        }
+        return total;
     }
 
     /** Seeds the schema cache with the fragments' own fingerprint, reconciles, and asserts the folded row count. */

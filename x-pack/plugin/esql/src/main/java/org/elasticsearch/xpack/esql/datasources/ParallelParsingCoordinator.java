@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -234,7 +235,8 @@ public final class ParallelParsingCoordinator {
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            -1L
+            -1L,
+            StripeColumnScope.PROJECTED
         );
     }
 
@@ -318,7 +320,8 @@ public final class ParallelParsingCoordinator {
             maxConcurrentOpenSegments,
             captureSink,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            -1L
+            -1L,
+            StripeColumnScope.PROJECTED
         );
     }
 
@@ -342,7 +345,8 @@ public final class ParallelParsingCoordinator {
         int maxConcurrentOpenSegments,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         int maxRecordBytes,
-        long statsStripeSize
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -370,6 +374,7 @@ public final class ParallelParsingCoordinator {
             .readSchema(readSchema)
             .splitStartByte(baseFileOffset)
             .maxRecordBytes(maxRecordBytes)
+            .statsColumnScope(statsColumnScope)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -396,7 +401,8 @@ public final class ParallelParsingCoordinator {
             baseFileOffset,
             captureSink,
             maxRecordBytes,
-            statsStripeSize
+            statsStripeSize,
+            statsColumnScope
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
@@ -527,6 +533,8 @@ public final class ParallelParsingCoordinator {
         private final int maxRecordBytes;
         /** Canonical-stripe grid for per-stripe stats attribution ({@code <= 0} disables). Pure stats overlay. */
         private final long statsStripeSize;
+        /** How much per-stripe statistics each segment harvests (row count only / + projected / + all / nothing). */
+        private final StripeColumnScope statsColumnScope;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -564,7 +572,8 @@ public final class ParallelParsingCoordinator {
             long baseFileOffset,
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             int maxRecordBytes,
-            long statsStripeSize
+            long statsStripeSize,
+            StripeColumnScope statsColumnScope
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -577,6 +586,7 @@ public final class ParallelParsingCoordinator {
             this.captureSink = captureSink;
             this.maxRecordBytes = maxRecordBytes;
             this.statsStripeSize = statsStripeSize;
+            this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -695,6 +705,7 @@ public final class ParallelParsingCoordinator {
                 .splitStartByte(baseFileOffset + offset)
                 .maxRecordBytes(maxRecordBytes)
                 .stats(baseOffset, statsStripeSize, statsFileFinal)
+                .statsColumnScope(statsColumnScope)
                 .build();
 
             // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes its

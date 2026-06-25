@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -152,6 +153,159 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         assertFoldsTo(frags, total);
     }
 
+    // ---- Harvest-scope tests (esql.source.cache.stripe.columns) -------------------------------------
+
+    /**
+     * COUNT(*) — zero projected columns — must still harvest each stripe's row count under count/projected/all
+     * so a warm COUNT(*) folds to the exact total. This is the direct regression test for the bug where
+     * {@code captureBlockStats} returned early on {@code columnCount == 0}, harvesting nothing.
+     */
+    public void testCountStarHarvestsRowCountUnderCountProjectedAll() throws Exception {
+        for (StripeColumnScope scope : List.of(StripeColumnScope.COUNT, StripeColumnScope.PROJECTED, StripeColumnScope.ALL)) {
+            int total = 10;
+            byte[] full = asciiCsv(1, total);
+            int cut = 4 * ASCII_RECORD_BYTES;
+            long stripe = 7;
+            List<Map<String, Object>> frags = new ArrayList<>();
+            frags.addAll(captureScoped(slice(full, 0, cut), 0, true, false, 1000, stripe, null, scope));
+            frags.addAll(captureScoped(slice(full, cut, full.length), cut, false, true, 1000, stripe, null, scope));
+            assertFoldsTo(frags, total, "scope=" + scope);
+        }
+    }
+
+    /** NONE harvests nothing — no contributions emitted at all, so the warm path has nothing to serve. */
+    public void testNoneHarvestsNothing() throws Exception {
+        byte[] full = asciiCsv(1, 10);
+        List<Map<String, Object>> frags = captureScoped(full, 0, true, true, 1000, 7, null, StripeColumnScope.NONE);
+        assertTrue("NONE must emit no stripe contributions", frags.isEmpty());
+    }
+
+    /**
+     * COUNT harvests rows but NO per-column min/max; PROJECTED harvests min/max for the projected column.
+     * Single numeric column "n" with a header so the projected harvest produces a real min/max.
+     */
+    public void testCountVsProjectedColumnHarvest() throws Exception {
+        byte[] header = "n\n".getBytes(StandardCharsets.UTF_8);
+        int total = 10; // values 0..9
+        byte[] data = asciiCsv(0, total);
+        byte[] full = concat(header, data);
+        long stripe = 64; // one stripe over the whole file
+        List<Attribute> schema = List.of(intCol("n"));
+
+        // COUNT: row count present, no _stats.columns.* keys.
+        List<Map<String, Object>> countFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of("n"), StripeColumnScope.COUNT);
+        assertEquals("count scope folds row count", total, foldedRowCount(countFrags));
+        assertFalse("count scope must NOT carry per-column stats", hasAnyColumnStat(countFrags, "n"));
+
+        // PROJECTED: row count present AND min/max for "n".
+        List<Map<String, Object>> projFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of("n"), StripeColumnScope.PROJECTED);
+        assertEquals("projected scope folds row count", total, foldedRowCount(projFrags));
+        assertTrue("projected scope must carry per-column stats for n", hasAnyColumnStat(projFrags, "n"));
+    }
+
+    /**
+     * ALL scope, projecting only column "a", must harvest per-stripe stats for the NON-projected column "b"
+     * too: under PROJECTED, "b" would be absent from the folded whole-file summary. This is the headline ALL
+     * capability — a cold scan that never read "b" into its output page still commits b's min/max/null.
+     */
+    public void testAllScopeHarvestsUnprojectedColumn() throws Exception {
+        // header a,b ; rows a=0..9 (INTEGER), b=100..109 (INTEGER). Query projects only "a".
+        byte[] full = twoColumnCsv(10);
+        long stripe = 1024; // one stripe over the whole file
+        List<Attribute> twoColSchema = List.of(intCol("a"), intCol("b"));
+
+        List<Map<String, Object>> allFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of("a"), StripeColumnScope.ALL);
+        Map<String, Object> meta = reconcileToMetadata(allFrags, twoColSchema);
+        assertEquals("ALL folds the exact row count", 10L, ((Number) meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        // b was never projected, yet ALL committed its min/max/null.
+        assertEquals(
+            "ALL harvests unprojected column b min",
+            100,
+            ((Number) SourceStatisticsSerializer.extractColumnMin(meta, "b")).intValue()
+        );
+        assertEquals(
+            "ALL harvests unprojected column b max",
+            109,
+            ((Number) SourceStatisticsSerializer.extractColumnMax(meta, "b")).intValue()
+        );
+        assertEquals(
+            "ALL harvests unprojected column b null_count",
+            0L,
+            SourceStatisticsSerializer.extractColumnNullCount(meta, "b").longValue()
+        );
+
+        // Russian-doll superset check: PROJECTED("a") commits "a" but NOT "b"; ALL commits both.
+        List<Map<String, Object>> projFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of("a"), StripeColumnScope.PROJECTED);
+        assertTrue("PROJECTED commits the projected column a", hasAnyColumnStat(projFrags, "a"));
+        assertFalse("PROJECTED must NOT commit the unprojected column b", hasAnyColumnStat(projFrags, "b"));
+        assertTrue("ALL commits the projected column a", hasAnyColumnStat(allFrags, "a"));
+        assertTrue("ALL commits the unprojected column b (superset of PROJECTED)", hasAnyColumnStat(allFrags, "b"));
+    }
+
+    /**
+     * ALL scope under a COUNT(*) read (zero projected columns) must STILL harvest every file column. PROJECTED
+     * over the same zero-projection read commits no column stats at all, so ALL's column set is a strict
+     * superset (Russian-doll: NONE ⊂ COUNT ⊂ PROJECTED ⊂ ALL).
+     */
+    public void testAllScopeUnderCountStarHarvestsEveryColumn() throws Exception {
+        byte[] full = twoColumnCsv(10);
+        long stripe = 1024;
+        List<Attribute> twoColSchema = List.of(intCol("a"), intCol("b"));
+
+        // COUNT(*) = null projection. ALL must commit BOTH columns even though the page carries none.
+        List<Map<String, Object>> allFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of(), StripeColumnScope.ALL);
+        Map<String, Object> meta = reconcileToMetadata(allFrags, twoColSchema);
+        assertEquals(
+            "ALL+COUNT(*) folds the exact row count",
+            10L,
+            ((Number) meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
+        assertEquals("ALL+COUNT(*) harvests a", 0, ((Number) SourceStatisticsSerializer.extractColumnMin(meta, "a")).intValue());
+        assertEquals("ALL+COUNT(*) harvests b", 100, ((Number) SourceStatisticsSerializer.extractColumnMin(meta, "b")).intValue());
+
+        // PROJECTED over the same zero-projection read commits NO per-column stats (rows only).
+        List<Map<String, Object>> projFrags = captureScoped(full, 0, true, true, 1000, stripe, List.of(), StripeColumnScope.PROJECTED);
+        assertEquals("COUNT(*) still folds rows under PROJECTED", 10L, foldedRowCount(projFrags));
+        assertFalse("PROJECTED+COUNT(*) commits no column a", hasAnyColumnStat(projFrags, "a"));
+        assertFalse("PROJECTED+COUNT(*) commits no column b", hasAnyColumnStat(projFrags, "b"));
+    }
+
+    // header "a,b\n" + rows "i,100+i\n"; both columns inferred INTEGER.
+    private static byte[] twoColumnCsv(int count) {
+        StringBuilder sb = new StringBuilder("a,b\n");
+        for (int i = 0; i < count; i++) {
+            sb.append(i).append(',').append(100 + i).append('\n');
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** Reconciles fragments through the production cache service and returns the enriched safeMetadata. */
+    private Map<String, Object> reconcileToMetadata(List<Map<String, Object>> fragments, List<Attribute> schema) throws Exception {
+        assertFalse("expected real reader fragments", fragments.isEmpty());
+        String fingerprint = (String) fragments.get(0).get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+        long mtime = ((Number) fragments.get(0).get(ExternalStats.MTIME_MILLIS_KEY)).longValue();
+        String path = "memory://stripe-fold-" + UUID.randomUUID() + ".csv";
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of());
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
+            );
+            service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
+            SchemaCacheEntry enriched = service.getOrComputeSchema(
+                key,
+                k -> { throw new AssertionError("schema entry must remain cached"); }
+            );
+            return enriched.safeMetadata();
+        }
+    }
+
     private List<Map<String, Object>> captureRaw(
         byte[] bytes,
         long baseOffset,
@@ -196,6 +350,88 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         }
         List<Map<String, Object>> raw = sink.get(o.path().toString());
         return raw == null ? List.of() : raw;
+    }
+
+    /**
+     * Capture variant that drives an explicit projection (null = COUNT(*) zero projection) and harvest scope.
+     * When a projection is given the CSV is read with a header row so the column resolves by name.
+     */
+    private List<Map<String, Object>> captureScoped(
+        byte[] bytes,
+        long baseOffset,
+        boolean firstSplit,
+        boolean fileFinal,
+        int batchSize,
+        long stripeSize,
+        List<String> projectedColumns,
+        StripeColumnScope scope
+    ) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        boolean headerRow = projectedColumns != null;
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(batchSize)
+            .recordAligned(true)
+            .firstSplit(firstSplit)
+            .lastSplit(true)
+            .splitStartByte(baseOffset)
+            .stats(baseOffset, stripeSize, fileFinal)
+            .statsColumnScope(scope)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, headerRow)
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    private static byte[] concat(byte[] a, byte[] b) {
+        byte[] out = new byte[a.length + b.length];
+        System.arraycopy(a, 0, out, 0, a.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
+    }
+
+    private static Attribute intCol(String name) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, DataType.INTEGER, Nullability.TRUE, null, false);
+    }
+
+    /** True iff any stripe fragment carries a {@code _stats.columns.<name>.*} key. */
+    private static boolean hasAnyColumnStat(List<Map<String, Object>> fragments, String column) {
+        String prefix = SourceStatisticsSerializer.STATS_COL_PREFIX + column + ".";
+        for (Map<String, Object> frag : fragments) {
+            for (String key : frag.keySet()) {
+                if (key.startsWith(prefix)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Sums every fragment's row count (each fragment is a per-stripe partial). */
+    private static long foldedRowCount(List<Map<String, Object>> fragments) {
+        long total = 0;
+        for (Map<String, Object> frag : fragments) {
+            Object rc = frag.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
+            if (rc instanceof Number n) {
+                total += n.longValue();
+            }
+        }
+        return total;
+    }
+
+    private void assertFoldsTo(List<Map<String, Object>> fragments, long expectedRows, String message) throws Exception {
+        assertFalse(message + ": expected real reader fragments", fragments.isEmpty());
+        assertFoldsTo(fragments, expectedRows);
     }
 
     /** Seeds the schema cache with the fragments' own fingerprint, reconciles, and asserts the folded row count. */

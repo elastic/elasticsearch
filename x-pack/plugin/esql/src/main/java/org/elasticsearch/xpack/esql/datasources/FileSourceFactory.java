@@ -303,6 +303,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
                 .maxRecordBytes(context.maxRecordBytes())
                 .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
+                .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
                 .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -199,6 +200,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int maxRecordBytes;
     /** Canonical-stripe grid for per-stripe stats accounting; {@code <= 0} disables. Accounting overlay only. */
     private final long statsStripeSize;
+    /** How much per-stripe statistics a fresh scan harvests (row count only / + projected / + all / nothing). */
+    private final StripeColumnScope statsColumnScope;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
@@ -284,6 +287,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxConcurrentOpenSegments,
         int maxRecordBytes,
         long statsStripeSize,
+        StripeColumnScope statsColumnScope,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
@@ -378,6 +382,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
         this.statsStripeSize = statsStripeSize;
+        this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
         this.maxRecordBytes = maxRecordBytes;
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
@@ -463,6 +468,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private int maxConcurrentOpenSegments = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private long statsStripeSize = -1L;
+        private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -586,6 +592,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * How much per-stripe statistics a fresh scan harvests (see
+         * {@code ExternalSourceCacheSettings#STRIPE_COLUMNS} and {@link StripeColumnScope}). {@code null}
+         * restores the {@link StripeColumnScope#PROJECTED} default. Orthogonal to {@link #statsStripeSize}.
+         */
+        public Builder statsColumnScope(@Nullable StripeColumnScope statsColumnScope) {
+            this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+            return this;
+        }
+
         public Builder pushedExpressions(@Nullable List<Expression> pushedExpressions) {
             this.pushedExpressions = pushedExpressions;
             return this;
@@ -653,6 +669,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 maxConcurrentOpenSegments,
                 maxRecordBytes,
                 statsStripeSize,
+                statsColumnScope,
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
@@ -2266,7 +2283,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     maxConcurrentOpenSegments,
                     captureSink,
                     maxRecordBytes,
-                    statsStripeSize
+                    statsStripeSize,
+                    statsColumnScope
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -2306,7 +2324,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         baseFileOffset,
                         maxRecordBytes,
                         captureSink,
-                        statsStripeSize
+                        statsStripeSize,
+                        statsColumnScope
                     );
                 } catch (Exception e) {
                     try {

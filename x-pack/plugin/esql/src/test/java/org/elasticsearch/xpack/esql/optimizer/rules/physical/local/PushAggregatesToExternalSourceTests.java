@@ -286,6 +286,61 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
+    /**
+     * Partial-stats safe-miss: a summary that harvested only one column ("age" has min/max) must still
+     * fall back to a scan for a MIN/MAX of an UN-harvested column ("score"), never serve null/wrong — while
+     * COUNT(*) over the same summary still serves from the row count. This is the cross-column interaction
+     * the harvest-scope work must preserve (e.g. PROJECTED-harvest of a different column, or COUNT-scope).
+     */
+    public void testMinOfUnharvestedColumnSafeMissesWhileCountStarServes() {
+        // age is harvested (present with min/max); score has NO stats entries at all.
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L);
+        metadata.put("_stats.columns.age.min", 18);
+        metadata.put("_stats.columns.age.max", 99);
+
+        // MIN(score): score was never harvested -> must NOT push down; falls back to a scan.
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Min(Source.EMPTY, SCORE)));
+        as(applyRule(minAgg), AggregateExec.class);
+
+        // MAX(score): same.
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Max(Source.EMPTY, SCORE)));
+        as(applyRule(maxAgg), AggregateExec.class);
+
+        // COUNT(*): independent of column stats -> still serves from the row count.
+        var countStar = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countStarAlias());
+        LocalSourceExec local = as(applyRule(countStar), LocalSourceExec.class);
+        assertEquals(100L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+
+        // MIN(age) over the SAME summary DOES serve (the harvested column), proving the safe-miss is
+        // column-specific, not a blanket refusal.
+        var minAge = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Min(Source.EMPTY, AGE)));
+        as(applyRule(minAge), LocalSourceExec.class);
+    }
+
+    /**
+     * The payoff of ALL scope: a cold scan that never projected "score" still committed its min/max under ALL,
+     * so a later warm {@code MIN(score)} / {@code MAX(score)} short-circuits to a LocalSourceExec instead of
+     * re-scanning. This is the optimizer-layer view of the ALL capability — the harvest scope decides what
+     * lands in this metadata map; here we assert that once a non-query-projected column's stats ARE present
+     * (which only ALL produces), the pushdown fires. The companion partial-stats safe-miss test
+     * ({@link #testMinOfUnharvestedColumnSafeMissesWhileCountStarServes}) proves the converse stays correct.
+     */
+    public void testMinMaxOfNonProjectedColumnServesWarmUnderAllScopeHarvest() {
+        // Metadata as ALL would commit it: row count + min/max for "score" even though the cold query that
+        // produced this summary need not have projected score (ALL harvests every file column).
+        Map<String, Object> metadata = statsMetadata(500L, "score", 0L);
+        metadata.put("_stats.columns.score.min", 1.0);
+        metadata.put("_stats.columns.score.max", 100.0);
+
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mn", new Min(Source.EMPTY, SCORE)));
+        LocalSourceExec minLocal = as(applyRule(minAgg), LocalSourceExec.class);
+        assertEquals(1.0, as(minLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0);
+
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mx", new Max(Source.EMPTY, SCORE)));
+        LocalSourceExec maxLocal = as(applyRule(maxAgg), LocalSourceExec.class);
+        assertEquals(100.0, as(maxLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0);
+    }
+
     public void testMaxWithoutColumnStatsNotPushed() {
         var agg = aggregateExec(
             AggregatorMode.SINGLE,

@@ -70,6 +70,13 @@ import java.util.List;
  *                         terminal ({@code eof}); a non-final chunk ends mid-stripe at a chunk boundary,
  *                         so its trailing stripe is a partial right fragment the next chunk continues.
  *                         Marking a non-final chunk's trailing stripe complete would silently undercount.
+ * @param statsColumnScope how much per-stripe statistics the read harvests while it scans (row count
+ *                         only / row count + projected columns / row count + all file columns / nothing).
+ *                         Orthogonal to {@code statsStripeSize}: the grid decides which stripe a record
+ *                         lands in, this decides what is summarised per stripe. {@code null} defaults to
+ *                         {@link StripeColumnScope#PROJECTED} (back-compat for call sites that predate the
+ *                         setting); the compact constructor collapses {@code null} to that default so
+ *                         readers do one check.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -84,7 +91,8 @@ public record FormatReadContext(
     int maxRecordBytes,
     long statsBaseOffset,
     long statsStripeSize,
-    boolean statsFileFinal
+    boolean statsFileFinal,
+    StripeColumnScope statsColumnScope
 ) {
 
     public FormatReadContext {
@@ -93,6 +101,9 @@ public record FormatReadContext(
         }
         if (maxRecordBytes <= 0) {
             throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
+        }
+        if (statsColumnScope == null) {
+            statsColumnScope = StripeColumnScope.PROJECTED;
         }
     }
 
@@ -129,11 +140,12 @@ public record FormatReadContext(
             maxRecordBytes,
             statsBaseOffset,
             statsStripeSize,
-            statsFileFinal
+            statsFileFinal,
+            statsColumnScope
         );
     }
 
-    /** Returns a copy carrying the canonical-stripe addressing parameters for this read. */
+    /** Returns a copy carrying the canonical-stripe addressing parameters for this read, preserving the harvest scope. */
     public FormatReadContext withStats(long baseOffset, long stripeSize, boolean fileFinal) {
         return new FormatReadContext(
             projectedColumns,
@@ -148,7 +160,8 @@ public record FormatReadContext(
             maxRecordBytes,
             baseOffset,
             stripeSize,
-            fileFinal
+            fileFinal,
+            statsColumnScope
         );
     }
 
@@ -169,7 +182,8 @@ public record FormatReadContext(
             maxRecordBytes,
             statsBaseOffset,
             statsStripeSize,
-            statsFileFinal
+            statsFileFinal,
+            statsColumnScope
         );
     }
 
@@ -190,7 +204,8 @@ public record FormatReadContext(
             maxRecordBytes,
             statsBaseOffset,
             statsStripeSize,
-            statsFileFinal
+            statsFileFinal,
+            statsColumnScope
         );
     }
 
@@ -216,6 +231,7 @@ public record FormatReadContext(
         private long statsBaseOffset = 0L;
         private long statsStripeSize = -1L;
         private boolean statsFileFinal = false;
+        private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
 
         private Builder() {}
 
@@ -289,6 +305,15 @@ public record FormatReadContext(
             return this;
         }
 
+        /**
+         * Sets how much per-stripe statistics the read harvests (see {@link FormatReadContext#statsColumnScope()}).
+         * {@code null} restores the {@link StripeColumnScope#PROJECTED} default. Orthogonal to {@link #stats}.
+         */
+        public Builder statsColumnScope(@Nullable StripeColumnScope statsColumnScope) {
+            this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -306,7 +331,8 @@ public record FormatReadContext(
                 maxRecordBytes,
                 statsBaseOffset,
                 statsStripeSize,
-                statsFileFinal
+                statsFileFinal,
+                statsColumnScope
             );
         }
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.util.List;
 
@@ -71,7 +72,34 @@ public final class ExternalSourceCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * How much per-stripe statistics a row-format external read harvests while it scans. Orthogonal to
+     * {@link #STRIPE_SIZE}: the grid size decides which stripe a record lands in, this scope decides what
+     * is summarised per stripe. Modes ({@link StripeColumnScope}):
+     * <ul>
+     *   <li>{@code none} — harvest nothing; a warm aggregate always re-scans.</li>
+     *   <li>{@code count} — per-stripe row count only (no per-column min/max/null). Enough to serve a warm
+     *       {@code COUNT(*)}.</li>
+     *   <li>{@code projected} — row count plus min/max/null for the query's projected columns. The default.</li>
+     *   <li>{@code all} — row count plus min/max/null for every column in the file's schema (the reader
+     *       materialises the unprojected columns for the stats pass).</li>
+     * </ul>
+     * Row count is harvested in {@code count}, {@code projected}, and {@code all} — everything except
+     * {@code none}. This is what lets a {@code COUNT(*)} read (zero projected columns) still record each
+     * stripe's row count.
+     * <p>
+     * Unlike {@link #STRIPE_SIZE}, this does NOT participate in stripe identity — it only changes how much
+     * a fresh scan harvests, never which stripe a record belongs to — so it is {@link Setting.Property#Dynamic}.
+     */
+    public static final Setting<StripeColumnScope> STRIPE_COLUMNS = Setting.enumSetting(
+        StripeColumnScope.class,
+        "esql.source.cache.stripe.columns",
+        StripeColumnScope.PROJECTED,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public static List<Setting<?>> settings() {
-        return List.of(CACHE_SIZE, CACHE_ENABLED, SCHEMA_TTL, LISTING_TTL, STRIPE_SIZE);
+        return List.of(CACHE_SIZE, CACHE_ENABLED, SCHEMA_TTL, LISTING_TTL, STRIPE_SIZE, STRIPE_COLUMNS);
     }
 }

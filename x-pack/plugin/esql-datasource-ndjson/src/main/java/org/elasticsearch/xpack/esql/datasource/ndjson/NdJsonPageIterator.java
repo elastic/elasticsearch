@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
 import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -104,6 +106,36 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      */
     private final boolean statsFileFinal;
     /**
+     * How much per-stripe statistics this read harvests. {@link StripeColumnScope#NONE} harvests nothing;
+     * {@link StripeColumnScope#COUNT} per-stripe row count only; {@link StripeColumnScope#PROJECTED} row
+     * count plus min/max/null for the projected columns; {@link StripeColumnScope#ALL} adds min/max/null for
+     * EVERY file column. Row count is harvested in every mode except {@code NONE} — including a zero-projection
+     * {@code COUNT(*)} read, the regression this gate fixes. {@code ALL} is implemented by WIDENING the decode
+     * projection to the full file schema (so every column is materialised), folding each widened page into the
+     * file-schema accumulator in {@link #harvestAllColumns}, then slicing the page back to the query's
+     * projected columns before it reaches the operator — so ALL's committed column set is a strict superset of
+     * PROJECTED's.
+     */
+    private final StripeColumnScope statsColumnScope;
+    /**
+     * ALL-scope harvest layout. {@code >= 0} only when scope is ALL and the read is cacheable: the number of
+     * leading decoded blocks that form the query's real projection (sliced into the output page). The decoder
+     * materialises a WIDENED projection (projected ++ unprojected file columns); blocks past this count are
+     * harvest-only and dropped before the page reaches the operator. {@code -1} disables (every narrower scope).
+     */
+    private final int harvestOutputColumnCount;
+    /** The full file schema the ALL-scope accumulator is keyed to; {@code null} unless ALL-scope harvest is on. */
+    private final List<Attribute> harvestFileSchema;
+    /**
+     * For each decoded block index, the index into {@link #harvestFileSchema} of the file column it carries,
+     * or {@code -1} for a non-file column (the synthetic {@code _rowPosition}, a NULL-typed missing column).
+     * Lets {@link #harvestAllColumns} feed every file column — projected and unprojected alike — into the
+     * accumulator from one widened page. {@code null} unless ALL-scope harvest is on.
+     */
+    private final int[] harvestBlockToFileColumnIndex;
+    /** ALL-scope, non-stripe (whole-file) accumulator over the full file schema. {@code null} until first fed. */
+    private ColumnStatsAccumulator allFileColumnStats;
+    /**
      * Per-stripe accumulators keyed by stripe ordinal {@code floor(recordStartOffset / B)}, ordered so
      * the close-time emission walks stripes ascending. Each holds the stripe's column stats, row count,
      * record-canonical byte sub-range, and the {@code atStart}/{@code atEnd}/{@code eof} anchors the
@@ -120,10 +152,55 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      * min/max ordinal rather than stored per accumulator.
      */
     private static final class StripeAccum {
+        /** Projected-column stats (PROJECTED/ALL), fed from the output page's blocks. */
         ColumnStatsAccumulator cols;
+        /**
+         * ALL-scope full-file-schema stats, fed from the widened decoded page (every file column, including
+         * the unprojected ones the output page never carries). Merged with {@link #cols} at emission so ALL's
+         * committed column set is a strict superset of PROJECTED's.
+         */
+        ColumnStatsAccumulator allCols;
         long rows;
         long startOffset = Long.MAX_VALUE;
         long endOffset = Long.MIN_VALUE;
+    }
+
+    /**
+     * Widened decode projection for the ALL scope: the query's projected columns first (so the leading
+     * {@code projectedColumns.size()} decoded blocks ARE the output page after slicing), then every file
+     * column not already projected, so the decoder materialises the whole file schema. A {@code null}
+     * projection ("read every column") and an empty projection ({@code COUNT(*)}) both reduce to "the full
+     * file schema"; the leading-block count is captured separately by the caller.
+     */
+    private static List<String> computeAllColumnDecodeProjection(List<String> projectedColumns, List<Attribute> fileSchema) {
+        java.util.LinkedHashSet<String> ordered = new java.util.LinkedHashSet<>();
+        if (projectedColumns != null) {
+            ordered.addAll(projectedColumns);
+        }
+        for (Attribute a : fileSchema) {
+            ordered.add(a.name());
+        }
+        return new java.util.ArrayList<>(ordered);
+    }
+
+    /**
+     * For each decoded block (one per entry of {@code decodeColumns}), the position of the file column it
+     * carries within {@code fileSchema}, or {@code -1} when the block is not a file column (a synthetic such
+     * as {@code _rowPosition}). Drives {@link #harvestAllColumns}'s feed of the file-schema accumulator.
+     */
+    private static int[] mapDecodeBlocksToFileColumns(List<String> decodeColumns, List<Attribute> fileSchema) {
+        Map<String, Integer> fileIndexByName = new HashMap<>(fileSchema.size() * 2);
+        for (int i = 0; i < fileSchema.size(); i++) {
+            fileIndexByName.putIfAbsent(fileSchema.get(i).name(), i);
+        }
+        int[] map = new int[decodeColumns.size()];
+        for (int b = 0; b < decodeColumns.size(); b++) {
+            String name = decodeColumns.get(b);
+            // A synthetic column (_rowPosition / metadata) is not a file column even if a same-named file
+            // column does not exist; kindOf identifies it so we never harvest stats for it.
+            map[b] = SyntheticColumns.kindOf(name) != null ? -1 : fileIndexByName.getOrDefault(name, -1);
+        }
+        return map;
     }
 
     NdJsonPageIterator(
@@ -145,7 +222,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         int maxRecordBytes,
         long statsBaseOffset,
         long statsStripeSize,
-        boolean statsFileFinal
+        boolean statsFileFinal,
+        StripeColumnScope statsColumnScope
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         Check.isTrue(counters != null, "counters must not be null");
@@ -155,9 +233,11 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
         this.chunkMode = chunkMode;
+        this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         // Per-stripe stats capture is for the chunk-parallel paths (recordAligned); a whole-file read
-        // (parallelism=1) keeps the simpler authoritative WholeFile contribution.
-        this.statsStripeSize = chunkMode ? statsStripeSize : -1L;
+        // (parallelism=1) keeps the simpler authoritative WholeFile contribution. NONE scope disables
+        // stripe harvest entirely (the warm aggregate then always re-scans).
+        this.statsStripeSize = (chunkMode && this.statsColumnScope != StripeColumnScope.NONE) ? statsStripeSize : -1L;
         this.statsBaseOffset = statsBaseOffset;
         this.statsFileFinal = statsFileFinal;
         InputStream inputStream = object.newStream();
@@ -172,6 +252,28 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter);
         }
         this.rowLimit = rowLimit;
+        // ALL scope harvests min/max/null for EVERY file column, not just the projected ones. The output
+        // page must still carry only the query's projected columns, so we widen the DECODE projection to
+        // {projected columns} ++ {every file column not already projected} (the synthetic _rowPosition /
+        // metadata columns are not file columns and are excluded from the harvest set). The decoder then
+        // materialises every file column; each page is harvested into the all-column accumulator over the
+        // file schema (see harvestAllColumns) and SLICED back to the query's projected columns before it
+        // reaches the operator. The widening reuses the decoder's full type/multi-value/nested machinery —
+        // ALL pays to decode every column, which is its inherent opt-in cost. Narrower scopes decode only
+        // the projected columns, unchanged.
+        boolean harvestAll = statsColumnScope == StripeColumnScope.ALL && cacheableObject != null && resolvedAttributes != null;
+        List<String> decodeColumns = projectedColumns;
+        if (harvestAll) {
+            List<String> widened = computeAllColumnDecodeProjection(projectedColumns, resolvedAttributes);
+            this.harvestOutputColumnCount = projectedColumns == null ? resolvedAttributes.size() : projectedColumns.size();
+            this.harvestFileSchema = resolvedAttributes;
+            this.harvestBlockToFileColumnIndex = mapDecodeBlocksToFileColumns(widened, resolvedAttributes);
+            decodeColumns = widened;
+        } else {
+            this.harvestOutputColumnCount = -1;
+            this.harvestFileSchema = null;
+            this.harvestBlockToFileColumnIndex = null;
+        }
         // byte[] path keeps record offsets exact across parse-error recovery (streaming resets the
         // parser baseline on recovery). Capped at BYTE_ARRAY_FAST_PATH_MAX_SIZE for whole-file
         // reads of huge unsplit NDJSON; above the cap, fall back to streaming and accept a
@@ -203,7 +305,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 0,
                 data.length,
                 resolvedAttributes,
-                projectedColumns,
+                decodeColumns,
                 batchSize,
                 blockFactory,
                 errorPolicy,
@@ -219,7 +321,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             this.pageDecoder = new NdJsonPageDecoder(
                 counted,
                 resolvedAttributes,
-                projectedColumns,
+                decodeColumns,
                 batchSize,
                 blockFactory,
                 errorPolicy,
@@ -364,16 +466,100 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
         Page result = nextPage;
         nextPage = null;
+        // ALL scope decodes a WIDENED projection (every file column). Harvest the all-column stats off the
+        // wide page FIRST, then slice it down to the query's projected columns before it reaches the operator.
+        if (harvestOutputColumnCount >= 0) {
+            harvestAllColumns(result);
+            result = sliceToOutputColumns(result);
+        }
         captureBlockStats(result);
         return result;
     }
 
+    /**
+     * Drops the harvest-only trailing blocks of a widened ALL-scope page, returning a page carrying only the
+     * query's projected columns (the leading {@link #harvestOutputColumnCount} blocks). The dropped blocks are
+     * released; the kept blocks transfer ownership to the new page. A zero-projection {@code COUNT(*)} returns
+     * a row-count-only page.
+     */
+    private Page sliceToOutputColumns(Page widePage) {
+        int kept = harvestOutputColumnCount;
+        int total = widePage.getBlockCount();
+        if (kept == total) {
+            return widePage;
+        }
+        int positions = widePage.getPositionCount();
+        try {
+            if (kept == 0) {
+                return new Page(positions);
+            }
+            org.elasticsearch.compute.data.Block[] outBlocks = new org.elasticsearch.compute.data.Block[kept];
+            for (int i = 0; i < kept; i++) {
+                outBlocks[i] = widePage.getBlock(i);
+            }
+            return new Page(positions, outBlocks);
+        } finally {
+            // Release only the harvest-only trailing blocks; the kept blocks are now owned by the new page.
+            for (int i = kept; i < total; i++) {
+                widePage.getBlock(i).close();
+            }
+        }
+    }
+
+    /**
+     * ALL-scope side-pass: fold every FILE column of the widened decoded page into the file-schema
+     * accumulator — including the unprojected columns the output page never carries. On the stripe path the
+     * whole page folds into its stripe's {@code allCols} (the decoder caps pages at stripe boundaries, so a
+     * page never straddles); off the stripe path it folds into the single whole-file accumulator. Synthetic
+     * blocks (e.g. {@code _rowPosition}) map to file-column index {@code -1} and are skipped.
+     */
+    private void harvestAllColumns(Page widePage) {
+        if (harvestFileSchema == null || widePage.getBlockCount() == 0) {
+            return;
+        }
+        ColumnStatsAccumulator acc;
+        if (statsStripeSize > 0) {
+            long pageStart = pageDecoder.lastPageStartOffset();
+            long ordinal = pageStart / statsStripeSize;
+            StripeAccum stripe = stripeAccums.computeIfAbsent(ordinal, k -> new StripeAccum());
+            if (stripe.allCols == null) {
+                stripe.allCols = ColumnStatsAccumulator.forSchema(harvestFileSchema);
+            }
+            acc = stripe.allCols;
+        } else {
+            if (allFileColumnStats == null) {
+                allFileColumnStats = ColumnStatsAccumulator.forSchema(harvestFileSchema);
+            }
+            acc = allFileColumnStats;
+        }
+        if (acc.isEmpty()) {
+            return;
+        }
+        int blocks = widePage.getBlockCount();
+        for (int b = 0; b < blocks && b < harvestBlockToFileColumnIndex.length; b++) {
+            int fileColumn = harvestBlockToFileColumnIndex[b];
+            if (fileColumn >= 0) {
+                acc.acceptBlockAt(fileColumn, widePage.getBlock(b));
+            }
+        }
+    }
+
     private void captureBlockStats(Page page) {
-        if (cacheableObject == null || page.getBlockCount() == 0) {
+        // NONE harvests nothing. Otherwise we harvest at minimum the per-stripe row count, including for a
+        // zero-projection COUNT(*) read (page.getBlockCount() == 0) — the regression this gate fixes: the old
+        // `getBlockCount() == 0` early-return at the top killed all harvest, so a warm COUNT(*) re-scanned.
+        if (cacheableObject == null || statsColumnScope == StripeColumnScope.NONE) {
             return;
         }
         if (statsStripeSize > 0) {
             captureStripeStats(page);
+            return;
+        }
+        // Non-stripe whole-file path. COUNT harvests no per-column stats (the close hook still publishes the
+        // whole-file row count); PROJECTED harvests the projected columns here from the output page. ALL has
+        // already harvested EVERY file column (incl. unprojected) off the widened page in harvestAllColumns,
+        // so the projected re-harvest is skipped — allFileColumnStats is the strict superset.
+        if (statsColumnScope.harvestsColumns() == false || page.getBlockCount() == 0 || harvestOutputColumnCount >= 0) {
             return;
         }
         if (columnStats == null) {
@@ -420,7 +606,11 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             }
         }
         StripeAccum acc = stripeAccums.computeIfAbsent(ordinal, k -> new StripeAccum());
-        if (acc.cols == null) {
+        // COUNT scope harvests rows only — never a column accumulator. PROJECTED builds one for the projected
+        // columns when there are any (a zero-projection COUNT(*) read has none, so acc.cols stays null and only
+        // acc.rows advances). ALL has ALREADY folded every file column (incl. unprojected) into acc.allCols off
+        // the widened page in harvestAllColumns, so the projected re-harvest is skipped here.
+        if (acc.cols == null && statsColumnScope.harvestsColumns() && harvestOutputColumnCount < 0) {
             List<Attribute> projected = pageDecoder.projectedAttributes();
             acc.cols = (projected == null || projected.isEmpty())
                 ? null
@@ -454,11 +644,14 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
             ExternalStatsCapture.record(sourceLocation, poison);
         }
+        // NONE scope suppresses all stats publishing (whole-chunk and per-stripe), so a warm aggregate over
+        // this read always re-scans.
         if (cacheableObject != null
             && naturallyExhausted
             && pageDecoder.errorCount() == 0
             && pinnedMtimeMillis >= 0
-            && fingerprinter != null) {
+            && fingerprinter != null
+            && statsColumnScope != StripeColumnScope.NONE) {
             // Fingerprint must use the FULL file schema for parity with NdJsonFormatReader.metadata().
             // Prefer the planner-provided schema (resolvedAttributes), fall back to the decoder's
             // projected attributes only when those equal the full schema (no projection pruning).
@@ -478,8 +671,31 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      * Whole-chunk / whole-file emission: one authoritative contribution carrying the chunk's full row
      * count and column stats. Used when stripe addressing is off (parallelism=1 whole-file read).
      */
+    /**
+     * Folds the projected accumulator and the ALL-scope full-schema accumulator into one committed
+     * column-stats map. The full-schema map (when present) is a superset of the projected one and the two
+     * agree on shared columns, so the projected map is overlaid first and the full-schema map fills in the
+     * rest. Either may be {@code null}: COUNT commits neither, PROJECTED only the projected one, ALL only the
+     * full-schema one (which already contains the projected columns).
+     */
+    private static Map<String, ExternalStats.ColumnStats> mergeColumnStats(ColumnStatsAccumulator projected, ColumnStatsAccumulator all) {
+        Map<String, ExternalStats.ColumnStats> projectedSnapshot = projected == null ? Map.of() : projected.snapshot();
+        Map<String, ExternalStats.ColumnStats> allSnapshot = all == null ? Map.of() : all.snapshot();
+        if (allSnapshot.isEmpty()) {
+            return projectedSnapshot;
+        }
+        if (projectedSnapshot.isEmpty()) {
+            return allSnapshot;
+        }
+        Map<String, ExternalStats.ColumnStats> merged = new java.util.LinkedHashMap<>(projectedSnapshot);
+        merged.putAll(allSnapshot);
+        return merged;
+    }
+
     private void emitWholeChunk(List<Attribute> fullSchema) {
-        Map<String, ExternalStats.ColumnStats> cols = columnStats == null ? Map.of() : columnStats.snapshot();
+        // PROJECTED/COUNT commit columnStats. ALL commits allFileColumnStats (every file column) instead —
+        // the strict superset of what PROJECTED would commit (see mergeColumnStats).
+        Map<String, ExternalStats.ColumnStats> cols = mergeColumnStats(columnStats, allFileColumnStats);
         OptionalLong bytesRead = byteCounter != null
             ? OptionalLong.of(byteCounter.getBytesRead())
             : (byteArrayBytesRead >= 0 ? OptionalLong.of(byteArrayBytesRead) : OptionalLong.empty());
@@ -541,7 +757,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             boolean eof = ordinal == maxOrdinal && statsFileFinal;
             long start = acc.startOffset == Long.MAX_VALUE ? acc.endOffset : acc.startOffset;
             long end = acc.endOffset == Long.MIN_VALUE ? start : acc.endOffset;
-            Map<String, ExternalStats.ColumnStats> cols = acc.cols == null ? Map.of() : acc.cols.snapshot();
+            // PROJECTED/COUNT commit acc.cols; ALL commits acc.allCols (every file column) — the strict
+            // superset of PROJECTED's set.
+            Map<String, ExternalStats.ColumnStats> cols = mergeColumnStats(acc.cols, acc.allCols);
             ExternalStats.Stats statsRecord = new ExternalStats.Stats(acc.rows, OptionalLong.empty(), cols);
             SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), fullSchema);
             Map<String, Object> base = new HashMap<>();

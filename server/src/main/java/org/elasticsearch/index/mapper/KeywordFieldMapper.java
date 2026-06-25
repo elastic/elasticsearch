@@ -527,9 +527,20 @@ public final class KeywordFieldMapper extends FieldMapper {
             // High-cardinality (binary doc values) fields in strict columnar mode store their values in document order directly in the
             // binary doc values (ArrayOrderInlineNull) instead of recording a sidecar .offsets field; low-cardinality (sorted-set) fields
             // keep using offsets.
+            // Exception: index sort fields must use SeparateCount encoding (sorted unique values) because
+            // MultiValuedBinaryDocValuesSortField relies on values being sorted to find min/max by reading the first/last entry.
+            // ArrayOrderInlineNull stores values in document order (not sorted) and uses a different length prefix (L+1),
+            // so sort fields keep the offsets sidecar and use SeparateCount instead.
             if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
-                this.arrayOrderBinaryDocValues = true;
-                this.offsetsFieldName = null;
+                IndexSortConfig sortConfig = indexSettings.getIndexSortConfig();
+                String fullFieldName = context.buildFullName(leafName());
+                boolean isIndexSortField = sortConfig != null
+                    && sortConfig.hasIndexSort()
+                    && sortConfig.hasSortOnField(fullFieldName);
+                if (isIndexSortField == false) {
+                    this.arrayOrderBinaryDocValues = true;
+                    this.offsetsFieldName = null;
+                }
             }
             return new KeywordFieldMapper(
                 leafName(),

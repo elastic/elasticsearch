@@ -45,11 +45,6 @@ public enum StripeColumnScope {
     /** Harvest per-stripe row count plus min/max/null for every column in the file's schema. */
     ALL;
 
-    /** Whether any statistics (at minimum the per-stripe row count) are harvested in this mode. */
-    public boolean harvestsAnything() {
-        return this != NONE;
-    }
-
     /** Whether per-column min/max/null statistics are harvested in this mode (true for {@link #PROJECTED} and {@link #ALL}). */
     public boolean harvestsColumns() {
         return this == PROJECTED || this == ALL;

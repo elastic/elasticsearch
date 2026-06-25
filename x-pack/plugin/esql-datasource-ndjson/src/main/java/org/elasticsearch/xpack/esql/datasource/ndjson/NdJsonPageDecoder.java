@@ -164,10 +164,6 @@ public class NdJsonPageDecoder implements Closeable {
         this.recordOffsetTracking = true;
     }
 
-    boolean recordOffsetTrackingEnabled() {
-        return recordOffsetTracking;
-    }
-
     /**
      * Absolute file offset of the START of the most recently read token — for a record's {@code START_OBJECT}
      * this is the byte of its opening brace. A record's own start is independent of how the file is chunked,

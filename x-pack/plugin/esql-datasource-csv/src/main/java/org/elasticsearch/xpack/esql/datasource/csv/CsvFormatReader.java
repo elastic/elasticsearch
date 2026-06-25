@@ -75,6 +75,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -2375,7 +2376,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // suppresses the byte-level cap wrap on this path to match (see useRecordReaderPath).
                     if (rowPositionSlot >= 0) {
                         csvIterator = newCsvIterator(recordReader);
-                    } else if (statsStripeSize > 0 && java.nio.charset.StandardCharsets.UTF_8.equals(options.encoding())) {
+                    } else if (statsStripeSize > 0 && StandardCharsets.UTF_8.equals(options.encoding())) {
                         // Stripe capture on the bulk path: wrap the reader so each row's char offset maps to a
                         // file-global byte offset (record-canonical stripe attribution) without leaving the fast
                         // Jackson path or re-decoding. Non-UTF-8 falls through and stripe capture safe-misses.

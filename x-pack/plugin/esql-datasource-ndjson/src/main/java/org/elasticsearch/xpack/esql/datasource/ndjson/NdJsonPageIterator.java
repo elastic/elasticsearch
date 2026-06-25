@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.IOUtils;
@@ -473,7 +474,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             if (kept == 0) {
                 return new Page(positions);
             }
-            org.elasticsearch.compute.data.Block[] outBlocks = new org.elasticsearch.compute.data.Block[kept];
+            Block[] outBlocks = new Block[kept];
             for (int i = 0; i < kept; i++) {
                 outBlocks[i] = widePage.getBlock(i);
             }

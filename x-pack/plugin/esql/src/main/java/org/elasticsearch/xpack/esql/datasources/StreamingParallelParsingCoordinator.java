@@ -241,9 +241,10 @@ public final class StreamingParallelParsingCoordinator {
          * Canonical-stripe grid for per-stripe stats accounting, in decompressed-stream bytes
          * ({@code <= 0} disables). Stripes are orthogonal to chunking: the segmentator still cuts chunks
          * purely on buffer fill at a record boundary ({@code chunkSize}), never on a {@code k * statsStripeSize}
-         * line, so a dispatched chunk may span several stripes. The reader's decoder caps each page at the
-         * first record crossing a stripe line, so every page folds wholly into one stripe, and the reader
-         * emits one stripe-addressed fragment per stripe the chunk touched (see {@link ExternalStats#STRIPE_SIZE_KEY}).
+         * line, so a dispatched chunk may span several stripes. Pages are NOT capped at stripe lines: each
+         * reader attributes every record to its stripe by the record's own file offset, and the shared
+         * {@code StripeStatsHarvester} splits each page's rows into same-stripe runs and emits the
+         * byte-range cover per stripe the chunk touched (see {@link ExternalStats#STRIPE_SIZE_KEY}).
          * Pure stats overlay: dispatch order, chunk boundaries, parallelism, scheduling, and backpressure
          * are all unchanged by this value.
          */
@@ -985,6 +986,22 @@ public final class StreamingParallelParsingCoordinator {
             return dispatchPermits.hasQueuedThreads();
         }
 
+        private ByteArrayStorageObject chunkStorageObject(int chunkIndex, byte[] buffer, int offset, int length) {
+            StoragePath path = storageObject != null ? storageObject.path() : StoragePath.of("mem://chunk-" + chunkIndex);
+            Instant mtime = Instant.EPOCH;
+            if (storageObject != null) {
+                try {
+                    Instant fileMtime = storageObject.lastModified();
+                    if (fileMtime != null) {
+                        mtime = fileMtime;
+                    }
+                } catch (IOException e) {
+                    // Fall back to EPOCH — chunk stats may be uncacheable without a pinned mtime.
+                }
+            }
+            return new ByteArrayStorageObject(path, buffer, offset, length, mtime);
+        }
+
         /**
          * Two-phase shutdown sequenced to drain pages a parser task may publish after the first drain
          * but before all outstanding tasks finish.
@@ -1004,22 +1021,6 @@ public final class StreamingParallelParsingCoordinator {
          * interrupt could disrupt unrelated tasks. The timeout is intentionally generous (60s) to make
          * the leak window an exceptional condition; production workloads should not hit it.
          */
-        private ByteArrayStorageObject chunkStorageObject(int chunkIndex, byte[] buffer, int offset, int length) {
-            StoragePath path = storageObject != null ? storageObject.path() : StoragePath.of("mem://chunk-" + chunkIndex);
-            Instant mtime = Instant.EPOCH;
-            if (storageObject != null) {
-                try {
-                    Instant fileMtime = storageObject.lastModified();
-                    if (fileMtime != null) {
-                        mtime = fileMtime;
-                    }
-                } catch (IOException e) {
-                    // Fall back to EPOCH — chunk stats may be uncacheable without a pinned mtime.
-                }
-            }
-            return new ByteArrayStorageObject(path, buffer, offset, length, mtime);
-        }
-
         @Override
         public void close() throws IOException {
             if (closed) {

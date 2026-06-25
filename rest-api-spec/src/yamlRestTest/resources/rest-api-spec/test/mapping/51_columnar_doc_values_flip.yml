@@ -171,6 +171,48 @@ setup:
   - match: { _source.field: "::1" }
 
 ---
+"columnar mode silently ignores doc_values:{enabled:false} (map form) for keyword field":
+  - do:
+      indices.create:
+        index: test-columnar-dv-map-form
+        body:
+          settings:
+            index:
+              mode: columnar
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              field:
+                type: keyword
+                doc_values:
+                  enabled: false
+
+  - do:
+      indices.get_field_mapping:
+        index: test-columnar-dv-map-form
+        fields: field
+        include_defaults: true
+  # doc_values must be enabled despite the explicit doc_values:{enabled:false}
+  - is_true: test-columnar-dv-map-form.mappings.field.mapping.field.doc_values
+
+  - do:
+      index:
+        index: test-columnar-dv-map-form
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2023-01-01T00:00:00.000Z"
+          field: "hello"
+  - do:
+      get:
+        index: test-columnar-dv-map-form
+        id: "1"
+  - match: { _source.field: "hello" }
+
+---
 "standard mode still respects doc_values:false":
   - do:
       indices.create:

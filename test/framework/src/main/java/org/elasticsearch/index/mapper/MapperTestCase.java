@@ -604,6 +604,36 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
+     * Verifies that {@code doc_values:{enabled:false}} (map form) is silently ignored in strict
+     * columnar index modes. Field types that use the legacy boolean {@code doc_values} parameter
+     * (e.g. {@code geo_point}, {@code binary}) do not support the map form and are skipped.
+     */
+    public void testColumnarDocValuesMapFormFalseIsIgnored() throws IOException {
+        assumeTrue("columnar modes not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        assumeTrue("mapper must support the 'doc_values' parameter", checker.checkedParameters.contains("doc_values"));
+
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper;
+            try {
+                mapper = createDocumentMapper(fieldMapping(b -> {
+                    minimalMapping(b);
+                    b.startObject("doc_values").field("enabled", false).endObject();
+                }), mode);
+            } catch (MapperParsingException e) {
+                throw new AssumptionViolatedException(
+                    "field type does not support doc_values map form or is incompatible with " + mode + " mode: " + e.getMessage(),
+                    e
+                );
+            }
+            FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+            assertTrue("doc_values:{enabled:false} must be silently ignored in " + mode + " mode", fieldMapper.fieldType().hasDocValues());
+        }
+    }
+
+    /**
      * Most field types default to disabled indexing when IndexSettings.INDEX_DISABLED_BY_DEFAULT is set.
      * Text-like fields are the notable exception.
      */

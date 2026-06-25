@@ -16,11 +16,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Set;
@@ -43,7 +43,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
         EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
             settingsBuilder.build(),
             mock(ClusterService.class),
-            mock(IndicesService.class),
+            TestUtils.mockIndicesService(mock(ClusterService.class)),
             mock(ThreadPool.class)
         );
         assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
@@ -60,7 +60,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
         EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
             settings,
             mock(ClusterService.class),
-            mock(IndicesService.class),
+            TestUtils.mockIndicesService(mock(ClusterService.class)),
             mock(ThreadPool.class)
         );
         assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
@@ -77,7 +77,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
         EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
             settings,
             mock(ClusterService.class),
-            mock(IndicesService.class),
+            TestUtils.mockIndicesService(mock(ClusterService.class)),
             mock(ThreadPool.class)
         );
         assertThat(policy, instanceOf(IndexAgeEvictionPolicy.class));
@@ -94,7 +94,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
             EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
                 settings,
                 clusterService,
-                mock(IndicesService.class),
+                TestUtils.mockIndicesService(clusterService),
                 taskQueue.getThreadPool()
             );
             assertThat(policy, instanceOf(PinnedWindowEvictionPolicy.class));
@@ -112,7 +112,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
             EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
                 settings,
                 clusterService,
-                mock(IndicesService.class),
+                TestUtils.mockIndicesService(clusterService),
                 taskQueue.getThreadPool()
             );
             assertThat(policy, instanceOf(DefaultEvictionPolicy.class));

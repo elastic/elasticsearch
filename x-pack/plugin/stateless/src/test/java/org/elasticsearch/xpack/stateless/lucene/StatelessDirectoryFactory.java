@@ -32,12 +32,12 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -164,7 +164,7 @@ public final class StatelessDirectoryFactory {
                 threadPool,
                 new BlobCacheMetrics(MeterRegistry.NOOP),
                 mock(ClusterService.class),
-                mock(IndicesService.class),
+                TestUtils.mockIndicesService(mock(ClusterService.class)),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 

@@ -30,6 +30,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.junit.After;
@@ -238,11 +239,8 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     private static IndicesService mockIndicesService(ClusterService clusterService, ShardId... presentShardIds) {
-        final IndicesService indicesService = mock(IndicesService.class);
-        when(indicesService.clusterService()).thenReturn(clusterService);
         final Predicate<ShardId> hasShardPredicate = Set.copyOf(Arrays.asList(presentShardIds))::contains;
-        when(indicesService.hasShardPredicate()).thenReturn(hasShardPredicate);
-        return indicesService;
+        return TestUtils.mockIndicesService(clusterService, hasShardPredicate);
     }
 
     private static final class FixedTimePinnedWindowEvictionPolicy extends PinnedWindowEvictionPolicy {

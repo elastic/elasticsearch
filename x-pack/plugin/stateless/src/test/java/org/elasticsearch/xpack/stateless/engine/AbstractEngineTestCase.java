@@ -77,6 +77,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -496,7 +497,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             threadPool,
             BlobCacheMetrics.NOOP,
             mock(ClusterService.class),
-            mock(IndicesService.class),
+            TestUtils.mockIndicesService(mock(ClusterService.class)),
             System::nanoTime,
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );

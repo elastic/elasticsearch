@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTr
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -313,7 +314,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         threadPool,
                         BlobCacheMetrics.NOOP,
                         clusterService,
-                        mock(IndicesService.class),
+                        TestUtils.mockIndicesService(clusterService),
                         new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                     ) {
                         @Override

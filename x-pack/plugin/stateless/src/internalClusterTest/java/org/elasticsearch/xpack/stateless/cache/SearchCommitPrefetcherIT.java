@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.jspecify.annotations.NonNull;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -63,6 +64,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Queue;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -75,12 +77,16 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCase {
@@ -265,9 +271,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertThat(pendingVbcc, notNullValue());
         assertThat(pendingVbcc.getPrimaryTermAndGeneration().generation(), equalTo(lastBccGeneration));
 
-        // Capture the metrics
-        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, BatchedCompoundCommit.blobNameFromGeneration(lastBccGeneration));
-        var beforeNewCommit = bytesReadFromBlobStore.get();
+        // Record the BCC generations the prefetcher fetches from the blob store. Non-uploaded commit prefetching is
+        // disabled, so the prefetcher reads uploaded BCCs from the blob store on the prewarm pool.
+        var prefetchedGenerations = captureGenerationsReadFromBlobStore(searchNode, prewarmThreadPool);
 
         // Wait until all commit notifications have been intercepted before releasing them
         assertBusy(() -> assertThat(delayedNewCommitNotifications.size(), equalTo(pendingVbcc.getPendingCompoundCommits().size())));
@@ -285,9 +291,11 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksRefreshPool);
         assertNoRunningAndQueueTasks(threadPool, prewarmThreadPool, preIngestTasksPrewarmingPool);
 
-        var afterFlush = bytesReadFromBlobStore.get();
-        // we should have prefetched the latest commit generation only
-        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(afterFlush - beforeNewCommit)));
+        // We must not prefetch anything older than the latest generation captured on the first commit notification.
+        // With merges, we can potentially prefetch generation > lastBccGeneration.
+        assertThat(prefetchedGenerations, not(empty()));
+        assertThat(prefetchedGenerations, hasItem(lastBccGeneration));
+        assertThat(prefetchedGenerations, everyItem(greaterThanOrEqualTo(lastBccGeneration)));
     }
 
     public void testSkipFetchingForSearchIdleIndices() throws Exception {
@@ -814,7 +822,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 if (blobName.equals(bccBlobName)) {
                     return new FilterInputStream(originalSupplier.get()) {
                         @Override
-                        public int read(byte[] b, int off, int len) throws IOException {
+                        public int read(byte @NonNull [] b, int off, int len) throws IOException {
                             var bytesRead = super.read(b, off, len);
                             if (bytesRead > 0) {
                                 bytesReadFromBlobStore.addAndGet(bytesRead);
@@ -828,6 +836,36 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             }
         });
         return bytesReadFromBlobStore;
+    }
+
+    /// Records the BCC generations whose blobs are read from the blob store by the passed thread pool.
+    private Set<Long> captureGenerationsReadFromBlobStore(String searchNode, String requiredThreadPool) {
+        Set<Long> prefetchedGenerations = ConcurrentCollections.newConcurrentSet();
+        setNodeRepositoryStrategy(searchNode, new StatelessMockRepositoryStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                if (Thread.currentThread().getName().contains("[" + requiredThreadPool + "]") == false) {
+                    return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+                }
+                return new FilterInputStream(originalSupplier.get()) {
+                    @Override
+                    public int read(byte @NonNull [] b, int off, int len) throws IOException {
+                        var bytesRead = super.read(b, off, len);
+                        if (bytesRead > 0) {
+                            prefetchedGenerations.add(StatelessCompoundCommit.parseGenerationFromBlobName(blobName));
+                        }
+                        return bytesRead;
+                    }
+                };
+            }
+        });
+        return prefetchedGenerations;
     }
 
     /// Tracks unique bytes received from the indexing-node chunk endpoint by recording each `[offset, offset + respLen)`

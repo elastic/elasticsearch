@@ -185,7 +185,9 @@ public class ViewResolver {
         // through the listener (onFailure), matching how the eager DFS surfaced it from inside the async walk.
         if (noViews == false) {
             try {
-                new ViewGraph(viewNameToQuery(), parser, this::expandViewNames, maxViewDepth).check(collectEntryViews(plan));
+                new ViewGraph(viewNameToQuery(), parser, p -> expandViewNames(p, projectRouting), maxViewDepth).check(
+                    collectEntryViews(plan, projectRouting)
+                );
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -222,11 +224,11 @@ public class ViewResolver {
      * entry the same as one referenced from a top-level {@code FROM}). Each relation's patterns are expanded once
      * to matched view names via the same {@link EsqlResolveViewAction} expansion the substitution walk uses.
      */
-    private List<String> collectEntryViews(LogicalPlan plan) {
+    private List<String> collectEntryViews(LogicalPlan plan, String projectRouting) {
         List<String> entryViews = new ArrayList<>();
         forEachViewRelation(plan, ur -> {
             List<String> patterns = Arrays.asList(ur.indexPattern().indexPattern().split(","));
-            for (String name : expandViewNames(patterns)) {
+            for (String name : expandViewNames(patterns, projectRouting)) {
                 if (entryViews.contains(name) == false) {
                     entryViews.add(name);
                 }
@@ -263,15 +265,27 @@ public class ViewResolver {
      * action runs on {@code DIRECT_EXECUTOR_SERVICE}, so a non-threaded request completes inline on the calling thread
      * — there is no fork, and {@link PlainActionFuture#actionGet()} returns without blocking.
      */
-    private List<String> expandViewNames(List<String> patterns) {
+    private List<String> expandViewNames(List<String> patterns, String projectRouting) {
         if (patterns.isEmpty()) {
             return List.of();
         }
-        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, false);
-        req.indices(patterns.toArray(new String[0]));
         PlainActionFuture<EsqlResolveViewAction.Response> future = new PlainActionFuture<>();
-        doEsqlResolveViewsRequestSync(req, future);
+        doEsqlResolveViewsRequestSync(buildResolveViewsRequest(patterns.toArray(new String[0]), projectRouting), future);
         return Arrays.stream(future.actionGet().views()).map(org.elasticsearch.cluster.metadata.View::name).toList();
+    }
+
+    /**
+     * Build the {@link EsqlResolveViewAction.Request} for a set of {@code FROM} patterns. Single source of truth so the
+     * up-front {@link #expandViewNames} graph expansion and the substitution walk issue an identical request: the CPS
+     * flag ({@code crossProjectModeDecider.crossProjectEnabled()}) and {@code projectRouting} MUST be set the same way on
+     * both, or cross-project pattern resolution ({@code _origin:}, linked-project exclusions) and authorization diverge
+     * between the graph check and the actual resolution.
+     */
+    private EsqlResolveViewAction.Request buildResolveViewsRequest(String[] patterns, String projectRouting) {
+        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, crossProjectModeDecider.crossProjectEnabled());
+        req.setProjectRouting(projectRouting);
+        req.indices(patterns);
+        return req;
     }
 
     /**
@@ -464,9 +478,7 @@ public class ViewResolver {
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
         String[] urPatterns = patterns;
 
-        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, cpsEnabled);
-        req.setProjectRouting(projectRouting);
-        req.indices(patterns);
+        var req = buildResolveViewsRequest(patterns, projectRouting);
 
         doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l1, response) -> {
             if (response.views().length == 0) {

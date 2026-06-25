@@ -74,6 +74,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
+import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
@@ -1538,9 +1539,7 @@ public class TransportSearchActionTests extends ESTestCase {
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }
         {
-            SearchRequestTests searchRequestTests = new SearchRequestTests();
-            searchRequestTests.setUp();
-            SearchRequest searchRequest = searchRequestTests.createSearchRequest();
+            SearchRequest searchRequest = AbstractSearchTestCase.randomSearchRequest();
             searchRequest.scroll(null);
             searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
             SearchSourceBuilder source = searchRequest.source();

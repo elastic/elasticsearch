@@ -96,9 +96,12 @@ public class MultiSearchIT extends ESIntegTestCase {
      * the reservation when the combined {@link org.elasticsearch.action.search.MultiSearchResponse} is delivered.
      */
     public void testBreakerAccountingEndToEnd() throws Exception {
-        assumeFalse("noop breakers used, skipping test", noopBreakerUsed());
-
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        // The request breaker type is randomized per node (~10% noop). The coordinating-only node gets its own seed and may
+        // be noop even when the pre-existing nodes are not, so the check must target the coordinator that runs the msearch
+        // accounting rather than the pre-existing nodes; a noop breaker never reserves bytes and reports getUsed() == 0.
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
         String index = "msearch-breaker-it";
         int numDocs = scaledRandomIntBetween(20, 50);
         int numSearches = scaledRandomIntBetween(10, 25);
@@ -418,8 +421,8 @@ public class MultiSearchIT extends ESIntegTestCase {
         );
     }
 
-    private boolean noopBreakerUsed() {
-        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
+    private boolean noopBreakerUsed(String nodeName) {
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats(nodeName).setBreaker(true).get();
         for (NodeStats nodeStats : stats.getNodes()) {
             if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == NoopCircuitBreaker.LIMIT) {
                 return true;

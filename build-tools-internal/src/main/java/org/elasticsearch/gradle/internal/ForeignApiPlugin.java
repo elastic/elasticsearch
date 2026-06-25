@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Named;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -78,9 +79,14 @@ public class ForeignApiPlugin implements Plugin<Project> {
             TaskProvider<ExtractForeignApiTask> extractTask = project.getTasks()
                 .register(EXTRACT_FOREIGN_API_TASK_NAME, ExtractForeignApiTask.class, t -> {
                     t.getOutputJar().set(project.getLayout().getBuildDirectory().file("jdk21-foreign-api.jar"));
-                    t.getJdk21Launcher().set(
-                        javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(21)))
-                    );
+                    // Only fork a worker when the Gradle daemon JVM is not already JDK 21. When
+                    // the daemon runs on JDK 21, leaving the launcher unset lets the task run in
+                    // the daemon ({@code noIsolation}), which avoids the cost of spawning a
+                    // worker process. Mirrors the pattern in ForbiddenApisPrecommitPlugin.
+                    if (JavaVersion.current().equals(JavaVersion.VERSION_21) == false) {
+                        t.getJdk21Launcher()
+                            .set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(21))));
+                    }
                 });
 
             Provider<RegularFile> jarFile = extractTask.flatMap(ExtractForeignApiTask::getOutputJar);

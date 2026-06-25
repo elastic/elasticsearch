@@ -14,6 +14,7 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.jvm.toolchain.JavaLauncher;
@@ -28,7 +29,6 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -54,10 +54,12 @@ import static org.objectweb.asm.Opcodes.V21;
  * modules compiled with {@code --release 21} can reference {@code MemorySegment} and related
  * types without {@code --enable-preview}.
  *
- * <p> The extraction runs in a forked worker process driven by {@link ForeignApiPlugin}. The
- * worker is launched with the {@link #getJdk21Launcher() JDK 21 toolchain launcher}, so the
- * Gradle daemon JDK version is irrelevant. The worker reads the classes from its own
- * {@code jrt:/} image, which is guaranteed to be a genuine JDK 21 runtime.
+ * <p> The worker reads the classes from its own {@code jrt:/} image, which must be a genuine
+ * JDK 21 runtime. When the Gradle daemon already runs on JDK 21 the worker executes in-process
+ * ({@code noIsolation}); otherwise {@link ForeignApiPlugin} supplies a JDK 21 toolchain launcher
+ * via {@link #getJdk21Launcher()} and the worker runs in a forked process started with that
+ * launcher. The same pattern is used by
+ * {@link org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask}.
  *
  * <h3> Inspecting the generated JAR</h3>
  * {@code javap} cannot inspect classes in {@code java.lang.foreign} from a JAR on the classpath
@@ -95,19 +97,25 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
     public abstract RegularFileProperty getOutputJar();
 
     /**
-     * JDK 21 launcher supplied by the Gradle Java toolchain. The extraction worker is forked with
-     * this launcher's {@code java} executable, so the Gradle daemon JDK version is irrelevant.
-     * {@link ForeignApiPlugin} always populates this property; leaving it unset is a
-     * configuration error and will cause the build to fail.
+     * Optional JDK 21 toolchain launcher. When set, the extraction worker runs in a forked
+     * process started with this launcher's {@code java} executable. When absent, the worker
+     * runs in the Gradle daemon ({@code noIsolation}), which is only safe when the daemon
+     * itself is already a JDK 21 runtime. {@link ForeignApiPlugin} populates this property only
+     * when the Gradle JVM differs from JDK 21.
      */
     @Nested
+    @Optional
     public abstract Property<JavaLauncher> getJdk21Launcher();
 
     @TaskAction
     public void extract() {
-        File javaExecutable = getJdk21Launcher().get().getExecutablePath().getAsFile();
-        getWorkerExecutor().processIsolation(spec -> spec.forkOptions(opts -> opts.executable(javaExecutable)))
-            .submit(ExtractionWorkAction.class, params -> params.getOutputJar().set(getOutputJar()));
+        var workerExecutor = getWorkerExecutor();
+        var workQueue = getJdk21Launcher().isPresent()
+            ? workerExecutor.processIsolation(
+                spec -> spec.forkOptions(opts -> opts.executable(getJdk21Launcher().get().getExecutablePath().getAsFile()))
+            )
+            : workerExecutor.noIsolation();
+        workQueue.submit(ExtractionWorkAction.class, params -> params.getOutputJar().set(getOutputJar()));
     }
 
     static byte[] createStub(InputStream classStream) throws IOException {

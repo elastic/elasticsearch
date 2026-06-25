@@ -80,6 +80,14 @@ public class TimeseriesLifecycleType implements LifecycleType {
     );
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
+    public static final Set<String> READ_ONLY_ACTIONS = Set.of(
+        ReadOnlyAction.NAME,
+        DownsampleAction.NAME,
+        ShrinkAction.NAME,
+        ForceMergeAction.NAME,
+        SearchableSnapshotAction.NAME,
+        DeleteAction.NAME
+    );
 
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);

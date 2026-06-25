@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -969,6 +970,92 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("year", resolvedSchema.get(1).name());
         // Partition column type should be INTEGER (from path), not KEYWORD (from data)
         assertEquals(DataType.INTEGER, resolvedSchema.get(1).dataType());
+
+        // Shadowing the physical 'year' column emits a one-time client warning (summary + one detail).
+        List<String> warnings = drainWarnings();
+        assertEquals(2, warnings.size());
+        assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
+        assertThat(warnings.get(1), containsString("physical column [year] is shadowed"));
+    }
+
+    /**
+     * Per-file {@code schemaMap} contract under a partition/physical-column collision, across every
+     * schema resolution strategy. The data files carry a physical {@code year} column that collides
+     * with the {@code year=...} partition key; shadowing must drop the physical column from the
+     * unified schema and from each per-file mapping's <em>output</em>, while preserving the file's
+     * physical schema so a positional reader (e.g. CSV) still parses every column.
+     * <p>
+     * Locks the reconciliation-path fix ({@code shadowPartitionCollisions}) for {@code UNION_BY_NAME}
+     * and {@code STRICT} alongside the {@code FIRST_FILE_WINS} fast path: the coordinator schema is
+     * data-only with the partition column appended, and every per-file mapping is data-only width and
+     * non-identity. A regression in the recomputed mapping width or a dropped/added cast would fail
+     * here even though {@link #testPartitionColumnConflictPartitionWins} (default {@code UNION_BY_NAME})
+     * only checks the coordinator schema and the warning.
+     */
+    public void testCollisionSchemaMapDropsPhysicalColumnPerStrategy() throws Exception {
+        // Identical schemas across files so STRICT can run; 'year' (KEYWORD) collides with the partition key.
+        List<Attribute> schema = List.of(attr("year", DataType.KEYWORD), attr("name", DataType.KEYWORD));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/year=2024/file1.parquet", schema);
+        schemasByPath.put("s3://bucket/data/year=2023/file2.parquet", schema);
+
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/file1.parquet", 100),
+            entry("s3://bucket/data/year=2023/file2.parquet", 200)
+        );
+
+        for (FormatReader.SchemaResolution strategy : List.of(
+            FormatReader.SchemaResolution.FIRST_FILE_WINS,
+            FormatReader.SchemaResolution.UNION_BY_NAME,
+            FormatReader.SchemaResolution.STRICT
+        )) {
+            ExternalSourceResolution resolution = resolveMultiFileWithConfig(
+                "s3://bucket/data/year=*/*.parquet",
+                schemasByPath,
+                listing,
+                configFor(strategy)
+            );
+
+            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
+            assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
+
+            // Coordinator schema: physical 'year' shadowed, partition 'year' (INTEGER from path) appended after data.
+            // _file.* columns are request-driven now, so the resolved schema is just [name, year].
+            List<Attribute> resolvedSchema = resolved.metadata().schema();
+            assertEquals("[" + strategy + "] schema width", 2, resolvedSchema.size());
+            assertEquals("[" + strategy + "] data column kept", "name", resolvedSchema.get(0).name());
+            assertEquals("[" + strategy + "] partition column appended", "year", resolvedSchema.get(1).name());
+            assertEquals("[" + strategy + "] partition type from path", DataType.INTEGER, resolvedSchema.get(1).dataType());
+
+            // Per-file schemaMap: the physical schema is preserved (positional readers parse every column);
+            // the mapping is data-only width 1 ('name' only) and non-identity (drops the physical 'year').
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
+            assertEquals("[" + strategy + "] one schemaMap entry per file", 2, schemaMap.size());
+            for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : schemaMap.entrySet()) {
+                assertEquals(
+                    "[" + strategy + "] " + e.getKey() + ": file schema keeps the physical 'year' column",
+                    schema,
+                    e.getValue().fileSchema().attributes()
+                );
+                ColumnMapping mapping = e.getValue().mapping();
+                assertNotNull("[" + strategy + "] " + e.getKey() + ": mapping must be set", mapping);
+                assertEquals("[" + strategy + "] " + e.getKey() + ": mapping width is data-only", 1, mapping.width());
+                assertFalse("[" + strategy + "] " + e.getKey() + ": mapping is non-identity", mapping.isIdentity());
+                // 'name' is at physical position 1; the shadowed physical 'year' (position 0) is not read.
+                assertEquals("[" + strategy + "] " + e.getKey() + ": 'name' maps to physical position 1", 1, mapping.localIndex(0));
+                assertNull("[" + strategy + "] " + e.getKey() + ": no cast on the kept column", mapping.cast(0));
+            }
+
+            // Every strategy emits the one-time shadow warning; drain so teardown stays clean.
+            List<String> warnings = drainWarnings();
+            assertEquals("[" + strategy + "] summary + one detail", 2, warnings.size());
+            assertThat(
+                "[" + strategy + "] detail names the shadowed column",
+                warnings.get(1),
+                containsString("physical column [year] is shadowed")
+            );
+        }
     }
 
     public void testNoPartitionsSchemaUnchanged() throws Exception {
@@ -1108,6 +1195,61 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(Nullability.FALSE, schema.get(1).nullable());
         // month contains a sentinel-decoded null → must stay nullable.
         assertEquals(Nullability.TRUE, schema.get(2).nullable());
+    }
+
+    public void testEnrichSchemaWithPartitionColumnsShadowsCollidingPhysicalColumn() {
+        // Collision: a physical column 'year' coexists with a same-named Hive partition key. The
+        // resolver drops the physical column and appends the partition ReferenceAttribute at the
+        // tail (Spark/DuckDB shadowing: path-derived value wins), keeping the schema width stable.
+        List<Attribute> originalSchema = List.of(
+            attr("id", DataType.INTEGER),
+            attr("year", DataType.INTEGER),
+            attr("value", DataType.KEYWORD)
+        );
+        ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/data/*.parquet", originalSchema);
+
+        LinkedHashMap<String, DataType> partCols = new LinkedHashMap<>();
+        partCols.put("year", DataType.INTEGER);
+        PartitionMetadata partitions = new PartitionMetadata(partCols, Map.of());
+
+        ExternalSourceMetadata enriched = ExternalSourceResolver.enrichSchemaWithPartitionColumns(metadata, partitions);
+        List<Attribute> schema = enriched.schema();
+
+        // Physical 'year' dropped, partition 'year' appended after the surviving data columns.
+        assertEquals(3, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals("value", schema.get(1).name());
+        assertEquals("year", schema.get(2).name());
+        assertThat("the surviving 'year' is the partition ReferenceAttribute", schema.get(2), instanceOf(ReferenceAttribute.class));
+
+        // A one-time summary plus one detail per shadowed column is recorded on the response headers.
+        List<String> warnings = drainWarnings();
+        assertEquals(2, warnings.size());
+        assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
+        assertThat(warnings.get(1), containsString("physical column [year] is shadowed"));
+    }
+
+    public void testEnrichSchemaWithPartitionColumnsNoCollisionEmitsNoWarning() {
+        // No name overlap between data columns and partition keys: no shadow warning is emitted.
+        List<Attribute> originalSchema = List.of(attr("id", DataType.INTEGER), attr("value", DataType.KEYWORD));
+        ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/data/*.parquet", originalSchema);
+
+        LinkedHashMap<String, DataType> partCols = new LinkedHashMap<>();
+        partCols.put("year", DataType.INTEGER);
+        PartitionMetadata partitions = new PartitionMetadata(partCols, Map.of());
+
+        ExternalSourceResolver.enrichSchemaWithPartitionColumns(metadata, partitions);
+
+        assertNull("no collision means no Warning header", threadContext.getResponseHeaders().get("Warning"));
+    }
+
+    private List<String> drainWarnings() {
+        List<String> raw = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+        List<String> messages = raw.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false)).toList();
+        // stashContext installs a fresh empty context, clearing the recorded Warning headers so the
+        // ESTestCase.ensureNoWarnings() teardown does not flag them and subsequent resolves start clean.
+        threadContext.stashContext();
+        return messages;
     }
 
     public void testSchemaWithFieldAttributeFailsValidation() throws Exception {

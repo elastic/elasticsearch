@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -21,7 +22,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -210,7 +211,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
     private IndexAbstractionSchema resolveCompositeSchema(IndexAbstraction abstraction, FieldCapabilitiesResponse primary) {
         var backingNames = abstraction.getIndices().stream().map(Index::getName).collect(Collectors.toSet());
         var schema = new LinkedHashMap<String, String>();
-        primary.getIndexResponses().stream()
+        primary.getIndexResponses()
+            .stream()
             .filter(r -> backingNames.contains(r.getIndexName()))
             .forEach(r -> r.get().values().forEach(f -> schema.putIfAbsent(f.name(), f.type())));
         return new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), schema);
@@ -218,13 +220,23 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
 
     private IndexAbstractionSchema resolveIndexSchema(IndexAbstraction abstraction, FieldCapabilitiesResponse primary) {
         assert abstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
-        var index = primary.getIndexResponses()
+        var optionalIndex = primary.getIndexResponses()
             .stream()
             .filter(i -> Objects.equals(i.getIndexName(), abstraction.getName()))
-            .findFirst()
-            .orElseThrow();
+            .findFirst();
+        if (optionalIndex.isEmpty()) {
+            for (var failure : primary.getFailures()) {
+                for (var idx : failure.getIndices()) {
+                    if (idx.equals(abstraction.getName())) {
+                        throw ExceptionsHelper.convertToRuntime(failure.getException());
+                    }
+                }
+            }
+            // index has no responses and no failures — all shards reported canMatch=false
+            return new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), Map.of());
+        }
         var schema = new LinkedHashMap<String, String>();
-        for (var field : index.get().values()) {
+        for (var field : optionalIndex.get().get().values()) {
             schema.put(field.name(), field.type());
         }
         return new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), schema);

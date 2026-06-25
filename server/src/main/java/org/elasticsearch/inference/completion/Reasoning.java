@@ -183,9 +183,14 @@ public final class Reasoning implements Accountable, ToXContentObject, NamedWrit
 
     @Override
     public long ramBytesUsed() {
-        // Enums and booleans are free as enums are JVM-wide singletons, booleans usually, too
-        // Therefore we do not estimate them here as we would overestimate with each object
-        return SHALLOW_SIZE;
+        // Strictly speaking enums exist once in the JVM, so we do over accounting (by adding the shallow size of each enum object) here,
+        // but over accounting is more acceptable than under accounting.
+        var effortRamBytesUsed = RamUsageEstimator.shallowSizeOf(effort);
+        var summaryRamBytesUsed = RamUsageEstimator.shallowSizeOf(summary);
+        var excludeRamBytesUsed = RamUsageEstimator.shallowSizeOf(exclude);
+        var enabledRamBytesUsed = RamUsageEstimator.shallowSizeOf(enabled);
+
+        return SHALLOW_SIZE + effortRamBytesUsed + summaryRamBytesUsed + excludeRamBytesUsed + enabledRamBytesUsed;
     }
 
     @Override

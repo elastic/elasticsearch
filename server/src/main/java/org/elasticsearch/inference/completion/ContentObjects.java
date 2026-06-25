@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -53,6 +54,7 @@ public record ContentObjects(List<ContentObject> contentObjects) implements Cont
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(contentObjects());
+        return SHALLOW_SIZE + RamUsageEstimator.shallowSizeOf(contentObjects()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
+            + contentObjects().stream().mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

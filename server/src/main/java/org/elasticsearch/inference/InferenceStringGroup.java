@@ -201,7 +201,8 @@ public final class InferenceStringGroup implements Accountable, Writeable, ToXCo
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(inferenceStrings());
+        return SHALLOW_SIZE + RamUsageEstimator.shallowSizeOf(inferenceStrings()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
+            + inferenceStrings().stream().mapToLong(InferenceString::ramBytesUsed).sum();
     }
 
     @Override

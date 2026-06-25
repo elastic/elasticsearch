@@ -124,10 +124,12 @@ public record Tool(String type, FunctionField function) implements Accountable, 
         public long ramBytesUsed() {
             var descriptionRamBytesUsed = RamUsageEstimator.sizeOf(description());
             var nameRamBytesUsed = RamUsageEstimator.sizeOf(name());
-            var parametersRamBytesUsed = RamUsageEstimator.sizeOfMap(parameters());
-            // strict is a boolean, therefore free
+            var parametersRamBytesUsed = parameters() == null
+                ? 0L
+                : RamUsageEstimator.sizeOfMap(parameters()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+            var strictRamBytesUsed = RamUsageEstimator.shallowSizeOf(strict());
 
-            return SHALLOW_SIZE + descriptionRamBytesUsed + nameRamBytesUsed + parametersRamBytesUsed;
+            return SHALLOW_SIZE + descriptionRamBytesUsed + nameRamBytesUsed + parametersRamBytesUsed + strictRamBytesUsed;
         }
     }
 }

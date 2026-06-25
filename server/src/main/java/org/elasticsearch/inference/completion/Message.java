@@ -145,11 +145,18 @@ public record Message(
         var contentRamBytesUsed = content() == null ? 0L : content().ramBytesUsed();
         var roleRamBytesUsed = RamUsageEstimator.sizeOf(role());
         var toolCallIdRamBytesUsed = RamUsageEstimator.sizeOf(toolCallId());
-        var toolCallsRamBytesUsed = toolCalls() == null ? 0L : toolCalls().stream().mapToLong(ToolCall::ramBytesUsed).sum();
+        var toolCallsRamBytesUsed = toolCalls() == null
+            ? 0L
+            : RamUsageEstimator.shallowSizeOf(toolCalls()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + toolCalls().stream()
+                .mapToLong(ToolCall::ramBytesUsed)
+                .sum();
         var reasoningRamBytesUsed = RamUsageEstimator.sizeOf(reasoning());
         var reasoningDetailsRamBytesUsed = reasoningDetails() == null
             ? 0L
-            : reasoningDetails().stream().mapToLong(ReasoningDetail::ramBytesUsed).sum();
+            : RamUsageEstimator.shallowSizeOf(reasoningDetails()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + reasoningDetails()
+                .stream()
+                .mapToLong(ReasoningDetail::ramBytesUsed)
+                .sum();
 
         return SHALLOW_SIZE + contentRamBytesUsed + roleRamBytesUsed + toolCallIdRamBytesUsed + toolCallsRamBytesUsed
             + reasoningRamBytesUsed + reasoningDetailsRamBytesUsed;

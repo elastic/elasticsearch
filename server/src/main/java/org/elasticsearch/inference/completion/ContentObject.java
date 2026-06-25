@@ -98,6 +98,10 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         return type;
     }
 
+    public long typeRamBytesUsed() {
+        return RamUsageEstimator.shallowSizeOf(type());
+    }
+
     public static final class ContentObjectFile extends ContentObject {
         public static final String NAME = "content_object_file";
         private final ContentObjectFileFields fileFields;
@@ -161,7 +165,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         @Override
         public long ramBytesUsed() {
             var fileFieldsRamBytesUsed = fileFields.ramBytesUsed();
-            return SHALLOW_SIZE + fileFieldsRamBytesUsed;
+            return SHALLOW_SIZE + fileFieldsRamBytesUsed + typeRamBytesUsed();
         }
 
         /**
@@ -303,7 +307,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         @Override
         public long ramBytesUsed() {
             var imageUrlRamBytesUsed = imageUrl().ramBytesUsed();
-            return SHALLOW_SIZE + imageUrlRamBytesUsed;
+            return SHALLOW_SIZE + imageUrlRamBytesUsed + typeRamBytesUsed();
         }
 
         public record ContentObjectImageUrl(String url, @Nullable ImageUrlDetail detail)
@@ -345,7 +349,9 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
             @Override
             public long ramBytesUsed() {
                 var imageUrlRamBytesUsed = RamUsageEstimator.sizeOf(url());
-                return SHALLOW_SIZE + imageUrlRamBytesUsed;
+                var detailRamBytesUsed = detail() == null ? 0L : RamUsageEstimator.shallowSizeOf(detail());
+
+                return SHALLOW_SIZE + imageUrlRamBytesUsed + detailRamBytesUsed;
             }
 
             public enum ImageUrlDetail {
@@ -434,7 +440,7 @@ public abstract sealed class ContentObject implements Accountable, NamedWriteabl
         @Override
         public long ramBytesUsed() {
             var textRamBytesUsed = RamUsageEstimator.sizeOf(text);
-            return SHALLOW_SIZE + textRamBytesUsed;
+            return SHALLOW_SIZE + textRamBytesUsed + typeRamBytesUsed();
         }
     }
 }

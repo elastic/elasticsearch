@@ -295,12 +295,22 @@ public record UnifiedCompletionRequest(
 
     @Override
     public long ramBytesUsed() {
-        // Single floats, longs are negligible
-        var messagesRamBytesUsed = messages().stream().mapToLong(Message::ramBytesUsed).sum();
+        var messagesRamBytesUsed = RamUsageEstimator.shallowSizeOf(messages()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + messages()
+            .stream()
+            .mapToLong(Message::ramBytesUsed)
+            .sum();
         var modelRamBytesUsed = RamUsageEstimator.sizeOf(model());
         var toolChoicesRamBytesUsed = toolChoice() == null ? 0L : toolChoice().ramBytesUsed();
-        var stopRamBytesUsed = stop() == null ? 0L : stop().stream().mapToLong(RamUsageEstimator::sizeOf).sum();
-        var toolsRamBytesUsed = tools() == null ? 0L : tools().stream().mapToLong(Tool::ramBytesUsed).sum();
+        var stopRamBytesUsed = stop() == null
+            ? 0L
+            : RamUsageEstimator.shallowSizeOf(stop()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + stop().stream()
+                .mapToLong(RamUsageEstimator::sizeOf)
+                .sum();
+        var toolsRamBytesUsed = tools() == null
+            ? 0L
+            : RamUsageEstimator.shallowSizeOf(tools()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + tools().stream()
+                .mapToLong(Tool::ramBytesUsed)
+                .sum();
         var reasoningRamBytesUsed = reasoning() == null ? 0L : reasoning().ramBytesUsed();
 
         return SHALLOW_SIZE + messagesRamBytesUsed + modelRamBytesUsed + toolChoicesRamBytesUsed + stopRamBytesUsed + toolsRamBytesUsed

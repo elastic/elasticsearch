@@ -68,7 +68,9 @@ public class EmbeddingsInput extends InferenceInputs {
     }
 
     private static long estimateSizeInBytes(List<InferenceStringGroup> input) {
-        return input.stream().mapToLong(InferenceStringGroup::ramBytesUsed).sum();
+        return RamUsageEstimator.shallowSizeOf(input) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + input.stream()
+            .mapToLong(InferenceStringGroup::ramBytesUsed)
+            .sum();
     }
 
     /**
@@ -116,6 +118,8 @@ public class EmbeddingsInput extends InferenceInputs {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + estimatedSizeInBytes;
+        var inputTypeRamBytesUsed = inputType == null ? 0L : RamUsageEstimator.shallowSizeOf(inputType);
+        var lambdaRamBytesUsed = RamUsageEstimator.shallowSizeOf(inputListSupplier);
+        return SHALLOW_SIZE + inputTypeRamBytesUsed + lambdaRamBytesUsed + estimatedSizeInBytes;
     }
 }

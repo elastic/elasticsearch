@@ -1,6 +1,0 @@
-area: Distributed
-issues:
- - 152039
-pr: 152107
-summary: Fix `ThrottlingRecoveryService` thread context leak
-type: bug

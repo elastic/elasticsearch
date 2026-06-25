@@ -1143,7 +1143,7 @@ limitByWithEnrich
 required_capability: enrich_load
 required_capability: limit_by_enrich_fix
 
-FROM *,-addresses_*
+FROM *,-addresses_*,-date_nanos_union_types
 | ENRICH languages_policy on street
 | KEEP abbrev, integer, year
 | LIMIT 1 BY abbrev

@@ -1740,10 +1740,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         Request request,
                         ActionListener<Response> listener
                     ) {
-                        assert action == TransportNewCommitNotificationAction.TYPE;
                         if (activateSearchNode.get()) {
                             fakeSearchNode.doExecute(action, request, listener);
                         } else {
+                            assert action == TransportNewCommitNotificationAction.TYPE : "Unexpected ActionType: " + action;
                             ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(
                                 new NewCommitNotificationResponse(Set.of())
                             );
@@ -1781,6 +1781,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
             waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
 
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            // The upload thread's sendNewUploadedCommitNotification may race with the state change
+            // and send a TransportFetchShardCommitsInUseAction through fakeSearchNode, which needs
+            // a DiscoveryNode to construct the response.
+            var searchNodeId = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId();
+            fakeSearchNode.setSearchDiscoveryNode(state.getNodes().get(searchNodeId));
             stateRef.set(state);
             activateSearchNode.set(true);
 

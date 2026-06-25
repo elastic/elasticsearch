@@ -121,9 +121,9 @@ public final class StatelessCompoundCommitTestUtils {
         }
         int maxNumberOfRanges = randomIntBetween(1, 25);
         var replicatedRanges = new ArrayList<InternalFilesReplicatedRanges.InternalFileReplicatedRange>();
-        long position = randomLongBetween(1L, Integer.MAX_VALUE);
-        while (replicatedRanges.size() < maxNumberOfRanges && position <= Integer.MAX_VALUE) {
-            position = randomLongBetween(position, Integer.MAX_VALUE);
+        long position = randomLongBetween(1L, Long.MAX_VALUE / 2);
+        while (replicatedRanges.size() < maxNumberOfRanges && position <= Long.MAX_VALUE / 2) {
+            position = randomLongBetween(position, Long.MAX_VALUE / 2);
             short length = (short) randomIntBetween(1, Short.MAX_VALUE);
             replicatedRanges.add(new InternalFilesReplicatedRanges.InternalFileReplicatedRange(position, length));
             position += length;

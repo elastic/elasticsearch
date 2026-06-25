@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -24,10 +25,10 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -40,17 +41,14 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
@@ -71,11 +69,14 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
  *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
  * </ul>
- * Subtrees the resolver has already fully resolved are tracked by identity and skipped on re-visit, so a {@code UnionAll} it
- * emitted for a multi-source {@code FROM} is not re-processed.
+ * Each handler fully resolves the subtree it returns — including recursion into view bodies — so the walk treats a handler's
+ * result as terminal and never re-descends into it. There is therefore no identity bookkeeping: a {@code UnionAll} emitted for a
+ * multi-source {@code FROM} is built once and not re-processed.
  * <p>
- * View resolution may introduce new nodes that need further processing, so explicit recursive calls are made on newly resolved view
- * plans. The traversal tracks circular references and enforces the maximum view depth ({@link #MAX_VIEW_DEPTH_SETTING}).
+ * Self-reference policing is separated out: circular references and the maximum view depth ({@link #MAX_VIEW_DEPTH_SETTING}) are a
+ * property of the static view-definition graph, not of plan position, so they are checked once up front by {@link ViewGraph} over
+ * the views reachable from the query's entry relations — before this substitution walk runs. With cycles and depth already proven,
+ * the walk threads no {@code seenViews} / depth / re-entry state.
  * <p>
  * TODO: {@code ViewResolver} needs rename or refactor, as it does two tasks - view resolution and IN subquery resolution. Keep the core
  *  of view resolution in {@code ViewResolver}, and have a {@code ViewAndSubqueryResolver} drive the plan tree traversal, call
@@ -175,6 +176,21 @@ public class ViewResolver {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
             return;
         }
+        // Self-reference policing (circular references + max view depth) is a property of the static
+        // view-definition graph, not of where a view appears in the plan. Run it once up front over the
+        // graph reachable from this query's entry views: the check throws the verbatim circular / max-depth
+        // VerificationException the eager DFS used to throw, and proves the reachable sub-graph acyclic and
+        // within the depth limit. With that guarantee established, the substitution walk below recurses into
+        // view bodies without threading any seen-set / depth / re-entry guards. Any rejection is delivered
+        // through the listener (onFailure), matching how the eager DFS surfaced it from inside the async walk.
+        if (noViews == false) {
+            try {
+                new ViewGraph(viewNameToQuery(), parser, this::expandViewNames, maxViewDepth).check(collectEntryViews(plan));
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+        }
         // Note: this returns the nested plan with each FROM <view> reference wrapped in a first-class
         // View node (whose body is the resolved view query). The View boundary is later folded into its
         // body by the InlineView optimizer rule, and nested UnionAlls produced by that folding are lifted
@@ -185,7 +201,6 @@ public class ViewResolver {
             plan,
             projectRouting,
             parser,
-            new LinkedHashSet<>(),
             viewQueries,
             hasInSubquery,
             0,
@@ -195,110 +210,174 @@ public class ViewResolver {
         );
     }
 
+    /** Snapshot of the current project's view definitions as a name -&gt; query map, for {@link ViewGraph}. */
+    private Map<String, String> viewNameToQuery() {
+        Map<String, String> result = new HashMap<>();
+        getMetadata().views().forEach((name, view) -> result.put(name, view.query()));
+        return result;
+    }
+
+    /**
+     * Collect the query's entry view names — the views directly reachable from a top-level position — in plan
+     * pre-order, descending into {@link InSubquery} subplans (a view referenced from an IN subquery body is an
+     * entry the same as one referenced from a top-level {@code FROM}). Each relation's patterns are expanded once
+     * to matched view names via the same {@link EsqlResolveViewAction} expansion the substitution walk uses.
+     */
+    private List<String> collectEntryViews(LogicalPlan plan) {
+        List<String> entryViews = new ArrayList<>();
+        forEachUnresolvedRelation(plan, ur -> {
+            List<String> patterns = Arrays.asList(ur.indexPattern().indexPattern().split(","));
+            for (String name : expandViewNames(patterns)) {
+                if (entryViews.contains(name) == false) {
+                    entryViews.add(name);
+                }
+            }
+        });
+        return entryViews;
+    }
+
+    /**
+     * Pre-order walk over every {@link UnresolvedRelation} in {@code plan}, descending into the subplans of
+     * {@link InSubquery} expressions that sit in a {@link Filter} condition — exactly the IN subqueries the substitution
+     * walk lifts into joins and resolves (others are rejected later by {@code InSubqueryResolver#verify}, so the eager
+     * DFS never policed views inside them either).
+     */
+    private static void forEachUnresolvedRelation(LogicalPlan plan, Consumer<UnresolvedRelation> action) {
+        plan.forEachDown(p -> {
+            if (p instanceof UnresolvedRelation ur) {
+                action.accept(ur);
+            }
+            if (p instanceof Filter filter) {
+                filter.condition().forEachDown(InSubquery.class, in -> forEachUnresolvedRelation(in.subquery(), action));
+            }
+        });
+    }
+
+    /**
+     * Expand the given index patterns to the matched <b>view names</b> (exclusions applied, in resolution order),
+     * synchronously, through the same {@link EsqlResolveViewAction} the substitution walk drives per relation. The
+     * action runs on {@code DIRECT_EXECUTOR_SERVICE}, so a non-threaded request completes inline on the calling thread
+     * — there is no fork, and {@link PlainActionFuture#actionGet()} returns without blocking.
+     */
+    private List<String> expandViewNames(List<String> patterns) {
+        if (patterns.isEmpty()) {
+            return List.of();
+        }
+        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, false);
+        req.indices(patterns.toArray(new String[0]));
+        PlainActionFuture<EsqlResolveViewAction.Response> future = new PlainActionFuture<>();
+        doEsqlResolveViewsRequestSync(req, future);
+        return Arrays.stream(future.actionGet().views()).map(org.elasticsearch.cluster.metadata.View::name).toList();
+    }
+
+    /**
+     * Explicit pre-order substitution walk. Each intercepted node type ({@link Fork}, an {@link Filter} carrying an
+     * {@code InSubquery}, {@link AbstractSubqueryJoin}, {@link UnresolvedRelation}) is fully resolved by its handler —
+     * including recursion into its own children / view bodies — and the handler's result is <b>terminal</b> (the walk
+     * does not re-descend into it). Every other node has its children resolved in place by recursing through this same
+     * method, then is rebuilt.
+     * <p>
+     * The walk threads no self-reference state: circular references and max depth are policed up front by
+     * {@link ViewGraph}, so a view body can be recursed into freely. Because each handler fully resolves the subtree it
+     * returns (no {@link UnresolvedRelation} naming a view survives), there is no re-entrant wildcard re-expansion and
+     * therefore none of the {@code seenWildcards} / {@code resolvedPlans} bookkeeping the old eager DFS needed.
+     */
     private void replaceViews(
         LogicalPlan plan,
         String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
-        LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
-        LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
-        // Tracks wildcard patterns already resolved within this transformDown traversal to prevent duplicate processing
-        HashSet<String> seenWildcards = new HashSet<>();
-        // Tracks plans already resolved by view handlers (Fork, UnresolvedRelation) to prevent double-processing.
-        // Without this, transformDown recurses into the children of resolved plans, causing wildcards
-        // in view subqueries to be re-resolved against sibling view names, producing false circular
-        // reference errors and deeply nested duplicate resolution.
-        Set<LogicalPlan> resolvedPlans = Collections.newSetFromMap(new IdentityHashMap<>());
-
-        plan.transformDown((p, planListener) -> {
-            if (resolvedPlans.contains(p)) {
-                // This plan was already resolved by a handler — skip it to prevent double-processing.
-                planListener.onResponse(p);
-                return;
-            }
-            switch (p) {
-                case Fork fork -> replaceViewsFork(
-                    fork,
-                    projectRouting,
-                    parser,
-                    seenInner,
-                    viewQueries,
-                    hasInSubquery,
-                    depth,
-                    planListener.delegateFailureAndWrap((l, result) -> {
-                        plan.forEachDown(resolvedPlans::add);
-                        result.forEachDown(resolvedPlans::add);
-                        l.onResponse(result);
-                    })
-                );
-                case Filter filter -> {
-                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
-                    if (resolved == filter) {
-                        // No InSubquery in this filter — let transformDown process its children normally.
-                        planListener.onResponse(filter);
-                    } else {
-                        // InSubquery rewritten to SemiJoin/AntiJoin/MarkJoin — record it for telemetry, then resolve any view
-                        // references introduced in the subquery plans.
-                        hasInSubquery.set(true);
-                        replaceViews(
-                            resolved,
-                            projectRouting,
-                            parser,
-                            seenInner,
-                            viewQueries,
-                            hasInSubquery,
-                            depth,
-                            planListener.delegateFailureAndWrap((l, result) -> {
-                                result.forEachDown(resolvedPlans::add);
-                                l.onResponse(result);
-                            })
-                        );
-                    }
+        switch (plan) {
+            case Fork fork -> replaceViewsFork(fork, projectRouting, parser, viewQueries, hasInSubquery, depth, listener);
+            case Filter filter -> {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
+                if (resolved == filter) {
+                    // No InSubquery in this filter — resolve view references in its children.
+                    replaceViewsChildren(filter, projectRouting, parser, viewQueries, hasInSubquery, depth, listener);
+                } else {
+                    // InSubquery rewritten to SemiJoin/AntiJoin/MarkJoin — record it for telemetry, then resolve any view
+                    // references introduced in the subquery plans.
+                    hasInSubquery.set(true);
+                    replaceViews(resolved, projectRouting, parser, viewQueries, hasInSubquery, depth, listener);
                 }
-                case AbstractSubqueryJoin subqueryJoin -> replaceViewsSubqueryJoin(
-                    subqueryJoin,
-                    projectRouting,
-                    parser,
-                    seenInner,
-                    viewQueries,
-                    hasInSubquery,
-                    depth,
-                    planListener.delegateFailureAndWrap((l, result) -> {
-                        result.forEachDown(resolvedPlans::add);
-                        l.onResponse(result);
-                    })
-                );
-                case UnresolvedRelation ur -> replaceViewsUnresolvedRelation(
-                    ur,
-                    projectRouting,
-                    parser,
-                    seenInner,
-                    seenWildcards,
-                    viewQueries,
-                    hasInSubquery,
-                    depth,
-                    planListener.delegateFailureAndWrap((l, result) -> {
-                        plan.forEachDown(resolvedPlans::add);
-                        // Also mark the resolved result subtree so transformDown does not
-                        // re-process view-body nodes the UnresolvedRelation was replaced with.
-                        result.forEachDown(resolvedPlans::add);
-                        l.onResponse(result);
-                    })
-                );
-                default -> planListener.onResponse(p);
             }
-        }, listener);
+            case AbstractSubqueryJoin subqueryJoin -> replaceViewsSubqueryJoin(
+                subqueryJoin,
+                projectRouting,
+                parser,
+                viewQueries,
+                hasInSubquery,
+                depth,
+                listener
+            );
+            case UnresolvedRelation ur -> replaceViewsUnresolvedRelation(
+                ur,
+                projectRouting,
+                parser,
+                viewQueries,
+                hasInSubquery,
+                depth,
+                listener
+            );
+            default -> replaceViewsChildren(plan, projectRouting, parser, viewQueries, hasInSubquery, depth, listener);
+        }
+    }
+
+    /**
+     * Resolve view references in {@code plan}'s children (in order, one after another), rebuilding {@code plan} only if
+     * a child changed. The children are not themselves intercept nodes the handlers already recursed through; this is
+     * the pre-order descent for the pass-through node types.
+     */
+    private void replaceViewsChildren(
+        LogicalPlan plan,
+        String projectRouting,
+        BiFunction<String, String, LogicalPlan> parser,
+        Map<String, String> viewQueries,
+        Holder<Boolean> hasInSubquery,
+        int depth,
+        ActionListener<LogicalPlan> listener
+    ) {
+        List<LogicalPlan> children = plan.children();
+        if (children.isEmpty()) {
+            listener.onResponse(plan);
+            return;
+        }
+        Holder<List<LogicalPlan>> updated = new Holder<>();
+        SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
+        for (int i = 0; i < children.size(); i++) {
+            var index = i;
+            var child = children.get(index);
+            chain = chain.andThen(
+                (l, ignored) -> replaceViews(
+                    child,
+                    projectRouting,
+                    parser,
+                    viewQueries,
+                    hasInSubquery,
+                    depth,
+                    l.delegateFailureAndWrap((sl, newChild) -> {
+                        if (newChild.equals(child) == false) {
+                            if (updated.get() == null) {
+                                updated.set(new ArrayList<>(children));
+                            }
+                            updated.get().set(index, newChild);
+                        }
+                        sl.onResponse(null);
+                    })
+                )
+            );
+        }
+        chain.andThenApply(ignored -> updated.get() == null ? plan : plan.replaceChildren(updated.get())).addListener(listener);
     }
 
     private void replaceViewsFork(
         Fork fork,
         String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
-        LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
         int depth,
@@ -314,7 +393,6 @@ public class ViewResolver {
                     subplan,
                     projectRouting,
                     parser,
-                    seenViews,
                     viewQueries,
                     hasInSubquery,
                     depth + 1,
@@ -345,7 +423,6 @@ public class ViewResolver {
         AbstractSubqueryJoin subqueryJoin,
         String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
-        LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
         int depth,
@@ -358,7 +435,6 @@ public class ViewResolver {
                 origLeft,
                 projectRouting,
                 parser,
-                seenViews,
                 viewQueries,
                 hasInSubquery,
                 depth + 1,
@@ -370,7 +446,6 @@ public class ViewResolver {
                 origRight,
                 projectRouting,
                 parser,
-                seenViews,
                 viewQueries,
                 hasInSubquery,
                 depth + 1,
@@ -389,37 +464,19 @@ public class ViewResolver {
         UnresolvedRelation unresolvedRelation,
         String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
-        LinkedHashSet<String> seenViews,
-        HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
-        // Avoid re-resolving wildcards preserved for non-view matches in subsequent transformDown visits.
-        var patterns = Arrays.stream(unresolvedRelation.indexPattern().indexPattern().split(","))
-            .filter(pattern -> Regex.isSimpleMatchPattern(pattern) == false || seenWildcards.contains(pattern) == false)
-            .toArray(String[]::new);
-        if (patterns.length == 0) {
-            // All patterns are wildcards already resolved in this scope. Returning without a
-            // request is a no-op AND avoids the security layer's empty-indices → "_all"
-            // normalization, which would otherwise re-expand to the full cluster lookup and
-            // leak "_all" as a literal pattern into downstream merge/concat code.
-            listener.onResponse(unresolvedRelation);
-            return;
-        }
-        for (String pattern : patterns) {
-            if (Regex.isSimpleMatchPattern(pattern)) {
-                seenWildcards.add(pattern);
-            }
-        }
+        String[] patterns = unresolvedRelation.indexPattern().indexPattern().split(",");
 
         // Linked relations (a local view name that may also be a remote index on a linked project)
         // are only emitted in CPS mode — they drive a per-level lenient field-caps lookup against
         // linked projects. In non-CPS mode there is no linked lookup, so we skip
         // the bookkeeping entirely; the rest of the resolver behaves as if they are not part of the tree.
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
-        String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
+        String[] urPatterns = patterns;
 
         var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, cpsEnabled);
         req.setProjectRouting(projectRouting);
@@ -437,13 +494,9 @@ public class ViewResolver {
 
             final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();
             final HashMap<String, UnresolvedRelation> linkedRelations = new HashMap<>();
-            final LinkedHashSet<String> ancestorViews = new LinkedHashSet<>(seenViews);
             SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
             for (var view : response.views()) {
                 chain = chain.andThen(l2 -> {
-                    // Make sure we don't block sibling branches from containing the same views
-                    LinkedHashSet<String> branchSeenViews = new LinkedHashSet<>(ancestorViews);
-                    validateViewReferenceAndMarkSeen(view.name(), branchSeenViews);
                     if (cpsEnabled) {
                         // find pattern referencing current view
                         var patternPosition = findMatchingPattern(view.name(), urPatterns, response);
@@ -479,7 +532,6 @@ public class ViewResolver {
                         resolve(view, parser, viewQueries),
                         projectRouting,
                         parser,
-                        branchSeenViews,
                         viewQueries,
                         hasInSubquery,
                         depth + 1,
@@ -633,17 +685,6 @@ public class ViewResolver {
         return result;
     }
 
-    private void validateViewReferenceAndMarkSeen(String viewName, LinkedHashSet<String> seenViews) {
-        if (seenViews.add(viewName) == false) {
-            throw new VerificationException("circular view reference '" + viewName + "': " + String.join(" -> ", seenViews));
-        }
-        if (seenViews.size() > this.maxViewDepth) {
-            throw new VerificationException(
-                "The maximum allowed view depth of " + this.maxViewDepth + " has been exceeded: " + String.join(" -> ", seenViews)
-            );
-        }
-    }
-
     /**
      * Checks whether a pattern is a <em>local</em> exclusion targeting a concrete (non-wildcard)
      * view name — e.g. {@code -my_view}. Cluster-prefixed forms ({@code cluster:-my_view},
@@ -726,6 +767,20 @@ public class ViewResolver {
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
         client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, listener));
+    }
+
+    /**
+     * Synchronous companion to {@link #doEsqlResolveViewsRequest}, used only by the up-front {@link ViewGraph}
+     * self-reference check. The action runs on {@code DIRECT_EXECUTOR_SERVICE}, so the listener is invoked inline on the
+     * calling thread — deliberately <b>not</b> wrapped in a {@link ThreadedActionListener}, so the caller can drain it
+     * with a {@link PlainActionFuture} without forking off (and so without the deadlock risk of blocking a search thread
+     * on another search thread). Visible for testing.
+     */
+    protected void doEsqlResolveViewsRequestSync(
+        EsqlResolveViewAction.Request request,
+        ActionListener<EsqlResolveViewAction.Response> listener
+    ) {
+        client.execute(EsqlResolveViewAction.TYPE, request, listener);
     }
 
     protected record OriginViewsResolution(boolean resolveLocalViews, @Nullable String originProjectAlias) {}

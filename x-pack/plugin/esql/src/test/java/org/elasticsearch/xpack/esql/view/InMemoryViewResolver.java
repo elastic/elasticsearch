@@ -60,6 +60,18 @@ public class InMemoryViewResolver extends ViewResolver {
         EsqlResolveViewAction.Request request,
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
+        resolveViews(request, listener);
+    }
+
+    @Override
+    protected void doEsqlResolveViewsRequestSync(
+        EsqlResolveViewAction.Request request,
+        ActionListener<EsqlResolveViewAction.Response> listener
+    ) {
+        resolveViews(request, listener);
+    }
+
+    private void resolveViews(EsqlResolveViewAction.Request request, ActionListener<EsqlResolveViewAction.Response> listener) {
         var action = new EsqlResolveViewAction(
             mock(TransportService.class),
             new ActionFilters(Set.of()),

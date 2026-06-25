@@ -400,6 +400,9 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(MULTI_PROJECT)) {
             writeBlockSet(global, out);
+            // To skip writing the project_under_creation block to older versions, we need to do the check here before iterating
+            // the map and write it out, since after filtering out the new block, we might end up with a project entry in
+            // projectBlocksMap that has no blocks at all, which is not allowed by the constructor.
             final var projectBlocksToWrite = out.getTransportVersion().supports(PROJECT_CREATION_GLOBAL_BLOCK)
                 ? projectBlocksMap
                 : projectBlocksWithoutUnderCreationBlock();

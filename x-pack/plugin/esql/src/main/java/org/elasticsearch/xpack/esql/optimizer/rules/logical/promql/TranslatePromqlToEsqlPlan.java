@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -814,7 +815,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 && leftGroupingNames.equals(rightGroupingNames);
 
             if (areGroupingsCompatible == false) {
-                throw new QlIllegalArgumentException("binary expressions with different grouping keys not supported yet");
+                // Vector matching (on/ignoring modifiers) is not yet supported; surface as a 400 rather than a 500.
+                // See https://github.com/elastic/elasticsearch/issues/142596
+                throw new VerificationException(
+                    "Binary expressions between vectors with different grouping keys are not supported yet. "
+                        + "Left groupings: {}, right groupings: {}",
+                    leftGroupingNames,
+                    rightGroupingNames
+                );
             }
 
             // Merge aggregates; each side keeps its own filter condition.

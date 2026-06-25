@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
@@ -265,6 +266,14 @@ public final class StreamingParallelParsingCoordinator {
         private Page buffered = null;
         private volatile boolean closed = false;
         /**
+         * Set when a non-strict {@link ErrorPolicy} converts a {@code max_record_size} cap-hit into a
+         * graceful stop instead of a hard failure (see {@link #runSegmentator}). A truncated read is
+         * <em>not</em> a clean completion: the records emitted so far are a partial prefix and any
+         * captured stats are an under-count, so {@link #close()} must poison them rather than cache
+         * them as the file's full contribution.
+         */
+        private volatile boolean truncated = false;
+        /**
          * Async-ready signal. {@code null} when no consumer is waiting. When the consumer's
          * {@link #waitForReady()} can't satisfy synchronously it installs a fresh listener here;
          * the producers (segmentator, parser, error-path) fire it on every event that can transition
@@ -346,12 +355,12 @@ public final class StreamingParallelParsingCoordinator {
             return currentSplitter;
         }
 
-        private IOException recordTooLargeException(int scannedBytes) {
+        private RecordTooLargeException recordTooLargeException(int scannedBytes) {
             String hint = switch (reader.formatName()) {
                 case "csv", "tsv" -> "; possible unclosed quote or bracket cell";
                 default -> "";
             };
-            return new IOException(
+            return new RecordTooLargeException(
                 "record exceeded max_record_size ["
                     + maxRecordBytes
                     + "] after scanning ["
@@ -361,6 +370,43 @@ public final class StreamingParallelParsingCoordinator {
                     + "]"
                     + hint
             );
+        }
+
+        /**
+         * Raised by the segmentator when a single record exceeds {@code max_record_size} before a
+         * boundary is found. Carried as a distinct type so {@link #runSegmentator} can branch on the
+         * read policy without catching unrelated I/O errors: a strict policy rethrows it (hard fail),
+         * a non-strict policy truncates the read at this point and surfaces a partial-results warning.
+         * Extends {@link IOException} so that under a strict policy {@link ExternalFailures#surface}
+         * still classifies it as client-class bad input (HTTP 400), exactly as before this change.
+         */
+        private static final class RecordTooLargeException extends IOException {
+            RecordTooLargeException(String message) {
+                super(message);
+            }
+        }
+
+        /**
+         * Surfaces a single client-visible {@code Warning} header announcing that the read was
+         * truncated at {@code stoppedAtByte} because an undelimitable record exceeded
+         * {@code max_record_size}. Reuses the same {@link HeaderWarning} channel the non-strict
+         * {@link ErrorPolicy} modes use for skipped rows. A single self-contained line is emitted
+         * (rather than the {@link org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings}
+         * summary+detail pair) because this is a one-shot truncation event, not a per-row skip stream.
+         */
+        private void emitTruncationWarning(long stoppedAtByte, RecordTooLargeException cause) {
+            // Single-arg overload (no varargs): HeaderWarning treats the message as a plain string so a
+            // '{' or '}' in the format-specific hint is never reinterpreted as a placeholder pattern.
+            HeaderWarning.addWarning(
+                "External read stopped at byte ["
+                    + stoppedAtByte
+                    + "]: "
+                    + cause.getMessage()
+                    + "; results are partial (error_mode="
+                    + errorPolicy.modeName()
+                    + ")"
+            );
+            logger.warn("Streaming external read truncated at byte [{}] (non-strict policy): {}", stoppedAtByte, cause.getMessage());
         }
 
         private void runSegmentator(InputStream stream, int chunkSize) {
@@ -402,6 +448,10 @@ public final class StreamingParallelParsingCoordinator {
 
                     int lastNewline = recordSplitter().findLastRecordBoundary(buf, 0, totalBytes);
                     if (lastNewline == RecordSplitter.RECORD_TOO_LARGE) {
+                        // Return the pool buffer before unwinding: under a non-strict policy the segmentator
+                        // stops here but the iterator keeps draining already-dispatched chunks, so the pool
+                        // must not permanently lose a slot.
+                        recycleBuffer(buf);
                         throw recordTooLargeException(totalBytes);
                     }
 
@@ -419,11 +469,17 @@ public final class StreamingParallelParsingCoordinator {
                             }
                         } else {
                             // Single record larger than chunk size — grow a temporary buffer.
-                            // {@link #growUntilNewline} only copies from {@code buf}; the original pool buffer
-                            // is independent of {@code grown} and must be returned to the pool here so the
-                            // pool does not leak one entry per oversized record.
-                            GrowResult result = growUntilRecordBoundary(stream, buf, totalBytes, chunkSize);
-                            recycleBuffer(buf);
+                            // {@link #growUntilRecordBoundary} only copies from {@code buf}; the original pool
+                            // buffer is independent of {@code grown}, so recycle it in a finally. The grow loop
+                            // can throw RecordTooLargeException (cap-hit) — the dominant path for an oversized
+                            // record — and under a non-strict policy the segmentator stops there while the
+                            // iterator keeps draining already-dispatched chunks, so the pool must not lose a slot.
+                            GrowResult result;
+                            try {
+                                result = growUntilRecordBoundary(stream, buf, totalBytes, chunkSize);
+                            } finally {
+                                recycleBuffer(buf);
+                            }
                             byte[] grown = result.buffer();
                             int grownNewline = result.boundary();
                             if (grownNewline < 0) {
@@ -477,6 +533,22 @@ public final class StreamingParallelParsingCoordinator {
                         recycleBuffer(buf);
                         break;
                     }
+                }
+            } catch (RecordTooLargeException e) {
+                // A single record exceeded max_record_size before any boundary was found. Under a strict
+                // policy this stays a hard failure (the historical behavior); under a non-strict policy we
+                // honor the lenient read intent by truncating the read here: stop dispatching, keep the
+                // records parsed so far, and surface a client-visible partial-results warning. An
+                // undelimitable record has no resumption point, so we truncate at the failure rather than
+                // skip-and-continue. coverageStart is the decompressed byte offset where the oversized
+                // record began (it advances only after a successful dispatch).
+                if (errorPolicy.isStrict()) {
+                    firstError.compareAndSet(null, e);
+                    signalReady();
+                } else {
+                    truncated = true;
+                    emitTruncationWarning(coverageStart, e);
+                    // Fall through to finally: already-dispatched chunks drain and the consumer reaches EOF.
                 }
             } catch (Exception e) {
                 firstError.compareAndSet(null, e);
@@ -1032,12 +1104,14 @@ public final class StreamingParallelParsingCoordinator {
             drainAllQueues();
             // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned
             // parser, including any dispatched in the close race window) and the consumer's currentChunk
-            // is fixed. Clean = no error and the consumer drained every dispatched chunk. An early close
-            // (LIMIT, cancellation) leaves chunks unconsumed — and a parser cut off mid-chunk records a
-            // partial row count under that chunk's full byte range, which the coverage tiling would
-            // otherwise accept as complete and cache as an under-count. So a non-clean scan poisons the
-            // file's contributions: the reconciler discards them.
-            boolean cleanCompletion = firstError.get() == null && currentChunk >= chunksDispatched.get();
+            // is fixed. Clean = no error, the read was not truncated, and the consumer drained every
+            // dispatched chunk. An early close (LIMIT, cancellation) leaves chunks unconsumed — and a
+            // parser cut off mid-chunk records a partial row count under that chunk's full byte range,
+            // which the coverage tiling would otherwise accept as complete and cache as an under-count.
+            // A non-strict truncation (max_record_size cap-hit) likewise emits only a prefix of the
+            // file's records, so it must not be cached as the file's full contribution. Either way a
+            // non-clean scan poisons the file's contributions: the reconciler discards them.
+            boolean cleanCompletion = firstError.get() == null && truncated == false && currentChunk >= chunksDispatched.get();
             if (cleanCompletion == false && captureSink != null && storageObject != null) {
                 poisonCapturedStats(storageObject.path().toString());
             }

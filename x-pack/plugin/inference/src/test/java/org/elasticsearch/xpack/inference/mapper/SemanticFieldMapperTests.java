@@ -194,9 +194,9 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
     }
 
     @Override
+    // TODO: remove this override later when SemanticFieldMapper implements supportsParsingObject()
     public final void testSupportsParsingObject() throws IOException {
         DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
-        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
         Object sampleValueForDocument = getSampleObjectForDocument();
         assertThat(sampleValueForDocument, instanceOf(Map.class));
         SourceToParse source = source(builder -> {

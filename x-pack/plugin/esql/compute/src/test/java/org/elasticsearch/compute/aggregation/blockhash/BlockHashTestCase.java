@@ -32,6 +32,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
+import org.elasticsearch.swisshash.LongSwissHash;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -57,11 +58,15 @@ public abstract class BlockHashTestCase extends ESTestCase {
         if (randomBoolean()) {
             BytesRefSwissHash.PREFETCH_THRESHOLD = between(1, 10 * 1024);
         }
+        if (randomBoolean()) {
+            LongSwissHash.PREFETCH_THRESHOLD = between(1, 10 * 1024);
+        }
     }
 
     @After
     public void resetHashTablePrefetchThreshold() {
         BytesRefSwissHash.PREFETCH_THRESHOLD = BytesRefSwissHash.DEFAULT_PREFETCH_THRESHOLD;
+        LongSwissHash.PREFETCH_THRESHOLD = LongSwissHash.DEFAULT_PREFETCH_THRESHOLD;
     }
 
     @After

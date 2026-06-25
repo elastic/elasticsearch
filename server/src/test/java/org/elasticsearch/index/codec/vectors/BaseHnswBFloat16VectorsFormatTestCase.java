@@ -57,13 +57,10 @@ public abstract class BaseHnswBFloat16VectorsFormatTestCase extends BaseBFloat16
     private KnnVectorsFormat format;
 
     @Override
-    public void setUp() throws Exception {
-        format = createFormat();
-        super.setUp();
-    }
-
-    @Override
-    protected Codec getCodec() {
+    protected final Codec getCodec() {
+        if (format == null) {
+            format = createFormat();
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

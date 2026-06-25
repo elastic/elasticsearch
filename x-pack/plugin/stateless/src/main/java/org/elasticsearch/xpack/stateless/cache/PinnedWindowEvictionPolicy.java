@@ -50,7 +50,8 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     public PinnedWindowEvictionPolicy(ClusterSettings clusterSettings, ThreadPool threadPool, Predicate<ShardId> locallyOpenShard) {
         this.locallyOpenShard = Objects.requireNonNull(locallyOpenShard);
         this.threadPool = Objects.requireNonNull(threadPool);
-        clusterSettings.initializeAndWatchIfRegistered(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value);
+        Objects.requireNonNull(clusterSettings)
+            .initializeAndWatchIfRegistered(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value);
     }
 
     /**

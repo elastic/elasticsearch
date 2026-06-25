@@ -856,7 +856,12 @@ public class SharedBlobCacheWarmingService {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
         final Type warmingType = Type.INDEXING;
-        final var warmingRun = new WarmingRun(warmingType, shardId, "prewarm", Map.of("prewarming_type", warmingType.name()));
+        final var warmingRun = new WarmingRun(
+            warmingType,
+            shardId,
+            "prewarm",
+            Maps.copyMapWithAddedEntry(StatelessRecoveryMetricsCollector.commonMetricLabels(indexShard), "prewarming_type", "region_0")
+        );
         if (store.isClosing()) {
             listener.onFailure(
                 new AlreadyClosedException("Failed to warm cache [" + warmingType + "] for " + shardId + ", store is closing")

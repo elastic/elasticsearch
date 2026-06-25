@@ -273,6 +273,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         final var recoveryInfoFromSource = statelessCommitService.getRecoveryInfoFromSourceEntry(indexShard.shardId());
         final var sourceBlobsInfo = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.sourceBlobsInfo();
         final var lastCommitBlobs = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.lastCommitBlobs();
+        final var lastCommitIsHollow = recoveryInfoFromSource != null && recoveryInfoFromSource.lastCommitIsHollow();
         final var hasRecentIdLookup = recoveryInfoFromSource != null && recoveryInfoFromSource.hasRecentIdLookup();
         final long readIndexingShardStateStartMillis = threadPool.relativeTimeInMillis();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
@@ -282,12 +283,16 @@ class StatelessIndexEventListener implements IndexEventListener {
             }
 
             final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
-            if (lastCommitBlobs != null) {
-                warmingService.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobs, ActionListener.wrap(v -> {}, e -> logger.warn(
-                    "[{}] failed to pre-warm region 0 before BCC header reads",
-                    indexShard.shardId(),
-                    e
-                )));
+            if (lastCommitBlobs != null && lastCommitIsHollow == false) {
+                warmingService.warmCacheForBCCHeadersRead(
+                    indexShard,
+                    directory,
+                    lastCommitBlobs,
+                    ActionListener.wrap(
+                        v -> {},
+                        e -> logger.warn("[{}] failed to pre-warm region 0 before BCC header reads", indexShard.shardId(), e)
+                    )
+                );
             }
 
             ObjectStoreService.readIndexingShardState(

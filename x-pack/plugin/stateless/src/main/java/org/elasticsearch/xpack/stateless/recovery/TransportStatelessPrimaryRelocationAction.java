@@ -553,6 +553,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     final long blobLength = latestBcc.calculateBccBlobLength();
                     final BlobFile latestBccBlob = latestBcc.toBlobFile();
                     final var lastCommitBlobs = latestBcc.lastCompoundCommit().getBlobFilesUpperBounds();
+                    final var lastCommitIsHollow = latestBcc.lastCompoundCommit().hollow();
                     // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new
                     // BCCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.
                     // Thus, we pass the generation of the last BCC.
@@ -578,7 +579,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                             new BlobFileWithLength(latestBccBlob, blobLength),
                             otherBlobFiles,
                             hasRecentIdLookup,
-                            lastCommitBlobs
+                            lastCommitBlobs,
+                            lastCommitIsHollow
                         ),
                         task,
                         TransportRequestOptions.EMPTY,
@@ -735,6 +737,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         private final boolean hasRecentIdLookup;
         @Nullable
         private final StatelessCompoundCommit.BlobFilesUpperBounds lastCommitBlobs;
+        private final boolean lastCommitIsHollow;
 
         PrimaryContextHandoffRequest(
             long recoveryId,
@@ -745,7 +748,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             BlobFileWithLength latestBccBlob,
             Set<BlobFile> otherBlobFiles,
             boolean hasRecentIdLookup,
-            StatelessCompoundCommit.BlobFilesUpperBounds lastCommitBlobs
+            StatelessCompoundCommit.BlobFilesUpperBounds lastCommitBlobs,
+            boolean lastCommitIsHollow
         ) {
             this.recoveryId = recoveryId;
             this.shardId = shardId;
@@ -756,6 +760,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             this.otherBlobFiles = otherBlobFiles;
             this.hasRecentIdLookup = hasRecentIdLookup;
             this.lastCommitBlobs = lastCommitBlobs;
+            this.lastCommitIsHollow = lastCommitIsHollow;
         }
 
         PrimaryContextHandoffRequest(StreamInput in) throws IOException {
@@ -771,6 +776,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             lastCommitBlobs = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_BLOB_FILES_UPPER_BOUNDS)
                 ? in.readOptionalWriteable(StatelessCompoundCommit.BlobFilesUpperBounds::new)
                 : null;
+            lastCommitIsHollow = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_BLOB_FILES_UPPER_BOUNDS) && in.readBoolean();
         }
 
         @Override
@@ -790,6 +796,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             out.writeBoolean(hasRecentIdLookup);
             if (out.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_BLOB_FILES_UPPER_BOUNDS)) {
                 out.writeOptionalWriteable(lastCommitBlobs);
+                out.writeBoolean(lastCommitIsHollow);
             }
         }
 
@@ -834,7 +841,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     otherBlobFiles
                 );
             }
-            return new RecoveryInfoFromSource(sourceBlobsInfo, lastCommitBlobs, hasRecentIdLookup);
+            return new RecoveryInfoFromSource(sourceBlobsInfo, lastCommitBlobs, lastCommitIsHollow, hasRecentIdLookup);
         }
     }
 

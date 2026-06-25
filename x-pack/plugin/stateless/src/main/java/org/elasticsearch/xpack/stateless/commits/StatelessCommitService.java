@@ -1171,6 +1171,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public record RecoveryInfoFromSource(
         @Nullable SourceBlobsInfo sourceBlobsInfo,
         @Nullable StatelessCompoundCommit.BlobFilesUpperBounds lastCommitBlobs,
+        boolean lastCommitIsHollow,
         boolean hasRecentIdLookup
     ) {}
 

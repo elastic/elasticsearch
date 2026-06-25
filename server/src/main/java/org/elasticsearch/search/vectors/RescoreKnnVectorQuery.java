@@ -223,7 +223,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
          * A ring buffer that allows doc data to be prefetched, and then actually scored at a later point
          * using a bulk scorer
          */
-        private static class ScoringRing {
+        private static class PrefetchRing {
             private final int[] docIds;
             private final int[] docBases;
             private final VectorScorer[] scorer;
@@ -239,7 +239,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             private int head;
             private int size;
 
-            ScoringRing() {
+            PrefetchRing() {
                 this.docIds = new int[PREFETCH_BUFFER_SIZE];
                 this.docBases = new int[PREFETCH_BUFFER_SIZE];
                 this.scorer = new VectorScorer[PREFETCH_BUFFER_SIZE];
@@ -250,7 +250,18 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             }
 
             void advance(int count) {
-                head = ringIdx(head, count);
+                int newHead = ringIdx(head, count);
+
+                // clear the scorers so the RingIterator doesn't pick up stale entries
+                // if iteration over a single leaf loops all the way round
+                if (newHead > head) {
+                    Arrays.fill(scorer, head, newHead, null);
+                } else {
+                    Arrays.fill(scorer, head, PREFETCH_BUFFER_SIZE, null);
+                    Arrays.fill(scorer, 0, newHead, null);
+                }
+
+                head = newHead;
                 size -= count;
             }
 
@@ -264,16 +275,16 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         }
 
         /**
-         * A lazy docID iterator over {@link ScoringRing} for a specific scorer
+         * A lazy docID iterator over {@link PrefetchRing} for a specific scorer
          */
         static class RingIterator extends DocIdSetIterator {
 
-            private final ScoringRing ring;
+            private final PrefetchRing ring;
             private final VectorScorer scorer;
             private final int startIdx;
             private int idx = 0;    // just start on startIdx without needing an initial advance
 
-            RingIterator(ScoringRing ring, VectorScorer scorer, int startIdx) {
+            RingIterator(PrefetchRing ring, VectorScorer scorer, int startIdx) {
                 this.ring = ring;
                 this.scorer = scorer;
                 this.startIdx = startIdx;
@@ -284,13 +295,13 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 if (idx == NO_MORE_DOCS) {
                     return idx;
                 }
-                return ring.docIds[ScoringRing.ringIdx(startIdx, idx)];
+                return ring.docIds[PrefetchRing.ringIdx(startIdx, idx)];
             }
 
             @Override
             public int nextDoc() {
                 idx++;
-                if (ring.scorer[ScoringRing.ringIdx(startIdx, idx)] != scorer) {
+                if (ring.scorer[PrefetchRing.ringIdx(startIdx, idx)] != scorer) {
                     idx = NO_MORE_DOCS;
                 }
                 return docID();
@@ -318,7 +329,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
             List<ScoreDoc> results = new ArrayList<>(10);
 
-            ScoringRing ring = new ScoringRing();
+            PrefetchRing ring = new PrefetchRing();
 
             for (var leaf : indexSearcher.getIndexReader().leaves()) {
                 var knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
@@ -373,11 +384,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             return vectorValues instanceof HasIndexSlice h ? h.getSlice() : null;
         }
 
-        private static int scoreEntries(
-            ScoringRing ring,
-            DocAndFloatFeatureBuffer buffer,
-            List<ScoreDoc> results
-        ) throws IOException {
+        private static int scoreEntries(PrefetchRing ring, DocAndFloatFeatureBuffer buffer, List<ScoreDoc> results) throws IOException {
             int docBase = ring.docBases[ring.head];
             VectorScorer scorer = ring.scorer[ring.head];
 
@@ -400,12 +407,12 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             // find up to BULK_SCORE_SIZE docs for this scorer to score
             int count = 0;
             for (; count < BULK_SCORE_SIZE && count < ring.size; count++) {
-                int idx = ScoringRing.ringIdx(ring.head, count);
+                int idx = PrefetchRing.ringIdx(ring.head, count);
                 if (ring.scorer[idx] != scorer) break;    // scorer has changed - stop there
             }
             assert count > 0;
 
-            int maxDocId = ring.docIds[ScoringRing.ringIdx(ring.head, count - 1)] + 1; // upTo is EXCLUSIVE
+            int maxDocId = ring.docIds[PrefetchRing.ringIdx(ring.head, count - 1)] + 1; // upTo is EXCLUSIVE
             bulkScorer.nextDocsAndScores(maxDocId, null, buffer);
             assert buffer.size == count;
 

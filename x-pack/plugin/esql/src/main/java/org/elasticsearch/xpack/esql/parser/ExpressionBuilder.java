@@ -398,27 +398,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 unresolvedStar = true;
             }
             if (idCtx.parameter() != null || idCtx.doubleParameter() != null) {
-                ParseTree paramCtx = idCtx.parameter();
-                ParseTree doubleParamsCtx = idCtx.doubleParameter();
-                Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
-                if (exp instanceof Literal lit) {
-                    if (lit.value() != null) {
-                        throw new ParsingException(
-                            src,
-                            "Query parameter [{}] with value [{}] declared as a constant, cannot be used as an identifier or pattern",
-                            unqualifiedCtx.getText(),
-                            lit
-                        );
-                    } else if (lit != Literal.NULL) {
-                        // Defined-but-null param (e.g. from an empty list): distinct from the missing-param sentinel
-                        // (Literal.NULL), which already produces a parsing error from paramByNameOrPosition.
-                        throw new ParsingException(
-                            src,
-                            "Query parameter [{}] is null or undefined, cannot be used as an identifier or pattern",
-                            unqualifiedCtx.getText()
-                        );
-                    }
-                } else if (exp instanceof UnresolvedNamePattern up) {
+                Expression exp = resolveParamInIdentifierPosition(idCtx, src, unqualifiedCtx.getText());
+                if (exp instanceof UnresolvedNamePattern up) {
                     if (up.name() != null && up.name().equals(WILDCARD)) {
                         unresolvedStar = true;
                     }
@@ -448,22 +429,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             if (pattern.ID_PATTERN() != null) {
                 patternContext = pattern.ID_PATTERN().getText();
             } else if (pattern.parameter() != null || pattern.doubleParameter() != null) {
-                ParseTree paramCtx = pattern.parameter();
-                ParseTree doubleParamsCtx = pattern.doubleParameter();
-                Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
-                if (exp instanceof Literal lit) {
-                    // Literal.NULL (the singleton) means a missing param: a "Unknown query parameter" error has
-                    // already been recorded in QueryParams.parsingErrors. Anything else is rejected here.
-                    if (lit.value() != null) {
-                        throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", pattern, unqualifiedCtx.getText());
-                    } else if (lit != Literal.NULL) {
-                        throw new ParsingException(
-                            src,
-                            "Query parameter [{}] is null or undefined, cannot be used as an identifier or pattern",
-                            unqualifiedCtx.getText()
-                        );
-                    }
-                } else if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
+                Expression exp = resolveParamInIdentifierPosition(pattern, src, unqualifiedCtx.getText());
+                if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
                     String unquotedIdentifier = ua.name();
                     String quotedIdentifier = ParserUtils.quoteIdString(unquotedIdentifier);
                     patternString.append(quotedIdentifier);
@@ -1086,6 +1053,52 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         return new Alias(src, newName.name(), oldName);
+    }
+
+    /**
+     * Resolves a parameter from an identifier-pattern segment to an {@link Expression}, enforcing
+     * that it is not a bare constant or a defined-but-null value.
+     * <p>
+     * Two sentinel outcomes are possible without throwing:
+     * <ul>
+     *   <li>{@link Literal#NULL} — the parameter is missing; a "Unknown query parameter" parsing
+     *       error has already been recorded by {@link #paramByNameOrPosition} and the caller
+     *       should skip the segment.</li>
+     *   <li>{@link UnresolvedAttribute} or {@link UnresolvedNamePattern} — the happy path;
+     *       the caller uses the resolved name or pattern.</li>
+     * </ul>
+     *
+     * @param ctx          the single identifier-pattern segment that contains a {@code ?param} or {@code ??param}
+     * @param src          source location used for error reporting
+     * @param paramDisplay the display text of the enclosing qualified name, used in error messages
+     */
+    private Expression resolveParamInIdentifierPosition(
+        EsqlBaseParser.IdentifierPatternContext ctx,
+        Source src,
+        String paramDisplay
+    ) {
+        ParseTree paramCtx = ctx.parameter();
+        ParseTree doubleParamsCtx = ctx.doubleParameter();
+        Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
+        if (exp instanceof Literal lit) {
+            if (lit.value() != null) {
+                throw new ParsingException(
+                    src,
+                    "Query parameter [{}] with value [{}] declared as a constant, cannot be used as an identifier or pattern",
+                    paramDisplay,
+                    lit
+                );
+            } else if (lit != Literal.NULL) {
+                // Defined-but-null param (e.g. from an empty list): distinct from the missing-param sentinel
+                // (Literal.NULL), which already produces a parsing error from paramByNameOrPosition.
+                throw new ParsingException(
+                    src,
+                    "Query parameter [{}] is null or undefined, cannot be used as an identifier or pattern",
+                    paramDisplay
+                );
+            }
+        }
+        return exp;
     }
 
     @Override

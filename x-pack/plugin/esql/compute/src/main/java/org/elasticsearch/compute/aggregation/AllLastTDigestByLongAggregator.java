@@ -19,7 +19,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 /**
  * Picks the tdigest with the maximum long sort key.
  */
-
 @Aggregator(
     processNulls = true,
     value = {

@@ -74,6 +74,7 @@ public class Last extends AggregateFunction implements ToAggregator {
             "dense_vector",
             "double",
             "exponential_histogram",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -122,6 +123,7 @@ public class Last extends AggregateFunction implements ToAggregator {
                 "dense_vector",
                 "double",
                 "exponential_histogram",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -248,7 +250,7 @@ public class Last extends AggregateFunction implements ToAggregator {
                 case FLOAT, DENSE_VECTOR -> new AnyFloatAggregatorFunctionSupplier();
                 case EXPONENTIAL_HISTOGRAM -> new AnyExponentialHistogramAggregatorFunctionSupplier();
                 case TDIGEST -> new AnyTDigestAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED ->
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
                     new AnyBytesRefAggregatorFunctionSupplier();
                 case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
@@ -264,7 +266,7 @@ public class Last extends AggregateFunction implements ToAggregator {
                 case FLOAT, DENSE_VECTOR -> new AllLastFloatByLongAggregatorFunctionSupplier();
                 case EXPONENTIAL_HISTOGRAM -> new AllLastExponentialHistogramByLongAggregatorFunctionSupplier();
                 case TDIGEST -> new AllLastTDigestByLongAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED ->
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
                     new AllLastBytesRefByLongAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllLastBooleanByLongAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
@@ -280,7 +282,7 @@ public class Last extends AggregateFunction implements ToAggregator {
                 case FLOAT, DENSE_VECTOR -> new AllLastFloatByIntAggregatorFunctionSupplier();
                 case EXPONENTIAL_HISTOGRAM -> new AllLastExponentialHistogramByIntAggregatorFunctionSupplier();
                 case TDIGEST -> new AllLastTDigestByIntAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED ->
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
                     new AllLastBytesRefByIntAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllLastBooleanByIntAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);

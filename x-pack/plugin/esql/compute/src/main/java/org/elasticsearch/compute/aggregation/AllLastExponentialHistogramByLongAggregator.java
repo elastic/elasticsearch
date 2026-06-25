@@ -19,7 +19,6 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 /**
  * Picks the exponential histogram with the maximum long sort key.
- *
  */
 @Aggregator(
     processNulls = true,

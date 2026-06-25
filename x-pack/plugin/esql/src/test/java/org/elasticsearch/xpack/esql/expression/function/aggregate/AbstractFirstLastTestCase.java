@@ -65,7 +65,9 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         searchFieldTypes.addAll(extra);
         taggedTypes.addAll(extra);
 
-        // FLATTENED is supported but intentionally not in @FunctionInfo, so it stays untagged (not in taggedTypes).
+        // FLATTENED is declared in @FunctionInfo (matching VALUES) but is still under construction, so it stays untagged
+        // (no GA appliesTo): testFunctionInfo filters under-construction types from both sides and shouldHideSignature
+        // hides it from the generated docs, so a GA tag would be both wrong and irrelevant.
         searchFieldTypes.add(DataType.FLATTENED);
 
         FunctionAppliesTo newIn95 = appliesTo(FunctionAppliesToLifecycle.GA, "9.5.0", "", true);

@@ -1033,6 +1033,41 @@ c:long
 0
 ;
 
+// Multi-index load where a mapped multi-field (languages, with subfields) is missing in the other index, so it
+// resolves as a partially-unmapped field. Keeping the parent multi-field forces it into the data-node fragment;
+// its subfields must not be serialized as unresolved conflict fields.
+loadMultiIndexPartialMultiFieldKept
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM employees, languages METADATA _index
+| WHERE emp_no == 10001 OR language_code == 1
+| KEEP emp_no, languages, languages.long, language_code, language_name, _index
+| SORT emp_no NULLS LAST, language_code
+;
+
+emp_no:integer | languages:integer | languages.long:long | language_code:integer | language_name:keyword | _index:keyword
+10001          | 2                 | 2                   | null                  | null                  | employees
+null           | null              | null                | 1                     | English               | languages
+;
+
+// Same partially-unmapped multi-field, but the multi-index set lives inside a subquery. The parent multi-field is
+// kept so it reaches the data-node fragment.
+loadMultiIndexPartialMultiFieldInSubquery
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM employees, languages | WHERE emp_no == 10001 OR language_code == 1)
+| KEEP emp_no, languages, languages.long, language_code, language_name
+| SORT emp_no NULLS LAST, language_code
+;
+
+emp_no:integer | languages:integer | languages.long:long | language_code:integer | language_name:keyword
+10001          | 2                 | 2                   | null                  | null
+null           | null              | null                | 1                     | English
+;
+
 // An index combined with a subquery that filters on an unmapped cast; the unmapped predicate is null (false)
 // so only the language_code filter selects the subquery rows.
 loadUnmappedFieldInSubqueryBranchWithIndex

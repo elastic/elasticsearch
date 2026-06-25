@@ -51,6 +51,8 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
     private volatile Settings pekSettings;
 
     private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
+    private final ProjectEncryptionKeyMetadata.DegradedBlobHolder degradedBlobHolder =
+        new ProjectEncryptionKeyMetadata.DegradedBlobHolder();
 
     public EncryptionPlugin(Settings settings) {
         this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
@@ -168,7 +170,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             new NamedWriteableRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 ProjectEncryptionKeyMetadata.TYPE,
-                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption)
+                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption, degradedBlobHolder)
             ),
             new NamedWriteableRegistry.Entry(NamedDiff.class, ProjectEncryptionKeyMetadata.TYPE, ProjectEncryptionKeyMetadata::readDiffFrom)
         );
@@ -180,7 +182,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             new NamedXContentRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 new ParseField(ProjectEncryptionKeyMetadata.TYPE),
-                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption)
+                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption, degradedBlobHolder)
             )
         );
     }

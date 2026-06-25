@@ -89,12 +89,12 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
 
     @Override
     protected Metadata.ProjectCustom doParseInstance(XContentParser parser) throws IOException {
-        return ProjectEncryptionKeyMetadata.fromXContent(parser, NO_OP_ENCRYPTION);
+        return ProjectEncryptionKeyMetadata.fromXContent(parser, NO_OP_ENCRYPTION, new ProjectEncryptionKeyMetadata.DegradedBlobHolder());
     }
 
     @Override
     protected Writeable.Reader<Metadata.ProjectCustom> instanceReader() {
-        return in -> new ProjectEncryptionKeyMetadata(in, NO_OP_ENCRYPTION);
+        return in -> new ProjectEncryptionKeyMetadata(in, NO_OP_ENCRYPTION, new ProjectEncryptionKeyMetadata.DegradedBlobHolder());
     }
 
     @Override
@@ -114,7 +114,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
                 new NamedWriteableRegistry.Entry(
                     Metadata.ProjectCustom.class,
                     ProjectEncryptionKeyMetadata.TYPE,
-                    in -> new ProjectEncryptionKeyMetadata(in, NO_OP_ENCRYPTION)
+                    in -> new ProjectEncryptionKeyMetadata(in, NO_OP_ENCRYPTION, new ProjectEncryptionKeyMetadata.DegradedBlobHolder())
                 )
             )
         );
@@ -217,13 +217,27 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
                 "{\"password_id\":\"v1\",\"keys\":{\"abc\":{\"bytes\":\"AAAA\",\"generated_at\":0}}}"
             )
         ) {
-            expectThrows(IllegalArgumentException.class, () -> ProjectEncryptionKeyMetadata.fromXContent(parser, NO_OP_ENCRYPTION));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ProjectEncryptionKeyMetadata.fromXContent(
+                    parser,
+                    NO_OP_ENCRYPTION,
+                    new ProjectEncryptionKeyMetadata.DegradedBlobHolder()
+                )
+            );
         }
     }
 
     public void testFromXContentMissingKeys() throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"active_key_id\":\"abc\",\"password_id\":\"v1\"}")) {
-            expectThrows(IllegalArgumentException.class, () -> ProjectEncryptionKeyMetadata.fromXContent(parser, NO_OP_ENCRYPTION));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ProjectEncryptionKeyMetadata.fromXContent(
+                    parser,
+                    NO_OP_ENCRYPTION,
+                    new ProjectEncryptionKeyMetadata.DegradedBlobHolder()
+                )
+            );
         }
     }
 
@@ -234,7 +248,11 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
                 "{\"active_key_id\":\"abc\",\"keys\":{\"abc\":{\"bytes\":\"AAAA\",\"generated_at\":0}}}"
             )
         ) {
-            ProjectEncryptionKeyMetadata reconstructed = ProjectEncryptionKeyMetadata.fromXContent(parser, NO_OP_ENCRYPTION);
+            ProjectEncryptionKeyMetadata reconstructed = ProjectEncryptionKeyMetadata.fromXContent(
+                parser,
+                NO_OP_ENCRYPTION,
+                new ProjectEncryptionKeyMetadata.DegradedBlobHolder()
+            );
             assertEquals("", reconstructed.getPasswordId());
             assertEquals("abc", reconstructed.getActiveKeyId());
         }
@@ -385,9 +403,10 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
             }
         };
 
+        ProjectEncryptionKeyMetadata.DegradedBlobHolder holder = new ProjectEncryptionKeyMetadata.DegradedBlobHolder();
         ProjectEncryptionKeyMetadata degraded;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, originalBlob)) {
-            degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, wrongPassword);
+            degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, wrongPassword, holder);
         }
         assertTrue("instance must be degraded after unwrap failure", degraded.isUnwrapFailed());
 
@@ -399,7 +418,8 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         assertThat("re-persisted degraded blob must not be empty keys", repersisted, not(containsString("\"keys\":{}")));
     }
 
-    public void testDegradedInstanceRoundTripsOverTransport() throws IOException {
+    public void testDegradedTransportCarriesNoCiphertextAndPeerWithoutBlobWritesEmpty() throws IOException {
+        // Ciphertext must not travel over transport — each peer uses its own node-local holder.
         byte[] keyBytes = randomPlaintextBytes();
         ProjectEncryptionKeyMetadata healthy = new ProjectEncryptionKeyMetadata(
             Map.of("k1", new KeyEntry(keyBytes, 42L)),
@@ -408,9 +428,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
             Map.of(),
             NO_OP_ENCRYPTION
         );
-
         ToXContent.Params gatewayParams = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
-        String originalBlob = chunkedToXContent(healthy, gatewayParams);
 
         PekEncryption wrongPassword = new PekEncryption() {
             @Override
@@ -429,28 +447,77 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
             }
         };
 
-        // Degrade on the "master" node.
+        // Degrade on the master node.
+        ProjectEncryptionKeyMetadata.DegradedBlobHolder masterHolder = new ProjectEncryptionKeyMetadata.DegradedBlobHolder();
         ProjectEncryptionKeyMetadata degraded;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, originalBlob)) {
-            degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, wrongPassword);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, chunkedToXContent(healthy, gatewayParams))) {
+            degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, wrongPassword, masterHolder);
         }
         assertTrue(degraded.isUnwrapFailed());
 
-        // Simulate master publishing to a peer node via transport.
+        // Publish to a peer that has never read a local disk blob (empty holder).
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(ProjectEncryptionKeyMetadata.PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT);
         degraded.writeTo(out);
 
+        ProjectEncryptionKeyMetadata.DegradedBlobHolder peerHolder = new ProjectEncryptionKeyMetadata.DegradedBlobHolder();
         StreamInput in = out.bytes().streamInput();
         in.setTransportVersion(ProjectEncryptionKeyMetadata.PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT);
-        ProjectEncryptionKeyMetadata received = new ProjectEncryptionKeyMetadata(in, wrongPassword);
+        ProjectEncryptionKeyMetadata received = new ProjectEncryptionKeyMetadata(in, wrongPassword, peerHolder);
 
         assertTrue("degraded flag must survive transport round-trip", received.isUnwrapFailed());
 
-        // The peer node then persists to its own disk — ciphertext must be preserved.
+        // Peer has no local blob — writes empty keys (no data loss, just no material to preserve).
         String peerBlob = chunkedToXContent(received, gatewayParams);
-        assertThat("peer disk blob must retain wrapped bytes", peerBlob, containsString("\"bytes\""));
-        assertThat("peer disk blob must not be empty keys", peerBlob, not(containsString("\"keys\":{}")));
+        assertThat("peer without local blob writes empty keys", peerBlob, containsString("\"keys\":{}"));
+    }
+
+    public void testPeerWithOwnHolderReemitsOwnBlobNotMasters() throws IOException {
+        // A peer that already read its own disk blob re-emits that blob even after a degraded master publishes.
+        ToXContent.Params gatewayParams = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
+
+        // Peer pre-populates its holder at startup by reading its own disk blob (healthy, key "pk1").
+        // NO_OP_ENCRYPTION.activePasswordId() == "v1" — that is the password_id baked into the on-disk blob.
+        ProjectEncryptionKeyMetadata.DegradedBlobHolder peerHolder = new ProjectEncryptionKeyMetadata.DegradedBlobHolder();
+        String peerDiskBlob = chunkedToXContent(
+            new ProjectEncryptionKeyMetadata(
+                Map.of("pk1", new KeyEntry(randomPlaintextBytes(), 10L)),
+                "pk1",
+                TestPekEncryption.PASSWORD_ID,
+                Map.of("myhandler", "pk1"),
+                NO_OP_ENCRYPTION
+            ),
+            gatewayParams
+        );
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, peerDiskBlob)) {
+            ProjectEncryptionKeyMetadata.fromXContent(parser, NO_OP_ENCRYPTION, peerHolder);
+        }
+        assertNotNull("holder must be populated after healthy fromXContent", peerHolder.blob);
+
+        // Master degrades and publishes via transport (no ciphertext in the wire bytes).
+        ProjectEncryptionKeyMetadata masterDegraded = ProjectEncryptionKeyMetadata.degraded(
+            "mk1",
+            TestPekEncryption.PASSWORD_ID,
+            NO_OP_ENCRYPTION,
+            "wrong password on master",
+            new ProjectEncryptionKeyMetadata.DegradedBlobHolder()
+        );
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(ProjectEncryptionKeyMetadata.PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT);
+        masterDegraded.writeTo(out);
+
+        // Peer receives the degraded publish but uses its OWN holder.
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(ProjectEncryptionKeyMetadata.PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT);
+        ProjectEncryptionKeyMetadata received = new ProjectEncryptionKeyMetadata(in, NO_OP_ENCRYPTION, peerHolder);
+        assertTrue(received.isUnwrapFailed());
+
+        // Peer must re-emit its own pk1 blob, NOT the master's mk1.
+        String persistedBlob = chunkedToXContent(received, gatewayParams);
+        assertThat("peer re-emits its own key", persistedBlob, containsString("\"pk1\""));
+        assertThat("peer blob has wrapped bytes", persistedBlob, containsString("\"bytes\""));
+        assertThat("peer blob retains handler_key_ids", persistedBlob, containsString("\"myhandler\""));
+        assertThat("peer blob must not contain master key id", persistedBlob, not(containsString("\"mk1\"")));
     }
 
     public void testDegradedWithoutMaterialWritesEmptyKeys() throws IOException {
@@ -459,7 +526,11 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         try (
             XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"active_key_id\":\"k1\",\"password_id\":\"v1\",\"keys\":{}}")
         ) {
-            ProjectEncryptionKeyMetadata degraded = ProjectEncryptionKeyMetadata.fromXContent(parser, NO_OP_ENCRYPTION);
+            ProjectEncryptionKeyMetadata degraded = ProjectEncryptionKeyMetadata.fromXContent(
+                parser,
+                NO_OP_ENCRYPTION,
+                new ProjectEncryptionKeyMetadata.DegradedBlobHolder()
+            );
             assertTrue("must be degraded when disk had empty keys", degraded.isUnwrapFailed());
             String json = chunkedToXContent(degraded, gatewayParams);
             assertThat("nothing to preserve — must write empty keys", json, containsString("\"keys\":{}"));

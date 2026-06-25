@@ -140,16 +140,26 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     private record GatewayBytes(String passwordId, Map<String, byte[]> wrappedByKeyId) {}
 
-    /**
-     * Ciphertext (wrapped) key material read from disk that could not be unwrapped. Carried only by degraded
-     * instances so the bytes can be re-emitted verbatim on the next GATEWAY persist, preserving recoverability.
-     * The byte arrays here are wrapped ciphertext, never plaintext.
-     */
-    private record PreservedGatewayBlob(Map<String, KeyEntry> wrappedKeys, Map<String, String> handlerKeyIds) {}
+    private record PreservedGatewayBlob(
+        @Nullable String activeKeyId,
+        String passwordId,
+        Map<String, KeyEntry> wrappedKeys,
+        Map<String, String> handlerKeyIds
+    ) {}
 
-    /** Non-null only for degraded instances that have ciphertext to preserve from disk. */
+    private record ParseContext(PekEncryption pek, DegradedBlobHolder holder) {}
+
+    /**
+     * Node-scoped holder for the wrapped PEK ciphertext last read from this node's own disk. Populated by
+     * {@link #fromXContent} and consulted by degraded instances during GATEWAY serialization so each node
+     * re-emits its own password-specific blob regardless of what a degraded master published.
+     */
+    static final class DegradedBlobHolder {
+        volatile PreservedGatewayBlob blob;
+    }
+
     @Nullable
-    private final PreservedGatewayBlob preserved;
+    private final DegradedBlobHolder degradedBlobHolder;
 
     ProjectEncryptionKeyMetadata(
         Map<String, KeyEntry> keys,
@@ -178,7 +188,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         this.handlerKeyIds = Map.copyOf(handlerKeyIds);
         this.pekEncryption = pekEncryption;
         this.unwrapFailureReason = null;
-        this.preserved = null;
+        this.degradedBlobHolder = null;
     }
 
     /**
@@ -192,7 +202,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         Map<String, String> handlerKeyIds,
         PekEncryption pekEncryption,
         @Nullable String unwrapFailureReason,
-        @Nullable PreservedGatewayBlob preserved
+        @Nullable DegradedBlobHolder degradedBlobHolder
     ) {
         this.keys = keys;
         this.activeKeyId = activeKeyId;
@@ -200,23 +210,20 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         this.handlerKeyIds = handlerKeyIds;
         this.pekEncryption = pekEncryption;
         this.unwrapFailureReason = unwrapFailureReason;
-        this.preserved = preserved;
+        this.degradedBlobHolder = degradedBlobHolder;
     }
 
-    ProjectEncryptionKeyMetadata(StreamInput in, PekEncryption pekEncryption) throws IOException {
+    ProjectEncryptionKeyMetadata(StreamInput in, PekEncryption pekEncryption, DegradedBlobHolder degradedBlobHolder) throws IOException {
         this.pekEncryption = pekEncryption;
+        this.degradedBlobHolder = degradedBlobHolder;
         if (in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT) && in.readBoolean()) {
             this.unwrapFailureReason = in.readString();
             this.activeKeyId = in.readString();
             this.passwordId = in.readString();
             this.keys = Map.of();
             this.handlerKeyIds = Map.of();
-            Map<String, KeyEntry> preservedKeys = in.readImmutableMap(StreamInput::readString, KeyEntry::new);
-            Map<String, String> preservedHandlerKeyIds = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
-            this.preserved = new PreservedGatewayBlob(preservedKeys, preservedHandlerKeyIds);
         } else {
             this.unwrapFailureReason = null;
-            this.preserved = null;
             Map<String, KeyEntry> readKeys = in.readImmutableMap(StreamInput::readString, KeyEntry::new);
             String readActiveKeyId = in.readString();
             String readPasswordId = in.readString();
@@ -248,9 +255,17 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         String passwordId,
         PekEncryption pekEncryption,
         String unwrapFailureReason,
-        @Nullable PreservedGatewayBlob preserved
+        @Nullable DegradedBlobHolder degradedBlobHolder
     ) {
-        return new ProjectEncryptionKeyMetadata(Map.of(), activeKeyId, passwordId, Map.of(), pekEncryption, unwrapFailureReason, preserved);
+        return new ProjectEncryptionKeyMetadata(
+            Map.of(),
+            activeKeyId,
+            passwordId,
+            Map.of(),
+            pekEncryption,
+            unwrapFailureReason,
+            degradedBlobHolder
+        );
     }
 
     static String generateKeyId() {
@@ -345,10 +360,6 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
                 out.writeString(unwrapFailureReason);
                 out.writeString(activeKeyId != null ? activeKeyId : "");
                 out.writeString(passwordId);
-                Map<String, KeyEntry> preservedKeys = preserved != null ? preserved.wrappedKeys() : Map.of();
-                Map<String, String> preservedHandlerKeyIds = preserved != null ? preserved.handlerKeyIds() : Map.of();
-                out.writeMap(preservedKeys, StreamOutput::writeString, (o, e) -> e.writeTo(o));
-                out.writeMap(preservedHandlerKeyIds, StreamOutput::writeString, StreamOutput::writeString);
                 return;
             }
         }
@@ -369,10 +380,16 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         }
 
         if (unwrapFailureReason != null) {
-            if (preserved == null || preserved.wrappedKeys().isEmpty()) {
+            PreservedGatewayBlob blob = degradedBlobHolder != null ? degradedBlobHolder.blob : null;
+            if (blob == null || blob.wrappedKeys().isEmpty()) {
                 return emptyGatewayChunk();
             }
-            return gatewayChunk(activeKeyId != null ? activeKeyId : "", passwordId, preserved.wrappedKeys(), preserved.handlerKeyIds());
+            return gatewayChunk(
+                blob.activeKeyId() != null ? blob.activeKeyId() : "",
+                blob.passwordId(),
+                blob.wrappedKeys(),
+                blob.handlerKeyIds()
+            );
         }
 
         GatewayBytes gw = getOrComputeWrappedKeys();
@@ -464,10 +481,10 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ProjectEncryptionKeyMetadata, PekEncryption> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<ProjectEncryptionKeyMetadata, ParseContext> PARSER = new ConstructingObjectParser<>(
         TYPE,
         false,
-        (args, pekEncryption) -> {
+        (args, ctx) -> {
             String activeKeyId = (String) args[0];
             // password_id is optional for gateway BWC. Default to the empty string
             String passwordId = args[1] != null ? (String) args[1] : "";
@@ -475,9 +492,15 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
             Map<String, KeyEntry> keys = list.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
             Map<String, String> handlerKeyIds = args[3] != null ? (Map<String, String>) args[3] : Map.of();
             if (keys.isEmpty()) {
-                return degraded(activeKeyId, passwordId, pekEncryption, "no key material found on disk (previously degraded state)", null);
+                return degraded(
+                    activeKeyId,
+                    passwordId,
+                    ctx.pek(),
+                    "no key material found on disk (previously degraded state)",
+                    ctx.holder()
+                );
             }
-            return new ProjectEncryptionKeyMetadata(keys, activeKeyId, passwordId, handlerKeyIds, pekEncryption);
+            return new ProjectEncryptionKeyMetadata(keys, activeKeyId, passwordId, handlerKeyIds, ctx.pek());
         }
     );
     static {
@@ -487,8 +510,12 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapStrings(), HANDLER_KEY_IDS_FIELD);
     }
 
-    static ProjectEncryptionKeyMetadata fromXContent(XContentParser parser, PekEncryption pekEncryption) throws IOException {
-        ProjectEncryptionKeyMetadata parsed = PARSER.parse(parser, pekEncryption);
+    static ProjectEncryptionKeyMetadata fromXContent(
+        XContentParser parser,
+        PekEncryption pekEncryption,
+        DegradedBlobHolder degradedBlobHolder
+    ) throws IOException {
+        ProjectEncryptionKeyMetadata parsed = PARSER.parse(parser, new ParseContext(pekEncryption, degradedBlobHolder));
         if (parsed.isUnwrapFailed()) {
             return parsed;
         }
@@ -507,14 +534,10 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
                 ),
                 e
             );
-            return degraded(
-                parsed.activeKeyId,
-                parsed.passwordId,
-                pekEncryption,
-                e.getMessage(),
-                new PreservedGatewayBlob(parsed.keys, parsed.handlerKeyIds)
-            );
+            degradedBlobHolder.blob = new PreservedGatewayBlob(parsed.activeKeyId, parsed.passwordId, parsed.keys, parsed.handlerKeyIds);
+            return degraded(parsed.activeKeyId, parsed.passwordId, pekEncryption, e.getMessage(), degradedBlobHolder);
         }
+        degradedBlobHolder.blob = new PreservedGatewayBlob(parsed.activeKeyId, parsed.passwordId, parsed.keys, parsed.handlerKeyIds);
         return new ProjectEncryptionKeyMetadata(
             Map.copyOf(plaintextKeys),
             parsed.activeKeyId,
@@ -527,13 +550,10 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     @Override
     public String toString() {
         if (unwrapFailureReason != null) {
-            int preservedCount = preserved != null ? preserved.wrappedKeys().size() : 0;
             return "ProjectEncryptionKeyMetadata{DEGRADED, activeKeyId="
                 + activeKeyId
                 + ", passwordId="
                 + passwordId
-                + ", preservedKeyCount="
-                + preservedCount
                 + ", reason="
                 + unwrapFailureReason
                 + "}";
@@ -567,12 +587,11 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
             && Objects.equals(passwordId, that.passwordId)
             && Objects.equals(keys, that.keys)
             && Objects.equals(handlerKeyIds, that.handlerKeyIds)
-            && Objects.equals(unwrapFailureReason, that.unwrapFailureReason)
-            && Objects.equals(preserved, that.preserved);
+            && Objects.equals(unwrapFailureReason, that.unwrapFailureReason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(activeKeyId, passwordId, keys, handlerKeyIds, unwrapFailureReason, preserved);
+        return Objects.hash(activeKeyId, passwordId, keys, handlerKeyIds, unwrapFailureReason);
     }
 }

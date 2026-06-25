@@ -1,3 +1,12 @@
 ALL-UNNAMED:
   - manage_threads
   - outbound_network
+  - files:
+    # AKS Workload Identity: operator symlinks the K8s-injected federated token to
+    # ${ES_PATH_CONF}/esql-datasource-azure/azure-federated-token. Scoped to the single
+    # token file (not the parent directory like repository-azure does) because this plugin
+    # only reads the one symlink and is non-modular, so the entitlement lives under
+    # ALL-UNNAMED rather than the com.azure.identity module.
+    - relative_path: "esql-datasource-azure/azure-federated-token"
+      relative_to: "config"
+      mode: "read"

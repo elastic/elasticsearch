@@ -600,6 +600,69 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code _rowPosition} carries a file-global, split-invariant byte anchor per record — the
+     * substrate {@code _id} is composed from. The anchor is the parser's byte offset captured
+     * right after the record's opening token (record start + 1); the exact anchor is opaque, what
+     * is load-bearing is (a) it is intrinsic to the record's position in the file and (b) the
+     * split fold {@code recordOffsetBase = splitStartByte + skippedPartialLeadingBytes} keeps a
+     * mid-record split emitting the same value the whole-file read emits.
+     */
+    public void testRowPositionIsFileGlobalByteOffset() throws IOException {
+        // Record start bytes: r1 at 0 (9 bytes incl \n), r2 at 9 (10 bytes), r3 at 19.
+        // Emitted anchors are start + 1 (parser position after the opening '{').
+        String data = "{\"id\":1}\n{\"id\":22}\n{\"id\":333}\n";
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        var wholeFile = new BytesStorageObject("file:///offsets.ndjson", bytes);
+        try (
+            var iterator = reader.read(
+                wholeFile,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id", org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor.ROW_POSITION_COLUMN))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.LENIENT)
+                    .firstSplit(true)
+                    .lastSplit(true)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock rowPos = page.getBlock(1);
+            assertEquals(1L, rowPos.getLong(0));
+            assertEquals(10L, rowPos.getLong(1));
+            assertEquals(20L, rowPos.getLong(2));
+        }
+
+        // Split starting mid-r2 at file byte 12: the leading partial line (7 bytes, to the end of
+        // r2) is skipped and folded into the offset base, so r3 still reports the same file-global
+        // anchor the whole-file read emitted (20), not a split-relative one.
+        byte[] tail = Arrays.copyOfRange(bytes, 12, bytes.length);
+        var midRecordSplit = new BytesStorageObject("file:///offsets.ndjson", tail);
+        try (
+            var iterator = reader.read(
+                midRecordSplit,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id", org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor.ROW_POSITION_COLUMN))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.LENIENT)
+                    .firstSplit(false)
+                    .lastSplit(true)
+                    .splitStartByte(12)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            LongBlock rowPos = page.getBlock(1);
+            assertEquals("anchor must be file-global: splitStartByte + skipped partial bytes", 20L, rowPos.getLong(0));
+        }
+    }
+
     public void testSampleData() throws Exception {
         var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));
@@ -1881,7 +1944,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Per-query override via {@code WITH (segment_size = ...)}; mirrors the existing
+     * Per-query override via {@code WITH {"segment_size": ...}}; mirrors the existing
      * {@code schema_sample_size} pattern. Withconfig returns a new reader; the original is left
      * unchanged so other concurrent queries keep their own values.
      */
@@ -2162,5 +2225,68 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             count,
             Matchers.equalTo((long) rows)
         );
+    }
+
+    /**
+     * Regression for https://github.com/elastic/esql-planning/issues/894: on the byte-array fast path the
+     * cap is now enforced by {@link NdJsonRecordCappingInputStream} during the single {@code readAllBytes}
+     * pull instead of by a separate pre-scan. Under {@link ErrorPolicy#STRICT} an oversized record must
+     * still surface a {@code max_record_size [N]} error rather than parse silently.
+     */
+    public void testByteArrayFastPathStrictModeEnforcesMaxRecordBytes() {
+        int maxRecordBytes = 16;
+        StringBuilder ndjson = new StringBuilder().append("{\"id\":1}\n");
+        ndjson.append("{\"id\":2,\"text\":\"").append("x".repeat(maxRecordBytes)).append("\"}\n");
+        byte[] data = ndjson.toString().getBytes(StandardCharsets.UTF_8);
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cap.ndjson", data);
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        IOException ex = expectThrows(IOException.class, () -> {
+            try (var iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Companion lenient-mode contract: oversized records on the byte-array fast path must be dropped (not
+     * surfaced) so the user-visible {@code max_record_size} contract from PR #150240 is preserved. The pre-read
+     * filter pass (replacing the legacy {@code enforceMaxRecordBytes}) walks the buffered segment once and
+     * skips lines whose terminator-inclusive byte count exceeds the cap, leaving the surrounding rows intact.
+     */
+    public void testByteArrayFastPathLenientModeDropsOversizedRecord() throws IOException {
+        int maxRecordBytes = 16;
+        StringBuilder ndjson = new StringBuilder().append("{\"id\":1}\n");
+        ndjson.append("{\"id\":2,\"text\":\"").append("x".repeat(maxRecordBytes)).append("\"}\n");
+        ndjson.append("{\"id\":3}\n");
+        byte[] data = ndjson.toString().getBytes(StandardCharsets.UTF_8);
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cap-lenient.ndjson", data);
+        ErrorPolicy lenient = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+        FormatReadContext context = FormatReadContext.builder().batchSize(10).errorPolicy(lenient).maxRecordBytes(maxRecordBytes).build();
+
+        long total = 0;
+        try (var iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                var page = iterator.next();
+                total += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertThat("lenient must drop the oversized record and keep the surrounding rows", total, Matchers.equalTo(2L));
     }
 }

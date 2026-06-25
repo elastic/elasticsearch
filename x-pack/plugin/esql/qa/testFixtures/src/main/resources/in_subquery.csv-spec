@@ -327,6 +327,7 @@ emp_no:integer | first_name:keyword
 
 inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin
 required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
 
 FROM 
   (FROM employees
@@ -645,6 +646,7 @@ emp_no:integer | first_name:keyword | language_name:keyword
 ;
 
 enrichBeforeInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: where_in_subquery_without_view
 
 FROM employees
@@ -664,6 +666,7 @@ emp_no:integer | language_name:keyword
 ;
 
 enrichInsideInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: where_in_subquery_without_view
 
 FROM employees
@@ -687,6 +690,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 enrichInsideNotInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: where_in_subquery_without_view
 
 FROM employees
@@ -710,6 +714,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 enrichAfterNotInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: where_in_subquery_without_view
 
 FROM employees

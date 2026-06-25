@@ -16,6 +16,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.CacheRegion;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
+import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -25,6 +28,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
@@ -62,6 +66,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -157,6 +162,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     settings,
                     threadPool,
                     BlobCacheMetrics.NOOP,
+                    clusterService,
                     new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {
                     @Override
@@ -507,6 +513,200 @@ public class SearchDirectoryTests extends ESTestCase {
         }
     }
 
+    public void testTimestampRetainedAcrossSuccessiveCommits() throws IOException {
+        var regionSize = ByteSizeValue.ofBytes(4096);
+        var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
+        try (var node = createFakeStatelessNode(regionSize, cacheSize)) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+
+            final var genFile = "_0_1.liv";
+            final var fileA = "file_A";
+            final var fileB = "file_B";
+            // Commit A: fileA and the generational file are internal with timeRangeA.
+            final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
+            final var genLocationGen1 = createBlobLocation(1L, 1L, 100L, 100L);
+            final var timeRangeA = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            searchDirectory.updateCommit(
+                createCommitWithTimestamp(
+                    node.shardId,
+                    1L,
+                    Map.of(fileA, locationA, genFile, genLocationGen1),
+                    Set.of(fileA, genFile),
+                    timeRangeA
+                )
+            );
+            assertThat(
+                "after commit A, internal file fileA resolves to midpoint of commit A's range",
+                searchDirectory.getTimestampMillis(fileA),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
+            );
+            assertThat(
+                "after commit A, the generational file resolves to midpoint of commit A's range",
+                searchDirectory.getTimestampMillis(genFile),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
+            );
+
+            // Commit B (later generation): fileA is still referenced at the same location; fileB is the new internal file with timeRangeB;
+            // the generational file has been copied into the gen-2 BCC, so commit B lists it at a *new* blob location.
+            final var locationB = createBlobLocation(1L, 2L, 0L, 100L);
+            final var genLocationGen2 = createBlobLocation(1L, 2L, 100L, 100L);
+            final var timeRangeB = new StatelessCompoundCommit.TimestampFieldValueRange(5000L, 6000L);
+            searchDirectory.updateCommit(
+                createCommitWithTimestamp(
+                    node.shardId,
+                    2L,
+                    Map.of(fileA, locationA, fileB, locationB, genFile, genLocationGen2),
+                    Set.of(fileB, genFile),
+                    timeRangeB
+                )
+            );
+
+            assertThat(
+                "after commit B, fileA (referenced at the same blob location) retains commit A's midpoint",
+                searchDirectory.getTimestampMillis(fileA),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
+            );
+            assertThat(
+                "fileB is internal to commit B, so it receives commit B's representative timestamp",
+                searchDirectory.getTimestampMillis(fileB),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeB))
+            );
+            assertThat(
+                "the generational file stays pinned to the first (gen-1) blob location across commits",
+                searchDirectory.getBlobLocation(genFile),
+                equalTo(genLocationGen1)
+            );
+            assertThat(
+                "the generational file retains commit A's midpoint even though commit B re-lists it at a new location with a new range",
+                searchDirectory.getTimestampMillis(genFile),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
+            );
+            assertThat(
+                "unknown file returns UNKNOWN_TIMESTAMP",
+                searchDirectory.getTimestampMillis("unknown-file"),
+                equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+            );
+        }
+    }
+
+    public void testOnDemandReadStampsRegionsWhenBoostEnabled() throws IOException {
+        assertOnDemandReadStampsRegions(true);
+    }
+
+    public void testOnDemandReadStampsRegionsWhenBoostDisabled() throws IOException {
+        assertOnDemandReadStampsRegions(false);
+    }
+
+    private void assertOnDemandReadStampsRegions(boolean boostEnabled) throws IOException {
+        var regionSize = ByteSizeValue.ofBytes(4096);
+        var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
+        final Map<FileCacheKey, Long> capturedRegionTimestamps = new ConcurrentHashMap<>();
+        final EvictionPolicy<FileCacheKey> capturingPolicy = new DefaultEvictionPolicy<>() {
+            @Override
+            public void onCached(CacheRegion<FileCacheKey> region) {
+                super.onCached(region);
+                capturedRegionTimestamps.put(region.key(), region.timestampMillis());
+            }
+        };
+        try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), boostEnabled)
+                    .build();
+            }
+
+            @Override
+            protected StatelessSharedBlobCacheService createCacheService(
+                NodeEnvironment nodeEnvironment,
+                Settings settings,
+                ThreadPool threadPool,
+                MeterRegistry meterRegistry
+            ) {
+                return new StatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    BlobCacheMetrics.NOOP,
+                    capturingPolicy,
+                    System::nanoTime,
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                ) {};
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                // Return synthetic bytes for any range request so the on-demand read actually populates a cache region.
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) {
+                        return new InputStream() {
+                            private long remaining = length;
+
+                            @Override
+                            public int read() {
+                                if (remaining == 0) {
+                                    return -1;
+                                }
+                                remaining -= 1;
+                                return 1;
+                            }
+                        };
+                    }
+                };
+            }
+        }) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            final var locationWithTs = createBlobLocation(1L, 1L, 0L, regionSize.getBytes());
+            final var locationWithoutTs = createBlobLocation(1L, 2L, 0L, regionSize.getBytes());
+            final var withTimestamp = new BlobFileRanges(locationWithTs, range);
+            final var withoutTimestamp = new BlobFileRanges(locationWithoutTs, null);
+            searchDirectory.updateMetadata(
+                Map.of("file-with-ts", withTimestamp, "file-without-ts", withoutTimestamp),
+                2 * regionSize.getBytes()
+            );
+            // Mark the latest BCC as uploaded so the cache reader routes both files through the object store path
+            // (our FilterBlobContainer override), not the indexing-shard transport path which would require a live indexing shard.
+            searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(1L, 2L));
+
+            try (var input = searchDirectory.openInput("file-with-ts", IOContext.DEFAULT)) {
+                // Reading a byte triggers slot assignment and fires EvictionPolicy.onCached on the live region.
+                input.readByte();
+            }
+            try (var input = searchDirectory.openInput("file-without-ts", IOContext.DEFAULT)) {
+                input.readByte();
+            }
+
+            final var keyWithTs = new FileCacheKey(node.shardId, 1L, locationWithTs.blobName());
+            final var keyWithoutTs = new FileCacheKey(node.shardId, 1L, locationWithoutTs.blobName());
+            final long expectedForKnownRange = boostEnabled
+                ? BlobFileRanges.midpointMillisOrUnknown(range)
+                : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+            assertThat(
+                "live CacheRegion for file-with-ts (non-null range, boostEnabled="
+                    + boostEnabled
+                    + ") should carry "
+                    + (boostEnabled ? "the per-CC midpoint" : "UNKNOWN_TIMESTAMP"),
+                capturedRegionTimestamps.get(keyWithTs),
+                equalTo(expectedForKnownRange)
+            );
+            assertThat(
+                "live CacheRegion for file-without-ts (null range, boostEnabled=" + boostEnabled + ") should carry UNKNOWN_TIMESTAMP",
+                capturedRegionTimestamps.get(keyWithoutTs),
+                equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+            );
+        }
+    }
+
     private static StatelessCompoundCommit createCommit(ShardId shardId, List<BlobLocation> commitLocations, List<String> files) {
         Map<String, BlobLocation> commitFiles = new HashMap<>(commitLocations.size(), 1.0f);
         for (int i = 0; i < commitLocations.size(); i++) {
@@ -524,6 +724,28 @@ public class SearchDirectoryTests extends ESTestCase {
             InternalFilesReplicatedRanges.EMPTY,
             Map.of(),
             null
+        );
+    }
+
+    private static StatelessCompoundCommit createCommitWithTimestamp(
+        ShardId shardId,
+        long generation,
+        Map<String, BlobLocation> commitFiles,
+        Set<String> internalFiles,
+        @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+    ) {
+        return new StatelessCompoundCommit(
+            shardId,
+            new PrimaryTermAndGeneration(1L, generation),
+            1L,
+            "_na_",
+            commitFiles,
+            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
+            internalFiles,
+            50L,
+            InternalFilesReplicatedRanges.EMPTY,
+            Map.of(),
+            timestampRange
         );
     }
 

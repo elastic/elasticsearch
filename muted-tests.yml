@@ -737,3 +737,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:views.notInSubqueryReferencingView}
   issue: https://github.com/elastic/elasticsearch/issues/152126
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681

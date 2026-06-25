@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152010
+summary: Route `(LONG, BYTES_REF)` STATS through an adaptive composite BlockHash
+type: enhancement

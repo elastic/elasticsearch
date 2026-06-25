@@ -28,10 +28,12 @@ import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvAssert;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -400,7 +402,44 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void doTest() throws Throwable {
-        doTest(testCase.query);
+        doTest(rebuildExternalFromDatasets(testCase.query));
+    }
+
+    /**
+     * Rebuild the {@code EXTERNAL "<resource>" WITH {<json>}} query equivalent to a migrated
+     * {@code FROM <name>} spec from its {@code dataset:} directive(s). This is the universal fallback used
+     * by every EXTERNAL-capable test family; {@code AbstractExternalSourceSpecTestCase} overrides the
+     * execution path to register and run the {@code FROM} form directly on dataset-capable backends.
+     *
+     * <p>Specs without a {@code dataset:} directive are returned unchanged. EXTERNAL is single-source
+     * today, so a spec declaring more than one source has no EXTERNAL equivalent and fails fast (rather
+     * than silently mis-running); the guard is removed once EXTERNAL gains multi-source support.
+     */
+    protected final String rebuildExternalFromDatasets(String query) {
+        List<DatasetSource> sources = testCase.datasetSources;
+        if (sources.isEmpty()) {
+            return query;
+        }
+        if (sources.size() > 1) {
+            throw new AssertionError(
+                "Cannot rebuild a single EXTERNAL query for ["
+                    + sources.size()
+                    + "] dataset sources; multi-source FROM <dataset> has no EXTERNAL equivalent yet: "
+                    + query
+            );
+        }
+        DatasetSource source = sources.get(0);
+        int pipe = FixtureUtils.findFirstPipeAfterExternal(query);
+        String tail = pipe < 0 ? "" : " " + query.substring(pipe);
+        // source.resource() is decoded (quotes/escapes resolved by the parser); re-escape it back into the
+        // EXTERNAL string literal so a resource containing a backslash or quote round-trips correctly.
+        String literal = source.resource().replace("\\", "\\\\").replace("\"", "\\\"");
+        StringBuilder external = new StringBuilder("EXTERNAL \"").append(literal).append("\"");
+        if (source.withJson() != null) {
+            external.append(" WITH ").append(source.withJson());
+        }
+        external.append(tail);
+        return external.toString();
     }
 
     protected final void doTest(String query) throws Throwable {
@@ -635,7 +674,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsViews() {
         if (supportsViews == null) {
-            supportsViews = hasCapabilities(adminClient(), List.of("views_with_no_branching", "views_crud_as_index_actions"));
+            try {
+                // Keep the views support probe identical to the data loader to avoid drift across test setup paths.
+                supportsViews = CsvTestsDataLoader.clusterSupportsViews(adminClient());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
         return supportsViews;
     }

@@ -61,6 +61,8 @@ import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.utils.IndexingShardWarmingComparator;
@@ -324,6 +326,20 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Maximum number of page-fetch tasks a single file may have concurrently queued in the central
+     * {@link #warmByteRangeThrottledTaskRunner}. Keeping this at 1 ensures that later-starting files get their
+     * early pages cached before the warming timeout, because no single file can monopolise the central queue.
+     * Raise this value if the per-file serialisation becomes a throughput bottleneck.
+     */
+    public static final Setting<Integer> WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING = Setting.intSetting(
+        "stateless.blob_cache_warming.warm_byte_range_per_file_concurrency",
+        1,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
@@ -339,6 +355,7 @@ public class SharedBlobCacheWarmingService {
     private volatile boolean prewarmIndexShardForIdLookupsEnabled;
     private volatile double idLookupPrewarmRatio;
     private volatile long maxUploadPrewarmSize;
+    private volatile int warmByteRangePerFileConcurrency;
     private final WarmingRatioProvider warmingRatioProvider;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
@@ -417,6 +434,10 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             value -> this.searchRecoveryWarmingSourceShutdownShareFactor = value
+        );
+        clusterSettings.initializeAndWatch(
+            WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
+            value -> this.warmByteRangePerFileConcurrency = value
         );
     }
 
@@ -666,7 +687,13 @@ public class SharedBlobCacheWarmingService {
         if (store.isClosing() || store.tryIncRef() == false) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
         } else {
-            try (var listeners = new RefCountingListener(ActionListener.runAfter(listener, store::decRef))) {
+            // The store ref is only needed to guard task enqueuing, not task execution: tasks check isCancelled() (= store.isClosing())
+            // before touching the directory (optimistically) but the concrete directory can still serve reads from the object store after
+            // being closed.
+            // Releasing the ref immediately after enqueueing lets the shard close without waiting for queued tasks to drain.
+            assert directory instanceof SearchDirectory || directory instanceof IndexBlobStoreCacheDirectory
+                : "wrong directory " + directory + ", need directory that cannot fail when store is closed";
+            try (var listeners = new RefCountingListener(listener)) {
                 // special search shard prewarming based on timestamp range of CCs (more recent data is warmed more)
                 if (type == Type.SEARCH && (prefetchCommitsForSearchShardRecovery || searchOfflineWarmingEnabled)) {
                     SubscribableListener.<Map<BlobFile, Long>>newForked(l1 -> {
@@ -700,7 +727,7 @@ public class SharedBlobCacheWarmingService {
                         }
                     }).<Void>andThen((l2, offsetsToWarmFinal) -> {
                         if (searchOfflineWarmingEnabled) {
-                            warmBlobOffsets(indexShard, offsetsToWarmFinal, l2);
+                            warmBlobOffsets(indexShard, directory, offsetsToWarmFinal, l2);
                         } else {
                             l2.onResponse(null);
                         }
@@ -737,6 +764,8 @@ public class SharedBlobCacheWarmingService {
                 ) {
                     warmer.run();
                 }
+            } finally {
+                store.decRef();
             }
         }
     }
@@ -912,7 +941,12 @@ public class SharedBlobCacheWarmingService {
     }
 
     // protected for tests
-    protected void warmBlobOffsets(IndexShard indexShard, Map<BlobFile, Long> offsetsToWarmPerBlobFile, ActionListener<Void> listener) {
+    protected void warmBlobOffsets(
+        IndexShard indexShard,
+        BlobStoreCacheDirectory directory,
+        Map<BlobFile, Long> offsetsToWarmPerBlobFile,
+        ActionListener<Void> listener
+    ) {
         try (RefCountingListener listeners = new RefCountingListener(listener)) {
             for (var offsetsToWarm : offsetsToWarmPerBlobFile.entrySet()) {
                 // Warm from the start of the blob through the computed end. We used to skip the first cache region, assuming
@@ -924,6 +958,7 @@ public class SharedBlobCacheWarmingService {
                         indexShard,
                         offsetsToWarm.getKey(),
                         ByteRange.of(0, offsetsToWarm.getValue()),
+                        directory,
                         listeners.acquire()
                     );
                 }
@@ -936,24 +971,16 @@ public class SharedBlobCacheWarmingService {
         IndexShard indexShard,
         BlobFile blobFile,
         ByteRange byteRangeToWarm,
+        BlobStoreCacheDirectory directory,
         ActionListener<Void> listener
     ) {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
         final var warmingRun = new WarmingRun(type, shardId, "prewarm", Map.of("prewarming_type", type.name()));
-        if (store.isClosing() || store.tryIncRef() == false) {
+        if (store.isClosing()) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
         } else {
-            try (
-                var warmer = new BlobByteRangeWarmer(
-                    warmingRun,
-                    blobFile,
-                    byteRangeToWarm,
-                    store::isClosing,
-                    BlobStoreCacheDirectory.unwrapDirectory(store.directory()),
-                    ActionListener.runAfter(listener, store::decRef)
-                )
-            ) {
+            try (var warmer = new BlobByteRangeWarmer(warmingRun, blobFile, byteRangeToWarm, store::isClosing, directory, listener)) {
                 warmer.run();
             }
         }
@@ -1133,6 +1160,8 @@ public class SharedBlobCacheWarmingService {
                     if (isCancelled()) {
                         return null;
                     }
+                    assert directory instanceof SearchDirectory || directory instanceof IndexBlobStoreCacheDirectory
+                        : "wrong directory " + directory + ", need directory that cannot fail in open input";
                     try (var in = directory.openInput(fileName, IOContext.READONCE)) {
                         var entries = Lucene90CompoundEntriesReader.readEntries(in);
 
@@ -1585,6 +1614,11 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onResponse(Releasable releasable) {
+                if (isCancelled()) {
+                    listener.onResponse(null);
+                    Releasables.close(releasable);
+                    return;
+                }
                 var cacheKey = new FileCacheKey(warmingRun.shardId(), blobFile.primaryTerm(), blobFile.blobName());
                 var releasedListener = ActionListener.releaseAfter(listener, releasable);
                 var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobFile);
@@ -1601,6 +1635,13 @@ public class SharedBlobCacheWarmingService {
             }
 
             private void fetchRange(FileCacheKey cacheKey, CacheBlobReader cacheBlobReader, ActionListener<Void> l) {
+                // A per-file runner ensures at most warmByteRangePerFileConcurrency pages from this file queue in the
+                // central runner at a time, so that files warmed later still get early pages into cache before the timeout expires.
+                var perFileRunner = new ThrottledTaskRunner(
+                    "warm-byte-range-per-file",
+                    warmByteRangePerFileConcurrency,
+                    warmByteRangeThrottledTaskRunner.asExecutor()
+                );
                 cacheService.fetchRange(
                     cacheKey,
                     byteRangeToWarm,
@@ -1608,7 +1649,7 @@ public class SharedBlobCacheWarmingService {
                     WarmBlobByteRangeTask.this,
                     writeBuffer::get,
                     totalBytesCopied::addAndGet,
-                    warmByteRangeThrottledTaskRunner.asExecutor(),
+                    perFileRunner.asExecutor(),
                     true,
                     l
                 );

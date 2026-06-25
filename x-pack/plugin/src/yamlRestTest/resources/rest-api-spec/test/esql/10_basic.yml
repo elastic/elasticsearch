@@ -1098,6 +1098,31 @@ version is not allowed:
   - match: {values.0.1: true}
   - match: {values.0.2: false}
 
+  # Reproducer from the issue: COALESCE(?, v) with anonymous positional empty-list param.
+  # Before the fix this threw index_out_of_bounds_exception.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | eval x = COALESCE(?, v)'
+          params: [[]]
+
+  - length: {values: 1}
+  - match: {values.0.1: 1}
+
+  # Reproducer from the issue: WHERE ? AND true with anonymous positional empty-list param.
+  # Before the fix this threw ClassCastException.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row v = 1 | where ? and true'
+          params: [[]]
+
+  - length: {values: 0}
+
   # Identifier-pattern positions: empty list (coerced to null) produces a clean parsing error.
   - do:
       catch: /Query parameter \[\?1\] is null or undefined, cannot be used as an identifier or pattern/

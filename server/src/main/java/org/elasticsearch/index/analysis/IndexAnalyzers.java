@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexSettings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -128,14 +127,14 @@ public interface IndexAnalyzers extends Closeable {
     ) {
         // No shared-cache references — the simple overload used by tests and code paths that
         // construct analyzers directly without going through the registry's cache.
-        return of(analyzers, normalizers, whitespaceNormalizers, new HashMap<>(), List.of());
+        return of(analyzers, normalizers, whitespaceNormalizers, List.of());
     }
 
     /**
-     * Construct an {@link IndexAnalyzers} that owns refcount handles on shared analyzer cache
-     * entries. {@code analyzerReleasables} is keyed by analyzer name (reload mutates a shared
-     * analyzer in place rather than swapping cache entries, so the handle for a name is stable);
-     * {@code staticReleasables} covers normalizer/whitespace handles.
+     * Construct an {@link IndexAnalyzers} that owns refcount handles on shared cache entries.
+     * {@code releasables} holds one handle per shared analyzer / normalizer / whitespace-normalizer
+     * entry this index acquired. A plain list (not name-keyed): {@link #reload} mutates shared
+     * analyzers in place and never touches these handles, and {@link #close} only iterates them.
      *
      * <p>On {@link #close} every releasable is invoked exactly once; the last release on any
      * given cache entry drives the actual underlying {@code analyzer.close()} and evicts it from
@@ -145,8 +144,7 @@ public interface IndexAnalyzers extends Closeable {
         Map<String, NamedAnalyzer> analyzers,
         Map<String, NamedAnalyzer> normalizers,
         Map<String, NamedAnalyzer> whitespaceNormalizers,
-        Map<String, Releasable> analyzerReleasables,
-        List<Releasable> staticReleasables
+        List<Releasable> releasables
     ) {
         return new IndexAnalyzers() {
             // Idempotent close guard: each release handle must fire exactly once across the
@@ -180,8 +178,7 @@ public interface IndexAnalyzers extends Closeable {
                     .flatMap(s -> s)
                     .filter(a -> a.scope() == AnalyzerScope.INDEX)
                     .forEach(closeables::add);
-                closeables.addAll(analyzerReleasables.values());
-                closeables.addAll(staticReleasables);
+                closeables.addAll(releasables);
                 IOUtils.close(closeables);
             }
 

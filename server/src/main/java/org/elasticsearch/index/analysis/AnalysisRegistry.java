@@ -849,12 +849,12 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
-        // Refcount handles collected during build; handed to IndexAnalyzers so close releases them.
-        // Analyzer releasables live in a name-keyed map because {@link IndexAnalyzers#reload} swaps
-        // entries in place — the old releasable must be discarded and replaced by the new one.
-        // Normalizer/whitespace releasables never get swapped, so a flat list suffices.
-        Map<String, Releasable> analyzerReleasables = new HashMap<>();
-        List<Releasable> normalizerReleasables = new ArrayList<>();
+        // Refcount handles on the shared cache entries this index acquires during build (analyzers,
+        // normalizers and whitespace normalizers alike); handed to IndexAnalyzers so close() releases
+        // each exactly once — the last release on an entry drives the underlying analyzer.close() and
+        // its eviction. A plain list suffices: reload() mutates shared analyzers in place and never
+        // touches these handles, and close() only iterates them, so they need no keying.
+        List<Releasable> releasables = new ArrayList<>();
         // Exception safety: any failure between here and the {@link IndexAnalyzers#of} call must
         // release every reference we have already interned. Without this rollback, a single
         // failing factory iteration would leak refcounts for the analyzers already built earlier
@@ -874,7 +874,7 @@ public final class AnalysisRegistry implements Closeable {
                         tokenizerFactoryFactories,
                         indexSettings,
                         analyzersSettings.get(analyzerName),
-                        rel -> analyzerReleasables.put(analyzerName, rel)
+                        releasables::add
                     ),
                     (k, v) -> {
                         throw new IllegalStateException("already registered analyzer with name: " + analyzerName);
@@ -892,7 +892,7 @@ public final class AnalysisRegistry implements Closeable {
                     indexSettings,
                     normalizersSettings.get(entry.getKey()),
                     normalizerCache,
-                    normalizerReleasables::add
+                    releasables::add
                 );
                 processNormalizerFactory(
                     entry.getKey(),
@@ -904,7 +904,7 @@ public final class AnalysisRegistry implements Closeable {
                     indexSettings,
                     normalizersSettings.get(entry.getKey()),
                     whitespaceNormalizerCache,
-                    normalizerReleasables::add
+                    releasables::add
                 );
             }
 
@@ -924,7 +924,7 @@ public final class AnalysisRegistry implements Closeable {
                         tokenizerFactoryFactories,
                         indexSettings,
                         null,
-                        rel -> analyzerReleasables.put(DEFAULT_ANALYZER_NAME, rel)
+                        releasables::add
                     )
                 );
             }
@@ -952,13 +952,7 @@ public final class AnalysisRegistry implements Closeable {
                     throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
                 }
             }
-            IndexAnalyzers result = IndexAnalyzers.of(
-                analyzers,
-                normalizers,
-                whitespaceNormalizers,
-                analyzerReleasables,
-                normalizerReleasables
-            );
+            IndexAnalyzers result = IndexAnalyzers.of(analyzers, normalizers, whitespaceNormalizers, releasables);
             handedOff = true;
             return result;
         } finally {
@@ -967,8 +961,7 @@ public final class AnalysisRegistry implements Closeable {
                 // does not pin cache entries. IOUtils.closeWhileHandlingException collects
                 // and swallows individual close failures so we never mask the original throw
                 // and never skip remaining handles after one fails.
-                IOUtils.closeWhileHandlingException(analyzerReleasables.values());
-                IOUtils.closeWhileHandlingException(normalizerReleasables);
+                IOUtils.closeWhileHandlingException(releasables);
             }
         }
     }

@@ -347,10 +347,9 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
 
     /**
      * Returns {@code true} if this version is a patch version at or after {@code version}.
-     * Two versions share the same patch space if they have the same base (id / 1000), allowing
-     * stateful patch ids to use all 1000 slots within a base rather than just the lower 100.
      */
     public boolean isPatchFrom(TransportVersion version) {
+        // Two versions share the same patch space if they have the same base (id / 1000).
         return id >= version.id && id / 1000 == version.id / 1000;
     }
 

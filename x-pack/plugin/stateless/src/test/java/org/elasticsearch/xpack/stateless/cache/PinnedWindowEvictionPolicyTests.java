@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
@@ -241,11 +240,8 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     private static IndicesService mockIndicesService(ClusterService clusterService, ShardId... openShards) {
         final IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.clusterService()).thenReturn(clusterService);
-        for (ShardId shardId : openShards) {
-            final IndexService indexService = mock(IndexService.class);
-            when(indicesService.indexService(shardId.getIndex())).thenReturn(indexService);
-            when(indexService.hasShard(shardId.id())).thenReturn(true);
-        }
+        final Predicate<ShardId> locallyOpenShard = Set.copyOf(Arrays.asList(openShards))::contains;
+        when(indicesService.locallyOpenShardPredicate()).thenReturn(locallyOpenShard);
         return indicesService;
     }
 

@@ -1582,7 +1582,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 )
             ) {
                 for (int i = 0; i < count; i++) {
-                    if (rarely() && supportsEmptyInputArray() && support.isColumnar() == false) {
+                    if (rarely() && supportsEmptyInputArray()) {
                         expected[i] = support.preservesEmptyArray() ? "{\"field\":[]}" : "{}";
                         iw.addDocument(mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc());
                         continue;
@@ -1670,8 +1670,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.endObject();
         }), support.isColumnar()).documentMapper();
 
-        // columnar mode has field-type-specific empty-array behavior; dedicated tests cover it per field type
-        assumeFalse("empty array behavior in columnar mode is field-type specific", support.isColumnar());
         var expected = support.preservesEmptyArray() ? "{\"field\":[]}" : "{}";
         assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo(expected));
     }

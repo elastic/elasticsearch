@@ -1112,3 +1112,57 @@ version is not allowed:
         body:
           query: 'from test | rename color as ?1'
           params: [[]]
+
+
+---
+"Empty list param executes correctly with real index data":
+  # Verifies that empty-list params coerced to null are handled correctly at execution time,
+  # not just at parse time. See https://github.com/elastic/elasticsearch/issues/147448
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ empty_list_param_as_null ]
+      reason: "empty list parameter is treated as null"
+
+  # COALESCE with a null named param falls back to the real field value.
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = COALESCE(?val, color) | sort data, count | limit 1'
+          params: [{"val": []}]
+
+  - length: {columns: 3}
+  - match: {columns.2.name: "x"}
+  - match: {values.0.2: "red"}
+
+  # COALESCE with a null positional param falls back to the real field value.
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = COALESCE(?1, color) | sort data, count | limit 1'
+          params: [[]]
+
+  - length: {columns: 3}
+  - match: {values.0.2: "red"}
+
+  # Equality predicate with a null param: null == anything is null (not true),
+  # so the WHERE filters out every row.
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where color == ?1'
+          params: [[]]
+
+  - length: {values: 0}
+
+  # mv_contains with a null param: must not NPE; returns no rows.
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where mv_contains(color, ?1)'
+          params: [[]]
+
+  - length: {values: 0}

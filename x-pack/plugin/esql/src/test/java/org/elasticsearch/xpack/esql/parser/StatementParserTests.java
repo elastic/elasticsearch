@@ -2593,6 +2593,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "Query parameter [?f1] is null or undefined, cannot be used as an identifier or pattern"
             );
         }
+        // ENRICH WITH clause: null params in alias (?f2) and field (?f3) positions
+        expectError(
+            "from idx1 | enrich idx2 ON f1 WITH ?f2",
+            List.of(paramAsConstant("f2", null)),
+            "Query parameter [?f2] is null or undefined, cannot be used as an identifier or pattern"
+        );
+        expectError(
+            "from idx1 | enrich idx2 ON f1 WITH ?f2 = src_field",
+            List.of(paramAsConstant("f2", null)),
+            "Query parameter [?f2] is null or undefined, cannot be used as an identifier or pattern"
+        );
+        expectError(
+            "from idx1 | enrich idx2 ON f1 WITH dst = ?f3",
+            List.of(paramAsConstant("f3", null)),
+            "Query parameter [?f3] is null or undefined, cannot be used as an identifier or pattern"
+        );
+        // double-parameter markers (??): null param produces a "is null" error rather than an NPE or empty identifier
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            for (String identifierPosition : List.of("drop ??f1", "keep ??f1", "rename ??f1 as color")) {
+                expectError(
+                    "from test | " + identifierPosition,
+                    List.of(paramAsConstant("f1", null)),
+                    "Query parameter [??f1] is null"
+                );
+            }
+        }
         // enrich with wildcard as pattern or constant is not supported
         String enrich = "ENRICH idx2 ON ?f1 WITH ?f2 = ?f3";
         for (String pattern : List.of("f.1.*", "*")) {

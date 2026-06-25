@@ -283,11 +283,15 @@ class StatelessIndexEventListener implements IndexEventListener {
 
             final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
             if (lastCommitBlobs != null) {
-                warmingService.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobs, ActionListener.wrap(v -> {}, e -> logger.warn(
-                    "[{}] failed to pre-warm region 0 before BCC header reads",
-                    indexShard.shardId(),
-                    e
-                )));
+                warmingService.warmCacheForBCCHeadersRead(
+                    indexShard,
+                    directory,
+                    lastCommitBlobs,
+                    ActionListener.wrap(
+                        v -> {},
+                        e -> logger.warn("[{}] failed to pre-warm region 0 before BCC header reads", indexShard.shardId(), e)
+                    )
+                );
             }
 
             ObjectStoreService.readIndexingShardState(

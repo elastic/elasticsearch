@@ -93,7 +93,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
         // During CCS/CPS, resolveDatasets is only set on a request from the originating cluster and is therefore only true on a
         // remote cluster. A linked project that has a dataset the caller may read matching the (security-narrowed) pattern fails
-        // the query — datasets ride the same remote-detect rail as views (#974).
+        // the query — datasets ride the same remote-detect rail as views.
         if (request.indicesOptions().indexAbstractionOptions().resolveDatasets()) {
             Set<String> datasetsLocalToRemoteCluster = getDatasets(request.indices(), request.indicesOptions());
             if (datasetsLocalToRemoteCluster.isEmpty() == false) {

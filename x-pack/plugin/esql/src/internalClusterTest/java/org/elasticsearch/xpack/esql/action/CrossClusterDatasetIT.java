@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -49,6 +51,7 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final String REMOTE_DATASET = "remote_employees";
+    private static final String REMOTE_DATASET_2 = "remote_employees_b";
     private static final String REMOTE_PLAIN_INDEX = "logs_idx";
 
     /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
@@ -116,6 +119,22 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
                 putDatasetRequest(REMOTE_DATASET, "remote_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
             ).actionGet(30, TimeUnit.SECONDS)
         );
+
+        // A second dataset on the OTHER remote (remote-b), mirroring how CrossClusterViewIT seeds its remotes:
+        // the cluster-exclusion / multi-cluster legs (testAllDatasetsOnRemoteExcludedSucceeds,
+        // testRemoteDatasetFailsOnOneCluster) need a remote-b that is dataset-bearing in its own right so the
+        // assertions exercise "exclude the dataset-bearing cluster, keep the other" rather than "the other remote
+        // happens to be dataset-free". setupClusters(3) already seeds a plain logs-2 index on remote-b.
+        assertAcked(
+            client(REMOTE_CLUSTER_2).execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("remote_ds_b", Map.of()))
+                .actionGet(30, TimeUnit.SECONDS)
+        );
+        assertAcked(
+            client(REMOTE_CLUSTER_2).execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(REMOTE_DATASET_2, "remote_ds_b", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            ).actionGet(30, TimeUnit.SECONDS)
+        );
     }
 
     public void testRemoteDatasetConcreteMatchFailsQuery() {
@@ -147,16 +166,128 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    /** Walks the cause chain and asserts the remote-dataset rejection message (with the matched name) appears somewhere in it. */
+    /**
+     * Dataset analog of {@link CrossClusterViewIT#testRemoteViewExcludedSucceeds}: a wildcard that matches the
+     * dataset but explicitly excludes it succeeds (the excluded dataset never reaches the detection rail), and the
+     * response is non-partial. The wildcard {@code remot*} matches only {@code remote_employees}; excluding it
+     * leaves nothing on cluster-a, which still resolves cleanly (an excluded-to-empty cluster is not a failure).
+     */
+    public void testRemoteDatasetExcludedSucceeds() {
+        try (
+            var resp = runQuery(
+                "FROM "
+                    + REMOTE_CLUSTER_1
+                    + ":remot*,"
+                    + REMOTE_CLUSTER_1
+                    + ":-"
+                    + REMOTE_DATASET
+                    + ","
+                    + REMOTE_CLUSTER_1
+                    + ":"
+                    + REMOTE_PLAIN_INDEX,
+                null
+            )
+        ) {
+            assertOk(resp);
+        }
+    }
+
+    /**
+     * Dataset analog of {@link CrossClusterViewIT#testAllViewsOnRemoteExcludedSucceeds}: a cluster-level exclusion of
+     * the dataset-bearing remote succeeds. {@code cluster*:*} would match both remotes' datasets, but {@code -cluster-a:*}
+     * removes cluster-a entirely (dataset and all), and {@code remote-b:logs-*} narrows remote-b to its plain index so
+     * its own dataset is never matched. Non-partial.
+     */
+    public void testAllDatasetsOnRemoteExcludedSucceeds() {
+        try (var resp = runQuery("FROM cluster*:logs-*,-" + REMOTE_CLUSTER_1 + ":*," + REMOTE_CLUSTER_2 + ":logs-*", null)) {
+            assertOk(resp);
+        }
+    }
+
+    /**
+     * Dataset analog of {@link CrossClusterViewIT#testRemoteViewFailsOnOneCluster}: the dataset lives only on
+     * cluster-a; a query spanning cluster-a (matching the dataset) and remote-b (matching only a plain index) FAILS,
+     * and the rejection message names ONLY {@code cluster-a:remote_employees} — remote-b contributes no dataset to
+     * the matched set.
+     */
+    public void testRemoteDatasetFailsOnOneCluster() {
+        Exception e = expectThrows(
+            Exception.class,
+            () -> runQuery("FROM " + REMOTE_CLUSTER_1 + ":remot*," + REMOTE_CLUSTER_2 + ":logs-*", null)
+        );
+        assertRemoteDatasetRejected(e);
+        // The matched set is exactly cluster-a's dataset — remote-b's plain index does not appear, and crucially
+        // remote-b's own dataset (remote_employees_b) is NOT matched (logs-* excludes it).
+        assertMessageInCauseChain(e, "Matched [" + REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET + "]");
+        assertMessageAbsentFromCauseChain(e, REMOTE_CLUSTER_2 + ":" + REMOTE_DATASET_2);
+    }
+
+    /**
+     * Dataset analog of {@link CrossClusterViewIT#testUnknownRemote}: a concrete unknown remote throws
+     * {@link NoSuchRemoteClusterException}, while a wildcard cluster expression with no concrete match resolves to the
+     * empty set and SUCCEEDS (non-partial).
+     */
+    public void testUnknownRemote() {
+        expectThrows(
+            NoSuchRemoteClusterException.class,
+            containsString("no such remote cluster: [no_such_remote]"),
+            () -> runQuery("FROM no_such_remote:" + REMOTE_DATASET, null)
+        );
+        try (var resp = runQuery("FROM no_such_*:" + REMOTE_DATASET, null)) {
+            assertOk(resp);
+        }
+    }
+
+    /**
+     * Walks the cause chain and asserts the remote-dataset rejection message (headline + matched name + the full
+     * remediation hint) appears somewhere in it. Mirrors CrossClusterViewIT's message-completeness bar
+     * ({@code testRemoteViewConcreteMatchFailsQuery} asserts the entire "...exclude them with [cluster-a:-...]" string),
+     * not just the headline: the hint must name {@code cluster-a:-remote_employees} so a user can copy it verbatim.
+     */
     private void assertRemoteDatasetRejected(Throwable throwable) {
         String matched = REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET;
+        String exclusionHint = REMOTE_CLUSTER_1 + ":-" + REMOTE_DATASET;
         for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
             String message = cause.getMessage();
-            if (message != null && message.contains("ES|QL queries with remote datasets are not supported") && message.contains(matched)) {
+            if (message != null
+                && message.contains("ES|QL queries with remote datasets are not supported")
+                && message.contains(matched)
+                && message.contains("Remove them from the query pattern or exclude them with")
+                && message.contains("[" + exclusionHint + "]")) {
                 return;
             }
         }
-        throw new AssertionError("expected a remote-dataset rejection mentioning [" + matched + "] in the cause chain", throwable);
+        throw new AssertionError(
+            "expected a remote-dataset rejection naming ["
+                + matched
+                + "] and the exclusion hint ["
+                + exclusionHint
+                + "] in the cause chain",
+            throwable
+        );
+    }
+
+    /** Asserts that some exception in the cause chain carries a message containing {@code needle}. */
+    private static void assertMessageInCauseChain(Throwable throwable, String needle) {
+        for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
+            if (cause.getMessage() != null && cause.getMessage().contains(needle)) {
+                return;
+            }
+        }
+        throw new AssertionError("expected [" + needle + "] in the cause chain", throwable);
+    }
+
+    /** Asserts that NO exception in the cause chain carries a message containing {@code needle}. */
+    private static void assertMessageAbsentFromCauseChain(Throwable throwable, String needle) {
+        for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
+            if (cause.getMessage() != null && cause.getMessage().contains(needle)) {
+                throw new AssertionError("did not expect [" + needle + "] in the cause chain", throwable);
+            }
+        }
+    }
+
+    private static void assertOk(EsqlQueryResponse response) {
+        assertThat(response.isPartial(), equalTo(false));
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {

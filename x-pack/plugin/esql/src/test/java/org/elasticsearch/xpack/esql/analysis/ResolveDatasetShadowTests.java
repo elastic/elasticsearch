@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.time.Instant;
 import java.util.List;
@@ -216,7 +219,43 @@ public class ResolveDatasetShadowTests extends ESTestCase {
         assertWarnings(NO_LIMIT_WARNING);
     }
 
+    /**
+     * Regression: a plain {@link UnionAll} with both a strict {@link UnresolvedRelation} whose resolution is
+     * {@code EMPTY_SUBQUERY} (e.g. a CCS subquery that matched nothing) <em>and</em> a matched dataset shadow.
+     * After analysis the EMPTY_SUBQUERY branch is pruned by {@code PruneEmptyUnionAllBranch} while the shadow
+     * resolves to an {@link EsRelation} — the resolved {@code ds} shadow must SURVIVE the prune (the empty branch
+     * disappearing must not strip the matched shadow with it). The dataset analog of
+     * {@code ResolveViewShadowTests.testPruneEmptySubqueryBranchPreservesShadowResolutionInViewUnionAll}, but over a
+     * plain {@link UnionAll} (datasets) rather than a {@code ViewUnionAll}. Since
+     * {@link UnionAll#pruneEmptyBranches} preserves single-survivor wrappers, the surviving plan is a single-child
+     * {@link UnionAll} carrying just the resolved {@code ds} branch.
+     */
+    public void testPruneEmptySubqueryBranchPreservesShadowResolutionInDatasetUnionAll() {
+        EsIndex remoteDs = EsIndexGenerator.esIndex("ds", LoadMapping.loadMapping("mapping-one-field.json"));
+        var analyzer = analyzer().addIndex("missing_idx", IndexResolution.EMPTY_SUBQUERY).addLenientResolution(remoteDs).buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(
+            new UnionAll(
+                EMPTY,
+                List.of(strictUR("missing_idx"), new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds")),
+                List.of()
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), UnionAll.class);
+        assertEquals("expected a single surviving child after pruning", 1, unionAll.children().size());
+        var esRelation = as(unwrapProject(unionAll.children().getFirst()), EsRelation.class);
+        assertEquals("ds", esRelation.indexPattern());
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
     // ---- helpers ----
+
+    /** A strict (non-optional) {@link UnresolvedRelation} for a CCS subquery branch, mirroring a {@code FROM} head. */
+    private static UnresolvedRelation strictUR(String pattern) {
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, pattern), false, List.of(), IndexMode.STANDARD, null, "FROM");
+    }
 
     /** Build a plain {@link UnionAll} of the dataset's external relation and its shadow, mirroring DatasetRewriter. */
     private static UnionAll unionOf(UnresolvedExternalRelation external, DatasetShadowRelation shadow) {

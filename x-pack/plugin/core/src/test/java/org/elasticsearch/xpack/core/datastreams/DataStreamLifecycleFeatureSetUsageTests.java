@@ -27,6 +27,7 @@ import java.util.UUID;
 import static org.elasticsearch.xpack.core.action.DataStreamLifecycleUsageTransportAction.calculateStats;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSerializingTestCase<DataStreamLifecycleFeatureSetUsage> {
 
@@ -39,7 +40,7 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                     randomBoolean(),
                     generateRetentionStats(),
                     generateRetentionStats(),
-                    generateRetentionStats(),
+                    randomBoolean() ? null : generateRetentionStats(),
                     randomBoolean() ? Map.of() : Map.of("default", generateGlobalRetention(), "max", generateGlobalRetention())
                 )
             )
@@ -84,10 +85,15 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                 effectiveRetentionStats,
                 DataStreamLifecycleFeatureSetUsageTests::generateRetentionStats
             );
-            case 4 -> frozenAfterStats = randomValueOtherThan(
-                frozenAfterStats,
-                DataStreamLifecycleFeatureSetUsageTests::generateRetentionStats
-            );
+            case 4 -> {
+                if (frozenAfterStats == null) {
+                    frozenAfterStats = generateRetentionStats();
+                } else {
+                    frozenAfterStats = randomBoolean()
+                        ? null
+                        : randomValueOtherThan(frozenAfterStats, DataStreamLifecycleFeatureSetUsageTests::generateRetentionStats);
+                }
+            }
             case 5 -> maxRetention = randomValueOtherThan(maxRetention, DataStreamLifecycleFeatureSetUsageTests::generateGlobalRetention);
             case 6 -> defaultRetention = randomValueOtherThan(
                 defaultRetention,
@@ -161,10 +167,11 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
         // Test empty global retention
         {
             boolean useDefault = randomBoolean();
+            boolean isStateless = randomBoolean();
             RolloverConfiguration rollover = useDefault
                 ? DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(Settings.EMPTY)
                 : new RolloverConfiguration(new RolloverConditions());
-            DataStreamLifecycleFeatureSetUsage.LifecycleStats stats = calculateStats(dataStreams, rollover, null);
+            DataStreamLifecycleFeatureSetUsage.LifecycleStats stats = calculateStats(dataStreams, rollover, null, isStateless);
 
             assertThat(stats.dataStreamsWithLifecyclesCount, is(3L));
             assertThat(stats.defaultRolloverUsed, is(useDefault));
@@ -180,11 +187,18 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
             assertThat(stats.effectiveRetentionStats.avgMillis(), is(25_075.0));
 
             assertThat(stats.globalRetentionStats, equalTo(Map.of()));
+
+            if (isStateless) {
+                assertThat(stats.frozenAfterStats, nullValue());
+            } else {
+                assertThat(stats.frozenAfterStats, equalTo(DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.NO_DATA));
+            }
         }
 
         // Test with global retention
         {
             boolean useDefault = randomBoolean();
+            boolean isStateless = randomBoolean();
             RolloverConfiguration rollover = useDefault
                 ? DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(Settings.EMPTY)
                 : new RolloverConfiguration(new RolloverConditions());
@@ -193,7 +207,8 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
             DataStreamLifecycleFeatureSetUsage.LifecycleStats stats = calculateStats(
                 dataStreams,
                 rollover,
-                new DataStreamGlobalRetention(defaultRetention, maxRetention)
+                new DataStreamGlobalRetention(defaultRetention, maxRetention),
+                isStateless
             );
 
             assertThat(stats.dataStreamsWithLifecyclesCount, is(3L));
@@ -221,6 +236,12 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                     )
                 )
             );
+
+            if (isStateless) {
+                assertThat(stats.frozenAfterStats, nullValue());
+            } else {
+                assertThat(stats.frozenAfterStats, equalTo(DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.NO_DATA));
+            }
         }
     }
 

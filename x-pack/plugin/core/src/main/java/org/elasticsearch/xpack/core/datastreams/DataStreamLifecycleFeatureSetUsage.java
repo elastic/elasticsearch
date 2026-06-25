@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -112,9 +113,9 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
         public LifecycleStats(
             long dataStreamsWithLifecyclesCount,
             boolean defaultRolloverUsed,
-            RetentionStats dataRetentionStats,
-            RetentionStats effectiveRetentionStats,
-            RetentionStats frozenAfterStats,
+            TimeThresholdStats dataRetentionStats,
+            TimeThresholdStats effectiveRetentionStats,
+            @Nullable TimeThresholdStats frozenAfterStats,
             Map<String, GlobalRetentionStats> globalRetentionStats
         ) {
             this.dataStreamsWithLifecyclesCount = dataStreamsWithLifecyclesCount;
@@ -143,7 +144,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             dataRetentionStats.writeTo(out);
             effectiveRetentionStats.writeTo(out);
             if (out.getTransportVersion().supports(INCLUDES_FROZEN_AFTER)) {
-                frozenAfterStats.writeTo(out);
+                out.writeOptionalWriteable(frozenAfterStats);
             }
             out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
         }

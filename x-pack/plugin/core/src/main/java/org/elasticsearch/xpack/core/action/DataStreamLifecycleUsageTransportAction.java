@@ -15,8 +15,10 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
@@ -34,10 +36,12 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
 
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
     private final ProjectResolver projectResolver;
+    private final boolean isStateless;
 
     @Inject
     public DataStreamLifecycleUsageTransportAction(
         TransportService transportService,
+        Settings settings,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
@@ -47,6 +51,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         super(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
         this.globalRetentionSettings = globalRetentionSettings;
         this.projectResolver = projectResolver;
+        this.isStateless = DiscoveryNode.isStateless(settings);
     }
 
     @Override
@@ -60,7 +65,8 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         DataStreamLifecycleFeatureSetUsage.LifecycleStats lifecycleStats = calculateStats(
             dataStreams,
             clusterService.getClusterSettings().get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
-            globalRetentionSettings.get()
+            globalRetentionSettings.get(),
+            isStateless
         );
         listener.onResponse(new XPackUsageFeatureResponse(new DataStreamLifecycleFeatureSetUsage(lifecycleStats)));
     }
@@ -72,7 +78,8 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
     public static DataStreamLifecycleFeatureSetUsage.LifecycleStats calculateStats(
         Collection<DataStream> dataStreams,
         RolloverConfiguration rolloverConfiguration,
-        DataStreamGlobalRetention globalRetention
+        DataStreamGlobalRetention globalRetention,
+        boolean isStateless
     ) {
         // Initialise counters of associated data streams
         long dataStreamsWithLifecycles = 0;
@@ -81,7 +88,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
 
         LongSummaryStatistics dataRetentionStats = new LongSummaryStatistics();
         LongSummaryStatistics effectiveRetentionStats = new LongSummaryStatistics();
-        LongSummaryStatistics frozenAfterStats = new LongSummaryStatistics();
+        LongSummaryStatistics frozenAfterStats = isStateless ? null : new LongSummaryStatistics();
 
         for (DataStream dataStream : dataStreams) {
             if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
@@ -90,7 +97,8 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
                 if (dataStream.getDataLifecycle().dataRetention() != null) {
                     dataRetentionStats.accept(dataStream.getDataLifecycle().dataRetention().getMillis());
                 }
-                if (dataStream.getDataLifecycle().frozenAfter() != null) {
+                // Track frozen after
+                if (isStateless == false && dataStream.getDataLifecycle().frozenAfter() != null) {
                     frozenAfterStats.accept(dataStream.getDataLifecycle().frozenAfter().getMillis());
                 }
                 // Track effective retention
@@ -118,9 +126,9 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         return new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
             dataStreamsWithLifecycles,
             DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(null).equals(rolloverConfiguration),
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.create(dataRetentionStats),
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.create(effectiveRetentionStats),
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.create(frozenAfterStats),
+            DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.create(dataRetentionStats),
+            DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.create(effectiveRetentionStats),
+            isStateless ? null : DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.create(frozenAfterStats),
             globalRetentionStats
         );
     }

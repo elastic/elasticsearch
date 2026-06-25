@@ -65,15 +65,15 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         builder.field("effectively_enabled_count", streamStats.failuresLifecycleEffectivelyEnabledCount);
 
         // Retention
-        DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
+        DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.toXContentFragment(
             builder,
             streamStats.failuresLifecycleDataRetentionStats,
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.DATA_RETENTION
+            DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.DATA_RETENTION
         );
-        DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
+        DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.toXContentFragment(
             builder,
             streamStats.failuresLifecycleEffectiveRetentionStats,
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.EFFECTIVE_RETENTION
+            DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.EFFECTIVE_RETENTION
         );
         builder.startObject("global_retention");
         DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
@@ -121,8 +121,8 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         long failureStoreIndicesCount,
         long failuresLifecycleExplicitlyEnabledCount,
         long failuresLifecycleEffectivelyEnabledCount,
-        DataStreamLifecycleFeatureSetUsage.RetentionStats failuresLifecycleDataRetentionStats,
-        DataStreamLifecycleFeatureSetUsage.RetentionStats failuresLifecycleEffectiveRetentionStats,
+        DataStreamLifecycleFeatureSetUsage.TimeThresholdStats failuresLifecycleDataRetentionStats,
+        DataStreamLifecycleFeatureSetUsage.TimeThresholdStats failuresLifecycleEffectiveRetentionStats,
         Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats
     ) implements Writeable {
 

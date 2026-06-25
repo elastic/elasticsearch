@@ -2054,6 +2054,66 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
     }
 
+    /**
+     * Read-authorization for querying a dataset's data via {@code FROM <dataset>}.
+     *
+     * <p>{@code FROM <dataset>} routes the dataset name through the security-filtered {@code resolve_datasets}
+     * action before rewriting it into an external relation, so the name is read-authorized exactly as an index
+     * pattern is. A principal without {@code read} on an explicitly-named dataset gets the same {@code Unknown index}
+     * (400) a missing index gives — existence-hiding, not a 403, so an unauthorized dataset is indistinguishable from
+     * a nonexistent name.
+     */
+    public void testFromDatasetEnforcesReadAuthorization() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+
+        final String datasource = "security_it_authz_ds";
+        final String dataset = "security_it_ds_authz_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+
+        // test-admin (cluster: all, run_as: *) registers a datasource and a dataset pointing at an external resource.
+        Request putDs = new Request("PUT", "/_query/data_source/" + datasource);
+        putDs.setJsonEntity("""
+            {"type":"s3","settings":{"region":"us-east-1"}}""");
+        setUser(putDs, "test-admin");
+        assertOK(client().performRequest(putDs));
+
+        try {
+            Request putDataset = new Request("PUT", "/_query/dataset/" + dataset);
+            putDataset.setJsonEntity(Strings.format("""
+                {"data_source":"%s","resource":"s3://security-it-denied-bucket/denied/*.parquet"}""", datasource));
+            setUser(putDataset, "test-admin");
+            assertOK(client().performRequest(putDataset));
+
+            // user5 can run ES|QL (read on `index`) but has NO privilege on `security_it_ds_*`.
+            // Secure behavior: an explicitly-named dataset the caller can't read is existence-hidden — it surfaces as
+            // the same Unknown index (400) a missing index gives, before any external read, with no 403 existence oracle.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("user5", "FROM " + dataset + " | STATS COUNT(*)")
+            );
+            assertThat(
+                "FROM <dataset> must existence-hide an unreadable dataset as Unknown index (400)",
+                ex.getResponse().getStatusLine().getStatusCode(),
+                equalTo(HttpStatus.SC_BAD_REQUEST)
+            );
+            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("Unknown index [" + dataset + "]"));
+        } finally {
+            Request delDataset = new Request("DELETE", "/_query/dataset/" + dataset);
+            setUser(delDataset, "test-admin");
+            try {
+                client().performRequest(delDataset);
+            } catch (ResponseException ignored) {
+                // best-effort cleanup
+            }
+            Request delDs = new Request("DELETE", "/_query/data_source/" + datasource);
+            setUser(delDs, "test-admin");
+            try {
+                client().performRequest(delDs);
+            } catch (ResponseException ignored) {
+                // best-effort cleanup
+            }
+        }
+    }
+
     public void testDataSourceAdminListEmpty() throws IOException {
         // Verifies GET /_query/data_source returns 200 with an empty data_sources array when none
         // are registered. Tests in this class run in random order and may leave security_it_shared_ds

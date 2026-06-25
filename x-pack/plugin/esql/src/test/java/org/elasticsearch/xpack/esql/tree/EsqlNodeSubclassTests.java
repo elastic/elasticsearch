@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -179,13 +178,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             .toList();
     }
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(
-        Concat.class,
-        CIDRMatch.class,
-        Fork.class,
-        UnionAll.class,
-        ViewUnionAll.class
-    );
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class, UnionAll.class);
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_EXPRESSIONS = List.of(
@@ -507,6 +500,12 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));
+        } else if (argClass == org.elasticsearch.xpack.esql.plan.LinkedIndexPattern.class) {
+            // LinkedIndexPattern is a record (final), cannot be mocked; build a deterministic instance.
+            return new org.elasticsearch.xpack.esql.plan.LinkedIndexPattern(
+                randomFrom(org.elasticsearch.xpack.esql.plan.LinkedIndexPattern.Kind.values()),
+                new org.elasticsearch.xpack.esql.plan.IndexPattern(Source.EMPTY, randomAlphaOfLength(8))
+            );
         } else if (argClass == EsQueryExec.FieldSort.class) {
             // TODO: It appears neither FieldSort nor GeoDistanceSort are ever actually tested
             return randomFieldSort();
@@ -525,11 +524,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == JoinType.class) {
             // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
             return joinTypeFor(toBuildClass);
-        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, ViewUnionAll.class).contains(toBuildClass)
-            && argType == LogicalPlan.class) {
-                // limit recursion of plans, in order to prevent stackoverflow errors
-                return randomEsRelation();
-            }
+        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class).contains(toBuildClass) && argType == LogicalPlan.class) {
+            // limit recursion of plans, in order to prevent stackoverflow errors
+            return randomEsRelation();
+        }
 
         if (Expression.class == argClass) {
             /*

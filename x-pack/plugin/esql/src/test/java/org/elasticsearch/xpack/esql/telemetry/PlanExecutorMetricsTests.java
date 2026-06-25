@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
-import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -114,7 +113,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             IpLocationService.NOOP,
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
-            CrossProjectModeDecider.NOOP
+            CrossProjectModeDecider.NOOP,
+            mock(Client.class)
         );
     }
 
@@ -238,7 +238,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     queryClusterSettings(),
                     enrichResolver,
                     viewService.getViewResolver(),
-                    noDatasetsResolver(),
                     createEsqlExecutionInfo(randomBoolean()),
                     groupIndicesByCluster,
                     runPhase,
@@ -277,7 +276,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     queryClusterSettings(),
                     enrichResolver,
                     viewService.getViewResolver(),
-                    noDatasetsResolver(),
                     successExecutionInfo,
                     groupIndicesByCluster,
                     runPhase,
@@ -625,7 +623,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 queryClusterSettings(),
                 mockEnrichResolver(),
                 viewService.getViewResolver(),
-                noDatasetsResolver(),
                 executionInfo,
                 groupIndicesByCluster,
                 runPhase,
@@ -634,14 +631,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 listener
             );
         }
-    }
-
-    /**
-     * These tests register no datasets, so the resolver short-circuits before ever touching a client
-     * or executor — nulls are never dereferenced.
-     */
-    private static DatasetResolver noDatasetsResolver() {
-        return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP);
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

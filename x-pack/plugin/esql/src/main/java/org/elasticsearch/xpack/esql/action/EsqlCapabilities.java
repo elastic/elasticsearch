@@ -2639,8 +2639,7 @@ public class EsqlCapabilities {
          * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
          * until they catch up.
          *
-         * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
-         * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
+         * <p>A known correctness gap remains for Parquet-Java MAP/STRUCT/nested LIST projection.
          */
         EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
@@ -2649,7 +2648,6 @@ public class EsqlCapabilities {
          * instead of throwing at planning time. The reconciler emits a warning header per
          * affected column, the per-file ColumnMapping carries a stringification cast, and the
          * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
-         * See esql-planning#794.
          */
         EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 

@@ -45,9 +45,9 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.View;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -599,45 +599,36 @@ public class TestAnalyzer {
     }
 
     private LogicalPlan resolveViewReference(UnresolvedRelation ur, Map<String, LogicalPlan> viewDefinitions) {
+        // Mirror the production ViewResolver shape: each FROM-name source is its own branch node — a
+        // View (wrapping the view body) for a local view, an UnresolvedRelation for an index. More than
+        // one source => a plain UnionAll of those branches. A single view source => the bare View.
         List<LogicalPlan> resolved = Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*")).map(indexPattern -> {
             var view = viewDefinitions.get(indexPattern);
-            return view == null
-                ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
-                : new NamedSubquery(view.source(), view, indexPattern);
+            return view == null ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern)) : new View(view.source(), indexPattern, view);
         }).toList();
         if (resolved.size() == 1) {
-            var subplan = resolved.get(0);
-            if (subplan instanceof NamedSubquery n) {
-                return n.child();
-            }
-            return subplan;
+            return resolved.get(0);
         }
+        // Merge plain index UnresolvedRelations into a single branch (View bodies stay separate).
         List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
-        List<NamedSubquery> namedSubqueries = new ArrayList<>();
+        List<LogicalPlan> branches = new ArrayList<>();
         for (LogicalPlan l : resolved) {
             if (l instanceof UnresolvedRelation u) {
                 unresolvedRelations.add(u);
-            } else if (l instanceof NamedSubquery n) {
-                namedSubqueries.add(n);
             } else {
-                throw new IllegalArgumentException("Only support UnresolvedRelation and NamedSubquery in Views Analyzer Tests");
+                branches.add(l);
             }
         }
-        LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
         if (unresolvedRelations.size() == 1) {
-            subplans.put(null, unresolvedRelations.get(0));
+            branches.addFirst(unresolvedRelations.get(0));
         } else if (unresolvedRelations.size() > 1) {
             String indexPattern = unresolvedRelations.stream().map(u -> u.indexPattern().indexPattern()).collect(Collectors.joining(","));
-            subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
+            branches.addFirst(makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
         }
-        for (NamedSubquery namedSubquery : namedSubqueries) {
-            subplans.put(namedSubquery.name(), namedSubquery.child());
+        if (branches.size() == 1) {
+            return branches.get(0);
         }
-        if (subplans.size() == 1) {
-            return namedSubqueries.get(0).child();
-        } else {
-            return new ViewUnionAll(ur.source(), subplans, List.of());
-        }
+        return new UnionAll(ur.source(), branches, List.of());
     }
 
     private static UnresolvedRelation makeUnresolvedRelation(UnresolvedRelation plan, String indexPattern) {

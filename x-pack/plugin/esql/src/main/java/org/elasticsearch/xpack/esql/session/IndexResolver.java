@@ -184,10 +184,10 @@ public class IndexResolver {
 
     /**
      * Like {@code IndexResolver#resolveIndicesVersioned} but for flat (CPS) queries. Set
-     * {@code lenient} to allow targets to be missing — used for {@code ViewShadowRelation}
-     * lookups, where finding nothing is the expected outcome when no remote project has an
-     * index matching the local view name. {@code lenient=false} is the default for the
-     * strict main index resolution path.
+     * {@code lenient} to allow targets to be missing — used for CPS linked-index lookups (a local
+     * view name that may also be a remote index), where finding nothing is the expected outcome when
+     * no remote project has an index matching the local view name. {@code lenient=false} is the
+     * default for the strict main index resolution path.
      */
     public void resolveFlatIndicesVersioned(
         boolean lenient,

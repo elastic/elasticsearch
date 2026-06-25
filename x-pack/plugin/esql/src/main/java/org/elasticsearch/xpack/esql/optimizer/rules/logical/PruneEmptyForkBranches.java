@@ -34,8 +34,7 @@ public class PruneEmptyForkBranches extends OptimizerRules.OptimizerRule<Fork> {
             return new LocalRelation(fork.source(), fork.output(), EmptyLocalSupplier.EMPTY);
         }
         // For Fork itself the base implementation calls replaceChildren and returns a new Fork.
-        // For UnionAll/ViewUnionAll the polymorphic overrides take care of the single-survivor
-        // collapse and (for ViewUnionAll) the named-subqueries map.
+        // For UnionAll the polymorphic override preserves the UnionAll type.
         return fork.pruneEmptyBranches(PruneEmptyForkBranches::isEmptyLocalRelation);
     }
 

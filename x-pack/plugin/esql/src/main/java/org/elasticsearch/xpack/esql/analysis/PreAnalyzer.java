@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
@@ -83,8 +82,17 @@ public class PreAnalyzer {
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         Map<IndexPattern, IndexMode> indexes = new HashMap<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
+        // CPS: collect the patterns of "linked" UnresolvedRelations — local view names that may also
+        // exist as an index on a linked project (see UnresolvedRelation#linkedIndexPattern). These are
+        // resolved leniently against linked projects, not via the strict main-index field-caps path, so
+        // they are kept out of the `indexes` map. A LinkedHashSet preserves emission order for
+        // deterministic test output and deduplicates so two linked relations with the same pattern only
+        // produce one lenient call.
+        Set<LinkedIndexPattern> linkedIndexPatterns = new LinkedHashSet<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
-            if (p.indexMode() == IndexMode.LOOKUP) {
+            if (p.linkedIndexPattern() != null) {
+                linkedIndexPatterns.add(p.linkedIndexPattern());
+            } else if (p.indexMode() == IndexMode.LOOKUP) {
                 lookupIndices.add(p.indexPattern());
             } else if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
                 indexes.put(p.indexPattern(), p.indexMode());
@@ -96,13 +104,6 @@ public class PreAnalyzer {
                 );
             }
         });
-
-        // CPS: collect ViewShadowRelation patterns. Shadows live as siblings of the
-        // strict UnresolvedRelation inside per-resolution-level ViewUnionAlls (see ViewResolver).
-        // A LinkedHashSet preserves the order shadows were emitted in for deterministic test output;
-        // it also deduplicates so two shadows with the same indexPattern only produce one lenient call.
-        Set<LinkedIndexPattern> linkedIndexPatterns = new LinkedHashSet<>();
-        plan.forEachUp(ViewShadowRelation.class, p -> linkedIndexPatterns.add(p.linkedIndexPattern()));
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);

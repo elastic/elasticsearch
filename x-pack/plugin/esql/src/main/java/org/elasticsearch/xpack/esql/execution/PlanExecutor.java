@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
-import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -96,7 +95,6 @@ public class PlanExecutor {
         AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
-        DatasetResolver datasetResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
@@ -121,7 +119,6 @@ public class PlanExecutor {
             indexResolver,
             enrichPolicyResolver,
             viewResolver,
-            datasetResolver,
             externalSourceResolver,
             parser,
             preAnalyzer,

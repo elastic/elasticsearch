@@ -56,11 +56,28 @@ public class DatasetResolver {
     }
 
     /**
+     * Resolves each authorized dataset name to its merged external-source config. Supplied by the schema umbrella and
+     * backed by its singular {@code resolveSchema} dispatch, so the dataset rewrite's config production goes through
+     * the one schema-discovery front rather than recomputing the merge inline — behaviour-identical, since both compute
+     * the same merged config.
+     */
+    @FunctionalInterface
+    public interface DatasetConfigResolver {
+        void resolve(ProjectMetadata projectMetadata, List<String> names, ActionListener<Map<String, Map<String, Object>>> listener);
+    }
+
+    /**
      * Completes {@code listener} with the rewritten plan (or the untouched plan when no relation qualifies).
      * Authorization failures (DLS/FLS, and the {@code Unknown index} a rewrite raises for an explicit unauthorized
-     * dataset) propagate as-is.
+     * dataset) propagate as-is. The authorized datasets' configs are resolved through {@code configResolver} (the
+     * schema umbrella's singular dispatch) before the synchronous {@link DatasetRewriter#rewrite}.
      */
-    public void replaceDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
+    public void replaceDatasets(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        DatasetConfigResolver configResolver,
+        ActionListener<LogicalPlan> listener
+    ) {
         // Cheap short-circuit: no datasets registered → the CRUD layer (gated by the external-datasources feature flag)
         // never put any into cluster state, so no FROM can target one. No dispatch, no walk cost on the common path.
         Set<String> datasetNames = projectMetadata == null ? Set.of() : DatasetMetadata.get(projectMetadata).datasets().keySet();
@@ -114,7 +131,17 @@ public class DatasetResolver {
             });
         }
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled))
+        // Resolve the authorized datasets' configs through the schema umbrella, then run the synchronous rewrite over
+        // those pre-resolved configs. When nothing is authorized the umbrella call is skipped (empty name list).
+        chain.<Map<String, Map<String, Object>>>andThen((l, ignored) -> {
+            List<String> authorized = new ArrayList<>(DatasetRewriter.authorizedDatasetNames(resolutions));
+            if (authorized.isEmpty()) {
+                l.onResponse(Map.of());
+            } else {
+                configResolver.resolve(projectMetadata, authorized, l);
+            }
+        })
+            .andThenApply(configs -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled, configs))
             .addListener(listener);
     }
 }

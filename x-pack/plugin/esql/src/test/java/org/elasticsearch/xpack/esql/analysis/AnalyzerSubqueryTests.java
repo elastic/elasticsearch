@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.junit.Before;
 
@@ -89,7 +88,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Unit tests for subquery analysis in {@code FROM} (and the related {@code ViewUnionAll}/{@code UnionAll} planning).
+ * Unit tests for subquery analysis in {@code FROM} (and the related {@code UnionAll} planning).
  * All subquery in {@code FROM} command related analyzer tests belong here.
  */
 public class AnalyzerSubqueryTests extends ESTestCase {
@@ -186,7 +185,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      * Limit[1000[INTEGER],false,false]
      * \_OrderBy[[Order[emp_no{r}#632,ASC,LAST], Order[language_code{r}#642,ASC,LAST]]]
      *   \_Filter[emp_no{r}#632 > 10000[INTEGER]]
-     *     \_ViewUnionAll[[null, view]]
+     *     \_UnionAll[[...output attributes...]]
      *       |_Project[[_meta_field{f}#611, emp_no{f}#605, first_name{f}#606, gender{f}#607, hire_date{f}#612, job{f}#613, job.raw{f}#614,
      *                  languages{f}#608, last_name{f}#609, long_noidx{f}#615, salary{f}#610, language_code{r}#618, language_name{r}#619]]
      *       | \_Eval[[null[INTEGER] AS language_code#618, null[KEYWORD] AS language_name#619]]
@@ -222,7 +221,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("emp_no", empNo.name());
         Literal literal = as(greaterThan.right(), Literal.class);
         assertEquals(10000, literal.value());
-        ViewUnionAll viewUnionAll = as(filter.child(), ViewUnionAll.class);
+        UnionAll viewUnionAll = as(filter.child(), UnionAll.class);
         assertEquals(2, viewUnionAll.children().size());
 
         Project viewProject = as(viewUnionAll.children().get(0), Project.class);
@@ -248,7 +247,10 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         viewEval = as(viewProject.child(), Eval.class);
         aliases = viewEval.fields(); // nullEvals from test index
         assertEquals(11, aliases.size());
-        Filter subqueryFilter = as(viewEval.child(), Filter.class);
+        // The view body survives analysis as a transparent View node (folded only by the optimizer).
+        var view = as(viewEval.child(), org.elasticsearch.xpack.esql.plan.logical.View.class);
+        assertEquals("view", view.viewName());
+        Filter subqueryFilter = as(view.body(), Filter.class);
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("languages", subqueryIndex.indexPattern());
     }
@@ -298,7 +300,8 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
         FieldAttribute language_name = as(isNotNull.field(), FieldAttribute.class);
         assertEquals("language_name", language_name.name());
-        filter = as(filter.child(), Filter.class);
+        // The single-view FROM survives analysis as a transparent View node (folded only by the optimizer).
+        filter = as(viewBody(filter.child(), "view"), Filter.class);
         GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
         FieldAttribute language_code = as(greaterThan.left(), FieldAttribute.class);
         assertEquals("language_code", language_code.name());
@@ -473,7 +476,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *     \_Aggregate[[emp_no{r}#1210, language_code{r}#1220],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#1127,
      *                  emp_no{r}#1210, language_code{r}#1220]]
      *       \_Filter[emp_no{r}#1210 > 10000[INTEGER]]
-     *         \_ViewUnionAll[[null, view1, view2, view3]]
+     *         \_UnionAll[[...output attributes...]]
      *           |_Project[[_meta_field{f}#1152, emp_no{f}#1146, first_name{f}#1147, gender{f}#1148, hire_date{f}#1153, job{f}#1154,
      *                      job.raw{f}#1155, languages{f}#1149, last_name{f}#1150, long_noidx{f}#1156, salary{f}#1151,
      *                      language_code{r}#1176, languageName{r}#1177, max(@timestamp){r}#1178, language_name{r}#1179]]
@@ -560,7 +563,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("emp_no", empNo.name());
         Literal literal = as(greaterThan.right(), Literal.class);
         assertEquals(10000, literal.value());
-        ViewUnionAll viewUninAll = as(filter.child(), ViewUnionAll.class);
+        UnionAll viewUninAll = as(filter.child(), UnionAll.class);
         assertEquals(4, viewUninAll.children().size());
 
         Project viewProject = as(viewUninAll.children().get(0), Project.class);
@@ -578,7 +581,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         viewEval = as(viewProject.child(), Eval.class);
         aliases = viewEval.fields(); // nullEvals from the other legs
         assertEquals(13, aliases.size());
-        rename = as(viewEval.child(), Project.class);
+        rename = as(viewBody(viewEval.child(), "view1"), Project.class);
         List<? extends NamedExpression> renameProjections = rename.projections();
         assertEquals(2, renameProjections.size());
         FieldAttribute language_code = as(renameProjections.get(0), FieldAttribute.class);
@@ -602,7 +605,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         viewEval = as(viewProject.child(), Eval.class);
         aliases = viewEval.fields(); // nullEvals from the other legs
         assertEquals(14, aliases.size());
-        Aggregate subqueryAggregate = as(viewEval.child(), Aggregate.class);
+        Aggregate subqueryAggregate = as(viewBody(viewEval.child(), "view2"), Aggregate.class);
         subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
 
@@ -612,7 +615,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         viewEval = as(viewProject.child(), Eval.class);
         aliases = viewEval.fields(); // nullEvals from the other legs
         assertEquals(2, aliases.size());
-        LookupJoin lookupJoin = as(viewEval.child(), LookupJoin.class);
+        LookupJoin lookupJoin = as(viewBody(viewEval.child(), "view3"), LookupJoin.class);
         subqueryIndex = as(lookupJoin.right(), EsRelation.class);
         assertEquals("languages_lookup", subqueryIndex.indexPattern());
         viewEval = as(lookupJoin.left(), Eval.class);
@@ -6212,5 +6215,15 @@ public class AnalyzerSubqueryTests extends ESTestCase {
 
     private static TestAnalyzer k8s() {
         return analyzer().addK8sDownsampled();
+    }
+
+    /**
+     * Asserts {@code plan} is a {@link org.elasticsearch.xpack.esql.plan.logical.View} for {@code viewName} (the boundary
+     * that survives analysis and is folded only by the optimizer) and returns its body for further assertions.
+     */
+    private static LogicalPlan viewBody(LogicalPlan plan, String viewName) {
+        var view = as(plan, org.elasticsearch.xpack.esql.plan.logical.View.class);
+        assertEquals(viewName, view.viewName());
+        return view.body();
     }
 }

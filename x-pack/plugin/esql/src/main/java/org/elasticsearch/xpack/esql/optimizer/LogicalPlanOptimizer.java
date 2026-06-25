@@ -21,10 +21,12 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggs;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.FlattenUnionAll;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistOrderByBeforeInlineJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLimit;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopN;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.InlineView;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
@@ -197,6 +199,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     protected static Batch<LogicalPlan> operators() {
         return new Batch<>(
             "Operator Optimization",
+            // Fold any first-class View into its body before the pushdown rules run, so they optimize across it exactly
+            // as today's early substitution did. No-op until resolution starts producing View nodes.
+            new InlineView(),
+            // A multi-source view folds into a UnionAll; nested inside a parent FROM's UnionAll that would violate the
+            // post-optimization "no nested UnionAll" invariant. Flatten it right after folding.
+            new FlattenUnionAll(),
             new HoistRemoteEnrichLimit(),
             new CombineProjections(),
             new CombineEvals(),

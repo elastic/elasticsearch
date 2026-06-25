@@ -13,6 +13,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
@@ -24,24 +27,28 @@ import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheSe
 public enum StatelessCacheEvictionPolicyType {
     ALWAYS {
         @Override
-        EvictionPolicy<FileCacheKey> create(ClusterService clusterService) {
+        EvictionPolicy<FileCacheKey> create(ClusterService clusterService, @Nullable IndicesService indicesService, ThreadPool threadPool) {
             return new DefaultEvictionPolicy<>();
         }
     },
     PINNED_WINDOW {
         @Override
-        EvictionPolicy<FileCacheKey> create(ClusterService clusterService) {
-            return new PinnedWindowEvictionPolicy(clusterService);
+        EvictionPolicy<FileCacheKey> create(ClusterService clusterService, @Nullable IndicesService indicesService, ThreadPool threadPool) {
+            return new PinnedWindowEvictionPolicy(indicesService);
         }
     },
     INDEX_AGE {
         @Override
-        EvictionPolicy<FileCacheKey> create(ClusterService clusterService) {
+        EvictionPolicy<FileCacheKey> create(ClusterService clusterService, @Nullable IndicesService indicesService, ThreadPool threadPool) {
             return new IndexAgeEvictionPolicy(clusterService);
         }
     };
 
-    abstract EvictionPolicy<FileCacheKey> create(ClusterService clusterService);
+    abstract EvictionPolicy<FileCacheKey> create(
+        ClusterService clusterService,
+        @Nullable IndicesService indicesService,
+        ThreadPool threadPool
+    );
 
     static StatelessCacheEvictionPolicyType resolveEvictionPolicyFromSettings(Settings settings) {
         if (STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings) == false) {
@@ -54,6 +61,19 @@ public enum StatelessCacheEvictionPolicyType {
     }
 
     static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {
-        return resolveEvictionPolicyFromSettings(settings).create(clusterService);
+        return createEvictionPolicy(settings, clusterService, null, null);
+    }
+
+    static EvictionPolicy<FileCacheKey> createEvictionPolicy(
+        Settings settings,
+        ClusterService clusterService,
+        @Nullable IndicesService indicesService,
+        @Nullable ThreadPool threadPool
+    ) {
+        return resolveEvictionPolicyFromSettings(settings).create(
+            clusterService,
+            indicesService,
+            threadPool != null ? threadPool : clusterService.threadPool()
+        );
     }
 }

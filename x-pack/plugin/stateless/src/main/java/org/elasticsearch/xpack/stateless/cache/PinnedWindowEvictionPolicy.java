@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.blobcache.shared.CacheRegion;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Objects;
@@ -43,22 +43,25 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
         Setting.Property.NodeScope
     );
 
-    private final ClusterService clusterService;
+    private final IndicesService indicesService;
+    private final ThreadPool threadPool;
 
     private volatile TimeValue pinnedWindowDuration = PINNED_WINDOW_DURATION_SETTING.getDefault(Settings.EMPTY);
 
-    public PinnedWindowEvictionPolicy(ClusterService clusterService) {
-        this.clusterService = Objects.requireNonNull(clusterService);
-        clusterService.getClusterSettings()
+    public PinnedWindowEvictionPolicy(IndicesService indicesService) {
+        this.indicesService = Objects.requireNonNull(indicesService);
+        this.threadPool = Objects.requireNonNull(indicesService.clusterService().threadPool());
+        indicesService.clusterService()
+            .getClusterSettings()
             .initializeAndWatchIfRegistered(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value);
     }
 
     /**
-     * For test subclasses that override {@link #isShardLocallyAllocated(RoutingNode, ShardId)} and optionally
-     * {@link #currentTimeMillis()}.
+     * For test subclasses that override {@link #isShardLocallyAllocated(ShardId)} and optionally {@link #currentTimeMillis()}.
      */
-    protected PinnedWindowEvictionPolicy(ClusterService clusterService, TimeValue pinnedWindowDuration) {
-        this.clusterService = Objects.requireNonNull(clusterService);
+    protected PinnedWindowEvictionPolicy(IndicesService indicesService, TimeValue pinnedWindowDuration) {
+        this.indicesService = Objects.requireNonNull(indicesService);
+        this.threadPool = Objects.requireNonNull(indicesService.clusterService().threadPool());
         this.pinnedWindowDuration = pinnedWindowDuration;
     }
 
@@ -67,35 +70,16 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     }
 
     /**
-     * Returns the local routing node from the currently applied cluster state.
-     * <p>
-     * {@link ClusterService#state()} is updated only after cluster state appliers finish
-     * ({@link org.elasticsearch.cluster.service.ClusterApplierService}), so during application
-     * of a new state a recovering shard may cache data before this method reflects its local
-     * allocation. In that small window, eviction may treat the shard as remote and allow its
-     * cached regions to be evicted.
+     * Returns {@code true} if the shard is open on this node according to {@link IndicesService}.
      */
-    @Nullable
-    private RoutingNode localRoutingNode() {
-        final var state = clusterService.state();
-        final String localNodeId = state.nodes().getLocalNodeId();
-        if (localNodeId == null) {
-            return null;
-        }
-        return state.getRoutingNodes().node(localNodeId);
-    }
-
-    /**
-     * Returns {@code true} if the shard is assigned to the local node, including as a relocation target.
-     *
-     * @param localRoutingNode routing node for the local node; must not be {@code null}
-     */
-    protected boolean isShardLocallyAllocated(RoutingNode localRoutingNode, ShardId shardId) {
-        return Objects.requireNonNull(localRoutingNode).getByShardId(shardId) != null;
+    protected boolean isShardLocallyAllocated(ShardId shardId) {
+        assert indicesService != null;
+        final IndexService indexService = indicesService.indexService(shardId.getIndex());
+        return indexService != null && indexService.hasShard(shardId.id());
     }
 
     protected long currentTimeMillis() {
-        return clusterService.threadPool().absoluteTimeInMillis();
+        return threadPool.absoluteTimeInMillis();
     }
 
     /**
@@ -109,9 +93,8 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     @Override
     public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
         final long pinnedWindowCutoffMillis = currentTimeMillis() - pinnedWindowDuration.getMillis();
-        final RoutingNode localRoutingNode = localRoutingNode();
         return region -> {
-            if (localRoutingNode == null || isShardLocallyAllocated(localRoutingNode, region.key().shardId()) == false) {
+            if (isShardLocallyAllocated(region.key().shardId()) == false) {
                 return true;
             }
             final long timestampMillis = region.timestampMillis();

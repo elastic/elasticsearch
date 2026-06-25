@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -106,6 +107,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         ClusterService clusterService,
+        IndicesService indicesService,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         super(
@@ -114,12 +116,24 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             threadPool,
             IO_EXECUTOR,
             blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool)
         );
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
+    }
+
+    // for tests
+    public StatelessSharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        BlobCacheMetrics blobCacheMetrics,
+        ClusterService clusterService,
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
+    ) {
+        this(environment, settings, threadPool, blobCacheMetrics, clusterService, (IndicesService) null, metricsHolder);
     }
 
     // for tests

@@ -12,19 +12,7 @@ import org.elasticsearch.blobcache.shared.CacheRegion;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -35,12 +23,13 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.junit.After;
@@ -55,10 +44,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_C
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PinnedWindowEvictionPolicyTests extends ESTestCase {
 
-    private static final String LOCAL_NODE_ID = "node";
     private static final String UNKNOWN_TIMESTAMP_FILE_PREFIX = "unknown-file-";
     private static final String OUTSIDE_WINDOW_FILE_PREFIX = "outside-window-file-";
     private static final TimeValue PINNED_WINDOW_DURATION = PINNED_WINDOW_DURATION_SETTING.getDefault(Settings.EMPTY);
@@ -71,7 +61,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         super.setUp();
         taskQueue = new DeterministicTaskQueue();
         taskQueue.runTasksUpToTimeInOrder(System.currentTimeMillis());
-        testClusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool());
+        testClusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), createClusterSettings(Settings.EMPTY));
     }
 
     @After
@@ -90,13 +80,13 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
             long fixedCurrentTimeMillis,
             long pinnedWindowDurationMillis
         ) {
-            super(clusterService, TimeValue.timeValueMillis(pinnedWindowDurationMillis));
+            super(mockIndicesService(clusterService, Set.of()), TimeValue.timeValueMillis(pinnedWindowDurationMillis));
             this.locallyAllocatedShards = locallyAllocatedShards;
             this.fixedCurrentTimeMillis = fixedCurrentTimeMillis;
         }
 
         @Override
-        protected boolean isShardLocallyAllocated(RoutingNode localRoutingNode, ShardId shardId) {
+        protected boolean isShardLocallyAllocated(ShardId shardId) {
             return locallyAllocatedShards.contains(shardId);
         }
 
@@ -112,13 +102,13 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     public void testPinnedWindowDurationUpdatesDynamically() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ClusterSettings clusterSettings = createClusterSettings(Settings.EMPTY);
         try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
-            final var policy = new PinnedWindowEvictionPolicy(clusterService);
+            final var policy = new PinnedWindowEvictionPolicy(mockIndicesService(clusterService, Set.of()));
             assertThat(policy.getPinnedWindowDuration(), equalTo(PINNED_WINDOW_DURATION));
 
-            clusterSettings.applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), "6h").build());
+            clusterService.getClusterSettings()
+                .applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), "6h").build());
             assertThat(policy.getPinnedWindowDuration(), equalTo(TimeValue.timeValueHours(6)));
         }
     }
@@ -185,35 +175,16 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
             final long now = clusterService.threadPool().absoluteTimeInMillis();
             final long timestampMillis = now - TimeValue.timeValueHours(8).millis();
-            ClusterServiceUtils.setState(
-                clusterService,
-                clusterStateWithShardOnLocalNode(
-                    shardId,
-                    indexMetadata(shardId.getIndexName(), shardId.getIndex().getUUID()),
-                    ShardRoutingState.STARTED
-                )
-            );
-            final var policy = new PinnedWindowEvictionPolicy(clusterService);
+            final var policy = new PinnedWindowEvictionPolicy(mockIndicesService(clusterService, Set.of(shardId)));
             final CacheRegion<FileCacheKey> region = region(shardId, timestampMillis);
             final CacheRegion<FileCacheKey> incoming = region(shardId, now);
 
             assertFalse(canEvict(policy, region, incoming));
 
-            clusterSettings.applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), "6h").build());
+            clusterService.getClusterSettings()
+                .applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), "6h").build());
             assertTrue(canEvict(policy, region, incoming));
         }
-    }
-
-    public void testCannotEvictRegionForStartedShardOnLocalNodeWithinPinnedWindow() {
-        assertProtectedForLocalShardRoutingState(ShardRoutingState.STARTED);
-    }
-
-    public void testCannotEvictRegionForRelocationTargetShardOnLocalNodeWithinPinnedWindow() {
-        assertProtectedForLocalShardRoutingState(ShardRoutingState.INITIALIZING);
-    }
-
-    public void testCannotEvictRegionForRelocatingShardOnLocalNodeWithinPinnedWindow() {
-        assertProtectedForLocalShardRoutingState(ShardRoutingState.RELOCATING);
     }
 
     /**
@@ -244,10 +215,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final ShardId newShard = new ShardId(newIndex.getIndex(), 0);
 
         try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(
-                taskQueue.getThreadPool(),
-                createClusterSettings(settings)
-            );
+            var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), createClusterSettings(settings));
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             StatelessSharedBlobCacheService cacheService = new StatelessSharedBlobCacheService(
                 environment,
@@ -255,10 +223,10 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
                 taskQueue.getThreadPool(),
                 BlobCacheMetrics.NOOP,
                 clusterService,
+                mockIndicesService(clusterService, Set.of(oldShard, newShard)),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {
-            ClusterServiceUtils.setState(clusterService, clusterStateWithStartedShardsOnLocalNode(oldIndex, newIndex));
             assertEquals(numRegions, SharedBlobCacheServiceTestUtils.freeRegionCount(cacheService));
 
             for (int i = 0; i < unknownTimestampRegionCount; i++) {
@@ -306,26 +274,6 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         }
     }
 
-    private void assertProtectedForLocalShardRoutingState(ShardRoutingState routingState) {
-        final ClusterSettings clusterSettings = createClusterSettings(
-            Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), PINNED_WINDOW_DURATION).build()
-        );
-        final ShardId shardId = new ShardId("index", randomUUID(), 0);
-        try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
-            final long now = clusterService.threadPool().absoluteTimeInMillis();
-            final long timestampMillis = now - randomLongBetween(0, PINNED_WINDOW_DURATION.millis() - 1);
-            ClusterServiceUtils.setState(
-                clusterService,
-                clusterStateWithShardOnLocalNode(shardId, indexMetadata(shardId.getIndexName(), shardId.getIndex().getUUID()), routingState)
-            );
-            final var policy = new PinnedWindowEvictionPolicy(clusterService);
-            final CacheRegion<FileCacheKey> region = region(shardId, timestampMillis);
-            final CacheRegion<FileCacheKey> incoming = region(shardId, now);
-
-            assertFalse(canEvict(policy, region, incoming));
-        }
-    }
-
     private static boolean canEvict(
         PinnedWindowEvictionPolicy policy,
         CacheRegion<FileCacheKey> region,
@@ -342,45 +290,15 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
             .build();
     }
 
-    private static ClusterState clusterStateWithShardOnLocalNode(
-        ShardId shardId,
-        IndexMetadata indexMetadata,
-        ShardRoutingState routingState
-    ) {
-        final var shardRouting = switch (routingState) {
-            case INITIALIZING, RELOCATING -> TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, "other-node", true, routingState);
-            case STARTED -> TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, true, routingState);
-            case UNASSIGNED -> throw new IllegalArgumentException("unsupported routing state [" + routingState + "]");
-        };
-        final IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(shardId.getIndex()).addShard(shardRouting).build();
-        final RoutingTable routingTable = RoutingTable.builder(new StatelessShardRoutingRoleStrategy()).add(indexRoutingTable).build();
-        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node", LOCAL_NODE_ID);
-        final DiscoveryNode otherNode = DiscoveryNodeUtils.create("other-node", "other-node");
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(LOCAL_NODE_ID).masterNodeId(LOCAL_NODE_ID))
-            .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false).build())
-            .putRoutingTable(ProjectId.DEFAULT, routingTable)
-            .build();
-    }
-
-    private static ClusterState clusterStateWithStartedShardsOnLocalNode(IndexMetadata... indices) {
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(new StatelessShardRoutingRoleStrategy());
-        final ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
-        for (IndexMetadata index : indices) {
-            final ShardId shardId = new ShardId(index.getIndex(), 0);
-            routingTableBuilder.add(
-                IndexRoutingTable.builder(shardId.getIndex())
-                    .addShard(TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, true, ShardRoutingState.STARTED))
-                    .build()
-            );
-            projectMetadataBuilder.put(index, false);
+    private static IndicesService mockIndicesService(ClusterService clusterService, Set<ShardId> openShards) {
+        final IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.clusterService()).thenReturn(clusterService);
+        for (ShardId shardId : openShards) {
+            final IndexService indexService = mock(IndexService.class);
+            when(indicesService.indexService(shardId.getIndex())).thenReturn(indexService);
+            when(indexService.hasShard(shardId.id())).thenReturn(true);
         }
-        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node", LOCAL_NODE_ID);
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(LOCAL_NODE_ID).masterNodeId(LOCAL_NODE_ID))
-            .putProjectMetadata(projectMetadataBuilder.build())
-            .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
-            .build();
+        return indicesService;
     }
 
     private static CacheRegion<FileCacheKey> region(ShardId shardId, long timestampMillis) {
@@ -398,9 +316,9 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     private static ClusterSettings createClusterSettings(Settings settings) {
-        Set<Setting<?>> clusterSettings = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.add(PINNED_WINDOW_DURATION_SETTING);
-        return new ClusterSettings(settings, clusterSettings);
+        Set<Setting<?>> settingsSet = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(PINNED_WINDOW_DURATION_SETTING);
+        return new ClusterSettings(settings, settingsSet);
     }
 
     private static long cacheRegionSizeInBytes(long numPages) {

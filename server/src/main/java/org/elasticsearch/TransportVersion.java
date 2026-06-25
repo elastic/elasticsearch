@@ -368,7 +368,8 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * </ul>
      */
     public boolean isPatchFrom(TransportVersion version) {
-        return onOrAfter(version) && id < version.id + 100 - (version.id % 100);
+        // Two versions share the same patch space if they have the same base (id / 1000).
+        return id >= version.id && id / 1000 == version.id / 1000;
     }
 
     /**

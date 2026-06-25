@@ -123,13 +123,13 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         ) {
             this.fieldType = fieldType;
             this.isColumnar = isColumnar;
-            this.store = isColumnar ? false : randomBoolean();
+            this.store = isColumnar == false && randomBoolean();
             this.index = supportsCustomIndexConfiguration == false || randomBoolean();
             this.ignoreAbove = randomBoolean() ? null : between(10, 100);
             this.fallbackUsesBinaryDocValues = fallbackUsesBinaryDocValues;
             this.keywordMultiFieldSyntheticSourceSupport = new KeywordFieldSyntheticSourceSupport(
                 ignoreAbove,
-                randomBoolean(),
+                isColumnar == false && randomBoolean(),
                 null,
                 false,
                 KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false),

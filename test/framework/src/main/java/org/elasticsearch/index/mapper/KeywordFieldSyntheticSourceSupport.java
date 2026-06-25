@@ -35,22 +35,12 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         boolean store,
         String nullValue,
         boolean allowIgnoredSource,
-        FieldMapper.DocValuesParameter.Values docValues
-    ) {
-        this(ignoreAbove, store, nullValue, allowIgnoredSource, docValues, false);
-    }
-
-    KeywordFieldSyntheticSourceSupport(
-        Integer ignoreAbove,
-        boolean store,
-        String nullValue,
-        boolean allowIgnoredSource,
         FieldMapper.DocValuesParameter.Values docValues,
         boolean isColumnar
     ) {
         this.ignoreAbove = ignoreAbove;
         this.allIgnored = ignoreAbove != null && LuceneTestCase.rarely();
-        this.store = isColumnar ? false : store;
+        this.store = store;
         this.nullValue = nullValue;
         this.allowIgnoredSource = allowIgnoredSource;
         this.docValues = docValues;

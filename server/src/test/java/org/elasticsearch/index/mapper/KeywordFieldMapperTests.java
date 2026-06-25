@@ -925,25 +925,23 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("keyword doesn't support ignore_malformed", ignoreMalformed);
-        return new KeywordFieldSyntheticSourceSupport(
-            randomBoolean() ? null : between(10, 100),
-            randomBoolean(),
-            usually() ? null : randomAlphaOfLength(2),
-            true,
-            KeywordFieldSyntheticSourceSupport.randomDocValuesParams(true)
-        );
+        return keywordSyntheticSourceSupport(false);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
         assertFalse("keyword doesn't support ignore_malformed", ignoreMalformed);
+        return keywordSyntheticSourceSupport(true);
+    }
+
+    private SyntheticSourceSupport keywordSyntheticSourceSupport(boolean isColumnar) {
         return new KeywordFieldSyntheticSourceSupport(
             randomBoolean() ? null : between(10, 100),
-            randomBoolean(),
+            isColumnar == false && randomBoolean(),
             usually() ? null : randomAlphaOfLength(2),
             true,
             KeywordFieldSyntheticSourceSupport.randomDocValuesParams(true),
-            true
+            isColumnar
         );
     }
 

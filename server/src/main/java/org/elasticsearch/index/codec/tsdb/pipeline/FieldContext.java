@@ -15,20 +15,28 @@ import org.elasticsearch.core.Nullable;
  * Context about the field being encoded, passed to the {@link PipelineConfigResolver}
  * for pipeline selection.
  *
- * @param blockSize   the number of values per numeric block
- * @param fieldName   the name of the field being encoded
- * @param dataType    the underlying doc-values storage type of the field, or
- *                    {@code null} when unknown (e.g. construction sites without
- *                    mapper access). All integer-domain numeric mapper types
- *                    (long, integer, short, byte) collapse to
- *                    {@link PipelineDescriptor.DataType#LONG} because doc values
- *                    back-store them as long.
- * @param metricRole  the {@link MetricRole} of the field, or {@code null} when the
- *                    field is not a time-series metric
+ * @param blockSize       the number of values per numeric block
+ * @param fieldName       the name of the field being encoded
+ * @param dataType        the underlying doc-values storage type of the field, or
+ *                        {@code null} when unknown (e.g. construction sites without
+ *                        mapper access). All integer-domain numeric mapper types
+ *                        (long, integer, short, byte) collapse to
+ *                        {@link PipelineDescriptor.DataType#LONG} because doc values
+ *                        back-store them as long.
+ * @param metricRole      the {@link MetricRole} of the field, or {@code null} when the
+ *                        field is not a time-series metric
+ * @param mappedFieldType the codec-local mirror of the mapper field type, or {@code null}
+ *                        when unknown. Used by ordinal routing to upgrade IP and keyword
+ *                        dimension fields to a larger block size.
+ * @param isDimension     {@code true} if the field is a TSDB dimension; used together
+ *                        with {@link #mappedFieldType} to select a larger ordinal block
+ *                        size for IP and keyword dimension fields
  */
 public record FieldContext(
     int blockSize,
     String fieldName,
     @Nullable PipelineDescriptor.DataType dataType,
-    @Nullable MetricRole metricRole
+    @Nullable MetricRole metricRole,
+    @Nullable MappedFieldType mappedFieldType,
+    boolean isDimension
 ) {}

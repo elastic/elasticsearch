@@ -31,6 +31,7 @@ module org.elasticsearch.telemetry.apm {
     // cannot declare its own JPMS dependencies. This pulls okhttp3 into the module graph so the sender can load it.
     // Remove once opentelemetry-exporter-sender-okhttp gains a proper module-info.class.
     requires okhttp3;
+    requires io.opentelemetry.instrumentation.log4j_appender_2_17;
 
     exports org.elasticsearch.telemetry.apm;
 }

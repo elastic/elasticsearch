@@ -505,7 +505,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, actual, 1e-3f * length);
     }
 
-    public void testDotProductRangeDefaultEqualsPanama() {
+    public void testDotProductRange() {
         int vectorSize = randomIntBetween(64, 2048);
         int offset = randomIntBetween(0, vectorSize - 1);
         int length = randomIntBetween(1, vectorSize - offset);
@@ -514,14 +514,21 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
         float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
         assertEquals(expected, actual, 1e-3f * length);
-        assertEquals(expected, ESVectorUtil.dotProduct(a, b, offset, length), 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
     }
 
-    public void testDotProductLengthMatchesFullWhenEqual() {
-        int vectorSize = randomIntBetween(1, 128);
-        float[] a = generateRandomVector(vectorSize);
-        float[] b = generateRandomVector(vectorSize);
-        assertEquals(ESVectorUtil.dotProduct(a, b), ESVectorUtil.dotProduct(a, b, vectorSize), 0f);
+    public void testDotProductRangeByte() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        byte[] a = randomByteArrayOfLength(vectorSize);
+        byte[] b = randomByteArrayOfLength(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
     }
 
     public void testL2NormalizePrefixDefaultEqualsPanama() {
@@ -1397,6 +1404,40 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);
 
         assertArrayEquals(y1, y2, 1e-5f);
+    }
+
+    public void testLinearCombinationNoScaleDest() {
+        // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
+        float[] x = new float[19];
+        float[] y1 = new float[19];
+
+        for (int i = 0; i < x.length; i++) {
+            x[i] = randomFloat();
+            y1[i] = randomFloat();
+        }
+        float[] y2 = new float[19];
+        System.arraycopy(y1, 0, y2, 0, 19);
+
+        float scaleX = randomFloat();
+
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, y1);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, y2);
+
+        assertArrayEquals(y1, y2, 1e-5f);
+    }
+
+    public void testLinearCombinationByteNoScaleDest() {
+        int vectorSize = randomIntBetween(1, 2048);
+        byte[] src = randomByteArrayOfLength(vectorSize);
+        float[] destDefault = generateRandomVector(vectorSize);
+        float[] destPanama = new float[vectorSize];
+        System.arraycopy(destDefault, 0, destPanama, 0, vectorSize);
+        float scaleSrc = random().nextFloat() * 2 - 1;
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleSrc, src, destDefault);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleSrc, src, destPanama);
+        for (int i = 0; i < vectorSize; i++) {
+            assertEquals(destDefault[i], destPanama[i], Math.abs(destDefault[i]) * 1e-6f + 1e-6f);
+        }
     }
 
     public void testLogSumExpDiff() {

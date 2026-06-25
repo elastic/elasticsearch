@@ -141,7 +141,7 @@ public final class ExpectedRecall {
             mu += fx;
             stddevSq += fx * fx;
         }
-        double stddev = Math.sqrt(mu - stddevSq);
+        double stddev = Math.sqrt(Math.max(0.0, mu - stddevSq));
         return normalCdf(rankThreshold, mu, stddev);
     }
 

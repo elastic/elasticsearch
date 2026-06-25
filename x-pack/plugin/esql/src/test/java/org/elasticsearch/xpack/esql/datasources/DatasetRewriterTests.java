@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 public class DatasetRewriterTests extends ESTestCase {
 
@@ -112,20 +111,44 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testMixedDatasetsAndNonDatasetsRejected() {
-        // Register a real index alongside the dataset so the resolver actually sees both abstractions.
-        // The error reports counts only — listing matched names would exfiltrate index/alias/data-stream
-        // names the caller may not have read access to.
+    public void testMixedDatasetsAndNonDatasetsProducesUnionAll() {
+        // Phase 2: heterogeneous FROM (index + dataset) produces UnionAll instead of rejecting.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs", dataset), Set.of("some_idx"));
 
-        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("some_idx,logs"), project));
-        assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), containsString("non-dataset target(s)"));
-        assertThat(ex.getMessage(), containsString("1 dataset(s)"));
-        assertThat(ex.getMessage(), not(containsString("some_idx")));
-        assertThat(ex.getMessage(), not(containsString("[logs]")));
+        LogicalPlan rewritten = rewrite(relationOf("some_idx,logs"), project);
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        // First child: UnresolvedRelation for the non-dataset index
+        assertThat(union.children().get(0), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation indexBranch = (UnresolvedRelation) union.children().get(0);
+        assertThat(indexBranch.indexPattern().indexPattern(), equalTo("some_idx"));
+        // Second child: UnresolvedExternalRelation for the dataset
+        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation datasetBranch = (UnresolvedExternalRelation) union.children().get(1);
+        assertThat(tablePathString(datasetBranch), equalTo("s3://logs/"));
+    }
+
+    public void testMixedMultipleIndicesAndDatasetsProducesUnionAll() {
+        // Multiple non-dataset indices are joined into a single UnresolvedRelation branch;
+        // each dataset becomes its own UnresolvedExternalRelation branch.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://ds1/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://ds2/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2), Set.of("idx1", "idx2"));
+
+        LogicalPlan rewritten = rewrite(relationOf("idx1,idx2,ds1,ds2"), project);
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        // 1 index branch + 2 dataset branches = 3 children
+        assertThat(union.children(), hasSize(3));
+        assertThat(union.children().get(0), instanceOf(UnresolvedRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(2), instanceOf(UnresolvedExternalRelation.class));
     }
 
     public void testIndexModeNonStandardRejected() {
@@ -241,12 +264,12 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, rewrite(relation, project));
     }
 
-    public void testClosedIndexCountsAsNonDatasetInMixedRejection() {
+    public void testClosedIndexCountsAsNonDatasetInHeterogeneousUnionAll() {
         // The rewriter's IndicesOptions are based on IndexResolver.DEFAULT_OPTIONS so the gatekeeper
         // matches user-side semantics. allowClosedIndices=true means a closed index in the pattern
-        // appears in the resolver's result and contributes to nonDatasetCount — preventing the
-        // silent-drop where a closed index would disappear from the query and the rewriter would
-        // produce a dataset-only relation. The mixed-FROM rejection fires as expected.
+        // appears in the resolver's result and is bucketed as a non-dataset — preventing the
+        // silent-drop where a closed index would disappear and the rewriter would produce a
+        // dataset-only relation.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
 
@@ -268,27 +291,30 @@ public class DatasetRewriterTests extends ESTestCase {
         );
         ProjectMetadata project = builder.build();
 
-        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("my_closed_index,logs"), project));
-        assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), containsString("non-dataset target(s)"));
-        assertThat(ex.getMessage(), containsString("1 dataset(s)"));
+        LogicalPlan rewritten = rewrite(relationOf("my_closed_index,logs"), project);
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        assertThat(union.children().get(0), instanceOf(UnresolvedRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testWildcardSpanningIndicesAndDatasetsRejected() {
-        // `FROM logs_*` matching both real indices and datasets is mixed-FROM territory — same as a
-        // literal mix. The error surfaces counts only — listing matched names would exfiltrate
-        // index/alias/data-stream names the caller may not have read access to.
+    public void testWildcardSpanningIndicesAndDatasetsProducesUnionAll() {
+        // `FROM logs_*` matching both real indices and datasets produces a heterogeneous
+        // UnionAll instead of rejecting. The index branch is a single UnresolvedRelation whose
+        // pattern holds the concrete resolved index name(s); each dataset becomes its own branch.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("logs_index"));
 
-        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*"), project));
-        assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), containsString("non-dataset target(s)"));
-        assertThat(ex.getMessage(), containsString("1 dataset(s)"));
-        // The caller may not have access to the matched index name — must not be exfiltrated.
-        assertThat(ex.getMessage(), not(containsString("logs_index")));
-        assertThat(ex.getMessage(), not(containsString("logs_dataset")));
+        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+        assertThat(union.children().get(0), instanceOf(UnresolvedRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
     }
 
     public void testWildcardMatchingDatasetUnderCpsPreservesRemoteHalf() {
@@ -626,7 +652,7 @@ public class DatasetRewriterTests extends ESTestCase {
         // No datasets registered: an explicit name resolves to no authorized datasets and no non-dataset targets.
         DatasetRewriter.DatasetResolution r = resolve("logs", projectWith(Map.of(), Map.of()), Set.of());
         assertThat(r.authorizedDatasets(), equalTo(Set.of()));
-        assertFalse(r.hasNonDatasetTargets());
+        assertTrue(r.nonDatasetNames().isEmpty());
     }
 
     public void testResolveExpandsToAuthorizedDatasetNames() {
@@ -658,14 +684,14 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testResolveFlagsNonDatasetTargets() {
-        // A wildcard spanning a dataset and a real index reports hasNonDatasetTargets, driving the mixed-FROM rejection.
+        // A wildcard spanning a dataset and a real index reports the non-dataset names, driving heterogeneous-FROM UnionAll.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("logs_index"));
 
         DatasetRewriter.DatasetResolution r = resolve("logs_*", project, Set.of("logs_dataset"));
         assertThat(r.authorizedDatasets(), equalTo(Set.of("logs_dataset")));
-        assertTrue(r.hasNonDatasetTargets());
+        assertFalse(r.nonDatasetNames().isEmpty());
     }
 
     // --

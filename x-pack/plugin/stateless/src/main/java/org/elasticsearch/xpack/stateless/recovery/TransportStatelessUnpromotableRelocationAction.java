@@ -62,7 +62,9 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.StatelessComponents;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -76,6 +78,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 
+import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction.TYPE;
 import static org.elasticsearch.search.SearchService.PIT_RELOCATION_ENABLED;
@@ -267,7 +270,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     throw new IllegalStateException("Expected SearchEngine but got: " + engine.getClass());
                 }
                 final String segmentsFileName = pitContextInfo.segmentsFileName;
-                Map<String, BlobLocation> metadata = pitContextInfo.metadata();
+                Map<String, BlobFileRanges> metadata = pitContextInfo.metadata();
 
                 // we need to acquire the searcher for the exact commit point that the PIT was opened against
                 // the engine does this asynchronously because we need to synchronize with ongoing commit updates
@@ -440,7 +443,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                                     indexCommit.getSegmentsFileName(),
                                     context.keepAlive(),
                                     new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
-                                    statelessCompoundCommit.commitFiles(),
+                                    computeCommitFileRanges(searchDirectory, indexCommit, statelessCompoundCommit),
                                     new OpenPITReshardingState(context.reshardingMetadata(), context.shardCountSummary())
                                 )
                             )
@@ -458,6 +461,31 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             );
             listener.onResponse(Optional.empty());
         }
+    }
+
+    private static Map<String, BlobFileRanges> computeCommitFileRanges(
+        final SearchDirectory searchDirectory,
+        final IndexCommit indexCommit,
+        final StatelessCompoundCommit statelessCompoundCommit
+    ) throws IOException {
+        final Map<String, BlobFileRanges> directoryRanges = searchDirectory.getBlobFileRangesForFiles(indexCommit.getFileNames());
+        final var ccTimestamp = statelessCompoundCommit.getTimestampFieldValueRange();
+        final var internalFiles = statelessCompoundCommit.internalFiles();
+        return statelessCompoundCommit.commitFiles().entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, e -> {
+            final String fileName = e.getKey();
+            final BlobLocation ccLocation = e.getValue();
+            final BlobFileRanges dirRange = directoryRanges.get(fileName);
+            if (dirRange != null && dirRange.blobLocation().equals(ccLocation)) {
+                return dirRange; // originating CC, preserved in SearchDirectory
+            }
+            final StatelessCompoundCommit.TimestampFieldValueRange ts;
+            if (internalFiles.contains(fileName)) {
+                ts = ccTimestamp; // newly written in this CC
+            } else {
+                ts = null; // referenced, location differs (e.g. generational) — safer than wrong value
+            }
+            return new BlobFileRanges(ccLocation, ts);
+        }));
     }
 
     static class RelocationHandoffResponse extends ActionResponse {
@@ -504,12 +532,16 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         "resharding_metadata_in_pit_relocation"
     );
 
+    private static final TransportVersion BLOB_FILE_RANGES_IN_PIT_RELOCATION = TransportVersion.fromName(
+        "blob_file_ranges_in_pit_relocation"
+    );
+
     static class OpenPITContextInfo implements Writeable {
         private final ShardId shardId;
         private final String segmentsFileName;
         private final long keepAlive;
         private final SearchContextIdForNode contextId;
-        private final Map<String, BlobLocation> metadata;
+        private final Map<String, BlobFileRanges> metadata;
         private final OpenPITReshardingState reshardingState;
 
         OpenPITContextInfo(StreamInput in) throws IOException {
@@ -517,7 +549,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             segmentsFileName = in.readString();
             keepAlive = in.readVLong();
             contextId = new SearchContextIdForNode(in);
-            metadata = in.readMap(StreamInput::readString, BlobLocation::readFromTransport);
+            if (in.getTransportVersion().supports(BLOB_FILE_RANGES_IN_PIT_RELOCATION)) {
+                metadata = in.readMap(StreamInput::readString, BlobFileRanges::readFromTransport);
+            } else {
+                metadata = in.readMap(StreamInput::readString, si -> new BlobFileRanges(BlobLocation.readFromTransport(si)));
+            }
             if (in.getTransportVersion().supports(RESHARDING_METADATA_IN_PIT_RELOCATION)) {
                 reshardingState = new OpenPITReshardingState(in);
             } else {
@@ -530,7 +566,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             String segmentsFileName,
             long keepAlive,
             SearchContextIdForNode contextId,
-            Map<String, BlobLocation> metadata,
+            Map<String, BlobFileRanges> metadata,
             OpenPITReshardingState reshardingState
         ) {
             this.shardId = shardId;
@@ -547,7 +583,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             out.writeString(segmentsFileName);
             out.writeVLong(keepAlive);
             contextId.writeTo(out);
-            out.writeMap(metadata, StreamOutput::writeString, StreamOutput::writeWriteable);
+            if (out.getTransportVersion().supports(BLOB_FILE_RANGES_IN_PIT_RELOCATION)) {
+                out.writeMap(metadata, StreamOutput::writeString, StreamOutput::writeWriteable);
+            } else {
+                out.writeMap(metadata, StreamOutput::writeString, (o, ranges) -> ranges.blobLocation().writeTo(o));
+            }
             if (out.getTransportVersion().supports(RESHARDING_METADATA_IN_PIT_RELOCATION)) {
                 reshardingState.writeTo(out);
             }
@@ -587,7 +627,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             return contextId;
         }
 
-        public Map<String, BlobLocation> metadata() {
+        public Map<String, BlobFileRanges> metadata() {
             return metadata;
         }
 

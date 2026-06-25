@@ -626,9 +626,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testScrollDisableBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/151862
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:string.convertFromUnsignedLong}
   issue: https://github.com/elastic/elasticsearch/issues/151871

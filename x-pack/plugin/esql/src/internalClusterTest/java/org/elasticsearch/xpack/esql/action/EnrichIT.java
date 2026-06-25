@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.junit.After;
@@ -74,6 +76,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -356,6 +359,29 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 .filter(status -> status.operator().startsWith("EnrichOperator"))
                 .toList();
             assertThat(enrichOperators, not(emptyList()));
+        }
+    }
+
+    public void testBytesReadAccountedForEnrich() {
+        assumeTrue(
+            "directory_metrics feature flag must be enabled to record store bytes",
+            Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
+        );
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM listens | " + enrichSongCommand() + " | STATS count(*) BY artist").profile(
+            true
+        );
+        try (EsqlQueryResponse resp = run(request)) {
+            assertThat(resp.bytesRead(), greaterThan(0L));
+
+            List<OperatorStatus> enrichOperatorStatuses = resp.profile()
+                .drivers()
+                .stream()
+                .flatMap(d -> d.operators().stream())
+                .filter(op -> op.status() instanceof EnrichLookupOperator.Status)
+                .toList();
+            assertThat(enrichOperatorStatuses, not(emptyList()));
+            long enrichBytesRead = enrichOperatorStatuses.stream().mapToLong(OperatorStatus::bytesRead).sum();
+            assertThat(enrichBytesRead, greaterThan(0L));
         }
     }
 

@@ -1,5 +1,0 @@
-area: TSDB
-issues: []
-pr: 151411
-summary: Fix OTLP histogram handling for single-count histograms without bucket boundaries
-type: bug

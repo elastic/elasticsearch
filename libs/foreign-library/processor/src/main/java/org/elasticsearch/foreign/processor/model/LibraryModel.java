@@ -13,13 +13,17 @@ import org.elasticsearch.foreign.LibrarySpecification;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.tools.Diagnostic.Kind;
 
 /**
@@ -33,8 +37,25 @@ import javax.tools.Diagnostic.Kind;
  * @param packageName the package name (may be empty)
  * @param libraryName the native library name from {@code @LibrarySpecification.name()} (may be empty)
  * @param methods all native methods in declaration order
+ * @param unavailableOn enum constant names of platforms where this library is unavailable (empty means available everywhere)
  */
-public record LibraryModel(String qualifiedName, String simpleName, String packageName, String libraryName, List<MethodModel> methods) {
+public record LibraryModel(
+    String qualifiedName,
+    String simpleName,
+    String packageName,
+    String libraryName,
+    List<MethodModel> methods,
+    List<String> unavailableOn
+) {
+
+    /** All known platform names — used to detect a library that can never be natively loaded. */
+    private static final Set<String> ALL_PLATFORM_NAMES = Set.of(
+        "LINUX_X64",
+        "LINUX_AARCH64",
+        "DARWIN_X64",
+        "DARWIN_AARCH64",
+        "WINDOWS_X64"
+    );
 
     /** Fully-qualified name of the {@code $Impl} class generated for this library. */
     public String implQualifiedName() {
@@ -66,8 +87,20 @@ public record LibraryModel(String qualifiedName, String simpleName, String packa
         String simpleName = element.getSimpleName().toString();
         String packageName = env.getElementUtils().getPackageOf(element).getQualifiedName().toString();
 
+        AnnotationMirror specMirror = findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
+        List<String> unavailableOn = extractUnavailableOn(specMirror);
+
         List<MethodModel> methods = new ArrayList<>();
         boolean hasError = false;
+        if (unavailableOn.containsAll(ALL_PLATFORM_NAMES)) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@LibrarySpecification.unavailableOn lists all known platforms; the library will never be natively loaded",
+                element,
+                specMirror
+            );
+            hasError = true;
+        }
         for (var enclosed : element.getEnclosedElements()) {
             if (enclosed.getKind() != ElementKind.METHOD) {
                 continue;
@@ -85,6 +118,46 @@ public record LibraryModel(String qualifiedName, String simpleName, String packa
             }
         }
 
-        return hasError ? null : new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods);
+        return hasError ? null : new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods, unavailableOn);
+    }
+
+    /**
+     * Extracts the {@code unavailableOn} attribute from the {@code @LibrarySpecification} annotation mirror
+     * as a list of enum constant names. Uses annotation mirror APIs to avoid loading the {@code Platform}
+     * class at processing time. Pure extraction — validation is the caller's responsibility.
+     */
+    private static List<String> extractUnavailableOn(AnnotationMirror specMirror) {
+        if (specMirror == null) {
+            return List.of();
+        }
+
+        for (var entry : specMirror.getElementValues().entrySet()) {
+            if (entry.getKey().getSimpleName().contentEquals("unavailableOn") == false) {
+                continue;
+            }
+            Object rawValue = entry.getValue().getValue();
+            if ((rawValue instanceof List<?>) == false) {
+                return List.of();
+            }
+            List<?> valueList = (List<?>) rawValue;
+            List<String> platformNames = new ArrayList<>();
+            for (Object item : valueList) {
+                if (item instanceof AnnotationValue av && av.getValue() instanceof VariableElement ve) {
+                    platformNames.add(ve.getSimpleName().toString());
+                }
+            }
+            return List.copyOf(platformNames);
+        }
+        return List.of();
+    }
+
+    private static AnnotationMirror findAnnotationMirror(TypeElement element, String annotationFqn) {
+        for (AnnotationMirror mirror : element.getAnnotationMirrors()) {
+            TypeElement annotationType = (TypeElement) mirror.getAnnotationType().asElement();
+            if (annotationType.getQualifiedName().contentEquals(annotationFqn)) {
+                return mirror;
+            }
+        }
+        return null;
     }
 }

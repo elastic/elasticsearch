@@ -224,9 +224,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createSytheticSourceMapperService(mappings, false);
     }
 
-    public final MapperService createSytheticSourceMapperService(XContentBuilder mappings, boolean columnar) throws IOException {
+    public final MapperService createSytheticSourceMapperService(XContentBuilder mappings, boolean isColumnar) throws IOException {
         Settings settings;
-        if (columnar) {
+        if (isColumnar) {
             settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         } else {
             settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();

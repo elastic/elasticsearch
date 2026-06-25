@@ -1401,16 +1401,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSource() throws IOException {
-        boolean columnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        var support = columnar ? syntheticSourceSupportColumnar(ignoreMalformed) : syntheticSourceSupport(ignoreMalformed);
+        var support = isColumnar ? syntheticSourceSupportColumnar(ignoreMalformed) : syntheticSourceSupport(ignoreMalformed);
         assertSyntheticSource(support.example(5), support.isColumnar());
     }
 
     public final void testSyntheticSourceWithTranslogSnapshot() throws IOException {
-        boolean columnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        var support = columnar ? syntheticSourceSupportColumnar(ignoreMalformed) : syntheticSourceSupport(ignoreMalformed);
+        var support = isColumnar ? syntheticSourceSupportColumnar(ignoreMalformed) : syntheticSourceSupport(ignoreMalformed);
         assertSyntheticSourceWithTranslogSnapshot(support, true);
         assertSyntheticSourceWithTranslogSnapshot(support, false);
     }
@@ -1458,12 +1458,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    private void assertSyntheticSource(SyntheticSourceExample example, boolean columnar) throws IOException {
+    private void assertSyntheticSource(SyntheticSourceExample example, boolean isColumnar) throws IOException {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             example.mapping().accept(b);
             b.endObject();
-        }), columnar).documentMapper();
+        }), isColumnar).documentMapper();
         assertThat(syntheticSource(mapper, example::buildInput), equalTo(example.expected()));
         assertThat(
             syntheticSource(mapper, new SourceFilter(new String[] { "field" }, null), example::buildInput),
@@ -1567,8 +1567,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticSourceMany() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         int maxValues = randomBoolean() ? 1 : 5;
-        boolean columnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        SyntheticSourceSupport support = columnar
+        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
@@ -1631,8 +1631,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        boolean columnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        SyntheticSourceSupport support = columnar
+        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
         SyntheticSourceExample syntheticSourceExample = support.example(5);
@@ -1663,8 +1663,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticEmptyList() throws IOException {
         assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        boolean columnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        SyntheticSourceSupport support = columnar
+        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
         SyntheticSourceExample syntheticSourceExample = support.example(5);
@@ -1725,8 +1725,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInvalid() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        boolean columnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        SyntheticSourceSupport support = columnar
+        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
         List<SyntheticSourceInvalidExample> examples = new ArrayList<>(support.invalidExample());

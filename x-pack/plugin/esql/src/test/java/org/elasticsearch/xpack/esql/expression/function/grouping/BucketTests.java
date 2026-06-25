@@ -232,14 +232,6 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         );
     }
 
-    /**
-     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
-     * only checks declared @Param arguments.
-     */
-    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
-        return params;
-    }
-
     // TODO once we cast above the functions we can drop these
     private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] { DataType.DATETIME, DataType.KEYWORD, DataType.TEXT };
 

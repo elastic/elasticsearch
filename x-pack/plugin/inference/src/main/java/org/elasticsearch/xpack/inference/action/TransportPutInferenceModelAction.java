@@ -247,7 +247,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
         ActionListener<Model> existingUsesListener = storeModelListener.delegateFailureAndWrap((delegate, model) -> {
             // Execute in another thread because checking for existing uses requires reading from indices
-            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> checkForExistingUsesOfInferenceId(state.metadata(), model, delegate));
+            threadPool.executor(UTILITY_THREAD_POOL_NAME)
+                .execute(() -> checkForExistingUsesOfInferenceId(state.metadata(), model, delegate));
         });
 
         ActionListener<Model> modelValidatingListener = existingUsesListener.delegateFailureAndWrap((delegate, model) -> {

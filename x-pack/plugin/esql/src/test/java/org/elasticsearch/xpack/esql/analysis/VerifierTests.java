@@ -4496,7 +4496,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsInvalidEnumOptions() {
-        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
         assertInvalidHighlightOption("encoder", "xml");
         assertInvalidHighlightOption("boundary_scanner", "chars");
         assertInvalidHighlightOption("order", "doc");

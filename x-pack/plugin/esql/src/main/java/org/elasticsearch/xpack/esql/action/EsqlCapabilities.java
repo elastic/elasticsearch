@@ -3202,7 +3202,7 @@ public class EsqlCapabilities {
         /**
          * Support LAST and LATEST aggregation on the same extended field types as FIRST and EARLIEST
          * (version, unsigned_long, spatial, spatial-grid, dense_vector, exponential_histogram, tdigest,
-         flattened).
+         * flattened).
          */
         LAST_AGG_EXTENDED_TYPES,
 

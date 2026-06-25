@@ -66,26 +66,26 @@ public class Last extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         returnType = {
-            "long",
-            "integer",
-            "double",
-            "keyword",
-            "ip",
             "boolean",
-            "date",
-            "date_nanos",
-            "version",
-            "geo_point",
-            "geo_shape",
             "cartesian_point",
             "cartesian_shape",
+            "date",
+            "date_nanos",
+            "dense_vector",
+            "double",
+            "exponential_histogram",
+            "geo_point",
+            "geo_shape",
             "geohash",
             "geotile",
             "geohex",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "tdigest",
             "unsigned_long",
-            "dense_vector",
-            "exponential_histogram",
-            "tdigest" },
+            "version" },
         briefSummary = "Returns the latest occurrence of a field based on a sort field.",
         description = """
             This function calculates the latest occurrence of the search field
@@ -114,27 +114,27 @@ public class Last extends AggregateFunction implements ToAggregator {
         @Param(
             name = "field",
             type = {
-                "long",
-                "integer",
-                "double",
-                "keyword",
-                "text",
-                "ip",
                 "boolean",
-                "date",
-                "date_nanos",
-                "version",
-                "geo_point",
-                "geo_shape",
                 "cartesian_point",
                 "cartesian_shape",
+                "date",
+                "date_nanos",
+                "dense_vector",
+                "double",
+                "exponential_histogram",
+                "geo_point",
+                "geo_shape",
                 "geohash",
                 "geotile",
                 "geohex",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "tdigest",
                 "unsigned_long",
-                "dense_vector",
-                "exponential_histogram",
-                "tdigest" },
+                "text",
+                "version" },
             description = "The search field"
         ) Expression field,
         @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
@@ -201,17 +201,17 @@ public class Last extends AggregateFunction implements ToAggregator {
                 || dt == DataType.IP
                 || dt.isNumeric()
                 || dt == DataType.VERSION
-                || dt == DataType.GEO_POINT
-                || dt == DataType.GEO_SHAPE
                 || dt == DataType.CARTESIAN_POINT
                 || dt == DataType.CARTESIAN_SHAPE
+                || dt == DataType.GEO_POINT
+                || dt == DataType.GEO_SHAPE
                 || dt == DataType.GEOHASH
                 || dt == DataType.GEOTILE
                 || dt == DataType.GEOHEX
                 || dt == DataType.DENSE_VECTOR
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
-                || dt == DataType.TDIGEST
-                || dt == DataType.FLATTENED,
+                || dt == DataType.FLATTENED
+                || dt == DataType.TDIGEST,
             sourceText(),
             FIRST,
             "boolean",

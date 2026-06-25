@@ -231,6 +231,9 @@ public class RequestTaskTests extends ESTestCase {
     }
 
     public void testRequest_ReleasesBytesTrackedByCircuitBreaker_OnTimedListenerCompletion() {
+        AtomicReference<Runnable> onTimeout = new AtomicReference<>();
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout);
+
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
         var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
@@ -241,7 +244,7 @@ public class RequestTaskTests extends ESTestCase {
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
             new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
-            threadPool,
+            mockThreadPool,
             listener,
             trackingCircuitBreaker,
             estimatedRamBytesUsed

@@ -64,6 +64,7 @@ import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -495,6 +496,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             threadPool,
             BlobCacheMetrics.NOOP,
             mock(ClusterService.class),
+            mock(IndicesService.class),
             System::nanoTime,
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );

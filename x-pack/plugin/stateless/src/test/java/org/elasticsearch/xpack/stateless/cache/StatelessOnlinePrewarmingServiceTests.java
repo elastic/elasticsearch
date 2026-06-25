@@ -21,6 +21,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -312,6 +313,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         threadPool,
                         BlobCacheMetrics.NOOP,
                         clusterService,
+                        mock(IndicesService.class),
                         new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                     ) {
                         @Override

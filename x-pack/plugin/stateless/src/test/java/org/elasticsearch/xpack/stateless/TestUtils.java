@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -92,6 +93,7 @@ public class TestUtils {
             threadPool,
             meterRegistry == null ? new BlobCacheMetrics(MeterRegistry.NOOP) : new BlobCacheMetrics(meterRegistry),
             clusterService,
+            mock(IndicesService.class),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );
         statelessSharedBlobCacheService.assertInvariants();

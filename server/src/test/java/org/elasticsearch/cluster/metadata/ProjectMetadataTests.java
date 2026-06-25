@@ -1666,6 +1666,55 @@ public class ProjectMetadataTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for a cluster-state diff that only changes {@link DatasetMetadata}. The diff is applied on
+     * non-master nodes via {@link ProjectMetadata.ProjectMetadataDiff#apply}, which must rebuild the indices lookup
+     * when datasets change. Reusing the previous lookup (which omits the added dataset) trips
+     * {@code assertIndicesLookupDoesNotNeedToBeRebuilt} (crashing the node under assertions) and, with assertions
+     * disabled, leaves a stale lookup. Unlike {@link #testReuseIndicesLookup}, this must go through the diff/apply
+     * path, since {@link ProjectMetadata.Builder#datasets} already clears the cached lookup on the build path.
+     */
+    public void testDiffApplyRebuildsIndicesLookupWhenDatasetAdded() {
+        ProjectMetadata previous = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder("my-index").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
+            .build();
+        // Materialize the previous lookup so the diff-apply path attempts to reuse it (mirrors a node that served
+        // queries before receiving the dataset-registration diff).
+        SortedMap<String, IndexAbstraction> previousLookup = previous.getIndicesLookup();
+        assertThat(previousLookup, not(hasKey("ds")));
+
+        Dataset dataset = new Dataset("ds", new DataSourceReference("my-data-source"), "s3://b/p", null, Map.of());
+        ProjectMetadata current = ProjectMetadata.builder(previous).datasets(Map.of("ds", dataset)).build();
+
+        Diff<ProjectMetadata> diff = current.diff(previous);
+        ProjectMetadata applied = diff.apply(previous);
+
+        assertThat(applied.getIndicesLookup(), hasKey("ds"));
+        assertThat(applied.getIndicesLookup().keySet(), equalTo(current.getIndicesLookup().keySet()));
+    }
+
+    /**
+     * Symmetric counterpart of {@link #testDiffApplyRebuildsIndicesLookupWhenDatasetAdded}: a diff that removes a
+     * dataset must also rebuild the lookup so the removed entry no longer lingers.
+     */
+    public void testDiffApplyRebuildsIndicesLookupWhenDatasetRemoved() {
+        Dataset dataset = new Dataset("ds", new DataSourceReference("my-data-source"), "s3://b/p", null, Map.of());
+        ProjectMetadata previous = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder("my-index").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
+            .datasets(Map.of("ds", dataset))
+            .build();
+        SortedMap<String, IndexAbstraction> previousLookup = previous.getIndicesLookup();
+        assertThat(previousLookup, hasKey("ds"));
+
+        ProjectMetadata current = ProjectMetadata.builder(previous).datasets(Map.of()).build();
+
+        Diff<ProjectMetadata> diff = current.diff(previous);
+        ProjectMetadata applied = diff.apply(previous);
+
+        assertThat(applied.getIndicesLookup(), not(hasKey("ds")));
+        assertThat(applied.getIndicesLookup().keySet(), equalTo(current.getIndicesLookup().keySet()));
+    }
+
     public void testAliasedIndices() {
         int numAliases = randomIntBetween(32, 64);
         int numIndicesPerAlias = randomIntBetween(8, 16);

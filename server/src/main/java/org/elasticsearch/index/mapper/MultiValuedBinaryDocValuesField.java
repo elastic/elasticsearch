@@ -356,32 +356,18 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         /**
-         * Fast path for a lone single non-null value that cannot collide with another occurrence
-         * of the same field name in this document. Avoids the {@link LuceneDocument#getOrAddWithKey}
-         * {@code HashMap.computeIfAbsent} probe and (via lazy slot storage) the backing
-         * {@code ArrayList} allocation for the common case of a single-valued keyword field.
-         * <p>
-         * The produced on-disk format is byte-identical to {@link #recordValue}: for a single
-         * non-null value the binary blob is the raw {@link org.apache.lucene.util.BytesRef} with no
-         * length prefix, and {@code .counts == 1}.
-         * <p>
-         * Safety net: if a prior occurrence already created a keyed accumulator for {@code fieldName}
-         * on this document (e.g. dotted-field flattening writing {@code {"a.b":"x","a":{"b":"y"}}})
-         * the {@link LuceneDocument#putKeyIfAbsent} call returns the existing accumulator and this
-         * method delegates to {@link #recordValue} so the two values are merged correctly rather
-         * than producing a duplicate binary doc-values field.
+         * Optimized version of {@link #recordValue(LuceneDocument, String, BytesRef)}
+         * for when it is very likely that a field has a single value.
          */
         public static void recordSingleValue(LuceneDocument doc, String fieldName, BytesRef value) {
             var field = new ArrayOrderInlineNull(fieldName);
-            field.add(value);  // sets hasNonNullValue, stores in lazy singleSlot
-            field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 1);
-            // Single HashMap probe: claim the slot if free, otherwise discover the prior accumulator.
             if (doc.putKeyIfAbsent(fieldName, field) == null) {
-                // Won the slot: add the binary blob and its .counts companion in a single ArrayList grow.
+                field.add(value);
+                field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 1);
                 doc.addAll(List.of(field, field.countField));
             } else {
-                // Safety net (rare, e.g. dotted-field flattening): a prior occurrence already registered
-                // an accumulator — merge via the keyed path.
+                // Safety net (rare cases like dotted-field flattening or duplicated field names):
+                // a field under the same name has already been registered.
                 recordValue(doc, fieldName, value);
             }
         }

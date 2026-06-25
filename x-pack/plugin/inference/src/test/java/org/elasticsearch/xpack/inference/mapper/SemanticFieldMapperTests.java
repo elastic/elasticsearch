@@ -46,7 +46,6 @@ import static org.mockito.Mockito.mock;
 
 public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
     private static final String INFERENCE_ID = "inference-id";
-    private static final String INFERENCE_ID = "inference-id";
 
     public SemanticFieldMapperTests(License.OperationMode operationMode) {
         super(operationMode);

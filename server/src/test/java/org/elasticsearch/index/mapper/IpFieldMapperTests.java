@@ -341,12 +341,12 @@ public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupport(ignoreMalformed, false);
+        return new IpSyntheticSourceSupport(ignoreMalformed, false);
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
-        return new IpSyntheticSourceSupport(ignoreMalformed, columnar);
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new IpSyntheticSourceSupport(ignoreMalformed, true);
     }
 
     private static class IpSyntheticSourceSupport implements SyntheticSourceSupport {

@@ -381,8 +381,8 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
-        return new NumberSyntheticSourceSupport(ignoreMalformed, columnar);
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(ignoreMalformed, true);
     }
 
     @Override
@@ -479,9 +479,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             List<Value> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
 
-            Stream<BigInteger> nonMalformedOutputs = values.stream()
-                .filter(v -> v.malformedOutput == null)
-                .map(Value::output);
+            Stream<BigInteger> nonMalformedOutputs = values.stream().filter(v -> v.malformedOutput == null).map(Value::output);
             List<BigInteger> outputFromDocValues = (isColumnar ? nonMalformedOutputs : nonMalformedOutputs.sorted()).toList();
             // Malformed values are stored as BytesRef with a type-prefix byte and sorted lexicographically.
             List<Object> malformedOutput = values.stream()

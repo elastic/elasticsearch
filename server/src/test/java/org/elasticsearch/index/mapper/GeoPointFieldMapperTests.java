@@ -597,11 +597,15 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupport(ignoreMalformed, false);
+        return geoSyntheticSourceSupport(ignoreMalformed, false);
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return geoSyntheticSourceSupport(ignoreMalformed, true);
+    }
+
+    private SyntheticSourceSupport geoSyntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
             private final GeoPoint nullValue = usually() ? null : randomGeoPoint();

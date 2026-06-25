@@ -107,12 +107,12 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new NumberSyntheticSourceSupport(Number::longValue, ignoreMalformed);
+        return new NumberSyntheticSourceSupport(Number::longValue, ignoreMalformed, false);
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
-        return new NumberSyntheticSourceSupport(Number::longValue, ignoreMalformed, columnar);
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(Number::longValue, ignoreMalformed, true);
     }
 
     @Override

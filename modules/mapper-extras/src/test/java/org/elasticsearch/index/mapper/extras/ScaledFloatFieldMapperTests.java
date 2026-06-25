@@ -385,8 +385,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
-        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, columnar);
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed, true);
     }
 
     @Override

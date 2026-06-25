@@ -1259,9 +1259,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
         assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
-        return new WildcardSyntheticSourceSupport(false, columnar);
+        return new WildcardSyntheticSourceSupport(false, true);
     }
 
     static class WildcardSyntheticSourceSupport implements SyntheticSourceSupport {

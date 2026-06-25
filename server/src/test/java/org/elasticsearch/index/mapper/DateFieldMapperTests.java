@@ -608,12 +608,12 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupport(ignoreMalformed, false);
+        return syntheticSourceSupportInternal(ignoreMalformed, true, false);
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
-        return syntheticSourceSupportInternal(ignoreMalformed, true, columnar);
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return syntheticSourceSupportInternal(ignoreMalformed, true, true);
     }
 
     @Override

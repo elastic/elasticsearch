@@ -158,6 +158,8 @@ public final class SliceIndexing {
 
     /**
      * Validates request-level slice/routing requirements and resolves effective routing for search-style APIs.
+     * When {@code anySliceEnabled} is true and no {@code _slice} parameter was provided, the request is treated
+     * as {@code _slice=_all} (routing is left unrestricted, covering all slices).
      */
     public static String validateAndResolveSliceRoutingRequirement(
         boolean anySliceEnabled,
@@ -180,11 +182,6 @@ public final class SliceIndexing {
         if (routingFromSlice && anySliceEnabled == false && allowSliceWhenNoLocalSliceEnabled == false) {
             throw new IllegalArgumentException(
                 "[_slice] is not allowed when [index.slice.enabled] is false for " + requestDescription + " targeting [" + target + "]"
-            );
-        }
-        if (anySliceEnabled && routingFromSlice == false) {
-            throw new IllegalArgumentException(
-                "[_slice] is required when [index.slice.enabled] is true for " + requestDescription + " targeting [" + target + "]"
             );
         }
         if (routingFromSlice) {

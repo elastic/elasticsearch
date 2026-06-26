@@ -106,6 +106,7 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     private boolean ignoreFailures = false;
     private boolean ignoreMissingClasses = false;
     private Provider<RegularFile> foreignApiJar;
+    private File foreignSignatureFile;
 
     @Input
     @Optional
@@ -181,11 +182,15 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     /**
      * A {@link FileCollection} containing all files, which contain signatures and comments for forbidden API calls.
      * The signatures are resolved against {@link #getClasspath()}.
+     * Includes the foreign API signature file if {@link #checkForeignApiUsage} was called.
      */
     @InputFiles
     @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getSignaturesFiles() {
+        if (foreignSignatureFile != null) {
+            return objectFactory.fileCollection().from(signaturesFiles).from(foreignSignatureFile);
+        }
         return signaturesFiles;
     }
 
@@ -239,10 +244,10 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
      */
     public void checkForeignApiUsage(Provider<RegularFile> jarFile, int targetVersion) {
         if (targetVersion == 21) {
-            addSignatureFiles("jdk-foreign-signatures");
+            this.foreignSignatureFile = new File(resourcesDir, "forbidden/jdk-foreign-signatures.txt");
             this.foreignApiJar = jarFile;
         } else {
-            addSignatureFiles("jdk-foreign-signatures22");
+            this.foreignSignatureFile = new File(resourcesDir, "forbidden/jdk-foreign-signatures22.txt");
         }
     }
 

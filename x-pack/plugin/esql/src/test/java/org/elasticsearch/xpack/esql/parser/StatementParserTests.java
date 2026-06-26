@@ -1252,7 +1252,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightOnFields() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1267,7 +1267,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         // Both query and ON are grammatically required in v1. The plan node keeps `query` nullable
         // and `fields` allowed-empty so the bare form can be enabled later without serialization changes.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
@@ -1276,14 +1276,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsPrefixSyntax() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         // The plan node still carries a prefix field (hard-coded to "highlight_") so a future
         // grammar extension can flip it on without breaking serialization.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title"));
     }
 
     public void testHighlightWithOptions() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         LogicalPlan plan = query(
             "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
         );
@@ -1293,7 +1293,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownOption() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
@@ -1302,17 +1302,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsExpressionQuery() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title"));
     }
 
     public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
     }
 
     public void testHighlightNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("mismatched input 'HIGHLIGHT'"),
@@ -2574,17 +2574,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         : "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier"
                 );
             }
-            // nulls
-            if (invalidParamPosition.contains("rename")) {
-                // rename null as null is allowed, there is no ParsingException or VerificationException thrown
-                // named parameter doesn't change this behavior, it will need to be revisited
-                continue;
+            // null params: rejected via unresolvedAttributeNameInParam for eval/stats/mv_expand
+            // (those positions use visitIdentifierOrParameter, not visitQualifiedNamePattern).
+            // For RENAME, KEEP, DROP, and ENRICH, the null param goes through visitQualifiedNamePattern
+            // which silently skips the empty segment; see testNullParamInIdentifierPatternPosition.
+            if (invalidParamPosition.contains("rename") == false) {
+                expectError(
+                    "from test | " + invalidParamPosition,
+                    List.of(paramAsConstant("f1", null), paramAsConstant("f2", null)),
+                    "Query parameter [?f1] is null or undefined"
+                );
             }
-            expectError(
-                "from test | " + invalidParamPosition,
-                List.of(paramAsConstant("f1", null), paramAsConstant("f2", null)),
-                "Query parameter [?f1] is null or undefined"
-            );
+        }
+        // double-parameter markers (??): null param produces a "is null" error rather than an NPE or empty identifier
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            for (String identifierPosition : List.of("drop ??f1", "keep ??f1", "rename ??f1 as color")) {
+                expectError("from test | " + identifierPosition, List.of(paramAsConstant("f1", null)), "Query parameter [??f1] is null");
+            }
         }
         // enrich with wildcard as pattern or constant is not supported
         String enrich = "ENRICH idx2 ON ?f1 WITH ?f2 = ?f3";
@@ -2600,6 +2606,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier or pattern"
             );
         }
+    }
+
+    /**
+     * Null params in RENAME/KEEP/DROP/ENRICH identifier-pattern positions are silently skipped
+     * by {@code visitQualifiedNamePattern}, so no {@code ParsingException} is thrown at parse time.
+     * This is a bug, but we can't fix it without breaking some queries.
+     * <p>
+     * Contrast with eval/stats/mv_expand which use {@code unresolvedAttributeNameInParam} and
+     * do produce a parse-time error for null params.
+     */
+    public void testNullParamInIdentifierPatternPosition() {
+        List<QueryParam> params = List.of(paramAsConstant("f1", null), paramAsConstant("f2", null));
+        for (String cmd : List.of(
+            "rename ?f1 as color",
+            "rename foo as ?f2",
+            "rename ?f1 as ?f2",
+            "keep ?f1",
+            "drop ?f1",
+            "enrich idx2 ON ?f1"
+        )) {
+            assertNotNull(query("from test | " + cmd, new QueryParams(params)));
+        }
+        // ENRICH WITH: null param as alias or field name
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH ?f2", new QueryParams(List.of(paramAsConstant("f2", null)))));
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH ?f2 = src_field", new QueryParams(List.of(paramAsConstant("f2", null)))));
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH dst = ?f3", new QueryParams(List.of(paramAsConstant("f3", null)))));
     }
 
     public void testMissingParam() {

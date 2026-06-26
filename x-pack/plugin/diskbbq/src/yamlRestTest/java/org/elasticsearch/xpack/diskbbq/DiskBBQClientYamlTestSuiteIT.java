@@ -20,7 +20,7 @@ public class DiskBBQClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("x-pack-diskbbq")
+        .module("diskbbq")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .feature(FeatureFlag.SLICE_INDEXING)

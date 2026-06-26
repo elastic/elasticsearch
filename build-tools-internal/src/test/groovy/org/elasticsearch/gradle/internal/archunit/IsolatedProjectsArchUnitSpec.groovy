@@ -24,36 +24,26 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
  * is configured independently and cross-project access is forbidden at configuration time.
  *
  * <p>Each rule targets a specific {@link Project} API that crosses project boundaries or captures
- * mutable project state incompatible with project isolation. Every check is parameterised over
- * two class sets:
- * <ul>
- *   <li><b>java code</b> — Java/Groovy plugin classes compiled from {@code src/main};</li>
- *   <li><b>groovy scripts</b> — precompiled {@code *.gradle} script plugins compiled by Gradle's
- *       {@code groovy-gradle-plugin} into
- *       {@code build/groovy-dsl-plugins/output/plugin-classes/}.</li>
- * </ul>
- * Running each rule against both sets gives a distinct test entry per set, so CI failures
- * immediately identify whether a regression was introduced in Java code or in a script plugin.
+ * mutable project state incompatible with project isolation. Every check covers Java and Groovy
+ * plugin classes compiled from {@code src/main}.
  *
- * <p>Baseline sets are kept separate per class set ({@code KNOWN_*} for Java,
- * {@code KNOWN_*_IN_SCRIPTS} for scripts) so violations from the two worlds never obscure each
- * other. Each baseline is accompanied by a staleness test that fails once an entry is cleaned up,
+ * <p>Baseline sets are kept to grandfather existing violations while the codebase is migrated.
+ * Each baseline is accompanied by a staleness test that fails once an entry is cleaned up,
  * ensuring baselines only ever shrink.
+ *
+ * <p>Note: precompiled {@code *.gradle} convention plugins (compiled by Gradle's
+ * {@code groovy-gradle-plugin} into
+ * {@code build/groovy-dsl-plugins/output/plugin-classes/}) use Groovy's {@code invokedynamic}
+ * dispatch for all method calls, which ArchUnit does not analyse. Those plugins are therefore not
+ * covered here; a separate text-based check would be required to enforce isolation rules on them.
  */
 class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
-
-    // -------------------------------------------------------------------------
-    // Class sets under test
-    // -------------------------------------------------------------------------
 
     @Shared
     JavaClasses productionClasses = importProductionClasses()
 
-    @Shared
-    JavaClasses scriptClasses = importScriptClasses()
-
     // -------------------------------------------------------------------------
-    // Baselines — java code
+    // Baselines
     // -------------------------------------------------------------------------
 
     private static final Set<String> KNOWN_GET_ROOT_PROJECT = [
@@ -105,111 +95,72 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
     ] as Set
 
     // -------------------------------------------------------------------------
-    // Baselines — groovy script plugins
-    // -------------------------------------------------------------------------
-
-    private static final Set<String> KNOWN_GET_ROOT_PROJECT_IN_SCRIPTS = [] as Set
-
-    private static final Set<String> KNOWN_GET_ALL_SUB_PROJECTS_IN_SCRIPTS = [] as Set
-
-    private static final Set<String> KNOWN_ALL_SUB_PROJECTS_CALLBACK_IN_SCRIPTS = [] as Set
-
-    private static final Set<String> KNOWN_EVALUATION_DEPENDS_ON_IN_SCRIPTS = [] as Set
-
-    private static final Set<String> KNOWN_GET_PARENT_IN_SCRIPTS = [] as Set
-
-    // -------------------------------------------------------------------------
     // Rules
     // -------------------------------------------------------------------------
 
-    def "production code in #label does not call Project.getRootProject()"() {
+    def "production code does not call Project.getRootProject()"() {
         given:
         ArchRule rule = noClasses()
-            .that(notInBaseline(baseline))
+            .that(notInBaseline(KNOWN_GET_ROOT_PROJECT))
             .should().callMethodWhere(projectMethodNamed("getRootProject"))
             .because("Project.getRootProject() navigates the live project hierarchy and is incompatible "
                 + "with project isolation; pass the root-project directory as a task property, "
                 + "build service, or ValueSource parameter instead")
 
         expect:
-        rule.check(classes)
-
-        where:
-        label            | classes           | baseline
-        "java code"      | productionClasses | KNOWN_GET_ROOT_PROJECT
-        "groovy scripts" | scriptClasses     | KNOWN_GET_ROOT_PROJECT_IN_SCRIPTS
+        rule.check(productionClasses)
     }
 
-    def "production code in #label does not call Project.getAllprojects() or Project.getSubprojects()"() {
+    def "production code does not call Project.getAllprojects() or Project.getSubprojects()"() {
         given:
         ArchRule rule = noClasses()
-            .that(notInBaseline(baseline))
+            .that(notInBaseline(KNOWN_GET_ALL_SUB_PROJECTS))
             .should().callMethodWhere(projectMethodNamedAny("getAllprojects", "getSubprojects"))
             .because("Project.getAllprojects()/getSubprojects() return live collections of other project "
                 + "instances and are incompatible with project isolation; use build services or "
                 + "project registration events instead")
 
         expect:
-        rule.check(classes)
-
-        where:
-        label            | classes           | baseline
-        "java code"      | productionClasses | KNOWN_GET_ALL_SUB_PROJECTS
-        "groovy scripts" | scriptClasses     | KNOWN_GET_ALL_SUB_PROJECTS_IN_SCRIPTS
+        rule.check(productionClasses)
     }
 
-    def "production code in #label does not register cross-project callbacks via Project.allprojects() or Project.subprojects()"() {
+    def "production code does not register cross-project callbacks via Project.allprojects() or Project.subprojects()"() {
         given:
         ArchRule rule = noClasses()
-            .that(notInBaseline(baseline))
+            .that(notInBaseline(KNOWN_ALL_SUB_PROJECTS_CALLBACK))
             .should().callMethodWhere(projectMethodNamedAny("allprojects", "subprojects"))
             .because("Project.allprojects()/subprojects() register cross-project configuration callbacks "
                 + "and are incompatible with project isolation; apply convention plugins in each project instead")
 
         expect:
-        rule.check(classes)
-
-        where:
-        label            | classes           | baseline
-        "java code"      | productionClasses | KNOWN_ALL_SUB_PROJECTS_CALLBACK
-        "groovy scripts" | scriptClasses     | KNOWN_ALL_SUB_PROJECTS_CALLBACK_IN_SCRIPTS
+        rule.check(productionClasses)
     }
 
-    def "production code in #label does not call Project.evaluationDependsOn()"() {
+    def "production code does not call Project.evaluationDependsOn()"() {
         given:
         ArchRule rule = noClasses()
-            .that(notInBaseline(baseline))
+            .that(notInBaseline(KNOWN_EVALUATION_DEPENDS_ON))
             .should().callMethodWhere(projectMethodNamed("evaluationDependsOn"))
             .because("Project.evaluationDependsOn() forces eager evaluation ordering between projects "
                 + "and prevents Gradle from configuring projects in parallel")
 
         expect:
-        rule.check(classes)
-
-        where:
-        label            | classes           | baseline
-        "java code"      | productionClasses | KNOWN_EVALUATION_DEPENDS_ON
-        "groovy scripts" | scriptClasses     | KNOWN_EVALUATION_DEPENDS_ON_IN_SCRIPTS
+        rule.check(productionClasses)
     }
 
-    def "production code in #label does not call Project.getParent()"() {
+    def "production code does not call Project.getParent()"() {
         given:
         ArchRule rule = noClasses()
-            .that(notInBaseline(baseline))
+            .that(notInBaseline(KNOWN_GET_PARENT))
             .should().callMethodWhere(projectMethodNamed("getParent"))
             .because("Project.getParent() navigates the live project hierarchy and is incompatible "
                 + "with project isolation; pass required parent-project state as an explicit input instead")
 
         expect:
-        rule.check(classes)
-
-        where:
-        label            | classes           | baseline
-        "java code"      | productionClasses | KNOWN_GET_PARENT
-        "groovy scripts" | scriptClasses     | KNOWN_GET_PARENT_IN_SCRIPTS
+        rule.check(productionClasses)
     }
 
-    def "production code in #label does not call Project.getProperties()"() {
+    def "production code does not call Project.getProperties()"() {
         given:
         ArchRule rule = noClasses()
             .should().callMethodWhere(projectMethodNamed("getProperties"))
@@ -217,15 +168,10 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
                 + "with project isolation; access specific properties via project.findProperty() or providers instead")
 
         expect:
-        rule.check(classes)
-
-        where:
-        label            | classes
-        "java code"      | productionClasses
-        "groovy scripts" | scriptClasses
+        rule.check(productionClasses)
     }
 
-    def "production code in #label does not resolve tasks by cross-project path"() {
+    def "production code does not resolve tasks by cross-project path"() {
         given:
         ArchRule rule = noClasses()
             .should().callMethodWhere(taskContainerMethodNamedAny("findByPath", "getByPath"))
@@ -234,81 +180,51 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
                 + "via project.dependencies or explicit task wiring instead")
 
         expect:
-        rule.check(classes)
-
-        where:
-        label            | classes
-        "java code"      | productionClasses
-        "groovy scripts" | scriptClasses
+        rule.check(productionClasses)
     }
 
     // -------------------------------------------------------------------------
     // Staleness checks
     // -------------------------------------------------------------------------
 
-    def "the #label getRootProject baseline contains no stale entries"() {
+    def "the getRootProject baseline contains no stale entries"() {
         expect:
-        List<String> stale = staleBaselineEntries(baseline, classes) { JavaClass c ->
+        List<String> stale = staleBaselineEntries(KNOWN_GET_ROOT_PROJECT, productionClasses) { JavaClass c ->
             callsProjectMethod(c, "getRootProject")
         }
         assert stale.isEmpty(), "Stale entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
-
-        where:
-        label            | classes           | baseline
-        "java code"      | productionClasses | KNOWN_GET_ROOT_PROJECT
-        "groovy scripts" | scriptClasses     | KNOWN_GET_ROOT_PROJECT_IN_SCRIPTS
     }
 
-    def "the #label getAllprojects/getSubprojects baseline contains no stale entries"() {
+    def "the getAllprojects/getSubprojects baseline contains no stale entries"() {
         expect:
-        List<String> stale = staleBaselineEntries(baseline, classes) { JavaClass c ->
+        List<String> stale = staleBaselineEntries(KNOWN_GET_ALL_SUB_PROJECTS, productionClasses) { JavaClass c ->
             callsProjectMethodAny(c, "getAllprojects", "getSubprojects")
         }
         assert stale.isEmpty(), "Stale entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
-
-        where:
-        label            | classes           | baseline
-        "java code"      | productionClasses | KNOWN_GET_ALL_SUB_PROJECTS
-        "groovy scripts" | scriptClasses     | KNOWN_GET_ALL_SUB_PROJECTS_IN_SCRIPTS
     }
 
-    def "the #label allprojects/subprojects callback baseline contains no stale entries"() {
+    def "the allprojects/subprojects callback baseline contains no stale entries"() {
         expect:
-        List<String> stale = staleBaselineEntries(baseline, classes) { JavaClass c ->
+        List<String> stale = staleBaselineEntries(KNOWN_ALL_SUB_PROJECTS_CALLBACK, productionClasses) { JavaClass c ->
             callsProjectMethodAny(c, "allprojects", "subprojects")
         }
         assert stale.isEmpty(), "Stale entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
-
-        where:
-        label            | classes           | baseline
-        "java code"      | productionClasses | KNOWN_ALL_SUB_PROJECTS_CALLBACK
-        "groovy scripts" | scriptClasses     | KNOWN_ALL_SUB_PROJECTS_CALLBACK_IN_SCRIPTS
     }
 
-    def "the #label evaluationDependsOn baseline contains no stale entries"() {
+    def "the evaluationDependsOn baseline contains no stale entries"() {
         expect:
-        List<String> stale = staleBaselineEntries(baseline, classes) { JavaClass c ->
+        List<String> stale = staleBaselineEntries(KNOWN_EVALUATION_DEPENDS_ON, productionClasses) { JavaClass c ->
             callsProjectMethod(c, "evaluationDependsOn")
         }
         assert stale.isEmpty(), "Stale entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
-
-        where:
-        label            | classes           | baseline
-        "java code"      | productionClasses | KNOWN_EVALUATION_DEPENDS_ON
-        "groovy scripts" | scriptClasses     | KNOWN_EVALUATION_DEPENDS_ON_IN_SCRIPTS
     }
 
-    def "the #label getParent baseline contains no stale entries"() {
+    def "the getParent baseline contains no stale entries"() {
         expect:
-        List<String> stale = staleBaselineEntries(baseline, classes) { JavaClass c ->
+        List<String> stale = staleBaselineEntries(KNOWN_GET_PARENT, productionClasses) { JavaClass c ->
             callsProjectMethod(c, "getParent")
         }
         assert stale.isEmpty(), "Stale entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
-
-        where:
-        label            | classes           | baseline
-        "java code"      | productionClasses | KNOWN_GET_PARENT
-        "groovy scripts" | scriptClasses     | KNOWN_GET_PARENT_IN_SCRIPTS
     }
 
     // -------------------------------------------------------------------------

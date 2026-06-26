@@ -42,36 +42,6 @@ abstract class AbstractArchUnitSpec extends Specification {
     }
 
     /**
-     * Imports the precompiled Groovy DSL script plugins — those compiled by Gradle's
-     * {@code groovy-gradle-plugin} from {@code *.gradle} files in {@code src/main/groovy/} and
-     * placed under {@code build/groovy-dsl-plugins/output/plugin-classes/}. These classes are
-     * not in the {@code org.elasticsearch.gradle} package and do not appear on the compile
-     * classpath, so they are invisible to {@link #importProductionClasses()}; this importer
-     * reaches them directly via the filesystem.
-     *
-     * <p>Type resolution (e.g. {@code isAssignableTo(Project)}) still works because the Gradle
-     * API is available on the test-runtime classpath.
-     */
-    protected static JavaClasses importScriptClasses() {
-        File dir = resolveScriptClassDir()
-        return new ClassFileImporter()
-            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
-            .importPath(dir.toPath())
-    }
-
-    private static File resolveScriptClassDir() {
-        File moduleDir = new File(System.getProperty("user.dir"))
-        File dir = new File(moduleDir, "build/groovy-dsl-plugins/output/plugin-classes")
-        if (dir.isDirectory()) {
-            return dir
-        }
-        // Fallback: running from the repository root (e.g. in some IDE configurations)
-        dir = new File(moduleDir, "build-tools-internal/build/groovy-dsl-plugins/output/plugin-classes")
-        assert dir.isDirectory(): "Cannot locate precompiled script plugin classes — expected at ${dir}"
-        return dir
-    }
-
-    /**
      * Returns the baseline entries that are no longer valid — either no class with that top-level
      * name exists any more, or none of them (top-level or nested) still violates the rule
      * ({@code stillViolates} returns false for all). Baselines key on the top-level class (see

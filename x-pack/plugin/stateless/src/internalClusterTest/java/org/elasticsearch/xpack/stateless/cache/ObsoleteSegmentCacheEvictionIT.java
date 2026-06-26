@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +27,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -395,7 +398,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             offset = virtualBcc.getTotalSizeInBytes();
         }
 
-        flush(indexName);
+        flushAndWaitForSearchShard(indexName, searchEngine);
 
         // At this stage we have multiple segments within a single BCC
         final var blobsRegionsBeforeUpdates = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
@@ -427,6 +430,9 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         }
 
         refresh(indexName);
+        if (randomBoolean()) {
+            flushAndWaitForSearchShard(indexName, searchEngine);
+        }
 
         final var blobsRegionsAfterUpdates = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         if (updatedDocs.size() == nbSegments) {
@@ -543,6 +549,9 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
 
         assertNoFailures(indicesAdmin().prepareForceMerge().setFlush(false).setMaxNumSegments(1).get());
         refresh(indexName);
+        if (randomBoolean()) {
+            flushAndWaitForSearchShard(indexName, searchEngine);
+        }
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         assertThat("all segments should be in a single BCC blob", blobsRegionsAfterMerge.size(), equalTo(1));
@@ -611,5 +620,15 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             }
             return regionsByBlob;
         }
+    }
+
+    private void flushAndWaitForSearchShard(final String indexName, final SearchEngine searchEngine) {
+        assertThat(indexName, equalTo(searchEngine.config().getShardId().getIndexName()));
+        final var future = new PlainActionFuture<Long>();
+
+        var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
+        searchEngine.addPrimaryTermAndGenerationListener(0L, indexEngine.getCurrentGeneration() + 1L, ActionListener.assertOnce(future));
+        flush(indexName);
+        safeGet(future);
     }
 }

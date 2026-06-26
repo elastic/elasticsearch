@@ -341,6 +341,29 @@ public final class MappingLookup {
     }
 
     /**
+     * Returns the full path of the first field whose {@code _source} cannot be reconstructed from doc-value columns —
+     * i.e. whose {@link FieldMapper.SyntheticSourceMode} is {@link FieldMapper.SyntheticSourceMode#FALLBACK} — or
+     * {@code null} if every field is reconstructable. Columnar index modes rebuild {@code _source} purely from
+     * doc-value columns and never keep a generic source fallback, so a fallback field (no doc values, or a type whose
+     * doc-value encoding cannot rebuild its own source) has no columnar representation. The check covers every field
+     * mapper, including those nested inside object and nested fields, since {@link #fieldMappers()} is the flattened set
+     * of all field mappers by full path. Metadata fields are exempt (reconstructed by their own machinery) and so are
+     * multi-fields (alternate indexings of their parent that never appear in {@code _source}).
+     */
+    @Nullable
+    public String firstFieldNotReconstructableFromDocValues() {
+        for (Mapper mapper : fieldMappers()) {
+            if (mapper instanceof FieldMapper fieldMapper
+                && mapper instanceof MetadataFieldMapper == false
+                && isMultiField(fieldMapper.fullPath()) == false
+                && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
+                return fieldMapper.fullPath();
+            }
+        }
+        return null;
+    }
+
+    /**
      * Returns the set of field mappers marked as time-series dimensions, in insertion order.
      */
     public Set<FieldMapper> indexDimensionFieldMappers() {

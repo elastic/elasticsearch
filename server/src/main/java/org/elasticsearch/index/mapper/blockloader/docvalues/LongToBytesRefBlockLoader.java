@@ -28,12 +28,12 @@ import java.util.function.LongFunction;
  * it to a {@code BytesRef} (WKB) to satisfy the checker. The caller supplies the type-specific {@code long -> BytesRef}
  * decoding.
  */
-public final class BytesRefFromLongsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+public final class LongToBytesRefBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
     private final String fieldName;
     private final LongFunction<BytesRef> longToBytesRef;
 
-    public BytesRefFromLongsBlockLoader(String fieldName, LongFunction<BytesRef> longToBytesRef) {
+    public LongToBytesRefBlockLoader(String fieldName, LongFunction<BytesRef> longToBytesRef) {
         this.fieldName = fieldName;
         this.longToBytesRef = longToBytesRef;
     }

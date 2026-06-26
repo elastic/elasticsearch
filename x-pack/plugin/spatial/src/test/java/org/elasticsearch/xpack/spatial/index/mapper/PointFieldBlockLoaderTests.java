@@ -182,11 +182,13 @@ public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
         return new BytesRef(WellKnownBinary.toWKB(new Point(cartesianPoint.getX(), cartesianPoint.getY()), ByteOrder.LITTLE_ENDIAN));
     }
 
+    // Reused across decode() calls: each result is consumed immediately by the caller, so it is safe to share.
+    private final CartesianPoint scratchPoint = new CartesianPoint();
+
     // Decode an encoded XY doc-value long back into a point, exactly as the columnar block loader does.
     private CartesianPoint decode(long encoded) {
-        var point = new CartesianPoint();
-        point.resetFromEncoded(encoded);
-        return point;
+        scratchPoint.resetFromEncoded(encoded);
+        return scratchPoint;
     }
 
     @Override

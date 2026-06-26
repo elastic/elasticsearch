@@ -41,7 +41,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherMultiGeoPointIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.LatLonPointIndexFieldData;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefFromLongsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongToBytesRefBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
@@ -555,7 +555,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                     return new LongsBlockLoader(name());
                 } else if (blContext.fieldExtractPreference() == NONE && isSyntheticSource) {
                     // when the preference is not explicitly set to DOC_VALUES, we expect a BytesRef -> see PlannerUtils.toElementType()
-                    return new BytesRefFromLongsBlockLoader(name(), encoded -> {
+                    return new LongToBytesRefBlockLoader(name(), encoded -> {
                         GeoPoint point = new GeoPoint().resetFromEncoded(encoded);
                         return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
                     });

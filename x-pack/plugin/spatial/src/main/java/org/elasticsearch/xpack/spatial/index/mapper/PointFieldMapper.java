@@ -35,7 +35,7 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefFromLongsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongToBytesRefBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
@@ -285,7 +285,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 if (blContext.fieldExtractPreference() == DOC_VALUES) {
                     return new LongsBlockLoader(name());
                 }
-                return new BytesRefFromLongsBlockLoader(name(), encoded -> {
+                return new LongToBytesRefBlockLoader(name(), encoded -> {
                     CartesianPoint point = new CartesianPoint();
                     point.resetFromEncoded(encoded);
                     return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));

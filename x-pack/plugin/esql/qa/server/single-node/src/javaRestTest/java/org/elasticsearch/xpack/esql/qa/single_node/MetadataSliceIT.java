@@ -16,6 +16,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
@@ -45,9 +46,51 @@ public class MetadataSliceIT extends ESRestTestCase {
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
 
+    // Cached per JVM run — expensive to re-check for every test method.
+    private static Boolean diskBBQAvailable = null;
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    /**
+     * Skips every test in this class when the {@code diskbbq} module is absent.
+     * <p>
+     * Slice-enabled indices require {@code DiskBBQPlugin.IndexSettingProvider} to inject
+     * {@code index.slice.validated=true} at index-creation time. Without that injection the
+     * {@link org.elasticsearch.index.IndexSettings} constructor throws an
+     * {@link IllegalArgumentException} during shard initialisation, the shard never becomes
+     * active, and every subsequent query fails with {@code no_shard_available_action_exception}.
+     * <p>
+     * This guard is needed because some CI distributions (e.g. the serverless project's stateful
+     * check distribution) do not bundle {@code diskbbq}.
+     */
+    @Before
+    public void assumeDiskBBQAvailable() throws IOException {
+        if (diskBBQAvailable == null) {
+            diskBBQAvailable = isModuleAvailable("diskbbq");
+        }
+        assumeTrue(
+            "diskbbq module is not available in this distribution; "
+                + "slice-enabled index shards cannot start without it (index.slice.validated injection missing)",
+            diskBBQAvailable
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean isModuleAvailable(String moduleName) throws IOException {
+        for (Map<?, ?> nodeInfo : getNodesInfo(client()).values()) {
+            List<Map<?, ?>> modules = (List<Map<?, ?>>) nodeInfo.get("modules");
+            if (modules != null) {
+                for (Map<?, ?> module : modules) {
+                    if (moduleName.equals(module.get("name"))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -316,8 +359,9 @@ public class MetadataSliceIT extends ESRestTestCase {
     // ---- helpers ----
 
     /**
-     * Creates a slice-enabled index. Both {@code index.slice.enabled} and
-     * {@code index.slice.validated} must be set at creation time (they are Final settings).
+     * Creates a slice-enabled index with {@code index.slice.enabled: true}.
+     * {@code DiskBBQPlugin.IndexSettingProvider} injects {@code index.slice.validated=true}
+     * automatically at creation time; without it the shard cannot start.
      */
     private void createSliceIndex(String index) throws IOException {
         Request createIndex = new Request("PUT", "/" + index);

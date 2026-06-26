@@ -18,6 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.datageneration.PointDataSourceHandler;
+import org.junit.Before;
 
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -30,6 +31,13 @@ import java.util.Objects;
 public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
     public PointFieldBlockLoaderTests(Params params) {
         super("point", List.of(new PointDataSourceHandler()), params);
+    }
+
+    @Before
+    public void assumeNotColumnar() {
+        // The cartesian point type has no native (doc-value-based) synthetic source, so it cannot reconstruct _source
+        // from doc values and is rejected in columnar index modes. A follow-up adds a columnar doc-value loader.
+        assumeFalse("point is not yet reconstructable from doc values in columnar", params.indexMode().isStrictColumnar());
     }
 
     @Override

@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -243,18 +245,17 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
 
         static {
             LlamaServiceSettings.declareCommonUpdatableFields(PARSER);
-            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+            StatefulValue.declareNullable(PARSER, (update, value) -> update.maxInputTokens = value, p -> {
+                Integer value = p.intValue();
+                validatePositiveInteger(value, MAX_INPUT_TOKENS);
+                return value;
+            }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
         }
 
-        private Integer maxInputTokens;
-
-        private void setMaxInputTokens(Integer maxInputTokens) {
-            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
-            this.maxInputTokens = maxInputTokens;
-        }
+        private StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();
 
         public LlamaEmbeddingsServiceSettings mergeInto(LlamaEmbeddingsServiceSettings existing) {
-            var updatedMaxInputTokens = this.maxInputTokens != null ? this.maxInputTokens : existing.maxInputTokens();
+            var updatedMaxInputTokens = applyUpdate(this.maxInputTokens, existing.maxInputTokens());
             return new LlamaEmbeddingsServiceSettings(
                 existing.modelId(),
                 existing.uri(),

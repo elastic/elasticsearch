@@ -94,10 +94,14 @@ public class HierarchyCircuitBreakerTelemetryIT extends ESIntegTestCase {
                 .toList();
             assertThat(allMeasurements, Matchers.not(Matchers.empty()));
             final Measurement measurement = allMeasurements.get(0);
-            assertThat(1L, Matchers.equalTo(measurement.getLong()));
-            assertThat(1L, Matchers.equalTo(measurement.value()));
-            assertThat(Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, "inflight_requests"), Matchers.equalTo(measurement.attributes()));
-            assertThat(true, Matchers.equalTo(measurement.isLong()));
+            // When indices:data/write/bulk[s] trips the circuit breaker, a follow-up task internal:admin/tasks/cancel_child
+            // is created and will also trip the breaker (2 trips). The create index request indices:admin/create or the
+            // dynamic-mapping update indices:admin/mapping/auto_put will also trip the breaker only once. The count is therefore
+            // non-deterministic (observed as 1 or 2), so we only assert the breaker tripped at least once.
+            assertThat(measurement.getLong(), Matchers.greaterThanOrEqualTo(1L));
+            assertThat(measurement.value().longValue(), Matchers.greaterThanOrEqualTo(1L));
+            assertThat(measurement.attributes(), Matchers.equalTo(Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, "inflight_requests")));
+            assertThat(measurement.isLong(), Matchers.equalTo(true));
             return;
         }
         fail("Expected exception not thrown");

@@ -14,7 +14,11 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.MultiLineString;
+import org.locationtech.jts.geom.MultiPoint;
+import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.operation.union.UnaryUnionOp;
 
@@ -107,7 +111,7 @@ class SpatialBinaryGeometryBlockProcessor {
         int valueCount = block.getValueCount(p);
         BytesRef scratch = new BytesRef();
         if (valueCount == 1) {
-            return UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex, scratch));
+            return normalizeForOverlay(UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex, scratch)));
         }
         List<Geometry> geometries = new ArrayList<>(valueCount);
         for (int i = 0; i < valueCount; i++) {
@@ -115,6 +119,30 @@ class SpatialBinaryGeometryBlockProcessor {
         }
         // Use UnaryUnionOp to combine multiple block values into one geometry for the operation.
         return UnaryUnionOp.union(geometries);
+    }
+
+    /**
+     * JTS binary overlay operations (union, intersection, difference, symdifference) do not support
+     * heterogeneous {@link GeometryCollection} arguments: they require homogeneous multi-types
+     * (MultiPoint, MultiLineString, MultiPolygon) or atomic geometries.
+     * <p>
+     * For a true {@link GeometryCollection} (not already a homogeneous multi-type), pre-flatten to
+     * a supported type using a self-union so the binary operation can proceed.
+     * </p>
+     * <p>
+     * This method must be called consistently in every code path that feeds geometry values to
+     * JTS binary overlay operations: the block evaluator, the fold path, and the test expected-value
+     * computation. Inconsistent application causes mismatched result types for empty geometries.
+     * </p>
+     */
+    static Geometry normalizeForOverlay(Geometry geom) {
+        if (geom instanceof MultiPoint || geom instanceof MultiLineString || geom instanceof MultiPolygon) {
+            return geom;
+        }
+        if (geom instanceof GeometryCollection) {
+            return UnaryUnionOp.union(geom);
+        }
+        return geom;
     }
 
     private Geometry fromLongBlock(LongBlock block, int p) {

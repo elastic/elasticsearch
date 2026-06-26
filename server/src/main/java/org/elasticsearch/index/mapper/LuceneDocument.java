@@ -113,6 +113,9 @@ public class LuceneDocument implements Iterable<IndexableField> {
         }
     }
 
+    /**
+     * Returns null if key wasn't associated with any field before or the field that is associated with the key.
+     */
     public IndexableField putKeyIfAbsent(final Object key, final IndexableField field) {
         if (keyedFields == null) {
             keyedFields = new HashMap<>();

@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialBinaryGeometryBlockProcessor.flattenIfHeterogeneousCollection;
 
 /**
  * Abstract base for spatial functions that combine two geometry arguments and return a new geometry
@@ -181,7 +182,7 @@ public abstract class BinarySpatialGeometryFunction extends EsqlScalarFunction {
 
     private static Geometry toJts(Object value) throws ParseException {
         return switch (value) {
-            case BytesRef wkb -> SpatialBinaryGeometryBlockProcessor.normalizeForOverlay(UNSPECIFIED.wkbToJtsGeometry(wkb));
+            case BytesRef wkb -> flattenIfHeterogeneousCollection(UNSPECIFIED.wkbToJtsGeometry(wkb));
             case List<?> list -> {
                 List<Geometry> geometries = new ArrayList<>(list.size());
                 for (Object item : list) {

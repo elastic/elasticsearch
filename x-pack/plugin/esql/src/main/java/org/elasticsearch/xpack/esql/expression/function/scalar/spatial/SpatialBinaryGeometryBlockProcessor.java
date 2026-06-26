@@ -111,7 +111,7 @@ class SpatialBinaryGeometryBlockProcessor {
         int valueCount = block.getValueCount(p);
         BytesRef scratch = new BytesRef();
         if (valueCount == 1) {
-            return normalizeForOverlay(UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex, scratch)));
+            return flattenIfHeterogeneousCollection(UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex, scratch)));
         }
         List<Geometry> geometries = new ArrayList<>(valueCount);
         for (int i = 0; i < valueCount; i++) {
@@ -122,20 +122,13 @@ class SpatialBinaryGeometryBlockProcessor {
     }
 
     /**
-     * JTS binary overlay operations (union, intersection, difference, symdifference) do not support
-     * heterogeneous {@link GeometryCollection} arguments: they require homogeneous multi-types
-     * (MultiPoint, MultiLineString, MultiPolygon) or atomic geometries.
-     * <p>
-     * For a true {@link GeometryCollection} (not already a homogeneous multi-type), pre-flatten to
-     * a supported type using a self-union so the binary operation can proceed.
-     * </p>
-     * <p>
-     * This method must be called consistently in every code path that feeds geometry values to
-     * JTS binary overlay operations: the block evaluator, the fold path, and the test expected-value
-     * computation. Inconsistent application causes mismatched result types for empty geometries.
-     * </p>
+     * JTS binary overlay operations (union, intersection, difference, symdifference) reject
+     * heterogeneous {@link GeometryCollection} arguments with an IllegalArgumentException.
+     * Homogeneous subtypes (MultiPoint, MultiLineString, MultiPolygon) are supported.
+     * For anything else (a true heterogeneous collection), pre-flatten to a supported type
+     * using a self-union so the binary operation can proceed.
      */
-    static Geometry normalizeForOverlay(Geometry geom) {
+    static Geometry flattenIfHeterogeneousCollection(Geometry geom) {
         if (geom instanceof MultiPoint || geom instanceof MultiLineString || geom instanceof MultiPolygon) {
             return geom;
         }

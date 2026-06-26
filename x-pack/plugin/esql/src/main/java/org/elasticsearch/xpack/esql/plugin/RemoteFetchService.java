@@ -95,7 +95,7 @@ public final class RemoteFetchService {
     private final BlockFactory blockFactory;
     private final PlannerSettings.Holder plannerSettings;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
-    private final RemoteFetchPushdownPlanExecutor pushdownPlanExecutor;
+    private final RemoteFetchPushdownOperatorBuilder pushdownOperatorBuilder;
     private final RetainedSearchContextsRegistry retainedSearchContexts;
     private final ExchangeServerFactory exchangeServerFactory;
 
@@ -126,7 +126,7 @@ public final class RemoteFetchService {
         this.blockFactory = blockFactory;
         this.plannerSettings = transportActionServices.plannerSettings();
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
-        this.pushdownPlanExecutor = new RemoteFetchPushdownPlanExecutor(bigArrays, localBreakerSettings);
+        this.pushdownOperatorBuilder = new RemoteFetchPushdownOperatorBuilder();
         this.retainedSearchContexts = Objects.requireNonNull(retainedSearchContexts);
         this.exchangeServerFactory = Objects.requireNonNull(exchangeServerFactory);
         transportService.registerRequestHandler(
@@ -238,12 +238,22 @@ public final class RemoteFetchService {
 
         IsBlockedResult isBlocked();
 
+        /**
+         * Returns the first terminal failure observed by the underlying exchange, if any.
+         * <p>
+         * Implementations may release retained-session resources as soon as a failure becomes visible.
+         */
         Exception getFailure();
 
         void markBatchCompleted(long batchId);
 
         void finish();
 
+        /**
+         * Returns {@code true} when all remote responses are consumed and the exchange has terminated.
+         * <p>
+         * Implementations may release retained-session resources when this transitions to {@code true}.
+         */
         boolean isFinished();
 
         IsBlockedResult waitForCompletion();
@@ -365,6 +375,8 @@ public final class RemoteFetchService {
                 target.retainedSessionId() + "/remote-fetch/" + exchangeIdGenerator.incrementAndGet(),
                 exchangeService,
                 transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
+                // Keep one extra response slot on the coordinator side so setup/metadata traffic does not
+                // starve the field-value pages flowing back from the data node.
                 Math.max(1, fields.size() + 1),
                 transportService,
                 parentTask,
@@ -453,6 +465,7 @@ public final class RemoteFetchService {
         public Exception getFailure() {
             Exception failure = client.getPrimaryFailure();
             if (failure != null) {
+                // Failures are terminal for this target exchange, so release the retained session eagerly.
                 releaseTarget();
             }
             return failure;
@@ -478,6 +491,7 @@ public final class RemoteFetchService {
         public boolean isFinished() {
             boolean done = client.isFinished();
             if (done) {
+                // Once the exchange is drained, release the retained session exactly once.
                 releaseTarget();
             }
             return done;
@@ -574,6 +588,7 @@ public final class RemoteFetchService {
                 request.serverToClientId(),
                 exchangeService,
                 transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
+                // Data-node server responses are bounded by requested fetch fields.
                 Math.max(1, request.fields().size()),
                 transportService,
                 task,
@@ -629,11 +644,7 @@ public final class RemoteFetchService {
         List<Operator> operators = new ArrayList<>();
         operators.add(new RemoteFetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping));
 
-        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = buildFieldInfos(
-            request.fields(),
-            shardContexts,
-            settings
-        );
+        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = buildFieldInfos(request.fields(), shardContexts, settings);
         IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readerContexts = shardContexts.map(
             c -> new ValuesSourceReaderOperator.ShardContext(
                 c.searcher().getIndexReader(),
@@ -656,7 +667,7 @@ public final class RemoteFetchService {
         operators.add(new ProjectOperatorFactory(fetchedFieldsProjection(fieldInfos.size(), includePositionMapping)).get(driverContext));
         try {
             operators.addAll(
-                pushdownPlanExecutor.buildOperators(
+                pushdownOperatorBuilder.buildOperators(
                     request.pushdownPlan(),
                     shardContexts,
                     request.configuration().newFoldContext(),
@@ -905,9 +916,12 @@ public final class RemoteFetchService {
             return value;
         }
 
+        /**
+         * Validates the pushdown plan shape at each request lifecycle boundary and tags failures with that phase.
+         */
         private static PhysicalPlan validatePushdownPlan(PhysicalPlan pushdownPlan, String phase) {
             try {
-                RemoteFetchPushdownPlanValidator.validate(pushdownPlan);
+                RemoteFetchPushdownOperatorBuilder.validateSupportedPlan(pushdownPlan);
                 return pushdownPlan;
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("remote fetch pushdown plan is invalid during [" + phase + "]: " + e.getMessage(), e);

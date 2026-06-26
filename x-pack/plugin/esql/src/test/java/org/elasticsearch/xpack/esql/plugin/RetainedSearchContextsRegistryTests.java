@@ -315,10 +315,7 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         assertThat(testRegistry.retainedSessions(), equalTo(0));
         assertTrue(searchContext.isClosed());
 
-        IllegalStateException exception = expectThrows(
-            IllegalStateException.class,
-            () -> testRegistry.acquire("session-1")
-        );
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> testRegistry.acquire("session-1"));
         assertThat(exception.getMessage(), containsString("no retained search contexts for session [session-1]"));
     }
 

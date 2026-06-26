@@ -139,7 +139,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         }
     }
 
-    public void testExecuteFetchLoadsRequestedFieldsInHandleOrder() throws Exception {
+    public void testFieldLoadPreservesHandleOrder() throws Exception {
         blockFactory = blockFactory();
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("k").field("type", "keyword").endObject();
@@ -162,43 +162,33 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             AliasFilter.EMPTY
         );
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = List.of(
-            new ValuesSourceReaderOperator.FieldInfo(
-                "k",
-                PlannerUtils.toElementType(DataType.KEYWORD),
-                false,
-                (warningsMode, shardIdx) -> {
-                    BlockLoader loader = fetchShardContext.blockLoader(
-                        "k",
-                        false,
-                        MappedFieldType.FieldExtractPreference.NONE,
-                        null,
-                        null,
-                        PlannerSettings.DEFAULTS.blockLoaderSizeOrdinals(),
-                        PlannerSettings.DEFAULTS.blockLoaderSizeScript()
-                    );
-                    return ValuesSourceReaderOperator.load(loader);
-                }
-            ),
-            new ValuesSourceReaderOperator.FieldInfo(
-                "n",
-                PlannerUtils.toElementType(DataType.LONG),
-                false,
-                (warningsMode, shardIdx) -> {
-                    BlockLoader loader = fetchShardContext.blockLoader(
-                        "n",
-                        false,
-                        MappedFieldType.FieldExtractPreference.NONE,
-                        null,
-                        null,
-                        PlannerSettings.DEFAULTS.blockLoaderSizeOrdinals(),
-                        PlannerSettings.DEFAULTS.blockLoaderSizeScript()
-                    );
-                    return ValuesSourceReaderOperator.load(loader);
-                }
-            )
+            new ValuesSourceReaderOperator.FieldInfo("k", PlannerUtils.toElementType(DataType.KEYWORD), false, (warningsMode, shardIdx) -> {
+                BlockLoader loader = fetchShardContext.blockLoader(
+                    "k",
+                    false,
+                    MappedFieldType.FieldExtractPreference.NONE,
+                    null,
+                    null,
+                    PlannerSettings.DEFAULTS.blockLoaderSizeOrdinals(),
+                    PlannerSettings.DEFAULTS.blockLoaderSizeScript()
+                );
+                return ValuesSourceReaderOperator.load(loader);
+            }),
+            new ValuesSourceReaderOperator.FieldInfo("n", PlannerUtils.toElementType(DataType.LONG), false, (warningsMode, shardIdx) -> {
+                BlockLoader loader = fetchShardContext.blockLoader(
+                    "n",
+                    false,
+                    MappedFieldType.FieldExtractPreference.NONE,
+                    null,
+                    null,
+                    PlannerSettings.DEFAULTS.blockLoaderSizeOrdinals(),
+                    PlannerSettings.DEFAULTS.blockLoaderSizeScript()
+                );
+                return ValuesSourceReaderOperator.load(loader);
+            })
         );
 
-        List<Page> pages = executeFetch(
+        List<Page> pages = runFieldLoadOperatorChain(
             List.of(
                 new RemoteFetchHandle("node-1", "session-1", 0, 0, 2),
                 new RemoteFetchHandle("node-1", "session-1", 0, 0, 0),
@@ -239,12 +229,9 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         }
     }
 
-    public void testExecutePushdownForExchangeSupportsFilterExec() {
+    public void testPushdownForExchangeSupportsFilterExec() {
         blockFactory = blockFactory();
-        RemoteFetchPushdownPlanExecutor pushdownExecutor = new RemoteFetchPushdownPlanExecutor(
-            blockFactory.bigArrays(),
-            LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS
-        );
+        RemoteFetchPushdownOperatorBuilder pushdownBuilder = new RemoteFetchPushdownOperatorBuilder();
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
         PhysicalPlan pushdownPlan = new FragmentExec(
@@ -254,15 +241,9 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
                 new GreaterThan(Source.EMPTY, fetchedAttribute, new Literal(Source.EMPTY, 15L, DataType.LONG))
             )
         );
-        Page inputPage;
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
-            builder.appendLong(10L);
-            builder.appendLong(20L);
-            builder.appendLong(30L);
-            inputPage = new Page(builder.build());
-        }
-
-        List<Page> outputPages = pushdownExecutor.execute(
+        Page inputPage = fetchedPageWithPosition(blockFactory, 10L, 20L, 30L);
+        List<Page> outputPages = runPushdownThroughDriver(
+            pushdownBuilder,
             List.of(inputPage),
             pushdownPlan,
             new IndexedByShardIdFromSingleton<>(
@@ -299,12 +280,9 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         );
     }
 
-    public void testExecutePushdownProjectPreservesPositionMapping() {
+    public void testPushdownProjectPreservesPositionMapping() {
         blockFactory = blockFactory();
-        RemoteFetchPushdownPlanExecutor pushdownExecutor = new RemoteFetchPushdownPlanExecutor(
-            blockFactory.bigArrays(),
-            LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS
-        );
+        RemoteFetchPushdownOperatorBuilder pushdownBuilder = new RemoteFetchPushdownOperatorBuilder();
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
         PhysicalPlan pushdownPlan = new FragmentExec(
@@ -318,15 +296,9 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
                 List.of(fetchedAttribute)
             )
         );
-        Page inputPage;
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
-            builder.appendLong(10L);
-            builder.appendLong(20L);
-            builder.appendLong(30L);
-            inputPage = new Page(builder.build());
-        }
-
-        List<Page> outputPages = pushdownExecutor.execute(
+        Page inputPage = fetchedPageWithPosition(blockFactory, 10L, 20L, 30L);
+        List<Page> outputPages = runPushdownThroughDriver(
+            pushdownBuilder,
             List.of(inputPage),
             pushdownPlan,
             new IndexedByShardIdFromSingleton<>(
@@ -350,7 +322,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         }
     }
 
-    public void testExecutePushdownUsesSuppliedBlockFactory() {
+    public void testPushdownUsesSuppliedBlockFactory() {
         blockFactory = blockFactory();
         LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
             blockFactory.breaker(),
@@ -358,20 +330,19 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS.maxOverReservedBytes()
         );
         BlockFactory exchangeBlockFactory = blockFactory.newChildFactory(localBreaker);
-        RemoteFetchPushdownPlanExecutor pushdownExecutor = new RemoteFetchPushdownPlanExecutor(
-            blockFactory.bigArrays(),
-            LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS
-        );
+        RemoteFetchPushdownOperatorBuilder pushdownBuilder = new RemoteFetchPushdownOperatorBuilder();
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
-        PhysicalPlan pushdownPlan = new FragmentExec(new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)));
-        Page inputPage;
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
-            builder.appendLong(10L);
-            inputPage = new Page(builder.build());
-        }
-
-        List<Page> outputPages = pushdownExecutor.execute(
+        PhysicalPlan pushdownPlan = new FragmentExec(
+            new Eval(
+                Source.EMPTY,
+                new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
+                List.of(new Alias(Source.EMPTY, "tracked", new FoldContextTrackingExpression(Source.EMPTY, new AtomicLong(-1L))))
+            )
+        );
+        Page inputPage = fetchedPageWithPosition(blockFactory, 10L);
+        List<Page> outputPages = runPushdownThroughDriver(
+            pushdownBuilder,
             List.of(inputPage),
             pushdownPlan,
             new IndexedByShardIdFromSingleton<>(
@@ -390,12 +361,9 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         assertThat(localBreaker.getUsed(), equalTo(0L));
     }
 
-    public void testExecutePushdownUsesSuppliedFoldContext() {
+    public void testPushdownUsesSuppliedFoldContext() {
         blockFactory = blockFactory();
-        RemoteFetchPushdownPlanExecutor pushdownExecutor = new RemoteFetchPushdownPlanExecutor(
-            blockFactory.bigArrays(),
-            LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS
-        );
+        RemoteFetchPushdownOperatorBuilder pushdownBuilder = new RemoteFetchPushdownOperatorBuilder();
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
         FoldContext foldContext = new FoldContext(1234L);
@@ -407,13 +375,9 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
                 List.of(new Alias(Source.EMPTY, "tracked", new FoldContextTrackingExpression(Source.EMPTY, observedFoldLimit)))
             )
         );
-        Page inputPage;
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
-            builder.appendLong(10L);
-            inputPage = new Page(builder.build());
-        }
-
-        List<Page> outputPages = pushdownExecutor.execute(
+        Page inputPage = fetchedPageWithPosition(blockFactory, 10L);
+        List<Page> outputPages = runPushdownThroughDriver(
+            pushdownBuilder,
             List.of(inputPage),
             pushdownPlan,
             new IndexedByShardIdFromSingleton<>(
@@ -714,6 +678,77 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         assertTrue(searchContext.isClosed());
     }
 
+    /**
+     * Builds a fetched-fields page that matches the server-side schema consumed by pushdown operators:
+     * fetched value channels followed by a trailing position-mapping channel.
+     */
+    private static Page fetchedPageWithPosition(BlockFactory blockFactory, long... values) {
+        try (
+            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(values.length);
+            IntBlock.Builder positionBuilder = blockFactory.newIntBlockBuilder(values.length)
+        ) {
+            for (int i = 0; i < values.length; i++) {
+                valueBuilder.appendLong(values[i]);
+                positionBuilder.appendInt(i);
+            }
+            return new Page(valueBuilder.build(), positionBuilder.build());
+        }
+    }
+
+    /**
+     * Runs pushdown using the same shape as production: build operators first, then execute the operator chain.
+     */
+    private static List<Page> runPushdownThroughDriver(
+        RemoteFetchPushdownOperatorBuilder pushdownBuilder,
+        List<Page> inputPages,
+        PhysicalPlan pushdownPlan,
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
+        BlockFactory executionBlockFactory,
+        FoldContext foldContext
+    ) {
+        DriverContext driverContext = new DriverContext(
+            executionBlockFactory.bigArrays(),
+            executionBlockFactory,
+            LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS,
+            "remote_fetch_pushdown_test"
+        );
+        List<Operator> operators = pushdownBuilder.buildOperators(pushdownPlan, shardContexts, foldContext, driverContext);
+        return runOperatorChain(inputPages, operators);
+    }
+
+    private static List<Page> runOperatorChain(List<Page> inputPages, List<Operator> operators) {
+        List<Page> current = inputPages;
+        boolean success = false;
+        try {
+            for (Operator operator : operators) {
+                List<Page> next = new ArrayList<>();
+                try (Operator op = operator) {
+                    for (Page page : current) {
+                        op.addInput(page);
+                        Page output;
+                        while ((output = op.getOutput()) != null) {
+                            output.allowPassingToDifferentDriver();
+                            next.add(output);
+                        }
+                    }
+                    op.finish();
+                    Page output;
+                    while ((output = op.getOutput()) != null) {
+                        output.allowPassingToDifferentDriver();
+                        next.add(output);
+                    }
+                }
+                current = next;
+            }
+            success = true;
+            return current;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(current.iterator(), page -> page::releaseBlocks)));
+            }
+        }
+    }
+
     private static void addDoc(IndexWriter writer, String keyword, long number) throws IOException {
         Document document = new Document();
         document.add(new SortedDocValuesField("k", new BytesRef(keyword)));
@@ -807,9 +842,9 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
     }
 
     /**
-     * Test helper that runs a local ValuesSourceReaderOperator pipeline against handles.
+     * Test helper that runs the field-reading operator chain against handle-derived doc blocks.
      */
-    private static List<Page> executeFetch(
+    private static List<Page> runFieldLoadOperatorChain(
         List<RemoteFetchHandle> handles,
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos,
         IndexedByShardId<ValuesSourceReaderOperator.ShardContext> shardContexts,

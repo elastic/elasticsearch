@@ -7,20 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LocalCircuitBreaker;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -41,25 +34,57 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Executes the deliberately small post-fetch pushdown fragment supported by remote fetch.
+ * Validates and builds operators for the deliberately small post-fetch pushdown fragment supported by remote fetch.
  * <p>
- * At runtime, this class translates the validated pushdown {@link FragmentExec} into a local operator pipeline and
- * runs that pipeline against fetched pages on the target data node.
+ * At runtime, this class translates a supported pushdown {@link FragmentExec} into an operator pipeline that is
+ * appended to the exchange server's data-node driver pipeline.
  * <p>
  * The source fragment's last output attribute is the synthetic position-mapping attribute. It corresponds to the final
- * {@link IntBlock} appended by this executor and must remain the last output block after pushdown execution.
+ * {@link IntBlock} in the data-node pipeline and must remain the last output block after pushdown execution.
  */
-final class RemoteFetchPushdownPlanExecutor {
-    private final BigArrays bigArrays;
-    private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
-
+final class RemoteFetchPushdownOperatorBuilder {
     private record PushdownPipeline(Layout layout, NameId positionAttributeId) {}
 
-    RemoteFetchPushdownPlanExecutor(BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
-        this.bigArrays = bigArrays;
-        this.localBreakerSettings = localBreakerSettings;
+    /**
+     * Validates the remote-fetch pushdown shape used on the wire.
+     * <p>
+     * Accepted forms are {@link FragmentExec} wrapping logical nodes from the constrained
+     * {@link RemoteFetchSource}/{@link Eval}/{@link Filter}/{@link Project} family.
+     */
+    static void validateSupportedPlan(PhysicalPlan plan) {
+        if (plan == null) {
+            return;
+        }
+        if (plan instanceof FragmentExec fragmentExec) {
+            validateSupportedFragment(fragmentExec.fragment());
+            return;
+        }
+        throw new IllegalArgumentException(unsupportedPlanMessage(plan));
     }
 
+    private static void validateSupportedFragment(LogicalPlan plan) {
+        if (plan instanceof RemoteFetchSource) {
+            return;
+        }
+        if (plan instanceof Eval || plan instanceof Filter || plan instanceof Project) {
+            for (LogicalPlan child : plan.children()) {
+                validateSupportedFragment(child);
+            }
+            return;
+        }
+        throw new IllegalArgumentException(unsupportedPlanMessage(plan));
+    }
+
+    private static String unsupportedPlanMessage(Object plan) {
+        return "unsupported remote fetch pushdown plan [" + plan.getClass().getSimpleName() + "]";
+    }
+
+    /**
+     * Builds runtime operators from a supported pushdown plan.
+     * <p>
+     * Callers should validate request-time payloads with {@link #validateSupportedPlan(PhysicalPlan)} before invoking
+     * this method.
+     */
     List<Operator> buildOperators(
         PhysicalPlan pushdownPlan,
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
@@ -79,130 +104,6 @@ final class RemoteFetchPushdownPlanExecutor {
         return operators;
     }
 
-    /**
-     * Test-only mini-driver execution. Production uses {@link #buildOperators} inside an exchange server pipeline.
-     */
-    List<Page> execute(
-        List<Page> pages,
-        PhysicalPlan pushdownPlan,
-        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
-        BlockFactory executionBlockFactory,
-        FoldContext foldContext
-    ) {
-        if (pushdownPlan == null || pages.isEmpty()) {
-            return pages;
-        }
-        List<Page> current = appendPositionColumn(pages, executionBlockFactory);
-        List<Operator.OperatorFactory> factories = new ArrayList<>();
-        boolean success = false;
-        try {
-            PushdownPipeline pipeline = buildPipeline(pushdownPlan, factories, shardContexts, foldContext);
-            for (Operator.OperatorFactory factory : factories) {
-                List<Page> next = new ArrayList<>();
-                try (
-                    Operator operator = factory.get(
-                        new DriverContext(bigArrays, executionBlockFactory, localBreakerSettings, "remote_fetch_pushdown")
-                    )
-                ) {
-                    for (Page page : current) {
-                        operator.addInput(page);
-                        Page output;
-                        while ((output = operator.getOutput()) != null) {
-                            output.allowPassingToDifferentDriver();
-                            next.add(output);
-                        }
-                    }
-                    operator.finish();
-                    Page output;
-                    while ((output = operator.getOutput()) != null) {
-                        output.allowPassingToDifferentDriver();
-                        next.add(output);
-                    }
-                }
-                current = next;
-            }
-            List<Page> reordered = movePositionColumnToEnd(current, pipeline);
-            if (reordered != current) {
-                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(current.iterator(), page -> page::releaseBlocks)));
-                current = reordered;
-            }
-            success = true;
-            return current;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(current.iterator(), page -> page::releaseBlocks)));
-            }
-        }
-    }
-
-    private List<Page> appendPositionColumn(List<Page> pages, BlockFactory executionBlockFactory) {
-        List<Page> withPosition = new ArrayList<>(pages.size());
-        int position = 0;
-        for (Page page : pages) {
-            try (IntBlock.Builder builder = executionBlockFactory.newIntBlockBuilder(page.getPositionCount())) {
-                for (int row = 0; row < page.getPositionCount(); row++) {
-                    builder.appendInt(position++);
-                }
-                Block positionBlock = builder.build();
-                Block[] blocks = new Block[page.getBlockCount() + 1];
-                for (int i = 0; i < page.getBlockCount(); i++) {
-                    blocks[i] = page.getBlock(i);
-                    blocks[i].incRef();
-                }
-                blocks[page.getBlockCount()] = positionBlock;
-                withPosition.add(new Page(page.getPositionCount(), blocks));
-            } finally {
-                page.releaseBlocks();
-            }
-        }
-        return withPosition;
-    }
-
-    private List<Page> movePositionColumnToEnd(List<Page> pages, PushdownPipeline pipeline) {
-        NameId positionAttributeId = pipeline.positionAttributeId();
-        if (positionAttributeId == null) {
-            return pages;
-        }
-        Layout.ChannelAndType position = pipeline.layout().get(positionAttributeId);
-        if (position == null) {
-            throw new IllegalStateException("remote fetch pushdown lost position-mapping attribute");
-        }
-        int positionChannel = position.channel();
-        boolean alreadyLast = true;
-        for (Page page : pages) {
-            if (positionChannel != page.getBlockCount() - 1) {
-                alreadyLast = false;
-                break;
-            }
-        }
-        if (alreadyLast) {
-            return pages;
-        }
-        List<Page> reordered = new ArrayList<>(pages.size());
-        boolean success = false;
-        try {
-            for (Page page : pages) {
-                Block[] blocks = new Block[page.getBlockCount()];
-                int output = 0;
-                for (int channel = 0; channel < page.getBlockCount(); channel++) {
-                    if (channel != positionChannel) {
-                        blocks[output++] = page.getBlock(channel);
-                        blocks[output - 1].incRef();
-                    }
-                }
-                blocks[blocks.length - 1] = page.getBlock(positionChannel);
-                blocks[blocks.length - 1].incRef();
-                reordered.add(new Page(page.getPositionCount(), blocks));
-            }
-            success = true;
-            return reordered;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(reordered.iterator(), page -> page::releaseBlocks)));
-            }
-        }
-    }
-
     private PushdownPipeline buildPipeline(
         PhysicalPlan plan,
         List<Operator.OperatorFactory> factories,
@@ -212,7 +113,7 @@ final class RemoteFetchPushdownPlanExecutor {
         if (plan instanceof FragmentExec fragmentExec) {
             return buildFragmentPipeline(fragmentExec.fragment(), factories, shardContexts, foldContext);
         }
-        throw new IllegalStateException("unsupported remote fetch pushdown plan [" + plan.getClass().getSimpleName() + "]");
+        throw new IllegalStateException(unsupportedPlanMessage(plan));
     }
 
     private void appendPositionFinalizerIfNeeded(List<Operator> operators, PushdownPipeline pipeline, DriverContext driverContext) {
@@ -298,7 +199,7 @@ final class RemoteFetchPushdownPlanExecutor {
             factories.add(new ProjectOperatorFactory(projectionList));
             return new PushdownPipeline(builder.build(), child.positionAttributeId());
         }
-        throw new IllegalStateException("unsupported remote fetch pushdown plan [" + plan.getClass().getSimpleName() + "]");
+        throw new IllegalStateException(unsupportedPlanMessage(plan));
     }
 
     private NameId projectionInputId(NamedExpression projection) {

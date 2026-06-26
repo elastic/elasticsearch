@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -59,6 +60,8 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
         GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);
         when(clientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
         when(storageService.clientSettings(any(), any())).thenReturn(clientSettings);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService();
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         final var repository = new GoogleCloudStorageRepository(
             projectId,
             new RepositoryMetadata(
@@ -71,7 +74,7 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
             ),
             NamedXContentRegistry.EMPTY,
             storageService,
-            BlobStoreTestUtil.mockClusterService(),
+            clusterService,
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(GcsRepositoryStatsCollector.class),

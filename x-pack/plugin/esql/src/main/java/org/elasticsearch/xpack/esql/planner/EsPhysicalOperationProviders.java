@@ -618,14 +618,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             && internalRounding != null
             && outputRounding.getUnprepared().equals(internalRounding.getUnprepared()) == false;
         var pragmas = context.queryPragmas();
-        int partialEmitKeysThreshold = pragmas.timeSeriesPartialAggregationEmitKeysThreshold(
-            plannerSettings.timeSeriesPartialEmitKeysThreshold()
-        );
-        double partialEmitUniquenessThreshold = pragmas.timeSeriesPartialAggregationEmitUniquenessThreshold(
-            plannerSettings.timeSeriesPartialEmitUniquenessThreshold()
-        );
         int targetChunkRows = pragmas.timeSeriesTargetChunkSize(plannerSettings.timeSeriesTargetChunkSize());
-        int maxChunkRows = TimeSeriesAggregationOperator.Factory.maxChunkRowsFor(targetChunkRows);
         return new TimeSeriesAggregationOperator.Factory(
             internalRounding,
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
@@ -634,10 +627,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
             needsOutputFiltering ? outputRounding : null,
-            partialEmitKeysThreshold,
-            partialEmitUniquenessThreshold,
-            targetChunkRows,
-            maxChunkRows
+            targetChunkRows
         );
     }
 

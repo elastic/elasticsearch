@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -231,16 +230,24 @@ public final class TimeSeriesBlockHash extends BlockHash {
         final Block[] blocks = new Block[2];
         try (
             var tsidOrds = blockFactory.newIntVectorFixedBuilder(positionCount);
-            var timestamps = blockFactory.newLongVectorFixedBuilder(positionCount)
+            var timestamps = blockFactory.newLongVectorFixedBuilder(positionCount);
+            var dictBuilder = blockFactory.newBytesRefVectorBuilder(positionCount)
         ) {
+            final BytesRef tsidScratch = new BytesRef();
+            int localOrd = -1;
+            long prevGlobalOrd = -1;
             for (int p = 0; p < positionCount; p++) {
                 final int groupId = selected.getInt(p);
-                tsidOrds.appendInt(p, (int) finalHash.getKey1(groupId));
+                final long globalOrd = finalHash.getKey1(groupId);
+                if (localOrd < 0 || globalOrd != prevGlobalOrd) {
+                    localOrd++;
+                    dictBuilder.appendBytesRef(tsidHash.get((int) globalOrd, tsidScratch));
+                    prevGlobalOrd = globalOrd;
+                }
+                tsidOrds.appendInt(p, localOrd);
                 timestamps.appendLong(p, finalHash.getKey2(groupId));
             }
-            final BytesRefArray bytes = tsidHash.getBytesRefs();
-            var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
-            bytes.incRef();
+            final BytesRefVector dict = dictBuilder.build();
             try {
                 blocks[0] = new OrdinalBytesRefVector(tsidOrds.build(), dict).asBlock();
             } finally {

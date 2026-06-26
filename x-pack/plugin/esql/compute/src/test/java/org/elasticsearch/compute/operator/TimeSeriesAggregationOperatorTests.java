@@ -37,10 +37,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -349,176 +347,146 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         assertThat(outputRows.get(2).value(), equalTo(8L));
     }
 
-    // All of these run the operator in a partial output mode (AggregatorMode.INITIAL) where periodic partial
-    // emission and tsid-aligned output chunking are enabled. See runPartialMode() for the harness.
-
     /**
-     * Partial-mode driver with a small {@code partialEmitKeysThreshold} and a uniqueness ratio above the gate
-     * should emit more than one output page (periodic partial emission fires).
+     * Time-series aggregations never emit partial results periodically (rate and {@code *_over_time} require every
+     * sample of a {@code _tsid} to be aggregated by a single driver in one pass): nothing is emitted until finish(),
+     * no matter how many high-cardinality batches are fed.
      */
-    public void testEmitsMultiplePagesInPartialModeWhenKeysExceedThreshold() {
-        List<List<Object>> firstBatch = new ArrayList<>();
-        for (String tsid : List.of("a", "b", "c", "d", "e")) {
-            addTsidRows(firstBatch, tsid, 1);
+    public void testDoesNotEmitPartialResultsPeriodically() {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.INITIAL,
+            List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
+            1024,
+            null,
+            5
+        );
+        BlockFactory bf = blockFactory();
+        var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
+        List<Page> collected = new ArrayList<>();
+        try (Operator op = operatorFactory.get(driverCtx)) {
+            for (String tsid : List.of("a", "b", "c", "d", "e", "f", "g", "h")) {
+                List<List<Object>> batch = new ArrayList<>();
+                addTsidRows(batch, tsid, 4);
+                op.addInput(buildPage(bf, batch));
+                assertNull("periodic partial emission must be disabled: no output before finish()", op.getOutput());
+            }
+            op.finish();
+            drainInto(op, collected);
+            assertTrue(op.isFinished());
+            int emitted = summarize(collected).stream().mapToInt(PageSummary::positionCount).sum();
+            assertThat("all groups are emitted once finished", emitted, equalTo(32));
+        } finally {
+            for (Page page : collected) {
+                page.releaseBlocks();
+            }
         }
-        List<List<Object>> secondBatch = new ArrayList<>();
-        for (String tsid : List.of("f", "g", "h", "i", "j")) {
-            addTsidRows(secondBatch, tsid, 1);
-        }
-        // Each 5-key batch clears the key-count threshold and the uniqueness gate, so periodic partial emission
-        // fires once per batch. targetChunkRows is effectively disabled, so each emit cycle is a single page.
-        List<PageSummary> pages = runPartialMode(4, 0.1, Integer.MAX_VALUE, Integer.MAX_VALUE, List.of(firstBatch, secondBatch));
-        assertThat(pages.size(), equalTo(2));
     }
 
     /**
-     * Low-cardinality partial-mode driver under default thresholds should emit exactly one page, taking today's
-     * unchunked code path (Goal 2 — no perf regression when data fits).
+     * Low-cardinality partial-mode output that fits within {@code targetChunkRows} is emitted as a single page (no
+     * chunking, preserving today's behaviour when the data fits).
      */
-    public void testEmitsSinglePageInPartialModeWhenKeysBelowThreshold() {
+    public void testEmitsSinglePageInPartialModeWhenBelowChunkSize() {
         List<List<Object>> batch = new ArrayList<>();
         for (String tsid : List.of("a", "b", "c")) {
             addTsidRows(batch, tsid, 1);
         }
-        // Three low-cardinality batches with overlapping keys: numKeys (3) never reaches the high threshold, so
-        // periodic emission never fires and the operator takes the single-page path at finish().
-        List<PageSummary> pages = runPartialMode(100_000, 0.1, Integer.MAX_VALUE, Integer.MAX_VALUE, List.of(batch, batch, batch));
+        List<PageSummary> pages = runPartialMode(100_000, List.of(batch));
         assertThat(pages.size(), equalTo(1));
         assertThat(pages.get(0).positionCount(), equalTo(3));
     }
 
     /**
-     * Within a single emit cycle, no {@code _tsid}'s groups may appear in more than one chunk: a {@code _tsid}
-     * that started inside a chunk is emitted whole, even when that overshoots {@code targetChunkRows}.
+     * When the partial-mode output exceeds {@code targetChunkRows} it is split into several pages, each no larger than
+     * {@code targetChunkRows}, and the chunks together cover every group exactly once.
      */
-    public void testSliceDoesNotSplitTsidWithinEmitCycle() {
-        List<List<Object>> rows = new ArrayList<>();
-        addTsidRows(rows, "a", 3);
-        addTsidRows(rows, "b", 4);
-        addTsidRows(rows, "c", 7);
-        addTsidRows(rows, "d", 2);
-        addTsidRows(rows, "e", 6);
-        // High threshold => no periodic emit => a single emit cycle at finish(); targetChunkRows 5 forces several chunks.
-        List<PageSummary> pages = runPartialMode(Integer.MAX_VALUE, 1.0, 5, 10_000, List.of(rows));
-        assertThat("targetChunkRows should split the cycle into several chunks", pages.size(), greaterThan(1));
-        Map<String, Integer> chunksPerTsid = new HashMap<>();
-        for (PageSummary page : pages) {
-            for (String tsid : page.distinctTsids()) {
-                chunksPerTsid.merge(tsid, 1, Integer::sum);
-            }
-        }
-        for (var entry : chunksPerTsid.entrySet()) {
-            assertThat("tsid [" + entry.getKey() + "] must not be split across chunks", entry.getValue(), equalTo(1));
-        }
-    }
-
-    /**
-     * When the running row count crosses {@code targetChunkRows} mid-{@code _tsid}, the chunk extends to the next
-     * {@code _tsid} boundary (the {@code 10000 -> 10100} example).
-     */
-    public void testSliceExceedsTargetChunkRowsToCompleteTsid() {
+    public void testChunksPartialOutputAboveChunkSize() {
         int targetChunkRows = 5;
+        int groupsPerTsid = 4;
+        List<String> tsids = List.of("a", "b", "c", "d");
         List<List<Object>> rows = new ArrayList<>();
-        addTsidRows(rows, "a", 3);
-        addTsidRows(rows, "b", 4); // the running count crosses targetChunkRows part-way through "b"
-        addTsidRows(rows, "c", 5);
-        List<PageSummary> pages = runPartialMode(Integer.MAX_VALUE, 1.0, targetChunkRows, 10_000, List.of(rows));
-        PageSummary first = pages.get(0);
-        assertThat(
-            "first chunk overshoots targetChunkRows to finish the straddling tsid",
-            first.positionCount(),
-            greaterThan(targetChunkRows)
-        );
-        long bInFirstChunk = first.tsids().stream().filter("b"::equals).count();
-        assertThat("tsid b is emitted whole inside the overshooting chunk", bInFirstChunk, equalTo(4L));
-        for (int i = 1; i < pages.size(); i++) {
-            assertThat("tsid b must not leak into a later chunk", pages.get(i).tsids().contains("b"), equalTo(false));
+        for (String tsid : tsids) {
+            addTsidRows(rows, tsid, groupsPerTsid);
         }
-    }
-
-    /**
-     * Many small {@code _tsid}s whose combined size is below {@code targetChunkRows} should share a single chunk
-     * (multi-tsid pages are allowed and expected).
-     */
-    public void testSlicePacksSmallTsidsTogether() {
-        List<List<Object>> rows = new ArrayList<>();
-        for (String tsid : List.of("a", "b", "c", "d", "e", "f")) {
-            addTsidRows(rows, tsid, 2);
-        }
-        // targetChunkRows 10 leaves room for several 2-group tsids in one chunk before cutting at a boundary.
-        List<PageSummary> pages = runPartialMode(Integer.MAX_VALUE, 1.0, 10, 10_000, List.of(rows));
-        boolean someChunkPacksMultipleTsids = pages.stream().anyMatch(page -> page.distinctTsids().size() > 1);
-        assertThat("small tsids should share a chunk", someChunkPacksMultipleTsids, equalTo(true));
-    }
-
-    /**
-     * A single pathological {@code _tsid} with more groups than {@code maxChunkRows} is split across pages, all
-     * carrying that same leading {@code _tsid}; this is the only case that splits a {@code _tsid}.
-     */
-    public void testMaxChunkRowsSplitsPathologicalSingleTsid() {
-        int maxChunkRows = 10;
-        List<List<Object>> rows = new ArrayList<>();
-        addTsidRows(rows, "x", 25); // one tsid with far more groups than maxChunkRows
-        List<PageSummary> pages = runPartialMode(Integer.MAX_VALUE, 1.0, 5, maxChunkRows, List.of(rows));
-        assertThat("maxChunkRows must split the oversized tsid", pages.size(), greaterThan(1));
+        List<PageSummary> pages = runPartialMode(targetChunkRows, List.of(rows));
+        assertThat("output larger than the chunk size must be chunked", pages.size(), greaterThan(1));
+        int emitted = 0;
         for (PageSummary page : pages) {
-            assertThat("each chunk carries only the single tsid", page.distinctTsids(), equalTo(Set.of("x")));
-            assertThat("no chunk exceeds maxChunkRows", page.positionCount(), lessThanOrEqualTo(maxChunkRows));
+            assertThat("no chunk exceeds targetChunkRows", page.positionCount(), lessThanOrEqualTo(targetChunkRows));
+            emitted += page.positionCount();
         }
-        assertThat("non-final chunks are filled up to maxChunkRows", pages.get(0).positionCount(), equalTo(maxChunkRows));
+        assertThat("every group is emitted exactly once across chunks", emitted, equalTo(tsids.size() * groupsPerTsid));
     }
 
     /**
-     * The target chunk size is now a direct setting (no longer derived), while {@code maxChunkRows} is a fixed
-     * multiple of that target, giving a hard per-page ceiling well above it. The default target reproduces the
-     * historical 200,000-row ceiling.
+     * DimensionValues must survive output chunking: its single value builder is materialized once and the requested
+     * subset is copied per page, so chunked partial output yields the correct value for every group without
+     * re-building (and closing) the shared builder.
      */
-    public void testFactoryDerivesMaxChunkRowsFromTargetChunkSize() {
-        assertThat(TimeSeriesAggregationOperator.DEFAULT_TARGET_CHUNK_SIZE, equalTo(100_000));
-        assertThat(
-            TimeSeriesAggregationOperator.Factory.maxChunkRowsFor(TimeSeriesAggregationOperator.DEFAULT_TARGET_CHUNK_SIZE),
-            equalTo(200_000)
+    public void testDimensionValuesSupportsChunkedPartialOutput() {
+        int targetChunkRows = 3;
+        List<String> tsids = List.of("a", "b", "c", "d", "e", "f", "g");
+        List<List<Object>> batch = new ArrayList<>();
+        for (String tsid : tsids) {
+            batch.add(List.of(tsid, 0L, 1)); // one group per tsid; more than targetChunkRows so the output is chunked
+        }
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.INITIAL,
+            List.of(
+                new DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier().groupingAggregatorFactory(
+                    AggregatorMode.INITIAL,
+                    List.of(0)
+                )
+            ),
+            1024,
+            null,
+            targetChunkRows
         );
-        assertThat(TimeSeriesAggregationOperator.Factory.maxChunkRowsFor(1), equalTo(2));
-        // maxChunkRows guards against int overflow at the extreme.
-        assertThat(TimeSeriesAggregationOperator.Factory.maxChunkRowsFor(Integer.MAX_VALUE), equalTo(Integer.MAX_VALUE));
-    }
-
-    /**
-     * After a periodic partial emit, the next {@code addInput} rebuilds the {@link BlockHash} from the supplier
-     * (still a {@code TimeSeriesBlockHash}) so accumulation restarts cleanly.
-     */
-    public void testBlockHashRebuiltAfterPeriodicEmit() {
-        List<List<Object>> firstBatch = new ArrayList<>();
-        addTsidRows(firstBatch, "a", 1);
-        addTsidRows(firstBatch, "b", 1);
-        List<List<Object>> secondBatch = new ArrayList<>();
-        addTsidRows(secondBatch, "c", 1);
-        addTsidRows(secondBatch, "d", 1);
-        // threshold 2 => each batch triggers a periodic emit. If the blockHash were not rebuilt between cycles,
-        // the second emit would still carry a and b alongside c and d.
-        List<PageSummary> pages = runPartialMode(2, 0.5, Integer.MAX_VALUE, Integer.MAX_VALUE, List.of(firstBatch, secondBatch));
-        assertThat(pages.size(), equalTo(2));
-        assertThat(pages.get(0).distinctTsids(), equalTo(Set.of("a", "b")));
-        assertThat("second cycle only contains freshly accumulated keys", pages.get(1).distinctTsids(), equalTo(Set.of("c", "d")));
-    }
-
-    /**
-     * Hot-spotted keys (low uniqueness ratio) must not trigger periodic emission even past the key-count
-     * threshold, matching the parent's uniqueness gate.
-     */
-    public void testUniquenessThresholdGatesPeriodicEmit() {
-        // 3 distinct keys but many rows per batch: numKeys (3) >= threshold (2), yet rowsAdded * uniqueness >
-        // numKeys, so the uniqueness gate blocks periodic emission across every batch and only finish() emits.
-        List<List<Object>> hotBatch = new ArrayList<>();
-        for (String tsid : List.of("a", "b", "c")) {
-            for (int i = 0; i < 30; i++) {
-                hotBatch.add(List.of(tsid, 0L, 1));
+        BlockFactory bf = blockFactory();
+        var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
+        List<Page> collected = new ArrayList<>();
+        Map<String, String> dimensionByTsid = new HashMap<>();
+        try (Operator op = operatorFactory.get(driverCtx)) {
+            op.addInput(buildPage(bf, batch));
+            op.finish();
+            drainInto(op, collected);
+            assertThat("output must be chunked into multiple pages", collected.size(), greaterThan(1));
+            var scratch = new BytesRef();
+            for (Page page : collected) {
+                assertThat("no chunk exceeds targetChunkRows", page.getPositionCount(), lessThanOrEqualTo(targetChunkRows));
+                BytesRefBlock tsidBlock = page.getBlock(0);
+                BytesRefBlock dimensionBlock = page.getBlock(2); // 2 key blocks + the DimensionValues intermediate state
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    String tsid = tsidBlock.getBytesRef(tsidBlock.getFirstValueIndex(p), scratch).utf8ToString();
+                    assertFalse("dimension value must be present at position " + p, dimensionBlock.isNull(p));
+                    String dim = dimensionBlock.getBytesRef(dimensionBlock.getFirstValueIndex(p), scratch).utf8ToString();
+                    dimensionByTsid.put(tsid, dim);
+                }
+            }
+        } finally {
+            for (Page page : collected) {
+                page.releaseBlocks();
             }
         }
-        List<PageSummary> pages = runPartialMode(2, 0.5, Integer.MAX_VALUE, Integer.MAX_VALUE, List.of(hotBatch, hotBatch, hotBatch));
-        assertThat("hot-spotted keys must not trigger periodic emission", pages.size(), equalTo(1));
-        assertThat(pages.get(0).positionCount(), equalTo(3));
+        Map<String, String> expected = new HashMap<>();
+        for (String tsid : tsids) {
+            expected.put(tsid, tsid);
+        }
+        assertThat("every tsid's dimension value is its own tsid, across all chunks", dimensionByTsid, equalTo(expected));
     }
 
     // --- helpers ---
@@ -585,18 +553,13 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * Drives a {@link TimeSeriesAggregationOperator} in {@link AggregatorMode#INITIAL} (partial output) so that
-     * periodic partial emission and tsid-aligned output chunking are active. Each element of {@code inputBatches}
-     * becomes one input page (one {@code addInput} call), letting tests control batching, and the operator's output
-     * is summarized into {@link PageSummary} so the (tracked) output pages can be released before assertions run.
+     * Drives a {@link TimeSeriesAggregationOperator} in {@link AggregatorMode#INITIAL} (partial output) so that output
+     * chunking is active: the single emitted result is sliced into pages of about {@code targetChunkRows}. Each element
+     * of {@code inputBatches} becomes one input page (one {@code addInput} call), letting tests control batching, and
+     * the operator's output is summarized into {@link PageSummary} so the (tracked) output pages can be released before
+     * assertions run.
      */
-    private List<PageSummary> runPartialMode(
-        int partialEmitKeysThreshold,
-        double partialEmitUniquenessThreshold,
-        int targetChunkRows,
-        int maxChunkRows,
-        List<List<List<Object>>> inputBatches
-    ) {
+    private List<PageSummary> runPartialMode(int targetChunkRows, List<List<List<Object>>> inputBatches) {
         Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
         var operatorFactory = new TimeSeriesAggregationOperator.Factory(
             oneMinBucket,
@@ -609,10 +572,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
             1024,
             null,
-            partialEmitKeysThreshold,
-            partialEmitUniquenessThreshold,
-            targetChunkRows,
-            maxChunkRows
+            targetChunkRows
         );
 
         BlockFactory bf = blockFactory();
@@ -676,11 +636,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
      * A view over one partial-output page: its row count and the per-row {@code _tsid} (key block 0), captured so
      * assertions can run after the underlying page has been released.
      */
-    private record PageSummary(int positionCount, List<String> tsids) {
-        Set<String> distinctTsids() {
-            return new LinkedHashSet<>(tsids);
-        }
-    }
+    private record PageSummary(int positionCount, List<String> tsids) {}
 
     private static List<PageSummary> summarize(List<Page> pages) {
         List<PageSummary> summaries = new ArrayList<>(pages.size());

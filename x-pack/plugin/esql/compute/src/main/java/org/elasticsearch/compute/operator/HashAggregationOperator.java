@@ -548,22 +548,6 @@ public class HashAggregationOperator implements Operator {
         return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
-    /**
-     * Compute the exclusive end offset of the next output-page slice, given the start offset into the
-     * {@code selected} group ids (the vector returned by {@link BlockHash#nonEmpty()}).
-     * <p>
-     *     The default implementation slices into fixed {@link #maxPageSize} row chunks. Subclasses that
-     *     need a different cut policy (time-series aligns cuts to {@code _tsid} boundaries) override this.
-     * </p>
-     *
-     * @param selected  the selected group ids being emitted
-     * @param rowOffset the inclusive start offset into {@code selected}
-     * @return the exclusive end offset; always {@code > rowOffset} and {@code <= selected.getPositionCount()}
-     */
-    protected int nextPageSliceEnd(IntVector selected, int rowOffset) {
-        return Math.min(maxPageSize + rowOffset, selected.getPositionCount());
-    }
-
     @Override
     public boolean isFinished() {
         return finished && output == null;
@@ -840,7 +824,7 @@ public class HashAggregationOperator implements Operator {
         @Override
         public Page next() {
             long startInNanos = System.nanoTime();
-            int endOffset = nextPageSliceEnd(prepared.selected.keys, rowOffset);
+            int endOffset = Math.min(maxPageSize + rowOffset, prepared.selected.keys.getPositionCount());
             try (Selected selectedInThisPage = prepared.selected.slice(rowOffset, endOffset)) {
                 Page output = prepared.buildPage(selectedInThisPage, aggBlockCounts);
                 rowOffset = endOffset;

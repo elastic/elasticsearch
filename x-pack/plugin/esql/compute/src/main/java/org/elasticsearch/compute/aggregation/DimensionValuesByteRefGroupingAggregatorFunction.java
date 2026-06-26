@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
@@ -56,6 +57,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     private final int channel;
     private final DriverContext driverContext;
     private int maxGroupId = -1;
+    private BytesRefBlock values;
 
     public DimensionValuesByteRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channel = channels.getFirst();
@@ -241,26 +243,29 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
 
     private void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
         int positionCount = selectedInPage.getPositionCount();
-        boolean allSelected = positionCount > maxGroupId;
-        if (allSelected) {
-            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
-                if (selectedInPage.getInt(i) != i) {
-                    allSelected = false;
-                    break;
+        if (values == null) {
+            boolean allSelected = positionCount > maxGroupId;
+            if (allSelected) {
+                for (int i = 0; i < positionCount; i++) {
+                    if (selectedInPage.getInt(i) != i) {
+                        allSelected = false;
+                        break;
+                    }
                 }
             }
-        }
-        if (allSelected) {
-            fillNullsUpTo(positionCount);
-            blocks[offset] = builder.build();
-            return;
+            if (allSelected) {
+                fillNullsUpTo(positionCount);
+                blocks[offset] = builder.build();
+                return;
+            }
+            values = builder.build();
         }
         BytesRef scratch = new BytesRef();
-        try (var block = builder.build(); var outputBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+        try (var outputBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int groupId = selectedInPage.getInt(p);
                 if (groupId <= maxGroupId) {
-                    outputBuilder.copyFrom(block, groupId, scratch);
+                    outputBuilder.copyFrom(values, groupId, scratch);
                 } else {
                     outputBuilder.appendNull();
                 }
@@ -271,7 +276,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
 
     @Override
     public void close() {
-        builder.close();
+        Releasables.close(builder, values);
     }
 
     @Override

@@ -72,7 +72,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 /**
@@ -298,11 +297,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         for (int i = 0; i < assignments.length; i++) {
             centroidVectorCount[assignments[i]]++;
 
-            // if soar assignments are present, count them as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            assert overspills.length == 0 || overspills.length == 1;
-            if (overspills.length == 1) {
-                centroidVectorCount[overspills[0]]++;
+            // if overspill assignments are present, count them as well
+            for (int s : overspillAssignments.getAssignmentsFor(i)) {
+                centroidVectorCount[s]++;
             }
         }
 
@@ -319,10 +316,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             int c = assignments[i];
             assignmentsByCluster[c][centroidVectorCount[c]++] = i;
 
-            // if soar assignments are present, add them to the cluster as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            if (overspills.length == 1) {
-                int s = overspills[0];
+            // if overspill assignments are present, add them to the cluster as well
+            for (int s : overspillAssignments.getAssignmentsFor(i)) {
                 assignmentsByCluster[s][centroidVectorCount[s]++] = i;
             }
         }
@@ -441,6 +436,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 effectiveQuantEncoding.pack(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
 
+                // TODO: new storage format for overspill
                 int[] overspills = overspillAssignments.getAssignmentsFor(i);
                 assert overspills.length == 0 || overspills.length == 1;
                 if (overspills.length == 1) {
@@ -479,10 +475,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         for (int i = 0; i < assignments.length; i++) {
             centroidVectorCount[assignments[i]]++;
 
-            // if soar assignments are present, count them as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            if (overspills.length == 1) {
-                centroidVectorCount[overspills[0]]++;
+            // if overspill assignments are present, count them as well
+            for (int s : overspillAssignments.getAssignmentsFor(i)) {
+                centroidVectorCount[s]++;
             }
         }
 
@@ -501,10 +496,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             int c = assignments[i];
             assignmentsByCluster[c][centroidVectorCount[c]++] = i;
 
-            // if soar assignments are present, add them to the cluster as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            if (overspills.length == 1) {
-                int s = overspills[0];
+            // if overspill assignments are present, add them to the cluster as well
+            for (int s : overspillAssignments.getAssignmentsFor(i)) {
                 assignmentsByCluster[s][centroidVectorCount[s]] = i;
                 isOverspillByCluster[s][centroidVectorCount[s]++] = true;
             }

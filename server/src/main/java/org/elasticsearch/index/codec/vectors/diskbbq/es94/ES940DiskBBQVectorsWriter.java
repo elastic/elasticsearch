@@ -59,7 +59,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 
-import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 /**

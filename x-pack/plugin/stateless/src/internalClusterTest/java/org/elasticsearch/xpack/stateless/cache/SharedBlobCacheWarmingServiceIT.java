@@ -1420,7 +1420,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             Settings settings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
-            ClusterService clusterService
+            ClusterService clusterService,
+            IndicesService indicesService
         ) {
             MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService maybeNoFreeRegionForWarmingBlobCacheService =
                 new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(
@@ -1428,7 +1429,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     settings,
                     threadPool,
                     blobCacheMetrics,
-                    clusterService
+                    clusterService,
+                    indicesService
                 );
             maybeNoFreeRegionForWarmingBlobCacheService.assertInvariants();
             return maybeNoFreeRegionForWarmingBlobCacheService;
@@ -1443,7 +1445,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             Settings settings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
-            ClusterService clusterService
+            ClusterService clusterService,
+            IndicesService indicesService
         ) {
             super(
                 environment,
@@ -1451,6 +1454,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 threadPool,
                 blobCacheMetrics,
                 clusterService,
+                indicesService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
         }

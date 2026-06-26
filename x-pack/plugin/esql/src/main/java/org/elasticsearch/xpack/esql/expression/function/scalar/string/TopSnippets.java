@@ -187,6 +187,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         @Param(
             name = "query",
             type = { "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "The input text containing only query terms for snippet extraction."
                 + " Lucene query syntax, operators, and wildcards are not allowed."
         ) Expression query,

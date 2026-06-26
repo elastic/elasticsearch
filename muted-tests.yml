@@ -743,3 +743,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnionTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152323
+- class: org.elasticsearch.gradle.internal.archunit.IsolatedProjectsArchUnitSpec
+  method: the getRootProject baseline contains no stale entries
+  issue: https://github.com/elastic/elasticsearch/issues/152341

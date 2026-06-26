@@ -108,7 +108,6 @@ class TestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
         "org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin",
         "org.elasticsearch.gradle.internal.testfixtures.TestFixturesDeployPlugin",
-        "org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin",
         "org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin",
         "org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin",
 

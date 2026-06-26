@@ -87,9 +87,17 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary2 = newStartedShard(true);
 
         final var task = newRecoveryTask();
-        final var completedListener = new CountDownLatch(1);
+        // onRecoveryCompleted fires after sourceRecoveryCompleted()
+        final var completedListener = new CountDownLatch(2);
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                completedListener.countDown();
+            }
+        });
 
-        try (var service = newPeerRecoverySourceService(1); var block1 = blockShardRecovery(primary1);) {
+        try (var service = newPeerRecoverySourceService(1, schedulingListeners); var block1 = blockShardRecovery(primary1)) {
             service.start();
             service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
             // The recovery will fail immediately because the fake target allocation ID is not in the shard's routing table
@@ -97,10 +105,10 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                 newStartRecoveryRequest(primary2),
                 task,
                 primary2,
-                ActionListener.wrap(r -> fail("unexpected success"), exception -> {
-                    assertThat(exception, instanceOf(DelayRecoveryException.class));
-                    completedListener.countDown();
-                })
+                ActionListener.wrap(
+                    r -> fail("unexpected success"),
+                    exception -> assertThat(exception, instanceOf(DelayRecoveryException.class))
+                )
             );
             assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(1));
             assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
@@ -162,11 +170,19 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary4 = newStartedShard(true);
         final IndexShard primary5 = newStartedShard(true);
         final var task = newRecoveryTask();
-        final var allRecoveriesCompleted = new CountDownLatch(3);
+
+        final var allRecoveriesCompleted = new CountDownLatch(4);
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                allRecoveriesCompleted.countDown();
+            }
+        });
         final Queue<Integer> callOrder = new ConcurrentLinkedQueue<>();
 
         try (
-            var service = newPeerRecoverySourceService(2);
+            var service = newPeerRecoverySourceService(2, schedulingListeners);
             var block1 = blockShardRecovery(primary1);
             var ignored = blockShardRecovery(primary2)
         ) {
@@ -177,28 +193,19 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
                 newStartRecoveryRequest(primary3),
                 task,
                 primary3,
-                ActionListener.wrap(r -> fail("unexpected success"), e -> {
-                    callOrder.add(1);
-                    allRecoveriesCompleted.countDown();
-                })
+                ActionListener.wrap(r -> fail("unexpected success"), e -> callOrder.add(1))
             );
             service.ongoingRecoveries.enqueueRecovery(
                 newStartRecoveryRequest(primary4),
                 task,
                 primary4,
-                ActionListener.wrap(r -> fail("unexpected success"), e -> {
-                    callOrder.add(2);
-                    allRecoveriesCompleted.countDown();
-                })
+                ActionListener.wrap(r -> fail("unexpected success"), e -> callOrder.add(2))
             );
             service.ongoingRecoveries.enqueueRecovery(
                 newStartRecoveryRequest(primary5),
                 task,
                 primary5,
-                ActionListener.wrap(r -> fail("unexpected success"), e -> {
-                    callOrder.add(3);
-                    allRecoveriesCompleted.countDown();
-                })
+                ActionListener.wrap(r -> fail("unexpected success"), e -> callOrder.add(3))
             );
             assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(3));
             assertThat(primary3.recoveryStats().currentAsSourceQueued(), equalTo(1));
@@ -218,12 +225,11 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     public void testSameShardFillsMultipleSlots() throws Exception {
         final IndexShard primary = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService(2);
-        service.start();
         final var task = newRecoveryTask();
 
         // Two handlers for the same shard each consume one slot.
-        try (var ignored = blockShardRecovery(primary)) {
+        try (var service = newPeerRecoverySourceService(2); var ignored = blockShardRecovery(primary)) {
+            service.start();
             service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary), task, primary, ActionListener.noop());
             service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary), task, primary, ActionListener.noop());
             assertThat(service.ongoingRecoveries.activeRecoveryCount(), equalTo(2));
@@ -642,16 +648,13 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var service = newPeerRecoverySourceService(1);
         final var task = newRecoveryTask();
         final var block = blockShardRecovery(primary1);
-
-        ActionListener<RecoveryResponse> listener = ActionListener.noop();
-
         service.start();
 
         // Fill slot
         service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
 
         // Queue another recovery
-        service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, listener);
+        service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
         assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
 
         // Stop the service and complete listener. Lifecycle assertions in the production code must hold.

@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 /**
  * Retains {@link AcquiredSearchContexts} beyond the lifetime of the initial distributed query so a follow-up fetch
@@ -21,19 +24,29 @@ import java.util.function.Consumer;
  * <p>
  * During the initial query, the data-node handler calls {@link #register} to place the session's search contexts into this registry,
  * receiving a {@link Handle} in return. Concurrent fetch requests can call {@link #acquire} to obtain another {@link Handle} that grants
- * access to the same search contexts. When the query task completes (or an explicit release request arrives from the coordinating node),
- * the registration is closed — its reference is released — but any already-acquired handles remain valid until individually closed.
- * The underlying search contexts are released only when the last outstanding handle is closed.
+ * access to the same search contexts. When an explicit release request arrives from the coordinating node, the registration is closed —
+ * its reference is released — but any already-acquired handles remain valid until individually closed. The underlying search contexts are
+ * released only when the last outstanding handle is closed.
  * <p>
  * <b>Concurrency design:</b> This registry uses a {@link ConcurrentHashMap} for the session map and {@link AbstractRefCounted} for
- * per-entry lifecycle. There is no coarse-grained synchronization. A consequence is that {@link #acquire} may succeed during the brief
- * window between a coordinator sending its release signal and that signal being processed (i.e., a "straggler" acquire). This is
- * acceptable: a straggler operates on still-valid contexts (guaranteed by {@code tryIncRef}), completes its fetch, and its eventual
- * close triggers final cleanup. The alternative — a strict gate preventing all post-release acquires — would require synchronized
- * compound operations but provides no correctness benefit, only avoiding a small amount of wasted work in an unlikely race.
+ * per-entry lifecycle. Once the registration is closed, new fetch leases are rejected while already-acquired leases remain valid until
+ * individually closed. Idle registrations also expire after a short keep-alive as a backstop for abandoned coordinator sessions.
  */
 final class RetainedSearchContextsRegistry {
+    private static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
+
     private final ConcurrentHashMap<String, Entry> entriesBySessionId = new ConcurrentHashMap<>();
+    private final LongSupplier relativeTimeInMillis;
+    private final long keepAliveInMillis;
+
+    RetainedSearchContextsRegistry() {
+        this(System::currentTimeMillis, DEFAULT_KEEP_ALIVE);
+    }
+
+    RetainedSearchContextsRegistry(LongSupplier relativeTimeInMillis, TimeValue keepAlive) {
+        this.relativeTimeInMillis = relativeTimeInMillis;
+        this.keepAliveInMillis = keepAlive.millis();
+    }
 
     /**
      * Registers the given search contexts for retention under {@code sessionId}, transferring lifecycle ownership to this registry.
@@ -43,19 +56,25 @@ final class RetainedSearchContextsRegistry {
      *                               transferred — the caller remains responsible for closing {@code searchContexts}.
      */
     Handle register(String sessionId, AcquiredSearchContexts searchContexts) {
-        Entry entry = new Entry(searchContexts, e -> entriesBySessionId.remove(sessionId, e));
+        Entry entry = new Entry(searchContexts, relativeTimeInMillis.getAsLong(), e -> entriesBySessionId.remove(sessionId, e));
         if (entriesBySessionId.putIfAbsent(sessionId, entry) != null) {
             throw new IllegalStateException("search contexts already retained for session [" + sessionId + "]");
         }
-        return new Handle(sessionId, searchContexts.globalView(), entry::closeRegistration);
+        return new Handle(
+            sessionId,
+            searchContexts.globalView(),
+            entry::closeRegistration,
+            () -> entry.finishRegistration(relativeTimeInMillis.getAsLong())
+        );
     }
 
     Handle acquire(String sessionId) {
         Entry entry = entriesBySessionId.get(sessionId);
-        if (entry == null || entry.refs.tryIncRef() == false) {
+        long nowInMillis = relativeTimeInMillis.getAsLong();
+        if (entry == null || entry.tryAcquire(nowInMillis) == false) {
             throw new IllegalStateException("no retained search contexts for session [" + sessionId + "]");
         }
-        return new Handle(sessionId, entry.searchContexts.globalView(), entry.refs::decRef);
+        return new Handle(sessionId, entry.searchContexts.globalView(), () -> entry.closeLease(relativeTimeInMillis.getAsLong()), () -> {});
     }
 
     int retainedSessions() {
@@ -74,17 +93,63 @@ final class RetainedSearchContextsRegistry {
         }
     }
 
+    void expire() {
+        long nowInMillis = relativeTimeInMillis.getAsLong();
+        entriesBySessionId.forEach((sessionId, entry) -> {
+            if (entry.isExpired(nowInMillis, keepAliveInMillis)) {
+                entry.closeRegistration();
+            }
+        });
+    }
+
     private static final class Entry {
         private final AcquiredSearchContexts searchContexts;
         private final AbstractRefCounted refs;
         private final AtomicBoolean registrationClosed = new AtomicBoolean();
+        private final AtomicBoolean producerActive = new AtomicBoolean(true);
+        private final AtomicLong lastAccessTimeInMillis;
 
-        private Entry(AcquiredSearchContexts searchContexts, Consumer<Entry> onMapRemoval) {
+        private Entry(AcquiredSearchContexts searchContexts, long nowInMillis, Consumer<Entry> onMapRemoval) {
             this.searchContexts = searchContexts;
+            this.lastAccessTimeInMillis = new AtomicLong(nowInMillis);
             this.refs = AbstractRefCounted.of(() -> {
                 onMapRemoval.accept(this);
                 searchContexts.close();
             });
+        }
+
+        boolean tryAcquire(long nowInMillis) {
+            if (registrationClosed.get()) {
+                return false;
+            }
+            if (refs.tryIncRef() == false) {
+                return false;
+            }
+            if (registrationClosed.get()) {
+                refs.decRef();
+                return false;
+            }
+            lastAccessTimeInMillis.accumulateAndGet(nowInMillis, Math::max);
+            return true;
+        }
+
+        void closeLease(long nowInMillis) {
+            lastAccessTimeInMillis.accumulateAndGet(nowInMillis, Math::max);
+            refs.decRef();
+        }
+
+        boolean isExpired(long nowInMillis, long keepAliveInMillis) {
+            if (registrationClosed.get() || producerActive.get() || refs.refCount() > 1) {
+                return false;
+            }
+            return nowInMillis - lastAccessTimeInMillis.get() > keepAliveInMillis;
+        }
+
+        void finishRegistration(long nowInMillis) {
+            if (registrationClosed.get() == false) {
+                lastAccessTimeInMillis.accumulateAndGet(nowInMillis, Math::max);
+                producerActive.set(false);
+            }
         }
 
         /**
@@ -102,12 +167,19 @@ final class RetainedSearchContextsRegistry {
         private final String sessionId;
         private final IndexedByShardId<ComputeSearchContext> searchContexts;
         private final Runnable onClose;
+        private final Runnable onFinishRegistration;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        private Handle(String sessionId, IndexedByShardId<ComputeSearchContext> searchContexts, Runnable onClose) {
+        private Handle(
+            String sessionId,
+            IndexedByShardId<ComputeSearchContext> searchContexts,
+            Runnable onClose,
+            Runnable onFinishRegistration
+        ) {
             this.sessionId = sessionId;
             this.searchContexts = searchContexts;
             this.onClose = onClose;
+            this.onFinishRegistration = onFinishRegistration;
         }
 
         String sessionId() {
@@ -116,6 +188,12 @@ final class RetainedSearchContextsRegistry {
 
         IndexedByShardId<ComputeSearchContext> searchContexts() {
             return searchContexts;
+        }
+
+        void finishRegistration() {
+            if (closed.get() == false) {
+                onFinishRegistration.run();
+            }
         }
 
         @Override

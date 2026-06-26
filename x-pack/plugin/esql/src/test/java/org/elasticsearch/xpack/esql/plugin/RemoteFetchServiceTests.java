@@ -82,12 +82,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchSourceExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -208,10 +209,12 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         );
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
-        PhysicalPlan pushdownPlan = new FilterExec(
-            Source.EMPTY,
-            new RemoteFetchSourceExec(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
-            new GreaterThan(Source.EMPTY, fetchedAttribute, new Literal(Source.EMPTY, 15L, DataType.LONG))
+        PhysicalPlan pushdownPlan = new FragmentExec(
+            new Filter(
+                Source.EMPTY,
+                new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
+                new GreaterThan(Source.EMPTY, fetchedAttribute, new Literal(Source.EMPTY, 15L, DataType.LONG))
+            )
         );
         Page inputPage;
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
@@ -245,40 +248,16 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         }
     }
 
-    public void testExecutePushdownProjectRejectsScalarAliases() {
-        blockFactory = blockFactory();
-        RemoteFetchPushdownCompiler pushdownCompiler = new RemoteFetchPushdownCompiler(
-            blockFactory.bigArrays(),
-            LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS
-        );
+    public void testPushdownLogicalProjectRejectsScalarAliases() {
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
-        PhysicalPlan pushdownPlan = new ProjectExec(
-            Source.EMPTY,
-            new RemoteFetchSourceExec(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
-            List.of(new Alias(Source.EMPTY, "constant", new Literal(Source.EMPTY, 1, DataType.INTEGER)))
-        );
-        Page inputPage;
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
-            builder.appendLong(10L);
-            inputPage = new Page(builder.build());
-        }
-
-        IllegalStateException exception = expectThrows(
-            IllegalStateException.class,
-            () -> pushdownCompiler.execute(
-                List.of(inputPage),
-                pushdownPlan,
-                new IndexedByShardIdFromSingleton<>(
-                    Mockito.mock(EsPhysicalOperationProviders.ShardContext.class, Mockito.withSettings().stubOnly())
-                ),
-                blockFactory,
-                FoldContext.small()
+        expectThrows(
+            AssertionError.class,
+            () -> new Project(
+                Source.EMPTY,
+                new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
+                List.of(new Alias(Source.EMPTY, "constant", new Literal(Source.EMPTY, 1, DataType.INTEGER)))
             )
-        );
-        assertThat(
-            exception.getMessage(),
-            containsString("remote fetch pushdown project aliases must reference existing named expressions")
         );
     }
 
@@ -290,14 +269,16 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         );
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
-        PhysicalPlan pushdownPlan = new ProjectExec(
-            Source.EMPTY,
-            new FilterExec(
+        PhysicalPlan pushdownPlan = new FragmentExec(
+            new Project(
                 Source.EMPTY,
-                new RemoteFetchSourceExec(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
-                new GreaterThan(Source.EMPTY, fetchedAttribute, new Literal(Source.EMPTY, 15L, DataType.LONG))
-            ),
-            List.of(fetchedAttribute)
+                new Filter(
+                    Source.EMPTY,
+                    new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
+                    new GreaterThan(Source.EMPTY, fetchedAttribute, new Literal(Source.EMPTY, 15L, DataType.LONG))
+                ),
+                List.of(fetchedAttribute)
+            )
         );
         Page inputPage;
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
@@ -345,7 +326,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         );
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
-        PhysicalPlan pushdownPlan = new RemoteFetchSourceExec(Source.EMPTY, List.of(fetchedAttribute, positionAttribute));
+        PhysicalPlan pushdownPlan = new FragmentExec(new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)));
         Page inputPage;
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
             builder.appendLong(10L);
@@ -381,10 +362,12 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
         FoldContext foldContext = new FoldContext(1234L);
         AtomicLong observedFoldLimit = new AtomicLong(-1L);
-        PhysicalPlan pushdownPlan = new EvalExec(
-            Source.EMPTY,
-            new RemoteFetchSourceExec(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
-            List.of(new Alias(Source.EMPTY, "tracked", new FoldContextTrackingExpression(Source.EMPTY, observedFoldLimit)))
+        PhysicalPlan pushdownPlan = new FragmentExec(
+            new Eval(
+                Source.EMPTY,
+                new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
+                List.of(new Alias(Source.EMPTY, "tracked", new FoldContextTrackingExpression(Source.EMPTY, observedFoldLimit)))
+            )
         );
         Page inputPage;
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
@@ -416,7 +399,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             new EsField("n", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
         );
         Configuration configuration = ConfigurationTestUtils.randomConfiguration();
-        PhysicalPlan pushdownPlan = new RemoteFetchSourceExec(Source.EMPTY, List.of(fieldAttribute));
+        PhysicalPlan pushdownPlan = new FragmentExec(new RemoteFetchSource(Source.EMPTY, List.of(fieldAttribute)));
         RemoteFetchService.ExchangeSetupRequest request = new RemoteFetchService.ExchangeSetupRequest(
             "session-1",
             List.of(new RemoteFetchService.FetchField("n", DataType.LONG)),
@@ -434,7 +417,10 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
                 RemoteFetchService.ExchangeSetupRequest copy = new RemoteFetchService.ExchangeSetupRequest(in);
                 assertThat(copy.retainedSessionId(), equalTo("session-1"));
                 assertThat(copy.fields(), equalTo(List.of(new RemoteFetchService.FetchField("n", DataType.LONG))));
-                assertThat(copy.pushdownPlan() instanceof RemoteFetchSourceExec, equalTo(true));
+                assertThat(
+                    copy.pushdownPlan() instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof RemoteFetchSource,
+                    equalTo(true)
+                );
                 assertThat(copy.configuration(), equalTo(configuration));
                 assertThat(copy.clientToServerId(), equalTo("clientToServer-1"));
                 assertThat(copy.serverToClientId(), equalTo("serverToClient-1"));
@@ -447,7 +433,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
         PhysicalPlan pushdownPlan = new LimitExec(
             Source.EMPTY,
-            new RemoteFetchSourceExec(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
+            new FragmentExec(new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute))),
             new Literal(Source.EMPTY, 10, DataType.INTEGER),
             null
         );

@@ -21,20 +21,21 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteFetchBatchOperatorTests extends ESTestCase {
+public class RemoteFetchDataNodeBatchOperatorTests extends ESTestCase {
     private final List<BlockFactory> blockFactories = new ArrayList<>();
 
     public void testFetchedPagesArePlainPagesForBatchDriverSinkWrapping() {
         DriverContext driverContext = driverContext();
         try (
-            RemoteFetchBatchOperator operator = new RemoteFetchBatchOperator(
+            RemoteFetchDataNodeBatchOperator operator = new RemoteFetchDataNodeBatchOperator(
                 handles -> List.of(intPage(driverContext, 10), intPage(driverContext, 20))
             )
         ) {
-            operator.addInput(handlesPage(driverContext, 7));
+            operator.addInput(handlesPage(driverContext));
             Page first = operator.getOutput();
             Page second = operator.getOutput();
             try {
@@ -51,9 +52,51 @@ public class RemoteFetchBatchOperatorTests extends ESTestCase {
 
     public void testEmptyFetchEmitsNoPagesForBatchDriverSinkWrapping() {
         DriverContext driverContext = driverContext();
-        try (RemoteFetchBatchOperator operator = new RemoteFetchBatchOperator(handles -> List.of())) {
-            operator.addInput(handlesPage(driverContext, 11));
+        try (RemoteFetchDataNodeBatchOperator operator = new RemoteFetchDataNodeBatchOperator(handles -> List.of())) {
+            operator.addInput(handlesPage(driverContext));
             assertNull(operator.getOutput());
+        }
+    }
+
+    public void testInvokesFetcherOncePerInputPageWithAllHandles() {
+        DriverContext driverContext = driverContext();
+        AtomicInteger calls = new AtomicInteger();
+        List<RemoteFetchHandle> captured = new ArrayList<>();
+        List<RemoteFetchHandle> expected = List.of(
+            new RemoteFetchHandle("node-1", "session-1", 0, 0, 10),
+            new RemoteFetchHandle("node-1", "session-1", 0, 1, 20),
+            new RemoteFetchHandle("node-1", "session-1", 1, 0, 30)
+        );
+
+        try (RemoteFetchDataNodeBatchOperator operator = new RemoteFetchDataNodeBatchOperator(handles -> {
+            calls.incrementAndGet();
+            captured.addAll(handles);
+            return List.of();
+        })) {
+            operator.addInput(handlesPage(driverContext, expected));
+            assertNull(operator.getOutput());
+        }
+
+        assertThat(calls.get(), equalTo(1));
+        assertThat(captured, equalTo(expected));
+    }
+
+    public void testRejectsHandlesFromDifferentTargetSessionsInSingleBatch() {
+        DriverContext driverContext = driverContext();
+        try (RemoteFetchDataNodeBatchOperator operator = new RemoteFetchDataNodeBatchOperator(handles -> List.of())) {
+            operator.addInput(
+                handlesPage(
+                    driverContext,
+                    List.of(new RemoteFetchHandle("node-1", "session-1", 0, 0, 1), new RemoteFetchHandle("node-2", "session-2", 0, 0, 2))
+                )
+            );
+            IllegalStateException e = expectThrows(IllegalStateException.class, operator::getOutput);
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "remote fetch batch must contain handles from a single target session but saw [node-1/session-1] and [node-2/session-2]"
+                )
+            );
         }
     }
 
@@ -78,9 +121,18 @@ public class RemoteFetchBatchOperatorTests extends ESTestCase {
         }
     }
 
-    private static Page handlesPage(DriverContext driverContext, long batchId) {
+    private static Page handlesPage(DriverContext driverContext) {
         try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(1)) {
             builder.appendBytesRef(new RemoteFetchHandle("node-1", "session-1", 0, 0, 1).toBytesRef());
+            return new Page(builder.build());
+        }
+    }
+
+    private static Page handlesPage(DriverContext driverContext, List<RemoteFetchHandle> handles) {
+        try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(handles.size())) {
+            for (RemoteFetchHandle handle : handles) {
+                builder.appendBytesRef(handle.toBytesRef());
+            }
             return new Page(builder.build());
         }
     }

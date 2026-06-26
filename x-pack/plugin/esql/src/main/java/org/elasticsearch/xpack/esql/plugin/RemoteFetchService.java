@@ -565,7 +565,7 @@ public final class RemoteFetchService {
             );
             releasable = Releasables.wrap(server, lease, localBreaker);
             List<Operator> intermediate = List.of(
-                new RemoteFetchBatchOperator(buildRemoteFetcher(request, shardContexts, settings, driverContext.blockFactory()))
+                new RemoteFetchDataNodeBatchOperator(buildRemoteFetcher(request, shardContexts, settings, driverContext.blockFactory()))
             );
             server.startWithOperators(
                 driverContext,
@@ -589,7 +589,7 @@ public final class RemoteFetchService {
         }
     }
 
-    private RemoteFetchBatchOperator.RemoteFetcher buildRemoteFetcher(
+    private RemoteFetchDataNodeBatchOperator.RemoteFetcher buildRemoteFetcher(
         ExchangeSetupRequest request,
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
         PlannerSettings settings,
@@ -717,7 +717,7 @@ public final class RemoteFetchService {
             if (this.fields.isEmpty()) {
                 throw new IllegalArgumentException("remote fetch requires at least one request field");
             }
-            RemoteFetchOperator.validatePushdownPlan(pushdownPlan);
+            RemoteFetchPushdownPlanValidator.validate(pushdownPlan);
             this.pushdownPlan = pushdownPlan;
             this.configuration = Objects.requireNonNull(configuration);
             this.clientToServerId = Objects.requireNonNull(clientToServerId);
@@ -734,7 +734,7 @@ public final class RemoteFetchService {
             this.configuration = readConfiguration(in);
             PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration);
             this.pushdownPlan = pin.readOptionalNamedWriteable(PhysicalPlan.class);
-            RemoteFetchOperator.validatePushdownPlan(pushdownPlan);
+            RemoteFetchPushdownPlanValidator.validate(pushdownPlan);
             this.clientToServerId = in.readString();
             this.serverToClientId = in.readString();
         }

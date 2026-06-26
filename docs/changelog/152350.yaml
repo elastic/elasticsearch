@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 152322
+pr: 152350
+summary: Fix transport of type-conflicted ES|QL multi-fields
+type: bug

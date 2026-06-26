@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -32,9 +33,11 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Cross-cluster twin of {@link CrossClusterViewIT} for datasets. Registers a dataset (and a normal index) on the
@@ -234,49 +237,31 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     }
 
     /**
-     * Walks the cause chain and asserts the full remote-dataset rejection message (headline + matched name + the
-     * copy-verbatim exclusion hint) appears somewhere in it.
+     * Asserts the unwrapped cause carries the full remote-dataset rejection message — headline + matched name + the
+     * copy-verbatim exclusion hint.
      */
     private void assertRemoteDatasetRejected(Throwable throwable) {
         String matched = REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET;
         String exclusionHint = REMOTE_CLUSTER_1 + ":-" + REMOTE_DATASET;
-        for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
-            String message = cause.getMessage();
-            if (message != null
-                && message.contains("ES|QL queries with remote datasets are not supported")
-                && message.contains(matched)
-                && message.contains("Remove them from the query pattern or exclude them with")
-                && message.contains("[" + exclusionHint + "]")) {
-                return;
-            }
-        }
-        throw new AssertionError(
-            "expected a remote-dataset rejection naming ["
-                + matched
-                + "] and the exclusion hint ["
-                + exclusionHint
-                + "] in the cause chain",
-            throwable
+        assertThat(
+            ExceptionsHelper.unwrapCause(throwable).getMessage(),
+            allOf(
+                containsString("ES|QL queries with remote datasets are not supported"),
+                containsString(matched),
+                containsString("Remove them from the query pattern or exclude them with"),
+                containsString("[" + exclusionHint + "]")
+            )
         );
     }
 
-    /** Asserts that some exception in the cause chain carries a message containing {@code needle}. */
+    /** Asserts the unwrapped cause's message contains {@code needle}. */
     private static void assertMessageInCauseChain(Throwable throwable, String needle) {
-        for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
-            if (cause.getMessage() != null && cause.getMessage().contains(needle)) {
-                return;
-            }
-        }
-        throw new AssertionError("expected [" + needle + "] in the cause chain", throwable);
+        assertThat(ExceptionsHelper.unwrapCause(throwable).getMessage(), containsString(needle));
     }
 
-    /** Asserts that NO exception in the cause chain carries a message containing {@code needle}. */
+    /** Asserts the unwrapped cause's message does not contain {@code needle}. */
     private static void assertMessageAbsentFromCauseChain(Throwable throwable, String needle) {
-        for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
-            if (cause.getMessage() != null && cause.getMessage().contains(needle)) {
-                throw new AssertionError("did not expect [" + needle + "] in the cause chain", throwable);
-            }
-        }
+        assertThat(ExceptionsHelper.unwrapCause(throwable).getMessage(), not(containsString(needle)));
     }
 
     private static void assertOk(EsqlQueryResponse response) {

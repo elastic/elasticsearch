@@ -467,14 +467,12 @@ public class DatasetRewriterTests extends ESTestCase {
         // must NOT be rejected at rewrite -- otherwise the shadows would silently halve the dataset budget (#984).
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
-        Set<String> names = new java.util.LinkedHashSet<>();
         for (int i = 0; i < 5; i++) {
             datasets.put("ds" + i, new Dataset("ds" + i, new DataSourceReference("s3_parent"), "s3://" + i + "/", null, Map.of()));
-            names.add("ds" + i);
         }
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds0,ds1,ds2,ds3,ds4"), project, names);
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds0,ds1,ds2,ds3,ds4"), project, datasets.keySet());
 
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;

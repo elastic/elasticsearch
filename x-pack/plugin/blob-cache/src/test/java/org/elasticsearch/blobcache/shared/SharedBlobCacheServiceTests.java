@@ -1302,6 +1302,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                     cacheService.forceEvict(x -> true);
                                 } else if (evict[i] == 1) {
                                     cacheService.forceEvict(shardId, x -> true);
+                                } else if (evict[i] == 2) {
+                                    cacheService.demoteAll(shardId);
                                 }
                             } catch (AlreadyClosedException e) {
                                 // ignore

@@ -53,6 +53,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
@@ -439,6 +440,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // if doc_values are enabled, fetch directly from them
             if (hasDocValues()) {
                 if (usesBinaryDocValues) {
+                    if (useArrayOrderBinaryDocValues) {
+                        return arrayOrderBinaryDocValuesFieldFetcher(name());
+                    }
                     return binaryDocValuesFieldFetcher(name());
                 } else {
                     var ifd = searchExecutionContext.getForField(this, MappedFieldType.FielddataOperation.SEARCH);
@@ -587,6 +591,28 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 public List<Object> apply(int docId) throws IOException {
                     if (binaryDocValues == null) {
                         binaryDocValues = MultiValuedSortedBinaryDocValues.from(context.reader(), fieldName);
+                    }
+                    return getValuesFromDocValues(binaryDocValues, docId);
+                }
+            };
+        }
+
+        /**
+         * Value fetcher for high-cardinality columnar {@code match_only_text} fields that store their values in document order with inline
+         * nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}). Uses {@link SortingArrayOrderBinaryDocValues} to decode
+         * the {@code [len+1][val]…} encoding correctly. This is distinct from {@link #binaryDocValuesFieldFetcher}, which only understands
+         * the {@code SeparateCount} ({@code [len][val]…}) format.
+         */
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> arrayOrderBinaryDocValuesFieldFetcher(
+            String fieldName
+        ) {
+            return context -> new CheckedIntFunction<>() {
+                SortedBinaryDocValues binaryDocValues;
+
+                @Override
+                public List<Object> apply(int docId) throws IOException {
+                    if (binaryDocValues == null) {
+                        binaryDocValues = SortingArrayOrderBinaryDocValues.from(context.reader(), fieldName);
                     }
                     return getValuesFromDocValues(binaryDocValues, docId);
                 }

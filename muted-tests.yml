@@ -743,3 +743,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:folding.dateNanos_GreaterThan_MultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/152314
+- class: org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapperTests
+  method: testExponentialHistogramValuesReader
+  issue: https://github.com/elastic/elasticsearch/issues/152318

@@ -783,7 +783,14 @@ public class StatelessPlugin extends Plugin
         if (projectResolver.get().supportsMultipleProjects()) {
             clusterService.addStateApplier(objectStoreService);
         }
-        var cacheService = createSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics, clusterService);
+        var cacheService = createSharedBlobCacheService(
+            nodeEnvironment,
+            settings,
+            threadPool,
+            blobCacheMetrics,
+            clusterService,
+            indicesService
+        );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
         var cacheBlobReaderService = setAndGet(
@@ -1061,7 +1068,8 @@ public class StatelessPlugin extends Plugin
         Settings settings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
-        ClusterService clusterService
+        ClusterService clusterService,
+        IndicesService indicesService
     ) {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
             nodeEnvironment,
@@ -1069,6 +1077,7 @@ public class StatelessPlugin extends Plugin
             threadPool,
             blobCacheMetrics,
             clusterService,
+            indicesService,
             metricHolder
         );
         statelessSharedBlobCacheService.assertInvariants();

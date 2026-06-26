@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end coverage that the profile-observability fields added to {@code AsyncExternalSourceOperator.Status}
@@ -236,18 +237,36 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * CSV has no embedded row count, so the first {@code COUNT(*)} must scan the whole file (the scan
-     * counters are populated). After execution the row count is reconciled into the coordinator's
-     * source-stats cache, so a second identical {@code COUNT(*)} is answered from metadata and scans
-     * nothing, so the counters return to zero. This is the "read it once, then never again" behavior.
+     * The three-state warm-aggregate profiling signal (esql-planning#909), end to end over CSV.
+     * CSV has no embedded row count, so the first {@code COUNT(*)} must scan the whole file. The scan
+     * harvests canonical-stripe statistics and reconciles them into the coordinator's source-stats cache;
+     * a second identical {@code COUNT(*)} is then answered purely from those stats with the scan
+     * short-circuited away. The query profile distinguishes the two outcomes positively:
+     * <ul>
+     *   <li><b>cold-harvest</b> — the scan ran ({@code splits_scanned > 0}) and harvested stripes into the
+     *   coordinator cache; {@code external_warm_aggregates == 0} (no short-circuit). The harvest is proven
+     *   end-to-end by the subsequent pass going warm. (The per-scan {@code stripesCommitted()} accessor on
+     *   the operator status carries the same signal and is unit-tested in
+     *   {@code AsyncExternalSourceOperatorStatusTests}, but on the COUNT short-circuit path the consumer
+     *   reaches EOF before the producer's close-time stripe commit lands — the documented async hop also
+     *   affecting {@code bytes_read} / {@code format_reader} — so it is not asserted here.)</li>
+     *   <li><b>warm</b> — the aggregate was served from stripes ({@code external_warm_aggregates > 0})
+     *   with ZERO scan ({@code splits_scanned == 0}, no {@code AsyncExternalSourceOperator} in the
+     *   profile). The positive "served from stripes" signal — not inferred from latency.</li>
+     * </ul>
+     * The <b>miss</b> third state — a scan that ran but committed no usable stripes
+     * ({@code stripesCommitted() == 0}) — is covered at the unit level in
+     * {@code AsyncExternalSourceOperatorStatusTests}; it is exactly the {@code stripesCommitted() == 0}
+     * arm, distinct from cold-harvest's positive count.
      */
-    public void testCsvCountStarScansColdThenSkipsWarm() throws Exception {
+    public void testCsvCountStarColdHarvestThenWarmServedFromStripes() throws Exception {
         int rowCount = 200;
         Path csvFile = writeCsvFile(rowCount);
         try {
             String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS c = COUNT(*)";
 
-            // COLD: no cached row count yet, so the file is scanned to answer COUNT(*).
+            // COLD-HARVEST: no cached stats yet, so the file is scanned to answer COUNT(*); the scan
+            // harvests canonical stripes into the coordinator cache for the next query.
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCountValue(response, rowCount);
                 EsqlQueryProfile profile = response.getExecutionInfo().queryProfile();
@@ -258,16 +277,23 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
                 // fragment discovery paths ever both counted this source, splitsScanned would read 2.
                 assertEquals("cold COUNT(*) scans exactly one split", 1, profile.splitsScanned());
                 assertEquals("cold COUNT(*) reads the whole CSV file", Files.size(csvFile), profile.bytesScanned());
+                assertEquals("cold COUNT(*) does not short-circuit warm", 0, profile.externalWarmAggregates());
             }
 
-            // WARM: the row count was reconciled into the coordinator cache, so COUNT(*) is served
-            // from metadata and no file is scanned.
+            // WARM: the harvested stats were reconciled into the coordinator cache, so COUNT(*) is served
+            // from stripes and no file is scanned. external_warm_aggregates carries the affirmative signal.
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCountValue(response, rowCount);
                 EsqlQueryProfile profile = response.getExecutionInfo().queryProfile();
                 assertEquals("warm COUNT(*) scans no files", 0, profile.filesScanned());
                 assertEquals("warm COUNT(*) scans no splits", 0, profile.splitsScanned());
                 assertEquals("warm COUNT(*) scans no bytes", 0L, profile.bytesScanned());
+                assertEquals("warm COUNT(*) must report exactly one aggregate served from stripes", 1, profile.externalWarmAggregates());
+                assertThat(
+                    "warm short-circuit runs no external-source operator",
+                    findAsyncExternalSourceStatusOrNull(response),
+                    nullValue()
+                );
             }
         } finally {
             Files.deleteIfExists(csvFile);
@@ -366,6 +392,17 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
     }
 
     private static AsyncExternalSourceOperator.Status findAsyncExternalSourceStatus(EsqlQueryResponse response) {
+        AsyncExternalSourceOperator.Status found = findAsyncExternalSourceStatusOrNull(response);
+        assertThat("expected at least one AsyncExternalSourceOperator.Status in the driver profiles", found, notNullValue());
+        return found;
+    }
+
+    /**
+     * Same scan over the driver profiles as {@link #findAsyncExternalSourceStatus} but returns {@code null}
+     * rather than asserting presence — used to assert the warm short-circuit ran NO external-source
+     * operator (and therefore could not have scanned).
+     */
+    private static AsyncExternalSourceOperator.Status findAsyncExternalSourceStatusOrNull(EsqlQueryResponse response) {
         AsyncExternalSourceOperator.Status found = null;
         assertThat(response.profile(), notNullValue());
         for (var driver : response.profile().drivers()) {
@@ -375,7 +412,6 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
                 }
             }
         }
-        assertThat("expected at least one AsyncExternalSourceOperator.Status in the driver profiles", found, notNullValue());
         return found;
     }
 

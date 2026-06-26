@@ -347,7 +347,12 @@ public class ComputeService {
         // needs to record scan stats here.
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
-            if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
+            if (canSkipSplitDiscovery(plan, formatReaderRegistry)) {
+                // Warm short-circuit: every external aggregate is answered from stripe / whole-file stats and
+                // the scan is skipped. Record the affirmative "served from stripes" signal on the profile
+                // here, the one place it is observable — no scan operator runs for a warm relation.
+                recordExternalWarmAggregates(execInfo, plan);
+            } else {
                 discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
@@ -360,6 +365,27 @@ public class ComputeService {
             // else: splits stays empty — the optimizer will use sourceMetadata for pushdown
         }
         return splits;
+    }
+
+    /**
+     * Records, on the query profile, that the warm short-circuit fired for this plan — counting the
+     * external-relation aggregate fragments that were served from statistics rather than scanned. Only
+     * invoked when {@link #canSkipSplitDiscovery} returned {@code true}, so every {@link ExternalRelation}
+     * fragment is an ungrouped {@code Aggregate -> ExternalRelation} the optimizer will fold to constants.
+     */
+    private static void recordExternalWarmAggregates(EsqlExecutionInfo execInfo, PhysicalPlan plan) {
+        if (execInfo == null) {
+            return;
+        }
+        int[] warm = { 0 };
+        plan.forEachDown(FragmentExec.class, fragment -> {
+            if (fragment.fragment() instanceof Aggregate agg && agg.groupings().isEmpty() && agg.child() instanceof ExternalRelation) {
+                warm[0]++;
+            }
+        });
+        if (warm[0] > 0) {
+            execInfo.queryProfile().addExternalWarmAggregates(warm[0]);
+        }
     }
 
     /**

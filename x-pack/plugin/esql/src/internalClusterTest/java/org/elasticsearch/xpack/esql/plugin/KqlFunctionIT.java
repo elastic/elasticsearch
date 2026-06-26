@@ -219,6 +219,38 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[KQL] function cannot be used after INLINE"));
     }
 
+    public void testKqlAfterInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE kql("content: fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(2), List.of(3), List.of(4), List.of(5)));
+        }
+    }
+
+    public void testKqlAfterGroupedInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE kql("content: fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(2), List.of(3), List.of(4), List.of(5)));
+        }
+    }
+
     public void testWhereFalseBeforeLookupJoinWithKql() {
         var query = """
             FROM test

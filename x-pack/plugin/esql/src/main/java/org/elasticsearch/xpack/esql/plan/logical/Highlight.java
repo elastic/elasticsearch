@@ -273,7 +273,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
         try {
             HighlightOptions.validate(name, value, FoldContext.small());
-        } catch (IllegalArgumentException e) {
+        } catch (RuntimeException e) {
             failures.add(fail(this, "Invalid [{}] value in HIGHLIGHT: {}", name, e.getMessage()));
         }
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.IllformedLocaleException;
 import java.util.List;
 import java.util.Locale;
 
@@ -40,7 +41,6 @@ public class HighlightOptionsTests extends ESTestCase {
         assertThat(options.boundaryScannerLocale(), equalTo(HighlightOptions.DEFAULT_BOUNDARY_SCANNER_LOCALE));
         assertThat(options.order(), equalTo(HighlightOptions.DEFAULT_ORDER));
         assertThat(options.maxAnalyzedOffset(), equalTo(HighlightOptions.DEFAULT_MAX_ANALYZED_OFFSET));
-        assertThat(options.phraseLimit(), equalTo(HighlightOptions.DEFAULT_PHRASE_LIMIT));
     }
 
     public void testBoundaryAndOrderOptionsAreParsed() {
@@ -58,6 +58,14 @@ public class HighlightOptionsTests extends ESTestCase {
         assertThat(options.order(), equalTo(HighlightOptions.ORDER_SCORE));
     }
 
+    public void testBoundaryScannerLocaleRejectsMalformedTag() {
+        IllformedLocaleException e = expectThrows(
+            IllformedLocaleException.class,
+            () -> HighlightOptions.from(map(Highlight.BOUNDARY_SCANNER_LOCALE, keyword("en_US")), FoldContext.small())
+        );
+        assertThat(e.getMessage(), containsString("Invalid subtag: en_US"));
+    }
+
     public void testBoundaryAndOrderOptionsAreNormalizedToLowerCase() {
         MapExpression map = map(Highlight.BOUNDARY_SCANNER, keyword("WORD"), Highlight.ORDER, keyword("Score"));
         HighlightOptions options = HighlightOptions.from(map, FoldContext.small());
@@ -65,11 +73,10 @@ public class HighlightOptionsTests extends ESTestCase {
         assertThat(options.order(), equalTo(HighlightOptions.ORDER_SCORE));
     }
 
-    public void testMaxAnalyzedOffsetAndPhraseLimitAreParsed() {
+    public void testMaxAnalyzedOffsetIsParsed() {
         MapExpression map = map(Highlight.MAX_ANALYZED_OFFSET, integer(500), Highlight.PHRASE_LIMIT, integer(64));
         HighlightOptions options = HighlightOptions.from(map, FoldContext.small());
         assertThat(options.maxAnalyzedOffset(), equalTo(500));
-        assertThat(options.phraseLimit(), equalTo(64));
     }
 
     public void testMaxAnalyzedOffsetAllowsMinusOne() {
@@ -93,12 +100,12 @@ public class HighlightOptionsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[max_analyzed_offset] must be a positive integer, or -1"));
     }
 
-    public void testNegativePhraseLimitIsRejected() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HighlightOptions.from(map(Highlight.PHRASE_LIMIT, integer(-1)), FoldContext.small())
+    public void testPhraseLimitIsAcceptedButIgnored() {
+        HighlightOptions options = HighlightOptions.from(
+            map(Highlight.PHRASE_LIMIT, integer(-1), Highlight.NUMBER_OF_FRAGMENTS, integer(3)),
+            FoldContext.small()
         );
-        assertThat(e.getMessage(), containsString("must be >= 0"));
+        assertThat(options.numberOfFragments(), equalTo(3));
     }
 
     public void testTagAsScalarString() {

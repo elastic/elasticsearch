@@ -22,7 +22,8 @@ import java.util.Locale;
  * deals with primitives.
  * <p>
  * {@code boundary_chars}, {@code boundary_max_scan} and {@code phrase_limit} are accepted for Query DSL parity but are
- * only honoured by the FastVectorHighlighter. HIGHLIGHT always uses the unified highlighter, so they are no-ops here.
+ * only honoured by the FastVectorHighlighter. HIGHLIGHT always uses the unified highlighter, so they are grammar-only
+ * no-ops that never reach this record.
  * <p>
  * The per-option type, range and enum rules enforced while building this record are the single source of truth for
  * validation: {@link Highlight#postAnalysisVerification} reuses {@link #validate} so that invalid option values fail at
@@ -38,8 +39,7 @@ public record HighlightOptions(
     String boundaryScanner,
     Locale boundaryScannerLocale,
     String order,
-    int maxAnalyzedOffset,
-    int phraseLimit
+    int maxAnalyzedOffset
 ) {
 
     public static final String DEFAULT_PRE_TAG = "<em>";
@@ -64,7 +64,6 @@ public record HighlightOptions(
     public static final List<String> ALLOWED_ORDERS = List.of(ORDER_NONE, ORDER_SCORE);
     // -1 means "use the index setting"; the current coordinator-side operator uses the default index value.
     public static final int DEFAULT_MAX_ANALYZED_OFFSET = -1;
-    public static final int DEFAULT_PHRASE_LIMIT = 256;
 
     /**
      * Validation policy for a string-valued enum option: its allowed values and whether matching is case-insensitive.
@@ -105,8 +104,7 @@ public record HighlightOptions(
             BOUNDARY_SCANNER_OPTION.normalize(string(options.get(Highlight.BOUNDARY_SCANNER), foldContext, DEFAULT_BOUNDARY_SCANNER)),
             locale(options.get(Highlight.BOUNDARY_SCANNER_LOCALE), foldContext),
             ORDER_OPTION.normalize(string(options.get(Highlight.ORDER), foldContext, DEFAULT_ORDER)),
-            maxAnalyzedOffset(options.get(Highlight.MAX_ANALYZED_OFFSET), foldContext),
-            integer(options.get(Highlight.PHRASE_LIMIT), foldContext, DEFAULT_PHRASE_LIMIT)
+            maxAnalyzedOffset(options.get(Highlight.MAX_ANALYZED_OFFSET), foldContext)
         );
     }
 
@@ -121,8 +119,7 @@ public record HighlightOptions(
             DEFAULT_BOUNDARY_SCANNER,
             DEFAULT_BOUNDARY_SCANNER_LOCALE,
             DEFAULT_ORDER,
-            DEFAULT_MAX_ANALYZED_OFFSET,
-            DEFAULT_PHRASE_LIMIT
+            DEFAULT_MAX_ANALYZED_OFFSET
         );
     }
 
@@ -141,9 +138,15 @@ public record HighlightOptions(
             case Highlight.PRE_TAGS, Highlight.POST_TAGS -> string(value, foldContext, null);
             case Highlight.BOUNDARY_CHARS -> requireString(value.fold(foldContext));
             case Highlight.BOUNDARY_SCANNER_LOCALE -> locale(value, foldContext);
-            case Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE, Highlight.BOUNDARY_MAX_SCAN,
-                Highlight.PHRASE_LIMIT -> integer(value, foldContext, 0);
+            case Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE, Highlight.BOUNDARY_MAX_SCAN -> integer(
+                value,
+                foldContext,
+                0
+            );
             case Highlight.MAX_ANALYZED_OFFSET -> maxAnalyzedOffset(value, foldContext);
+            case Highlight.PHRASE_LIMIT -> {
+                // Grammar-only no-op: accepted for Query DSL parity, intentionally not parsed or value-validated.
+            }
             case Highlight.ENCODER, Highlight.BOUNDARY_SCANNER, Highlight.ORDER -> {
                 // Verified separately against the EnumOption descriptor.
             }
@@ -184,11 +187,16 @@ public record HighlightOptions(
         throw new IllegalArgumentException("Expected a string HIGHLIGHT option but got [" + folded + "]");
     }
 
+    /**
+     * Parses {@code boundary_scanner_locale} as a BCP 47 language tag (for example {@code en-US}). Malformed tags are
+     * rejected early instead of silently degrading to {@link Locale#ROOT}; invalid tags propagate the
+     * {@link java.util.IllformedLocaleException} thrown by {@link Locale.Builder#setLanguageTag(String)}.
+     */
     private static Locale locale(Expression value, FoldContext foldContext) {
         if (value == null) {
             return DEFAULT_BOUNDARY_SCANNER_LOCALE;
         }
-        return Locale.forLanguageTag(requireString(value.fold(foldContext)));
+        return new Locale.Builder().setLanguageTag(requireString(value.fold(foldContext))).build();
     }
 
     private static int integer(Expression value, FoldContext foldContext, int defaultValue) {

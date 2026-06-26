@@ -4518,6 +4518,11 @@ public class VerifierTests extends ESTestCase {
         assertInvalidHighlightOptionValue("boundary_max_scan", "\"far\"", containsString("Expected a numeric HIGHLIGHT option"));
     }
 
+    public void testHighlightRejectsMalformedBoundaryScannerLocaleAtAnalysis() {
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assertInvalidHighlightOptionValue("boundary_scanner_locale", "\"en_US\"", containsString("Invalid subtag: en_US"));
+    }
+
     public void testHighlightRejectsDecimalNumericsAtAnalysis() {
         assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
         assertInvalidHighlightOptionValue("number_of_fragments", "0.9", containsString("Expected an integer HIGHLIGHT option"));

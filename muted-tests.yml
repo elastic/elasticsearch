@@ -719,6 +719,3 @@ tests:
 - class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
   method: testCancelAllReindexTasksByActionWithMixedRelocationState
   issue: https://github.com/elastic/elasticsearch/issues/152291
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationCompletesWithMultipleHandlers
-  issue: https://github.com/elastic/elasticsearch/issues/152292

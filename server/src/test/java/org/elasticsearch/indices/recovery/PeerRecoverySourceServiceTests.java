@@ -33,7 +33,6 @@ import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -642,25 +641,27 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     /// Regression test for the race where an active recovery completes during service shutdown and would cause
     /// a new pending recovery to be started after the lifecycle already moved to `State.STOPPED`.
     /// The queue is now drained before the lifecycle state changes.
-    public void testCompletingRecoveryWhileStopping() throws IOException {
+    public void testCompletingRecoveryWhileStopping() throws Exception {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService(1);
         final var task = newRecoveryTask();
         final var block = blockShardRecovery(primary1);
-        service.start();
 
-        // Fill slot
-        service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        try (var service = newPeerRecoverySourceService(1)) {
+            service.start();
 
-        // Queue another recovery
-        service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-        assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+            // Fill slot
+            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
 
-        // Stop the service and complete listener. Lifecycle assertions in the production code must hold.
-        // The pending recovery should never start after the service moved to `State.STOPPED`.
-        runInParallel(service::stop, block::close);
-        closeShards(primary1, primary2);
+            // Queue another recovery
+            service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+            assertThat(service.ongoingRecoveries.queuedRecoveryCount(), equalTo(1));
+
+            // Stop the service and complete listener. Lifecycle assertions in the production code must hold.
+            // The pending recovery should never start after the service moved to `State.STOPPED`.
+            runInParallel(service::stop, block::close);
+            closeShards(primary1, primary2);
+        }
     }
 
     public void testDynamicLimitDecreaseQueuesNewRequests() throws Exception {

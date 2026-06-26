@@ -325,14 +325,11 @@ public final class TextFieldMapper extends FieldMapper {
         public Builder(String name, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
             super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
             this.indexSettings = indexSettings;
-            this.docValuesParameters = DocValuesParameter.of(() -> {
-                DocValuesParameter.Values defaultDocValues = defaultDocValuesParameters(indexSettings);
-                // In strict-columnar mode, skip the text field's own doc values when a plain keyword multi-field already stores an
-                // identical copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating.
-                boolean enabled = defaultDocValues.enabled()
-                    && multiFieldsBuilder.hasColumnarModeCompatibleKeywordDelegate(indexSettings.getMode()) == false;
-                return new DocValuesParameter.Values(enabled, defaultDocValues.cardinality(), defaultDocValues.multiValue());
-            }, defaultDocValuesParameters(indexSettings), m -> ((TextFieldMapper) m).docValuesParameters);
+            this.docValuesParameters = DocValuesParameter.of(
+                () -> defaultDocValuesParameters(indexSettings),
+                defaultDocValuesParameters(indexSettings),
+                m -> ((TextFieldMapper) m).docValuesParameters
+            );
             this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,

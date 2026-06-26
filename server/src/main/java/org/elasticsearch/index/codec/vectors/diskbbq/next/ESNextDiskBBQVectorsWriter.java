@@ -298,8 +298,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidVectorCount[assignments[i]]++;
 
             // if overspill assignments are present, count them as well
-            for (int s : overspillAssignments.getAssignmentsFor(i)) {
-                centroidVectorCount[s]++;
+            for (var it = overspillAssignments.getAssignmentsFor(i); it.hasNext();) {
+                centroidVectorCount[it.nextInt()]++;
             }
         }
 
@@ -317,7 +317,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             assignmentsByCluster[c][centroidVectorCount[c]++] = i;
 
             // if overspill assignments are present, add them to the cluster as well
-            for (int s : overspillAssignments.getAssignmentsFor(i)) {
+            for (var it = overspillAssignments.getAssignmentsFor(i); it.hasNext();) {
+                int s = it.nextInt();
                 assignmentsByCluster[s][centroidVectorCount[s]++] = i;
             }
         }
@@ -437,10 +438,10 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
 
                 // TODO: new storage format for overspill
-                int[] overspills = overspillAssignments.getAssignmentsFor(i);
-                assert overspills.length == 0 || overspills.length == 1;
-                if (overspills.length == 1) {
-                    int s = overspills[0];
+                var overspills = overspillAssignments.getAssignmentsFor(i);
+                if (overspills.hasNext()) {
+                    int s = overspills.nextInt();
+                    assert !overspills.hasNext();
                     float[] overspillCentroid = centroidSupplier.centroid(s);
                     float[] overspillParentCentroid = centroidClusters.getCentroid(s);
                     // write the overspill vector as well
@@ -476,8 +477,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidVectorCount[assignments[i]]++;
 
             // if overspill assignments are present, count them as well
-            for (int s : overspillAssignments.getAssignmentsFor(i)) {
-                centroidVectorCount[s]++;
+            for (var it = overspillAssignments.getAssignmentsFor(i); it.hasNext();) {
+                centroidVectorCount[it.nextInt()]++;
             }
         }
 
@@ -497,7 +498,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             assignmentsByCluster[c][centroidVectorCount[c]++] = i;
 
             // if overspill assignments are present, add them to the cluster as well
-            for (int s : overspillAssignments.getAssignmentsFor(i)) {
+            for (var it = overspillAssignments.getAssignmentsFor(i); it.hasNext();) {
+                int s = it.nextInt();
                 assignmentsByCluster[s][centroidVectorCount[s]] = i;
                 isOverspillByCluster[s][centroidVectorCount[s]++] = true;
             }

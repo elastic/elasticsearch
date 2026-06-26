@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import java.util.PrimitiveIterator;
+
 public interface OverspillAssignments {
     int size();
 
-    int[] getAssignmentsFor(int ordinal);
+    PrimitiveIterator.OfInt getAssignmentsFor(int ordinal);
 }

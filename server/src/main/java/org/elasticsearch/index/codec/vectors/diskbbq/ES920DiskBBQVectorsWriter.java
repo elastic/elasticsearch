@@ -127,11 +127,11 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidVectorCount[assignments[i]]++;
 
             // if soar assignments are present, count them as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            assert overspills.length == 0 || overspills.length == 1;
-            if (overspills.length == 1) {
-                centroidVectorCount[overspills[0]]++;
+            var overspills = overspillAssignments.getAssignmentsFor(i);
+            if (overspills.hasNext()) {
+                centroidVectorCount[overspills.nextInt()]++;
             }
+            assert !overspills.hasNext();
         }
 
         int maxPostingListSize = 0;
@@ -148,11 +148,12 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             assignmentsByCluster[c][centroidVectorCount[c]++] = i;
 
             // if soar assignments are present, add them to the cluster as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            if (overspills.length == 1) {
-                int s = overspills[0];
+            var overspills = overspillAssignments.getAssignmentsFor(i);
+            if (overspills.hasNext()) {
+                int s = overspills.nextInt();
                 assignmentsByCluster[s][centroidVectorCount[s]++] = i;
             }
+            assert !overspills.hasNext();
         }
         // write the max posting list size
         postingsOutput.writeVInt(maxPostingListSize);
@@ -251,13 +252,19 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
                 ESVectorUtil.packAsBinary(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
 
-                int[] overspills = overspillAssignments.getAssignmentsFor(i);
-                assert overspills.length == 0 || overspills.length == 1;
-                if (overspills.length == 1) {
+                var overspills = overspillAssignments.getAssignmentsFor(i);
+                if (overspills.hasNext()) {
                     // write the overspill vector as well
-                    result = quantizer.scalarQuantize(vector, scratch, quantized, (byte) 1, centroidSupplier.centroid(overspills[0]));
+                    result = quantizer.scalarQuantize(
+                        vector,
+                        scratch,
+                        quantized,
+                        (byte) 1,
+                        centroidSupplier.centroid(overspills.nextInt())
+                    );
                     ESVectorUtil.packAsBinary(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
+                    assert !overspills.hasNext();
                 } else {
                     // write a zero vector for the overspill
                     Arrays.fill(binary, (byte) 0);
@@ -276,10 +283,11 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidVectorCount[assignments[i]]++;
 
             // if soar assignments are present, count them as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            if (overspills.length == 1) {
-                centroidVectorCount[overspills[0]]++;
+            var overspills = overspillAssignments.getAssignmentsFor(i);
+            if (overspills.hasNext()) {
+                centroidVectorCount[overspills.nextInt()]++;
             }
+            assert !overspills.hasNext();
         }
 
         int maxPostingListSize = 0;
@@ -298,12 +306,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             assignmentsByCluster[c][centroidVectorCount[c]++] = i;
 
             // if soar assignments are present, add them to the cluster as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            if (overspills.length == 1) {
-                int s = overspills[0];
+            var overspills = overspillAssignments.getAssignmentsFor(i);
+            if (overspills.hasNext()) {
+                int s = overspills.nextInt();
                 assignmentsByCluster[s][centroidVectorCount[s]] = i;
                 isOverspillByCluster[s][centroidVectorCount[s]++] = true;
             }
+            assert !overspills.hasNext();
         }
         // now we can read the quantized vectors from the temporary file
         try (IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(quantizedVectorsTempName, IOContext.DEFAULT)) {

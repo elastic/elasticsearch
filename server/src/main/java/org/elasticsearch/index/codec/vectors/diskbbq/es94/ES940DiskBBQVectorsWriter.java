@@ -270,11 +270,11 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidVectorCount[assignments[i]]++;
 
             // if soar assignments are present, count them as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            assert overspills.length == 0 || overspills.length == 1;
-            if (overspills.length == 1) {
-                centroidVectorCount[overspills[0]]++;
+            var overspills = overspillAssignments.getAssignmentsFor(i);
+            if (overspills.hasNext()) {
+                centroidVectorCount[overspills.nextInt()]++;
             }
+            assert !overspills.hasNext();
         }
 
         int maxPostingListSize = 0;
@@ -291,11 +291,12 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             assignmentsByCluster[c][centroidVectorCount[c]++] = i;
 
             // if soar assignments are present, add them to the cluster as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            if (overspills.length == 1) {
-                int s = overspills[0];
+            var overspills = overspillAssignments.getAssignmentsFor(i);
+            if (overspills.hasNext()) {
+                int s = overspills.nextInt();
                 assignmentsByCluster[s][centroidVectorCount[s]++] = i;
             }
+            assert !overspills.hasNext();
         }
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
@@ -403,10 +404,9 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
                 quantEncoding.pack(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
 
-                int[] overspills = overspillAssignments.getAssignmentsFor(i);
-                assert overspills.length == 0 || overspills.length == 1;
-                if (overspills.length == 1) {
-                    int s = overspills[0];
+                var overspills = overspillAssignments.getAssignmentsFor(i);
+                if (overspills.hasNext()) {
+                    int s = overspills.nextInt();
                     float[] overspillCentroid = centroidSupplier.centroid(s);
                     float[] overspillParentCentroid = centroidClusters.getCentroid(s);
                     // write the overspill vector as well
@@ -424,6 +424,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
                     }
                     quantEncoding.pack(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
+                    assert !overspills.hasNext();
                 } else {
                     // write a zero vector for the overspill
                     Arrays.fill(binary, (byte) 0);
@@ -442,9 +443,9 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidVectorCount[assignments[i]]++;
 
             // if soar assignments are present, count them as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            if (overspills.length == 1) {
-                centroidVectorCount[overspills[0]]++;
+            var overspills = overspillAssignments.getAssignmentsFor(i);
+            if (overspills.hasNext()) {
+                centroidVectorCount[overspills.nextInt()]++;
             }
         }
 
@@ -464,9 +465,9 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             assignmentsByCluster[c][centroidVectorCount[c]++] = i;
 
             // if soar assignments are present, add them to the cluster as well
-            int[] overspills = overspillAssignments.getAssignmentsFor(i);
-            if (overspills.length == 1) {
-                int s = overspills[0];
+            var overspills = overspillAssignments.getAssignmentsFor(i);
+            if (overspills.hasNext()) {
+                int s = overspills.nextInt();
                 assignmentsByCluster[s][centroidVectorCount[s]] = i;
                 isOverspillByCluster[s][centroidVectorCount[s]++] = true;
             }

@@ -247,9 +247,6 @@ tests:
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/149040
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=data_stream/110_update_by_query/Update by query from data stream}
-  issue: https://github.com/elastic/elasticsearch/issues/149042
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:fuse.fuseWithRowRRFAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/149046
@@ -752,6 +749,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:stats_sparkline.weightedAvgAndSparklineWithSameWeightedAvg}
   issue: https://github.com/elastic/elasticsearch/issues/152162
-- class: org.elasticsearch.indices.recovery.ThrottlingRecoveryServiceTests
-  method: testQueuedRecoveryIsDispatchedWithCleanThreadContext
-  issue: https://github.com/elastic/elasticsearch/issues/152183
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
+  method: testEvaluate {TestCase=geo_shape and geo_point}
+  issue: https://github.com/elastic/elasticsearch/issues/152236

@@ -1641,23 +1641,47 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSourceExample.mapping().accept(b);
             b.endObject().endObject().endObject();
         }), support.isColumnar()).documentMapper();
-        assertThat(syntheticSource(mapper, b -> {
-            b.startObject("obj");
-            syntheticSourceExample.buildInput(b);
-            b.endObject();
-        }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+        if (isColumnar) {
+            // In columnar mode, subobjects are disabled at root so obj.field is stored with a flat key
+            XContentBuilder flatExpectedBuilder = JsonXContent.contentBuilder().startObject().field("obj.field");
+            syntheticSourceExample.expectedForSyntheticSource().accept(flatExpectedBuilder);
+            String flatExpected = Strings.toString(flatExpectedBuilder.endObject());
+            assertThat(syntheticSource(mapper, b -> {
+                b.startObject("obj");
+                syntheticSourceExample.buildInput(b);
+                b.endObject();
+            }), equalTo(flatExpected));
 
-        assertThat(syntheticSource(mapper, new SourceFilter(new String[] { "obj.field" }, null), b -> {
-            b.startObject("obj");
-            syntheticSourceExample.buildInput(b);
-            b.endObject();
-        }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+            assertThat(syntheticSource(mapper, new SourceFilter(new String[] { "obj.field" }, null), b -> {
+                b.startObject("obj");
+                syntheticSourceExample.buildInput(b);
+                b.endObject();
+            }), equalTo(flatExpected));
 
-        assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "obj.field" }), b -> {
-            b.startObject("obj");
-            syntheticSourceExample.buildInput(b);
-            b.endObject();
-        }), equalTo("{}"));
+            assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "obj.field" }), b -> {
+                b.startObject("obj");
+                syntheticSourceExample.buildInput(b);
+                b.endObject();
+            }), equalTo("{}"));
+        } else {
+            assertThat(syntheticSource(mapper, b -> {
+                b.startObject("obj");
+                syntheticSourceExample.buildInput(b);
+                b.endObject();
+            }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+
+            assertThat(syntheticSource(mapper, new SourceFilter(new String[] { "obj.field" }, null), b -> {
+                b.startObject("obj");
+                syntheticSourceExample.buildInput(b);
+                b.endObject();
+            }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+
+            assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "obj.field" }), b -> {
+                b.startObject("obj");
+                syntheticSourceExample.buildInput(b);
+                b.endObject();
+            }), equalTo("{}"));
+        }
     }
 
     public final void testSyntheticEmptyList() throws IOException {

@@ -75,6 +75,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         @Param(
             name = "p",
             type = { "double" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "It is a constant number that represents the *p* parameter in the P-Series. "
                 + "It impacts every element’s contribution to the weighted sum."
         ) Expression p

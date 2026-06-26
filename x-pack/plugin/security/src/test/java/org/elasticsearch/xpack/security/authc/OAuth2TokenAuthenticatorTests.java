@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
+import org.elasticsearch.xpack.security.metric.SecurityAuthcFailureReason;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 
 import java.time.Clock;
@@ -113,7 +114,16 @@ public class OAuth2TokenAuthenticatorTests extends AbstractAuthenticatorTests {
         assertThat(e, sameInstance(failureError));
 
         // verify we recorded failure metric
-        assertSingleFailedAuthMetric(telemetryPlugin, SecurityMetricType.AUTHC_OAUTH2_TOKEN, Map.of());
+        assertSingleFailedAuthMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_OAUTH2_TOKEN,
+            Map.ofEntries(
+                Map.entry(
+                    OAuth2TokenAuthenticator.ATTRIBUTE_AUTHC_FAILURE_REASON,
+                    SecurityAuthcFailureReason.CLIENT_AUTHENTICATION_FAILED.value()
+                )
+            )
+        );
 
         // verify that there were no successes recorded
         assertZeroSuccessAuthMetrics(telemetryPlugin, SecurityMetricType.AUTHC_OAUTH2_TOKEN);

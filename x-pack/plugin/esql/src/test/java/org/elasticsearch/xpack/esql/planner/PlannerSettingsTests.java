@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
@@ -22,35 +21,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Verifies the dedicated time-series planner settings ({@code esql.time_series.*}): their defaults preserve the
- * pre-decoupling chunking behaviour, they are registered as cluster settings, and they update independently from
- * the regular aggregation settings.
+ * Verifies the dedicated time-series planner setting ({@code esql.time_series.target_chunk_size}): its default, that
+ * it is registered as a cluster setting, and that it updates independently from the regular aggregation settings.
  */
 public class PlannerSettingsTests extends ESTestCase {
 
-    public void testTimeSeriesDefaults() {
-        PlannerSettings defaults = PlannerSettings.DEFAULTS;
-        // Emit cadence reuses the regular-aggregation defaults.
-        assertThat(defaults.timeSeriesPartialEmitKeysThreshold(), equalTo(100_000));
-        assertThat(defaults.timeSeriesPartialEmitUniquenessThreshold(), equalTo(0.1));
-        // Chunk size defaults to the emit-keys threshold; the hard ceiling is 2x that target.
-        assertThat(defaults.timeSeriesTargetChunkSize(), equalTo(100_000));
-        assertThat(TimeSeriesAggregationOperator.Factory.maxChunkRowsFor(defaults.timeSeriesTargetChunkSize()), equalTo(200_000));
+    public void testTimeSeriesTargetChunkSizeDefault() {
+        assertThat(PlannerSettings.DEFAULTS.timeSeriesTargetChunkSize(), equalTo(100_000));
     }
 
-    public void testTimeSeriesSettingsAreRegistered() {
+    public void testTimeSeriesTargetChunkSizeIsRegistered() {
         var registeredKeys = PlannerSettings.settings().stream().map(Setting::getKey).toList();
-        assertThat(
-            registeredKeys,
-            hasItems(
-                PlannerSettings.TIME_SERIES_PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(),
-                PlannerSettings.TIME_SERIES_PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(),
-                PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.getKey()
-            )
-        );
+        assertThat(registeredKeys, hasItems(PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.getKey()));
     }
 
-    public void testTimeSeriesSettingsAreDecoupledFromRegularAggregationSettings() {
+    public void testTimeSeriesTargetChunkSizeIsDecoupledFromRegularAggregationSettings() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(PlannerSettings.settings()));
         // ClusterService is mocked because the Holder only reads getClusterSettings(); standing up a real
         // ClusterService would require a ThreadPool and lifecycle management without adding coverage.
@@ -60,20 +45,16 @@ public class PlannerSettingsTests extends ESTestCase {
 
         assertThat(holder.get().timeSeriesTargetChunkSize(), equalTo(100_000));
 
-        // Update one regular knob and two time-series knobs in a single cluster-settings change.
+        // Update a regular aggregation knob and the time-series chunk size in a single cluster-settings change.
         clusterSettings.applySettings(
             Settings.builder()
                 .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 12_345)
-                .put(PlannerSettings.TIME_SERIES_PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 7)
                 .put(PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.getKey(), 999)
                 .build()
         );
 
         PlannerSettings updated = holder.get();
         assertThat(updated.partialEmitKeysThreshold(), equalTo(12_345));
-        assertThat(updated.timeSeriesPartialEmitKeysThreshold(), equalTo(7));
-        assertThat(updated.timeSeriesTargetChunkSize(), equalTo(999));
-        // A time-series knob whose key was not set keeps its default — the regular update did not bleed into it.
-        assertThat(updated.timeSeriesPartialEmitUniquenessThreshold(), equalTo(0.1));
+        assertThat("the time-series chunk size updates independently", updated.timeSeriesTargetChunkSize(), equalTo(999));
     }
 }

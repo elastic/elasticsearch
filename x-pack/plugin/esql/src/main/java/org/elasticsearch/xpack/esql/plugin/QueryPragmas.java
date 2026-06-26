@@ -398,20 +398,6 @@ public final class QueryPragmas implements Writeable {
         return defaultThreshold;
     }
 
-    public int timeSeriesPartialAggregationEmitKeysThreshold(int defaultThreshold) {
-        if (settings.hasValue(PlannerSettings.TIME_SERIES_PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey())) {
-            return PlannerSettings.TIME_SERIES_PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.get(settings);
-        }
-        return defaultThreshold;
-    }
-
-    public double timeSeriesPartialAggregationEmitUniquenessThreshold(double defaultThreshold) {
-        if (settings.hasValue(PlannerSettings.TIME_SERIES_PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey())) {
-            return PlannerSettings.TIME_SERIES_PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
-        }
-        return defaultThreshold;
-    }
-
     public int timeSeriesTargetChunkSize(int defaultChunkSize) {
         if (settings.hasValue(PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.getKey())) {
             return PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.get(settings);

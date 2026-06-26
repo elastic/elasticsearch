@@ -52,7 +52,7 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .histogramBinary(PromqlFunctionDefinition.QUANTILE, (source, target, ctx, extraParams) -> {
             if (target.resolved() == false || target.dataType().isHistogram() == false) {
-                throw new IllegalStateException("histogram_quantile classic path is lowered via a dedicated logical node");
+                throw new IllegalStateException("histogram_quantile for classic histograms should have a special handling in the planner");
             }
 
             Expression quantile = extraParams.getFirst();
@@ -69,7 +69,9 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
             }
             return new HistogramPercentile(source, target, PromqlFunctionDefinition.quantileToPercentile(source, quantile));
         })
-        .description("Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets.")
+        .description(
+            "Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets or a native (exponential) histogram."
+        )
         .example("histogram_quantile(0.9, rate(http_request_duration_seconds_bucket[5m]))")
         .stack(PromqlFunctionDefinition.STACK_GA_9_5)
         .name("histogram_quantile");

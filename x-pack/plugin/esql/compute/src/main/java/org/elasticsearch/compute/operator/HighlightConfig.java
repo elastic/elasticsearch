@@ -20,7 +20,8 @@ import java.util.Locale;
  * @param locale             locale used by the break iterator (the {@code boundary_scanner_locale} option).
  * @param orderByScore       when {@code true} fragments are returned by descending score instead of document order
  *                           (the {@code order=score} option).
- * @param maxAnalyzedOffset  per-field analysis bound; a negative value means "use the index setting", matching Query DSL.
+ * @param maxAnalyzedOffset  per-field analysis bound; a negative value means "use the default index setting" in the
+ *                           current coordinator-side operator.
  */
 public record HighlightConfig(
     String queryText,

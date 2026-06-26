@@ -37,6 +37,7 @@ import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
+import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -57,7 +58,8 @@ import java.util.function.Supplier;
  * block.
  * <p>
  * The {@link MemoryIndex} is built with offsets, so we read them via {@link UnifiedHighlighter.OffsetSource#POSTINGS}.
- * This is the same coordinator-side path that {@code TOP_SNIPPETS} already uses.
+ * This is the same coordinator-side path that {@code TOP_SNIPPETS} already uses. Unlike Query DSL highlighting, this
+ * path truncates analyzed tokens at the configured/default offset instead of throwing the "field too long" error.
  * <p>
  * TODO: use real index offsets and per-field analyzers when highlighting can run directly against shard data.
  */
@@ -101,8 +103,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final HighlightConfig config;
     private final Query query;
     private final Analyzer analyzer;
+    private final Analyzer memoryIndexAnalyzer;
     private final PassageFormatter formatter;
-    private final int maxAnalyzedOffset;
+    private final int indexMaxAnalyzedOffset;
+    private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
     private final int highlighterNumberOfFragments;
     private final Supplier<BreakIterator> breakIteratorSupplier;
     private final ExpressionEvaluator[] fieldEvaluators;
@@ -119,10 +123,14 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.query = parsedQuery != null ? parsedQuery : new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
         Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
         this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
-        // A negative value means "use the default index setting".
-        this.maxAnalyzedOffset = config.maxAnalyzedOffset() < 0
-            ? IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY)
-            : config.maxAnalyzedOffset();
+        // Coordinator-side highlighting has no IndexSettings yet, so use the default index cap
+        // Keep the index cap separate from the query cap so user input cannot raise the default.
+        this.indexMaxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
+        this.queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(
+            effectiveQueryMaxAnalyzedOffset(config.maxAnalyzedOffset()),
+            indexMaxAnalyzedOffset
+        );
+        this.memoryIndexAnalyzer = new LimitTokenOffsetAnalyzer(analyzer, queryMaxAnalyzedOffset.getNotNull());
         // Ask Lucene for every passage and trim to number_of_fragments ourselves. Lucene would otherwise keep the
         // top passages by score, which loses document order when several sentences tie. We want document order.
         this.highlighterNumberOfFragments = Integer.MAX_VALUE - 1;
@@ -132,6 +140,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             config.wordBoundary(),
             config.locale()
         );
+    }
+
+    private int effectiveQueryMaxAnalyzedOffset(int configuredMaxAnalyzedOffset) {
+        return configuredMaxAnalyzedOffset < 0 ? indexMaxAnalyzedOffset : Math.min(configuredMaxAnalyzedOffset, indexMaxAnalyzedOffset);
     }
 
     // Mirrors DefaultHighlighter getBreakIterator: word scanner ignores fragment_size, sentence scanner honours it.
@@ -227,7 +239,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     private Snippet[] highlight(String text) throws IOException {
         MemoryIndex memoryIndex = new MemoryIndex(true);
-        memoryIndex.addField(CONTENT_FIELD, text, analyzer);
+        memoryIndex.addField(CONTENT_FIELD, text, memoryIndexAnalyzer);
         IndexSearcher searcher = memoryIndex.createSearcher();
         UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
         builder.withFormatter(formatter);
@@ -241,8 +253,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             query,
             config.noMatchSize(),
             highlighterNumberOfFragments,
-            maxAnalyzedOffset,
-            QueryMaxAnalyzedOffset.create(-1, maxAnalyzedOffset),
+            indexMaxAnalyzedOffset,
+            queryMaxAnalyzedOffset,
             false,
             false
         );

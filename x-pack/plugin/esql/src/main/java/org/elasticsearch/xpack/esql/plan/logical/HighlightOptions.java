@@ -62,7 +62,7 @@ public record HighlightOptions(
     public static final List<String> ALLOWED_ENCODERS = List.of(DEFAULT_ENCODER, HTML_ENCODER);
     public static final List<String> ALLOWED_BOUNDARY_SCANNERS = List.of(BOUNDARY_SCANNER_SENTENCE, BOUNDARY_SCANNER_WORD);
     public static final List<String> ALLOWED_ORDERS = List.of(ORDER_NONE, ORDER_SCORE);
-    // -1 means "use the index setting", matching Query DSL.
+    // -1 means "use the index setting"; the current coordinator-side operator uses the default index value.
     public static final int DEFAULT_MAX_ANALYZED_OFFSET = -1;
     public static final int DEFAULT_PHRASE_LIMIT = 256;
 
@@ -203,8 +203,9 @@ public record HighlightOptions(
     }
 
     /**
-     * {@code max_analyzed_offset} matches Query DSL semantics: a positive integer, or {@code -1} to fall back to the index
-     * setting. {@code 0} and any value below {@code -1} are rejected (see {@code AbstractHighlighterBuilder#maxAnalyzedOffset}).
+     * {@code max_analyzed_offset} accepts the same values as Query DSL: a positive integer, or {@code -1} to fall back
+     * to the index setting. {@code 0} and any value below {@code -1} are rejected (see
+     * {@code AbstractHighlighterBuilder#maxAnalyzedOffset}).
      */
     private static int maxAnalyzedOffset(Expression value, FoldContext foldContext) {
         if (value == null) {

@@ -731,3 +731,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
   method: testFold {TestCase=cartesian_shape and cartesian_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152308
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
+  method: testFold {TestCase=cartesian_shape and cartesian_point}
+  issue: https://github.com/elastic/elasticsearch/issues/152309

@@ -3236,8 +3236,8 @@ public class EsqlCapabilities {
          * flattened).
          */
         LAST_AGG_EXTENDED_TYPES,
-      
-       /**
+
+        /**
          * An empty list passed as a query parameter (named or positional) is treated as null
          * instead of producing an NPE. A defined-but-null param used in an identifier or pattern
          * position produces a clean parsing error instead of silently yielding an empty column name.

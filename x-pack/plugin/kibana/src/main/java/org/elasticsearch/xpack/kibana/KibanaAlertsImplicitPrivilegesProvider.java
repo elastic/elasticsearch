@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
-import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -111,24 +111,24 @@ public class KibanaAlertsImplicitPrivilegesProvider implements ImplicitPrivilege
     ) {
         Set<String> kibanaPrivilegesGrantingAlerts = storedApplicationPrivileges.stream()
             .filter(d -> KIBANA_APPLICATION.equals(d.getApplication()))
-            .filter(d -> Automatons.predicate(d.getActions()).test(ALERTS_ACTION))
+            .filter(d -> StringMatcher.of(d.getActions()).test(ALERTS_ACTION))
             .map(ApplicationPrivilegeDescriptor::getName)
             .collect(Collectors.toSet());
 
         Set<String> resources = new HashSet<>();
         for (RoleDescriptor.ApplicationResourcePrivileges arp : roleDescriptor.getApplicationPrivileges()) {
             // Application field may be a literal ("kibana-.kibana") or a wildcard ("kibana-*", "*");
-            // the automaton predicate handles both, and Automatons caches by pattern set so literal
-            // lookups are effectively free.
-            if (Automatons.predicate(arp.getApplication()).test(KIBANA_APPLICATION) == false) {
+            // StringMatcher handles both: it matches a literal with an exact-string predicate and only
+            // builds an automaton for entries that actually contain wildcard characters.
+            if (StringMatcher.of(arp.getApplication()).test(KIBANA_APPLICATION) == false) {
                 continue;
             }
 
-            // Short-circuit on the resolved-name path (cheap set lookup) before building the
-            // per-block automaton for the raw-pattern path.
+            // Short-circuit on the resolved-name path (cheap set lookup) before matching the
+            // raw-pattern path with StringMatcher.
             List<String> privileges = Arrays.asList(arp.getPrivileges());
             if (privileges.stream().anyMatch(kibanaPrivilegesGrantingAlerts::contains)
-                || Automatons.predicate(privileges).test(ALERTS_ACTION)) {
+                || StringMatcher.of(privileges).test(ALERTS_ACTION)) {
                 Collections.addAll(resources, arp.getResources());
             }
         }

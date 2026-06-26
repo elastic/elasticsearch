@@ -1049,20 +1049,39 @@ public enum DataType implements Writeable {
         if (originalTypes.contains(DATE_NANOS) && originalTypes.contains(DATETIME) && originalTypes.size() == 2) {
             return DATE_NANOS;
         }
-        if (originalTypes.contains(AGGREGATE_METRIC_DOUBLE)) {
-            boolean allNumeric = true;
-            for (DataType type : originalTypes) {
-                if (type.isNumeric() == false && type != AGGREGATE_METRIC_DOUBLE) {
-                    allNumeric = false;
-                    break;
-                }
-            }
-            if (allNumeric) {
+        if (originalTypes.stream().allMatch(DataType::isNumericOrAmd)) {
+            if (originalTypes.contains(AGGREGATE_METRIC_DOUBLE)) {
                 return AGGREGATE_METRIC_DOUBLE;
             }
+            DataType result = null;
+            for (DataType type : originalTypes) {
+                result = result == null ? type.widenSmallNumeric() : commonNumericType(result, type.widenSmallNumeric());
+            }
+            return result;
         }
 
         return KEYWORD;
+    }
+
+    private static DataType commonNumericType(DataType left, DataType right) {
+        assert left.isNumeric() : left;
+        assert right.isNumeric() : right;
+        if (left == right) {
+            return left;
+        }
+        if (left.isWholeNumber()) {
+            if (right.isWholeNumber()) {
+                if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
+                    return UNSIGNED_LONG;
+                }
+                return left.estimatedSize() > right.estimatedSize() ? left : right;
+            }
+            return right;
+        }
+        if (right.isWholeNumber()) {
+            return left;
+        }
+        return left.estimatedSize() > right.estimatedSize() ? left : right;
     }
 
     /**

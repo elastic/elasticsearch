@@ -170,8 +170,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         Expression pendingFilter,
         /* The attributes this subtree exposes. */
         SynthesizedAttributes synthesizedAttributes,
-        /* true when the subtree resolved to a constant/empty plan (no index) */
-        boolean inlined
+        /* true when the subtree resolved to a constant/empty plan (no aggregation needed) */
+        boolean constFolded
     ) {
         TranslationResult(LogicalPlan plan, Expression expression) {
             this(plan, expression, null, SynthesizedAttributes.none(), false);
@@ -200,10 +200,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         Expression time
     ) {
         Attribute stepAttr() {
-            if (stepBucketAlias != null) {
-                return stepBucketAlias.toAttribute();
-            }
-            return promqlCommand.stepAttribute();
+            return stepBucketAlias != null ? stepBucketAlias.toAttribute() : promqlCommand.stepAttribute();
         }
     }
 
@@ -254,44 +251,31 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         return plan;
     }
 
-    /**
-     * Add `Eval` materializing branch ordinal.
-     */
-    private static LogicalPlan applyIntermediateBranchTag(PromqlCommand p, Source source, int i, LogicalPlan branchPlan) {
-        Alias branchTag = new Alias(source, p.branchColumnName(), new Literal(source, i, DataType.INTEGER));
-        branchPlan = new Eval(source, branchPlan, List.of(branchTag));
-        return branchPlan;
-    }
-
     @Override
-    protected LogicalPlan rule(PromqlCommand p, AnalyzerContext context) {
+    protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
         // `or` is special-cased here because it is the only set operator that adds rows (more series), which
         // requires a top-level multi-branch UnionAll that cannot compose as a single-value sub-expression. The
         // row-filtering operators `and`/`unless` will instead translate as joins inside translateNode.
         // PromQL `or` is left-associative, so flatten the top-level chain into independent branches.
-        List<LogicalPlan> branches = flattenTopLevelUnion(p.promqlPlan());
+        List<LogicalPlan> branches = flattenTopLevelUnion(cmd.promqlPlan());
 
         if (branches.size() == 1) {
-            var timestampExpression = p.timestamp(p.promqlPlan());
-            Alias stepBucketAlias = null;
-            if (canCreateStepBucket(p)) {
-                stepBucketAlias = createStepBucketAlias(p, context.configuration(), p.stepId(), timestampExpression);
-            }
-
-            BranchPlan branch = translateBody(p, p.promqlPlan(), context, stepBucketAlias, p.valueId(), timestampExpression);
-
-            LogicalPlan plan = branch.plan();
-            plan = applyProjection(p, plan);
-            plan = applyNullOutputFilter(p, plan);
+            Expression timestampExpression = cmd.timestamp(cmd.promqlPlan());
+            Alias stepBucketAlias = canCreateStepBucket(cmd)
+                ? createStepBucketAlias(cmd, context.configuration(), cmd.stepId(), timestampExpression)
+                : null;
+            BranchPlan branch = translateBody(cmd, cmd.promqlPlan(), context, stepBucketAlias, cmd.valueId(), timestampExpression);
+            LogicalPlan plan = applyProjection(cmd, branch.plan());
+            plan = applyNullOutputFilter(cmd, plan);
             if (branch.constFolded() == false) {
-                plan = applyIntermediateTimestamp(p, plan, timestampExpression, p.promqlPlan(), context.configuration());
-                plan = withTimestampFilter(p, plan);
+                plan = applyIntermediateTimestamp(cmd, plan, timestampExpression, cmd.promqlPlan(), context.configuration());
+                plan = withTimestampFilter(cmd, plan);
             }
             return plan;
         }
 
-        LogicalPlan plan = translateUnion(p, context, branches);
-        return withTimestampFilter(p, plan);
+        LogicalPlan plan = translateUnion(cmd, context, branches);
+        return withTimestampFilter(cmd, plan);
     }
 
     /**
@@ -300,50 +284,56 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * command output and null-row filtering are applied by the caller.
      */
     private BranchPlan translateBody(
-        PromqlCommand p,
-        LogicalPlan branch,
+        PromqlCommand cmd,
+        LogicalPlan promqlBranch,
         AnalyzerContext context,
         Alias stepBucketAlias,
         NameId valueId,
         Expression timestampExpression
     ) {
-        var ctx = new TranslationContext(p, context, stepBucketAlias, InheritedAttributes.unconstrained(), timestampExpression);
+        TranslationContext ctx = new TranslationContext(
+            cmd,
+            context,
+            stepBucketAlias,
+            InheritedAttributes.unconstrained(),
+            timestampExpression
+        );
 
-        TranslationResult result = translateNode(branch, p.child(), ctx);
+        TranslationResult result = translateNode(promqlBranch, cmd.child(), ctx);
 
-        // Replace the real index with an in-memory index if it is unused
-        result = tryInline(result, p);
+        result = tryConstFoldPureScalar(result, cmd, ctx);
 
         var plan = result.plan();
         var valueExpr = result.expression();
         var filter = combineAndNullable(
-            Arrays.asList(result.pendingFilter(), createTimeFilterPredicate(p, branch, context.configuration()))
+            Arrays.asList(result.pendingFilter(), createTimeFilterPredicate(cmd, promqlBranch, context.configuration()))
         );
 
+        // TODO: Fix selector-free PromQL evaluation to produce values even when no data
+        // See https://github.com/elastic/elasticsearch/issues/149791
+
         if (filter != null) {
-            plan = applyTimestampFilter(plan, filter, p);
+            plan = applyLabelFilter(plan, filter, cmd);
         }
 
-        // Does this plan uses real index?
-        if (result.inlined() == false) {
+        if (result.constFolded() == false) {
             // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
             // TODO: If we ever support metric references without last_over_time, we could
             // skip TimeSeriesAggregate and use plain Aggregate instead (see #141501 discussion).
             if (findAggregate(plan, Aggregate.class) == null) {
-                plan = createInnermostAggregatePlan(ctx, plan, SynthesizedAttributes.of(branch.output()), List.of(), valueExpr);
+                plan = createInnermostAggregatePlan(ctx, plan, SynthesizedAttributes.of(promqlBranch.output()), List.of(), valueExpr);
                 valueExpr = getValueOutput(plan);
             }
 
-            if (branch instanceof VectorBinaryComparison binaryComparison && binaryComparison.filterMode()) {
+            if (promqlBranch instanceof VectorBinaryComparison binaryComparison && binaryComparison.filterMode()) {
                 // for comparison with the filtering mode, return the left operand and apply filter later
                 plan = addComparisonFilter(plan, binaryComparison, context, valueExpr);
             }
         }
 
-        // Guard ensuring `value` column is always double
-        plan = applyValueToDoubleConversion(p, plan, valueExpr, valueId);
+        plan = applyValueToDoubleConversion(cmd, plan, valueExpr, valueId);
 
-        return new BranchPlan(plan, result.inlined());
+        return new BranchPlan(plan, result.constFolded());
     }
 
     /** Result of translating a single PromQL branch, before projection/null/timestamp filtering. */
@@ -359,50 +349,52 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * so the leftmost branch's value wins - exactly matching PromQL's {@code a or b} semantics where {@code b}
      * only contributes series whose labelset is absent from {@code a}.
      */
-    private LogicalPlan translateUnion(PromqlCommand p, AnalyzerContext context, List<LogicalPlan> branches) {
+    private LogicalPlan translateUnion(PromqlCommand cmd, AnalyzerContext context, List<LogicalPlan> branches) {
         // Already validated against Fork.MAX_BRANCHES by PromqlCommand.verify; asserted here against regressions.
         assert Fork.exceedsMaxBranches(branches.size()) == false
             : "union branch count [" + branches.size() + "] exceeds Fork.MAX_BRANCHES [" + Fork.MAX_BRANCHES + "]";
 
-        var branchPlans = new ArrayList<LogicalPlan>(branches.size());
+        Source source = cmd.source();
+        List<LogicalPlan> branchPlans = new ArrayList<>(branches.size());
         for (int i = 0; i < branches.size(); i++) {
             // Each branch gets its own step/value attributes; the final projection maps them to the command output.
             // Branches may carry independent offsets, so each derives its own shifted evaluation timestamp.
             LogicalPlan branch = branches.get(i);
-            var timestampExpression = p.timestamp(branch);
-            var step = createStepBucketAlias(p, context.configuration(), new NameId(), timestampExpression);
-            BranchPlan body = translateBody(p, branch, context, step, new NameId(), timestampExpression);
+            Expression timestampExpression = cmd.timestamp(branch);
+            Alias stepBucketAlias = createStepBucketAlias(cmd, context.configuration(), new NameId(), timestampExpression);
+            BranchPlan body = translateBody(cmd, branch, context, stepBucketAlias, new NameId(), timestampExpression);
             LogicalPlan branchPlan = body.plan();
             // Drop null-valued rows per branch so an absent left side does not shadow a present right side.
-            branchPlan = applyNullOutputFilter(p, branchPlan);
+            branchPlan = applyNullOutputFilter(cmd, branchPlan);
             if (body.constFolded() == false) {
-                branchPlan = applyIntermediateTimestamp(p, branchPlan, timestampExpression, branch, context.configuration());
+                branchPlan = applyIntermediateTimestamp(cmd, branchPlan, timestampExpression, branch, context.configuration());
             }
-            branchPlan = applyIntermediateBranchTag(p, p.source(), i, branchPlan);
+            Alias branchTag = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
+            branchPlan = new Eval(source, branchPlan, List.of(branchTag));
             branchPlans.add(branchPlan);
         }
 
         // The attribute ids chosen here are preserved by name when the analyzer later recomputes the UnionAll
         // output, so the groupings and projection built below remain valid.
         List<Attribute> unionOutput = VectorBinarySet.unionOutputByName(branchPlans);
-        UnionAll union = new UnionAll(p.source(), branchPlans, unionOutput);
+        UnionAll union = new UnionAll(source, branchPlans, unionOutput);
 
         // Group by step + all label columns (everything except the value and the synthetic branch tag).
         List<Expression> groupings = new ArrayList<>();
         Attribute branchAttr = null;
         for (Attribute attr : unionOutput) {
-            if (attr.name().equals(p.branchColumnName())) {
+            if (attr.name().equals(cmd.branchColumnName())) {
                 branchAttr = attr;
-            } else if (attr.name().equals(p.valueColumnName()) == false) {
+            } else if (attr.name().equals(cmd.valueColumnName()) == false) {
                 groupings.add(attr);
             }
         }
 
-        Order branchOrder = new Order(p.source(), branchAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        LogicalPlan dedup = new TopNBy(p.source(), union, List.of(branchOrder), new Literal(p.source(), 1, DataType.INTEGER), groupings);
+        Order branchOrder = new Order(source, branchAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        LogicalPlan dedup = new TopNBy(source, union, List.of(branchOrder), new Literal(source, 1, DataType.INTEGER), groupings);
 
         // Project to the command output; this also drops the synthetic branch tag.
-        return applyProjection(p, dedup);
+        return applyProjection(cmd, dedup);
     }
 
     /**
@@ -425,42 +417,39 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
     }
 
-    /**
-     * Translate scan-free plan tree immediately.
-     * */
-    private static TranslationResult tryInline(TranslationResult result, PromqlCommand p) {
-        if (result.inlined() || p.start().value() == null) {
+    private static TranslationResult tryConstFoldPureScalar(TranslationResult result, PromqlCommand cmd, TranslationContext ctx) {
+        if (result.constFolded() || cmd.start().value() == null) {
             return result;
         }
-        Attribute stepAttr = p.stepAttribute();
+        Attribute stepAttr = cmd.stepAttribute();
         boolean constOnly = result.expression().references().stream().allMatch(ref -> ref.semanticEquals(stepAttr));
         if (constOnly == false) {
             return result;
         }
-        var plan = PromqlLogicalPlanBuilder.buildLocalRelation(p);
+        var plan = PromqlLogicalPlanBuilder.buildLocalRelation(cmd);
         var step = plan.output().getFirst();
         var value = result.expression().transformUp(Attribute.class, attr -> attr.semanticEquals(stepAttr) ? step : attr);
         return new TranslationResult(plan, value, result.pendingFilter(), result.synthesizedAttributes(), true);
     }
 
-    private static LogicalPlan applyProjection(PromqlCommand p, LogicalPlan plan) {
+    private static LogicalPlan applyProjection(PromqlCommand command, LogicalPlan plan) {
         var lookupMap = new HashMap<String, Attribute>();
         for (var attr : plan.output()) {
             lookupMap.put(attr.name(), attr);
         }
 
-        var projected = new ArrayList<>(p.output());
+        var projected = new ArrayList<>(command.output());
         for (int i = 0; i < projected.size(); i++) {
             var attr = projected.get(i);
             var lookupAttr = lookupMap.get(attr.name());
             if (lookupAttr != null && lookupAttr.semanticEquals(attr) == false) {
                 final var tsFieldAttrAlias = new Alias(lookupAttr.source(), attr.name(), lookupAttr, attr.id());
-                plan = new Eval(p.source(), plan, List.of(tsFieldAttrAlias));
+                plan = new Eval(command.source(), plan, List.of(tsFieldAttrAlias));
                 projected.set(i, tsFieldAttrAlias.toAttribute());
             }
         }
 
-        return new Project(p.source(), plan, projected);
+        return new Project(command.source(), plan, projected);
     }
 
     /**
@@ -506,7 +495,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         );
         TranslationResult childResult = translateNode(agg.child(), currentPlan, childCtx);
 
-        if (childResult.inlined()) {
+        if (childResult.constFolded()) {
             return childResult;
         }
 
@@ -560,7 +549,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         );
         TranslationResult childResult = translateNode(histogramQuantile.child(), currentPlan, childCtx);
 
-        if (childResult.inlined()) {
+        if (childResult.constFolded()) {
             return childResult;
         }
 
@@ -757,7 +746,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     private TranslationResult translateFunctionCall(PromqlFunctionCall functionCall, LogicalPlan currentPlan, TranslationContext ctx) {
         TranslationResult childResult = translateNode(functionCall.child(), currentPlan, ctx);
 
-        if (childResult.inlined()) {
+        if (childResult.constFolded()) {
             return childResult;
         }
 
@@ -804,9 +793,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * These produce expressions without modifying the plan.
      */
     private TranslationResult translateScalarFunction(ScalarFunction scalarFunction, LogicalPlan currentPlan, TranslationContext ctx) {
-        PromqlCommand p = ctx.promqlCommand();
+        PromqlCommand cmd = ctx.promqlCommand();
         var function = scalarFunction.buildEsqlFunction(
-            new PromqlFunctionRegistry.PromqlContext(p.timestamp(), null, p.stepAttribute(), ctx.analyzerContext().configuration())
+            new PromqlFunctionRegistry.PromqlContext(cmd.timestamp(), null, cmd.stepAttribute(), ctx.analyzerContext().configuration())
         );
 
         return new TranslationResult(currentPlan, function);
@@ -929,9 +918,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * Adds label filter conditions to the context.
      */
     private TranslationResult translateSelector(Selector selector, LogicalPlan currentPlan, TranslationContext ctx) {
-        PromqlCommand p = ctx.promqlCommand();
+        PromqlCommand cmd = ctx.promqlCommand();
 
-        LogicalPlan foldedPlan = PromqlLogicalPlanBuilder.tryFoldRelation(p, currentPlan);
+        LogicalPlan foldedPlan = PromqlLogicalPlanBuilder.tryFoldRelation(cmd, currentPlan);
 
         Expression matcherCondition = translateLabelMatchers(
             selector.source(),
@@ -948,13 +937,13 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
 
         if (foldedPlan != null) {
-            var empty = new LocalRelation(p.source(), List.of(p.valueAttribute(), p.stepAttribute()), EmptyLocalSupplier.EMPTY);
+            var empty = new LocalRelation(cmd.source(), List.of(cmd.valueAttribute(), cmd.stepAttribute()), EmptyLocalSupplier.EMPTY);
             return new TranslationResult(empty, Literal.NULL, null, SynthesizedAttributes.none(), true);
         }
 
         Expression expr;
         if (selector instanceof InstantSelector) {
-            // InstantSelector maps to LastOverTime to get latest sample per time series.
+            // InstantSelector maps to LastOverTime to get latest sample per time series
             expr = new LastOverTime(selector.source(), selector.series(), AggregateFunction.NO_WINDOW, ctx.time());
         } else {
             expr = selector.series();
@@ -998,8 +987,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         List<Attribute> pathExclusions,
         Expression agg
     ) {
-        PromqlCommand p = ctx.promqlCommand();
-        Source source = p.promqlPlan().source();
+        PromqlCommand command = ctx.promqlCommand();
+        Source source = command.promqlPlan().source();
 
         // Innermost aggregate: its child is the leaf selector, so it owns the physical `_timeseries` grouping and
         // translates against its own scope, excluding every dimension dropped on the way down (the inheritedAttributes's path
@@ -1026,7 +1015,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         groupings.add(ctx.stepBucketAlias());
 
         var aggregates = new ArrayList<NamedExpression>();
-        aggregates.add(new Alias(agg.source(), p.valueColumnName(), agg));
+        aggregates.add(new Alias(agg.source(), command.valueColumnName(), agg));
         aggregates.add(ctx.stepAttr());
 
         if (needsTimeSeriesGrouping) {
@@ -1183,15 +1172,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     /** Push label filter down to EsRelation level */
-    private static LogicalPlan applyTimestampFilter(LogicalPlan plan, Expression filterCondition, PromqlCommand p) {
-        return plan.transformUp(LogicalPlan.class, node -> {
-            if (node instanceof Filter f && f.child() instanceof EsRelation) {
+    private static LogicalPlan applyLabelFilter(LogicalPlan plan, Expression filterCondition, PromqlCommand promqlCommand) {
+        return plan.transformUp(LogicalPlan.class, p -> {
+            if (p instanceof Filter f && f.child() instanceof EsRelation) {
                 // Already has a filter on EsRelation, combine conditions
                 return new Filter(f.source(), f.child(), new And(f.source(), f.condition(), filterCondition));
-            } else if (node instanceof EsRelation) {
-                return new Filter(p.source(), node, filterCondition);
+            } else if (p instanceof EsRelation) {
+                return new Filter(promqlCommand.source(), p, filterCondition);
             }
-            return node;
+            return p;
         });
     }
 
@@ -1205,27 +1194,31 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * projected command output but last in a freshly translated branch body (a value-shadowing {@code Eval}
      * moves it to the end), and the union path filters before projecting.
      */
-    private static LogicalPlan applyNullOutputFilter(PromqlCommand p, LogicalPlan plan) {
+    private static LogicalPlan applyNullOutputFilter(PromqlCommand promqlCommand, LogicalPlan plan) {
         Attribute valueAttr = null;
         for (Attribute attr : plan.output()) {
-            if (attr.name().equals(p.valueColumnName())) {
+            if (attr.name().equals(promqlCommand.valueColumnName())) {
                 valueAttr = attr;
                 break;
             }
         }
-        assert valueAttr != null : "value column [" + p.valueColumnName() + "] missing from plan output " + plan.output();
-        return new Filter(p.source(), plan, new IsNotNull(valueAttr.source(), valueAttr));
+        assert valueAttr != null : "value column [" + promqlCommand.valueColumnName() + "] missing from plan output " + plan.output();
+        return new Filter(promqlCommand.source(), plan, new IsNotNull(valueAttr.source(), valueAttr));
     }
 
     /**
      * Applies the projection (output) filter on the {@code step} column. Step labels are anchored at {@code start} and are
      * offset-independent, so this is shared across all branches and applied once at the command level.
      */
-    private static LogicalPlan withTimestampFilter(PromqlCommand p, LogicalPlan plan) {
-        var step = p.stepAttribute();
-        var lo = new GreaterThanOrEqual(p.source(), step, p.start().value() != null ? p.start() : Literal.dateTime(p.source(), EPOCH_MIN));
-        var hi = new LessThanOrEqual(p.source(), step, p.end().value() != null ? p.end() : Literal.dateTime(p.source(), EPOCH_MAX));
-        return new Filter(p.source(), plan, new And(p.source(), lo, hi));
+    private static LogicalPlan withTimestampFilter(PromqlCommand promqlCommand, LogicalPlan plan) {
+        Literal start = promqlCommand.start();
+        Literal end = promqlCommand.end();
+        var source = promqlCommand.source();
+        var step = promqlCommand.stepAttribute();
+
+        var lo = new GreaterThanOrEqual(source, step, start.value() != null ? start : Literal.dateTime(source, EPOCH_MIN));
+        var hi = new LessThanOrEqual(source, step, end.value() != null ? end : Literal.dateTime(source, EPOCH_MAX));
+        return new Filter(source, plan, new And(source, lo, hi));
     }
 
     /** Comparison filter (e.g., metric > x) */
@@ -1241,14 +1234,19 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     /** Ensure value column is double */
-    private static LogicalPlan applyValueToDoubleConversion(PromqlCommand p, LogicalPlan plan, Expression valueExpr, NameId valueId) {
-        Source source = p.source();
+    private static LogicalPlan applyValueToDoubleConversion(
+        PromqlCommand promqlCommand,
+        LogicalPlan plan,
+        Expression valueExpr,
+        NameId valueId
+    ) {
+        Source source = promqlCommand.source();
 
         if ((valueExpr instanceof Attribute == false && valueExpr.resolved() && valueExpr.dataType() == DataType.DOUBLE) == false) {
             valueExpr = new ToDouble(source, valueExpr);
         }
 
-        var value = new Alias(source, p.valueColumnName(), valueExpr, valueId);
+        var value = new Alias(source, promqlCommand.valueColumnName(), valueExpr, valueId);
         return new Eval(source, plan, List.of(value));
     }
 
@@ -1282,9 +1280,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         return new Alias(tstep.source(), p.stepColumnName(), tstep, stepId);
     }
 
-    private static boolean canCreateStepBucket(PromqlCommand p) {
-        if (p.timestamp() == null || p.timestamp().resolved() == false) {
-            return !p.isRangeQuery() || p.buckets() == null || p.buckets().value() == null;
+    private static boolean canCreateStepBucket(PromqlCommand cmd) {
+        if (cmd.timestamp() == null || cmd.timestamp().resolved() == false) {
+            if (cmd.isRangeQuery() && cmd.buckets() != null && cmd.buckets().value() != null) {
+                return false;
+            }
         }
         return true;
     }

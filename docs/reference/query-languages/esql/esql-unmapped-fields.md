@@ -36,7 +36,7 @@ The `unmapped_fields` setting accepts three values, which range from strict to p
 | `NULLIFY` | Unmapped fields come back as columns of `null` values. | You query several indices with a wildcard and a field is missing from some of them, or you work with views and subqueries that need a stable set of columns. |
 | `LOAD` {applies_to}`stack: preview 9.4` | {{esql}} loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) at search time and treats them as `keyword`. Fields absent from `_source` come back as `null`. | You need the real values of a field that was never mapped, so that you can filter or aggregate on it. |
 
-For the full syntax and the accepted values, refer to the [`SET unmapped_fields`](commands/set.md#esql-unmapped_fields) reference.
+For the full syntax, refer to the [`SET unmapped_fields`](commands/set.md#esql-unmapped_fields) reference.
 
 :::{tip}
 :applies_to: stack: preview 9.4

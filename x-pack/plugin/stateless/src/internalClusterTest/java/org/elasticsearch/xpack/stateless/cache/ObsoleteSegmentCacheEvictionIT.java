@@ -42,6 +42,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.core.TimeValue.MINUS_ONE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.doOpenInputWithoutReplicatedRanges;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -63,7 +64,9 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             .put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), false)
             .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), false)
             .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false)
-            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
+            // Cache boost preference requires per-CC timestamps built when replicated content is enabled
+            .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1) // each refresh creates a new BCC
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE)
@@ -102,7 +105,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             refresh(indexName);
         }
 
-        var blobsRegionsBeforeMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService, false);
+        var blobsRegionsBeforeMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
         assertThat(
             "all regions from pre-merge segments should be cached",
@@ -117,7 +120,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         forceMerge(true);
         refresh(indexName);
 
-        var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService, false);
+        var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
         assertThat(
             "post-merge blobs should be entirely new (no overlap with pre-merge blobs)",
@@ -177,7 +180,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             refresh(indexName);
         }
 
-        var blobsRegionsBeforeMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService, false);
+        var blobsRegionsBeforeMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
         assertThat(
             "all regions from pre-merge segments should be cached",
@@ -199,7 +202,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         forceMerge(true);
         refresh(indexName);
 
-        var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService, false);
+        var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
         assertThat(
             "post-merge regions should be in cache",
@@ -228,7 +231,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         flush(indexName);
         refresh(indexName);
 
-        var blobsRegionsAfterClosePIT = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService, false);
+        var blobsRegionsAfterClosePIT = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
         assertThat(
             "post-merge blobs should be entirely new (no overlap with pre-merge blobs)",
@@ -276,10 +279,10 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
 
         final var docIds = new HashSet<String>();
 
-        int batches = randomIntBetween(2, 4);
+        int batches = randomIntBetween(2, 6);
         for (int batch = 0; batch < batches; batch++) {
             var bulkRequest = client().prepareBulk(indexName);
-            range(0, randomIntBetween(10, 100)).mapToObj(
+            range(0, randomIntBetween(10, 50)).mapToObj(
                 n -> client().prepareIndex(indexName).setSource("value", n, "bytes", randomUnicodeOfLength(10))
             ).forEach(bulkRequest::add);
 
@@ -301,9 +304,8 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             .forEach(deleteBulk::add);
         assertNoFailures(deleteBulk.get());
         refresh(indexName);
-        flush(indexName);
 
-        var blobsRegionsBeforeMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService, false);
+        var blobsRegionsBeforeMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         assertThat(Set.of(searchDirectory.listAll()).stream().filter(StatelessCompoundCommit::isGenerationalFile).count(), greaterThan(0L));
 
         assertThat(
@@ -319,7 +321,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         forceMerge(true);
         refresh(indexName);
 
-        var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService, false);
+        var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
         assertThat(
             "post-merge blobs should be entirely new (no overlap with pre-merge blobs)",
@@ -396,7 +398,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         flush(indexName);
 
         // At this stage we have multiple segments within a single BCC
-        final var blobsRegionsBeforeUpdates = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService, false);
+        final var blobsRegionsBeforeUpdates = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         assertThat(blobsRegionsBeforeUpdates.size(), equalTo(1));
 
         assertThat(
@@ -426,7 +428,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
 
         refresh(indexName);
 
-        final var blobsRegionsAfterUpdates = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService, false);
+        final var blobsRegionsAfterUpdates = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         if (updatedDocs.size() == nbSegments) {
             // If all docs were updated, then all segments have been replaced and we only have 1 BCC with the last segment
             assertThat(blobsRegionsAfterUpdates.size(), equalTo(1));
@@ -497,10 +499,8 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
      * blob should be evicted while the new segment's regions are retained.
      */
     public void testObsoleteSegmentRegionsEvictedWithinSameBCC() throws Exception {
-        final boolean useReplicatedContent = randomBoolean();
         final var extraNodeSettings = Settings.builder()
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
-            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), useReplicatedContent)
             .build();
 
         startMasterAndIndexNode(extraNodeSettings);
@@ -529,12 +529,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             refresh(indexName);
         }
 
-        var blobsRegionsBeforeMerge = readAllFilesAndCollectRegions(
-            searchEngine,
-            searchDirectory,
-            searchCacheService,
-            useReplicatedContent
-        );
+        var blobsRegionsBeforeMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
         assertThat("all segments should be in a single BCC blob", blobsRegionsBeforeMerge.size(), equalTo(1));
         assertThat(
@@ -549,7 +544,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         assertNoFailures(indicesAdmin().prepareForceMerge().setFlush(false).setMaxNumSegments(1).get());
         refresh(indexName);
 
-        var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService, useReplicatedContent);
+        var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         assertThat("all segments should be in a single BCC blob", blobsRegionsAfterMerge.size(), equalTo(1));
 
         assertBusy(() -> {
@@ -583,15 +578,15 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
     private static HashMap<String, BitSet> readAllFilesAndCollectRegions(
         SearchEngine searchEngine,
         SearchDirectory searchDirectory,
-        StatelessSharedBlobCacheService cacheService,
-        boolean includeReplicatedContent
+        StatelessSharedBlobCacheService cacheService
     ) throws Exception {
         try (Engine.IndexCommitRef commitRef = searchEngine.acquireLastIndexCommit(false)) {
             assert commitRef != null;
 
             var regionsByBlob = new HashMap<String, BitSet>();
             for (var file : commitRef.getIndexCommit().getFileNames()) {
-                try (var input = searchDirectory.openInput(file, IOContext.READONCE)) {
+                // Reads the file at its original position in the blob
+                try (var input = doOpenInputWithoutReplicatedRanges(searchDirectory, file, IOContext.READONCE)) {
                     CodecUtil.checksumEntireFile(input);
                 }
                 var blobFileRanges = searchDirectory.getBlobFileRangesForFile(file);
@@ -603,7 +598,11 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
                         cacheService.getRegion(blobLocation.offset()),
                         cacheService.getEndingRegion(blobLocation.offset() + blobLocation.fileLength()) + 1
                     );
-                if (includeReplicatedContent && blobFileRanges.hasReplicatedRanges()) {
+                if (blobFileRanges.hasReplicatedRanges()) {
+                    // Reads the file again using replicated ranges
+                    try (var input = searchDirectory.openInput(file, IOContext.READONCE)) {
+                        CodecUtil.checksumEntireFile(input);
+                    }
                     blobFileRanges.forEachReplicatedRange(
                         (offset, length) -> regionsByBlob.computeIfAbsent(blobLocation.blobName(), k -> new BitSet())
                             .set(cacheService.getRegion(offset), cacheService.getEndingRegion(offset + length) + 1)

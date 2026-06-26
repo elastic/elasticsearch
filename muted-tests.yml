@@ -761,3 +761,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/149746
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:highlight.highlightFieldWithNoMatch}
+  issue: https://github.com/elastic/elasticsearch/issues/152240

@@ -16,10 +16,13 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.ArrayDeque;
@@ -55,6 +58,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     );
 
     private final Executor executor;
+    private final ThreadContext threadContext;
     private final ClusterService clusterService;
     private final CompositeRecoverySchedulingListener schedulingListeners;
 
@@ -68,11 +72,12 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     private boolean closed;
 
     public ThrottlingRecoveryService(
-        Executor executor,
+        ThreadPool threadPool,
         ClusterService clusterService,
         CompositeRecoverySchedulingListener schedulingListeners
     ) {
-        this.executor = executor;
+        this.executor = threadPool.generic();
+        this.threadContext = threadPool.getThreadContext();
         this.schedulingListeners = schedulingListeners;
         this.clusterService = clusterService;
         clusterService.addListener(this);
@@ -259,7 +264,14 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
+            assert Set.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER).containsAll(threadContext.getRequestHeadersOnly().keySet())
+                : "unexpected headers in thread context when dispatching recovery: " + threadContext.getRequestHeadersOnly();
+
+            // Wipe the projectId header between recoveries.
+            // TODO: Add instead a new `storeContextForProject` method for async code: https://github.com/elastic/elasticsearch/pull/152107
+            try (ThreadContext.StoredContext ignored = threadContext.newEmptySystemContext()) {
+                executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
+            }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }

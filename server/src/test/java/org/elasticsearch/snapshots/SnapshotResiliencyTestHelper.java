@@ -651,7 +651,7 @@ public class SnapshotResiliencyTestHelper {
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
 
                 throttlingRecoveryService = new ThrottlingRecoveryService(
-                    threadPool.generic(),
+                    threadPool,
                     clusterService,
                     new CompositeRecoverySchedulingListener()
                 );

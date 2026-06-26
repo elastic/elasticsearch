@@ -725,3 +725,6 @@ tests:
 - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
   method: testThreadSafety
   issue: https://github.com/elastic/elasticsearch/issues/152305
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSymDifferenceTests
+  method: testFold {TestCase=geo_shape and geo_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152306

@@ -41,7 +41,8 @@ public class InferenceIndex {
     public static boolean inferenceIndexHasV4Mappings(ProjectMetadata projectMetadata) {
         IndexMetadata indexMetadata = projectMetadata.index(InferenceIndex.INDEX_NAME);
         if (indexMetadata == null) {
-            return false;
+            // The index doesn't exist yet, so we can assume when it is created, it will have v4 mappings.
+            return true;
         }
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {

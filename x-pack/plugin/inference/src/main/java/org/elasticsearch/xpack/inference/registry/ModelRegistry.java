@@ -824,6 +824,7 @@ public class ModelRegistry implements ClusterStateListener {
 
         var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         boolean includeDocType = shouldIncludeDocType();
+        logger.info("Including doc_type = {}", includeDocType);
 
         for (var model : models) {
             bulkRequestBuilder.add(

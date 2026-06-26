@@ -192,3 +192,16 @@ teardown:
       catch: missing
       inference.delete_region_policy: {}
   - match: { error.reason: "No region policy is configured for this deployment" }
+
+---
+"Putting a region policy does not break the get inference api":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_regions:
+              - csp: csp
+                region: region
+
+  - do:
+      inference.get: {}

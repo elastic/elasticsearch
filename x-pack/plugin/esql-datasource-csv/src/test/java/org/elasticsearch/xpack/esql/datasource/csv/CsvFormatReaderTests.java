@@ -6730,7 +6730,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * ad-hoc CSVs.
      *
      * <p>Behavioral assertion: an oversized data row past the sampling window causes a
-     * {@link CsvRecordTooLargeException} to surface in the cause chain under STRICT policy — which is only
+     * {@link CsvRecordTooLargeException} to surface in the cause chain under STRICT policy, which is only
      * possible if the direct-to-block path (or Jackson bulk path) is engaged after sampling, because both
      * enforce the per-record byte cap via {@link CsvLogicalRecordReader#addBytes}.
      */

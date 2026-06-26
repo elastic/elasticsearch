@@ -1674,8 +1674,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (firstNonWs >= cellEnd || firstNonWs + prefixLen > cellEnd) {
             return false;
         }
-        for (int k = 0; k < prefixLen; k++) {
-            if (buf[firstNonWs + k] != commentPrefix.charAt(k)) {
+        return regionEquals(buf, firstNonWs, commentPrefix);
+    }
+
+    /** True if {@code buf[start, start+s.length())} equals {@code s} (case-sensitive). Callers ensure the range fits. */
+    static boolean regionEquals(char[] buf, int start, String s) {
+        for (int k = 0; k < s.length(); k++) {
+            if (buf[start + k] != s.charAt(k)) {
                 return false;
             }
         }
@@ -1996,18 +2001,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 continue;
             }
             char next = value.charAt(++i);
-            sb.append(switch (next) {
-                case 't' -> '\t';
-                case 'n' -> '\n';
-                case 'r' -> '\r';
-                case '0' -> '\0';
-                case 'b' -> '\b';
-                case 'f' -> '\f';
-                // Any other \c is c — including \\ and \' — matching the C-style parse rule.
-                default -> next;
-            });
+            sb.append(decodeEscapeChar(next));
         }
         return sb.toString();
+    }
+
+    /**
+     * C-style escape decode: maps {@code \t}, {@code \n}, {@code \r}, {@code \0}, {@code \b},
+     * {@code \f} to their control-character equivalents; any other {@code \c} decodes to {@code c}.
+     * Shared by {@link #decodeFieldValue} (Jackson path) and the direct-to-block walkers.
+     */
+    static char decodeEscapeChar(char next) {
+        return switch (next) {
+            case 't' -> '\t';
+            case 'n' -> '\n';
+            case 'r' -> '\r';
+            case '0' -> '\0';
+            case 'b' -> '\b';
+            case 'f' -> '\f';
+            // Any other \c is c — including \\ and \' — matching the C-style parse rule.
+            default -> next;
+        };
     }
 
     private class CsvBatchIterator extends BufferingPageIterator {
@@ -2350,6 +2364,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // Reset per batch; only the direct path sets it true (in convertDirectBatchToPage) so that
             // the sample/boxed page paths still capture stats via the block walk in captureBlockStats.
             lastBatchAccumulatedStats = false;
+            boolean useDirectBlock = directBlockPlain || directBlockQuoted;
             if (schema == null) {
                 if (preResolvedSchema != null) {
                     schema = preResolvedSchema;
@@ -2384,7 +2399,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 initProjection();
 
                 boolean useBracketAwareParsing = bracketMultiValues && options.delimiter() == ',';
-                boolean useDirectBlock = directBlockPlain || directBlockQuoted;
                 if (useBracketAwareParsing == false && useDirectBlock == false && csvIterator == null) {
                     // Hot data path: Jackson reads directly from the BufferedReader and tokenizes records in its
                     // own bulk char buffer. The per-record byte cap is enforced upstream by the wrapping
@@ -2399,7 +2413,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     csvIterator = rowPositionSlot >= 0 ? newCsvIterator(recordReader) : newJacksonBulkIterator(reader);
                 }
             }
-            boolean useDirectBlock = directBlockPlain || directBlockQuoted;
             // Schema sampling leaves prefetched rows that were tokenized by Jackson; drain them through the
             // shared String[] conversion path before switching to the direct-block loop so the row sequence
             // (and therefore parity) is identical regardless of which path produced each row.
@@ -3353,62 +3366,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             switch (dt) {
                 case LONG -> {
-                    long acc = 0;
-                    boolean neg = false;
-                    boolean ok = true;
                     int p = start;
-                    if (buf[p] == '-') {
-                        neg = true;
-                        p++;
-                    }
-                    if (p == end) {
-                        ok = false;
-                    }
-                    for (; p < end; p++) {
-                        char c = buf[p];
-                        if (c < '0' || c > '9') {
-                            ok = false;
-                            break;
-                        }
-                        long nv = acc * 10 + (c - '0');
-                        if (acc != 0 && nv / 10 != acc) {
-                            ok = false;
-                            break;
-                        }
-                        acc = nv;
-                    }
-                    if (ok) {
+                    boolean neg = buf[p] == '-';
+                    if (neg) p++;
+                    long acc = parseUnsignedDecimal(buf, p, end);
+                    if (acc >= 0) {
                         stageLongValue(bufIdx, neg ? -acc : acc);
                         return true;
                     }
                     return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
                 }
                 case INTEGER -> {
-                    long acc = 0;
-                    boolean neg = false;
-                    boolean ok = true;
                     int p = start;
-                    if (buf[p] == '-') {
-                        neg = true;
-                        p++;
-                    }
-                    if (p == end) {
-                        ok = false;
-                    }
-                    for (; p < end; p++) {
-                        char c = buf[p];
-                        if (c < '0' || c > '9') {
-                            ok = false;
-                            break;
-                        }
-                        long nv = acc * 10 + (c - '0');
-                        if (acc != 0 && nv / 10 != acc) {
-                            ok = false;
-                            break;
-                        }
-                        acc = nv;
-                    }
-                    if (ok) {
+                    boolean neg = buf[p] == '-';
+                    if (neg) p++;
+                    long acc = parseUnsignedDecimal(buf, p, end);
+                    if (acc >= 0) {
                         long val = neg ? -acc : acc;
                         if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
                             stageIntValue(bufIdx, (int) val);
@@ -3440,18 +3413,33 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
-        /** True if {@code buf[start, start+s.length())} equals {@code s} (case-sensitive). Callers ensure the range fits. */
-        private static boolean regionEquals(char[] buf, int start, String s) {
-            for (int k = 0; k < s.length(); k++) {
-                if (buf[start + k] != s.charAt(k)) {
-                    return false;
-                }
+        /**
+         * Parses unsigned decimal digits from {@code buf[p, end)} into a non-negative long. Returns
+         * the parsed value on success, or {@code Long.MIN_VALUE} (as a sentinel) if the range is empty,
+         * contains a non-digit, or the value overflows {@code Long.MAX_VALUE}. Callers pass {@code p}
+         * already advanced past any leading sign character.
+         */
+        private static long parseUnsignedDecimal(char[] buf, int p, int end) {
+            if (p == end) {
+                return Long.MIN_VALUE;
             }
-            return true;
+            long acc = 0;
+            for (; p < end; p++) {
+                char c = buf[p];
+                if (c < '0' || c > '9') {
+                    return Long.MIN_VALUE;
+                }
+                long nv = acc * 10 + (c - '0');
+                if (acc != 0 && nv / 10 != acc) {
+                    return Long.MIN_VALUE;
+                }
+                acc = nv;
+            }
+            return acc;
         }
 
         /**
-         * Case-insensitive variant of {@link #regionEquals}, used for the literal {@code null} marker.
+         * Case-insensitive variant of {@link CsvFormatReader#regionEquals}, used for the literal {@code null} marker.
          * Mirrors {@link String#regionMatches(boolean, int, String, int, int)} with {@code ignoreCase=true}
          * (upper- then lower-case fold) so classification matches the Jackson conversion path exactly.
          */
@@ -3692,7 +3680,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * result (matching Jackson's {@code TRIM_SPACES} pass over the collected decoded chars). A
          * trailing lone escape (no following char) is dropped, matching Jackson.
          *
-         * <p>The trim order — raw-leading, decode, decoded-trailing — matches Jackson exactly: Jackson
+         * <p>The trim order (raw-leading, decode, decoded-trailing) matches Jackson exactly: Jackson
          * skips raw leading whitespace before entering its escape decode loop, then trims trailing
          * whitespace from the collected (already-decoded) value. Trimming raw trailing whitespace before
          * decoding (the naive order) would differ when the raw span ends with {@code \ }+whitespace,
@@ -3794,20 +3782,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 quotedBuf.setLength(0);
             }
             return quotedBuf;
-        }
-
-        /** C-style escape decode matching {@link CsvFormatReader#decodeFieldValue}: {@code \}+c yields c. */
-        private static char decodeEscapeChar(char next) {
-            return switch (next) {
-                case 't' -> '\t';
-                case 'n' -> '\n';
-                case 'r' -> '\r';
-                case '0' -> '\0';
-                case 'b' -> '\b';
-                case 'f' -> '\f';
-                // Any other \c is c, including \\ and \', matching the C-style parse rule in decodeFieldValue.
-                default -> next;
-            };
         }
 
         /**

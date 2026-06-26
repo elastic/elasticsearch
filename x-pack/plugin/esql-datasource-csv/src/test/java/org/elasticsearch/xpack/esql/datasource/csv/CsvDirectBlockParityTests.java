@@ -739,7 +739,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * Regression for the escaped-unquoted trim-order fix: an unquoted field whose raw bytes end with
-     * {@code \ } (backslash + space) must be trimmed AFTER escape-decode — Jackson decodes {@code \ }
+     * {@code \ } (backslash + space) must be trimmed AFTER escape-decode: Jackson decodes {@code \ }
      * to a literal space and then trims trailing decoded whitespace, yielding {@code x}, not {@code x }.
      * The direct path must match that order.
      */
@@ -753,7 +753,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     /**
      * Companion to {@link #testUnquotedEscapedTrailingSpaceTrimmedAfterDecode}: leading raw whitespace
      * before the value is also stripped before the escape loop, and trailing decoded whitespace is
-     * stripped after it — both paths must agree on the trim order for this composite case.
+     * stripped after it. Both paths must agree on the trim order for this composite case.
      */
     public void testUnquotedEscapedLeadingAndTrailingWhitespaceTrimOrder() throws IOException {
         // Raw field: " x\ " (two spaces + x + backslash + space).

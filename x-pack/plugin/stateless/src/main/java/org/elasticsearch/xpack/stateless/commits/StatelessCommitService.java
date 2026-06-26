@@ -892,7 +892,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
-                boolean cleanupHandedOff = false;
                 Releasable cleanup = null;
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
@@ -904,7 +903,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     );
                     cleanup = commitState.createAfterNotificationCleanup(virtualBcc, blobReference);
                     commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc, cleanup);
-                    cleanupHandedOff = true;
+                    cleanup = null;
                 } catch (Exception e) {
                     // TODO: we should assert false here once we fix ES-8336
                     logger.warn(
@@ -915,16 +914,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         ),
                         e
                     );
-                } finally {
-                    if (cleanupHandedOff == false) {
-                        if (cleanup != null) {
-                            Releasables.close(cleanup);
-                        } else {
-                            // markBccUploaded threw before createAfterNotificationCleanup was reached; clean up directly.
-                            IOUtils.closeWhileHandlingException(virtualBcc);
-                            blobReference.decRef();
-                        }
+                    if (cleanup == null) {
+                        // markBccUploaded threw before createAfterNotificationCleanup was reached; clean up directly.
+                        // markBccUploaded may have added the VBCC to recentlyUploadedVbccs before throwing; remove it.
+                        commitState.recentlyUploadedVbccs.remove(uploadedBcc.primaryTermAndGeneration().generation());
+                        IOUtils.closeWhileHandlingException(virtualBcc);
+                        blobReference.decRef();
                     }
+                } finally {
+                    Releasables.close(cleanup);
                 }
             }
 
@@ -2570,8 +2568,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 IOUtils.closeWhileHandlingException(virtualBcc);
             }
             recentlyUploadedCleanups.values().forEach(Releasables::close);
-            recentlyUploadedCleanups.clear();
-            recentlyUploadedVbccs.clear();
 
             if (listenersToFail.isEmpty() == false) {
                 // Have to fork, because we are on applier thread and thus if a listener uses cluster state it will fail.

@@ -26,12 +26,7 @@ import java.util.List;
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
 
     private static final List<RuleExecutor.Batch<PhysicalPlan>> RULES = List.of(
-        new Batch<>(
-            "Plan Boundary",
-            Limiter.ONCE,
-            new ProjectAwayColumns(),
-            new ReplaceSampledStatsBySampleAndStats()
-        )
+        new Batch<>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns(), new ReplaceSampledStatsBySampleAndStats())
     );
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;

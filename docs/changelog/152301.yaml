@@ -1,0 +1,6 @@
+area: Distributed
+issues:
+ - 152259
+pr: 152301
+summary: Prevent BCC uploads when `ObjectStoreService` is stopped or closed
+type: bug

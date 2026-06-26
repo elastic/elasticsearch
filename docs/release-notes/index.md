@@ -20,6 +20,38 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.3.7 [elasticsearch-9.3.7-release-notes]
+```{applies_to}
+stack: ga 9.3.7
+```
+
+### Features and enhancements [elasticsearch-9.3.7-features-enhancements]
+
+Inference:
+* [Inference] Add requires org.apache.commons.lang3 to module-info [#151794](https://github.com/elastic/elasticsearch/pull/151794)
+
+Machine Learning:
+* Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+
+
+### Fixes [elasticsearch-9.3.7-fixes]
+
+ES|QL:
+* Resolve surrogates in union type field resolution before plan serialization [#151633](https://github.com/elastic/elasticsearch/pull/151633) (issue: [#151475](https://github.com/elastic/elasticsearch/issues/151475))
+
+Infra/Core:
+* Pass through `includeSourceInError` [#142335](https://github.com/elastic/elasticsearch/pull/142335)
+
+Machine Learning:
+* Fix bug causing incorrect error on force deleting already deleted model [#107188](https://github.com/elastic/elasticsearch/pull/107188) (issue: [#105420](https://github.com/elastic/elasticsearch/issues/105420))
+* Revert "[ML] Add extra validation in `trained_model` creation" [#152000](https://github.com/elastic/elasticsearch/pull/152000)
+
+
+
 ## 9.3.6 [elasticsearch-9.3.6-release-notes]
 
 ### Features and enhancements [elasticsearch-9.3.6-features-enhancements]

@@ -525,6 +525,9 @@ public class KnnIndexTester {
                 if (testConfiguration.forceMerge()) {
                     forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration, dataGenerator.getIndexSort());
                 }
+                if (testConfiguration.numDeletedDocs() > 0) {
+                    deleteDocuments(knnIndexer, sharedDir, testConfiguration);
+                }
             }
             numSegments(indexPath, indexResults, sharedDir);
 
@@ -563,6 +566,19 @@ public class KnnIndexTester {
             knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), sharedDir, indexSort);
         } else {
             knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), indexSort);
+        }
+    }
+
+    static void deleteDocuments(KnnIndexer knnIndexer, Directory sharedDir, TestConfiguration testConfiguration) throws Exception {
+        if (sharedDir != null) {
+            knnIndexer.deleteDocuments(
+                sharedDir,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
+        } else {
+            knnIndexer.deleteDocuments(testConfiguration.numDocs(), testConfiguration.numDeletedDocs(), testConfiguration.deleteSeed());
         }
     }
 

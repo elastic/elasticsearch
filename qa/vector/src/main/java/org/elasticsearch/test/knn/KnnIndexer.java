@@ -33,6 +33,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -195,7 +196,6 @@ public class KnnIndexer {
                 }
             }
             logger.info("KnnIndexer: indexed {} documents", totalDocs);
-            deleteDocuments(iw, totalDocs);
             iw.commit();
             ConcurrentMergeScheduler cms = (ConcurrentMergeScheduler) iwc.getMergeScheduler();
             cms.sync();
@@ -208,25 +208,33 @@ public class KnnIndexer {
         result.numDeletedDocs = numDeletedDocs;
     }
 
-    private void deleteDocuments(IndexWriter iw, int totalDocs) throws IOException {
-        if (numDeletedDocs <= 0) {
-            return;
+    void deleteDocuments(Directory dir, int totalDocs, int numDeletedDocs, long deleteSeed) throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig();
+        iwc.setCodec(codec);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (IndexWriter iw = new IndexWriter(dir, iwc)) {
+            int[] docIds = new int[totalDocs];
+            for (int i = 0; i < totalDocs; i++) {
+                docIds[i] = i;
+            }
+            Random random = new Random(deleteSeed);
+            for (int i = 0; i < numDeletedDocs; i++) {
+                int j = i + random.nextInt(totalDocs - i);
+                int tmp = docIds[i];
+                docIds[i] = docIds[j];
+                docIds[j] = tmp;
+            }
+            for (int i = 0; i < numDeletedDocs; i++) {
+                iw.deleteDocuments(new Term(ID_FIELD, Integer.toString(docIds[i])));
+            }
+            logger.info("KnnIndexer: deleted {} of {} documents (delete_seed={})", numDeletedDocs, totalDocs, deleteSeed);
         }
-        int[] docIds = new int[totalDocs];
-        for (int i = 0; i < totalDocs; i++) {
-            docIds[i] = i;
+    }
+
+    void deleteDocuments(int totalDocs, int numDeletedDocs, long deleteSeed) throws IOException {
+        try (Directory dir = getDirectory(indexPath)) {
+            deleteDocuments(dir, totalDocs, numDeletedDocs, deleteSeed);
         }
-        Random random = new Random(deleteSeed);
-        for (int i = 0; i < numDeletedDocs; i++) {
-            int j = i + random.nextInt(totalDocs - i);
-            int tmp = docIds[i];
-            docIds[i] = docIds[j];
-            docIds[j] = tmp;
-        }
-        for (int i = 0; i < numDeletedDocs; i++) {
-            iw.deleteDocuments(new Term(ID_FIELD, Integer.toString(docIds[i])));
-        }
-        logger.info("KnnIndexer: deleted {} of {} documents (delete_seed={})", numDeletedDocs, totalDocs, deleteSeed);
     }
 
     private IndexWriterConfig createIndexWriterConfig(Sort indexSort) {

@@ -23,7 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class SlowCustomBinaryDocValuesRangeQueryTests extends ESTestCase {
+public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
 
     private static BytesRef encodeIp(String ip) {
         return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ip)));
@@ -52,7 +52,7 @@ public class SlowCustomBinaryDocValuesRangeQueryTests extends ESTestCase {
                 writer.addDocument(docWithIps("10.0.0.3", "10.0.0.4"));
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesRangeQuery(fieldName, lower, upper);
+                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper);
                     assertEquals(2, searcher.count(query));
                 }
             }
@@ -68,7 +68,7 @@ public class SlowCustomBinaryDocValuesRangeQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesRangeQuery(fieldName, lower, upper);
+                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -81,7 +81,7 @@ public class SlowCustomBinaryDocValuesRangeQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesRangeQuery(fieldName, lower, upper);
+                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper);
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -90,12 +90,12 @@ public class SlowCustomBinaryDocValuesRangeQueryTests extends ESTestCase {
 
     public void testRewriteToTermQueryWhenBoundsEqual() throws Exception {
         BytesRef term = encodeIp("192.168.1.1");
-        SlowCustomBinaryDocValuesRangeQuery range = new SlowCustomBinaryDocValuesRangeQuery("field", term, term);
+        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", term, term);
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertEquals(new SlowCustomBinaryDocValuesTermQuery("field", term), range.rewrite(searcher));
+                    assertEquals(new ScanningBinaryDocValuesTermQuery("field", term), range.rewrite(searcher));
                 }
             }
         }
@@ -104,7 +104,7 @@ public class SlowCustomBinaryDocValuesRangeQueryTests extends ESTestCase {
     public void testRewriteKeepsTrueRange() throws Exception {
         BytesRef lower = encodeIp("192.168.1.0");
         BytesRef upper = encodeIp("192.168.1.255");
-        SlowCustomBinaryDocValuesRangeQuery range = new SlowCustomBinaryDocValuesRangeQuery("field", lower, upper);
+        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", lower, upper);
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 try (IndexReader reader = writer.getReader()) {

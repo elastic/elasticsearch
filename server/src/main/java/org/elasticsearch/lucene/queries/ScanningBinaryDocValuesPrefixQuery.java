@@ -24,12 +24,12 @@ import java.util.function.Predicate;
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-public final class SlowCustomBinaryDocValuesPrefixQuery extends AbstractBinaryDocValuesQuery {
+public final class ScanningBinaryDocValuesPrefixQuery extends AbstractBinaryDocValuesQuery {
 
     private final String prefix;
     private final boolean caseInsensitive;
 
-    public SlowCustomBinaryDocValuesPrefixQuery(String fieldName, String prefix, boolean caseInsensitive) {
+    public ScanningBinaryDocValuesPrefixQuery(String fieldName, String prefix, boolean caseInsensitive) {
         super(fieldName, buildMatcher(Objects.requireNonNull(prefix), caseInsensitive));
         this.prefix = prefix;
         this.caseInsensitive = caseInsensitive;
@@ -59,7 +59,7 @@ public final class SlowCustomBinaryDocValuesPrefixQuery extends AbstractBinaryDo
 
     @Override
     public String toString(String field) {
-        return "SlowCustomBinaryDocValuesPrefixQuery(fieldName="
+        return "ScanningBinaryDocValuesPrefixQuery(fieldName="
             + fieldName
             + ",prefix="
             + prefix
@@ -76,7 +76,7 @@ public final class SlowCustomBinaryDocValuesPrefixQuery extends AbstractBinaryDo
         if (sameClassAs(o) == false) {
             return false;
         }
-        SlowCustomBinaryDocValuesPrefixQuery that = (SlowCustomBinaryDocValuesPrefixQuery) o;
+        ScanningBinaryDocValuesPrefixQuery that = (ScanningBinaryDocValuesPrefixQuery) o;
         return caseInsensitive == that.caseInsensitive && Objects.equals(fieldName, that.fieldName) && Objects.equals(prefix, that.prefix);
     }
 

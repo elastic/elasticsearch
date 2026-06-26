@@ -555,6 +555,12 @@ public abstract class FieldMapper extends Mapper {
      * Field mappers must override this method if they provide
      * a more efficient field-specific implementation of synthetic source.
      * </p>
+     * <p>
+     * This also determines columnar support. Columnar index modes ({@code columnar}, {@code logsdb_columnar}) rebuild
+     * {@code _source} from doc-value columns only and keep no generic source fallback: a mapper that returns
+     * {@link SyntheticSourceSupport.Native} (its {@code _source} is reconstructable from its own doc values) is
+     * supported, while one that falls back is rejected at mapping time.
+     * </p>
      * @return {@link SyntheticSourceMode}
      */
     protected SyntheticSourceSupport syntheticSourceSupport() {

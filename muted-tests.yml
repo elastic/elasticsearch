@@ -626,9 +626,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
   method: testMergingFallsBehindAndThenCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/152045
-- class: org.elasticsearch.search.simple.SimpleSearchIT
-  method: testIpCidrHighCardinality
-  issue: https://github.com/elastic/elasticsearch/issues/152049
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testDownsampling
   issue: https://github.com/elastic/elasticsearch/issues/152060
@@ -746,3 +743,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnionTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152323
+- class: org.elasticsearch.gradle.internal.archunit.IsolatedProjectsArchUnitSpec
+  method: the getRootProject baseline contains no stale entries
+  issue: https://github.com/elastic/elasticsearch/issues/152341

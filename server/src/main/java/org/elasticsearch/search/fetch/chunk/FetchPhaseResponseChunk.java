@@ -148,6 +148,27 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     }
 
     /**
+     * Transfers ownership of the raw serialized hit bytes to the caller for deferred deserialization,
+     * clearing them from this chunk so that {@link #close()} no longer releases them. This lets the
+     * coordinator acknowledge a received chunk before paying the cost of deserializing its hits, which
+     * is instead done later (e.g. in {@link FetchPhaseResponseStream#buildFinalResult}).
+     *
+     * @return a reference to the serialized hits whose ownership is transferred to the caller (the caller
+     *         must release it), or {@code null} if the bytes were already consumed
+     */
+    public ReleasableBytesReference takeSerializedHits() {
+        final BytesReference bytes = serializedHits;
+        serializedHits = null;
+        if (bytes == null) {
+            return null;
+        }
+        if (bytes instanceof ReleasableBytesReference releasable) {
+            return releasable;
+        }
+        return ReleasableBytesReference.wrap(bytes);
+    }
+
+    /**
      * Iterates the hits in this chunk, invoking {@code consumer} with each hit and its position.
      * */
     public void consumeHits(HitConsumer consumer) throws IOException {

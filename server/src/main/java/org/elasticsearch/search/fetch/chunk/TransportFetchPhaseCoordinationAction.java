@@ -197,7 +197,12 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         int expectedTotalDocs = fetchReq.docIds().length;
 
         CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
-        FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId.getId(), expectedTotalDocs, circuitBreaker);
+        FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(
+            shardId.getId(),
+            expectedTotalDocs,
+            circuitBreaker,
+            namedWriteableRegistry
+        );
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
         // Listener that builds final result from accumulated chunks

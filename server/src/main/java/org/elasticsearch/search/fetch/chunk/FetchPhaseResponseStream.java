@@ -11,9 +11,14 @@ package org.elasticsearch.search.fetch.chunk;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
@@ -46,8 +51,17 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     private final int shardIndex;
     private final int expectedTotalDocs;
 
-    // Accumulate hits with sequence numbers for ordering
+    // Accumulate hits with sequence numbers for ordering. Populated by the embedded last chunk path
+    // (already-deserialized hits) and by deferred deserialization of pending chunks in buildFinalResult.
     private final Queue<SequencedHit> queue = new ConcurrentLinkedQueue<>();
+
+    // Raw, not-yet-deserialized streamed chunks. Hits are decoded lazily in buildFinalResult so that
+    // chunk reception can be acknowledged to the data node without paying per-hit deserialization cost
+    // on the chunk-ACK critical path.
+    private final Queue<PendingChunk> pendingChunks = new ConcurrentLinkedQueue<>();
+
+    // Registry needed to deserialize NamedWriteable fields (e.g. LookupField) within serialized hits.
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     // Circuit breaker accounting
     private final CircuitBreaker circuitBreaker;
@@ -60,11 +74,19 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * @param expectedTotalDocs total number of documents requested for this shard fetch operation
      *                          across all chunks (target/requested count, not guaranteed delivered count)
      * @param circuitBreaker circuit breaker to check memory usage during accumulation (typically REQUEST breaker)
+     * @param namedWriteableRegistry registry used to deserialize NamedWriteable hit fields when chunks are
+     *                          decoded lazily in {@link #buildFinalResult}
      */
-    FetchPhaseResponseStream(int shardIndex, int expectedTotalDocs, CircuitBreaker circuitBreaker) {
+    FetchPhaseResponseStream(
+        int shardIndex,
+        int expectedTotalDocs,
+        CircuitBreaker circuitBreaker,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         this.shardIndex = shardIndex;
         this.expectedTotalDocs = expectedTotalDocs;
         this.circuitBreaker = circuitBreaker;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     /**
@@ -74,34 +96,42 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * @param releasable closed after a successful write
      */
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
-        boolean success = false;
+        // Track memory usage. Reserved before acknowledging; may trip the breaker and fail the chunk,
+        // in which case the bytes are not taken and the chunk is released by the caller.
+        long bytesSize = chunk.getBytesLength();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
+        totalBreakerBytes.addAndGet(bytesSize);
+
+        // Defer hit deserialization off the chunk-ACK critical path: retain the raw serialized bytes
+        // now and decode them later in buildFinalResult. This releases the data node's in-flight chunk
+        // permit as soon as the bytes are received and accounted, rather than after per-hit decoding.
+        final ReleasableBytesReference rawHits = chunk.takeSerializedHits();
+        boolean enqueued = false;
         try {
-            // Track memory usage
-            long bytesSize = chunk.getBytesLength();
-            circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
-            totalBreakerBytes.addAndGet(bytesSize);
-
-            chunk.consumeHits((position, hit) -> queue.add(new SequencedHit(hit, position)));
-
-            if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
-                    chunk.hitCount(),
-                    shardIndex,
-                    queue.size(),
-                    expectedTotalDocs,
-                    totalBreakerBytes.get(),
-                    circuitBreaker.getUsed()
-                );
+            if (rawHits != null && chunk.hitCount() > 0) {
+                pendingChunks.add(new PendingChunk(rawHits, chunk.hitCount()));
+                enqueued = true;
             }
-            success = true;
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to deserialize hits from chunk", e);
         } finally {
-            if (success) {
-                releasable.close();
+            if (enqueued == false && rawHits != null) {
+                Releasables.closeWhileHandlingException(rawHits);
             }
         }
+
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "Received chunk [{}] docs for shard [{}]: [{}/{}] chunks pending, [{}] breaker bytes, used breaker bytes [{}]",
+                chunk.hitCount(),
+                shardIndex,
+                pendingChunks.size(),
+                expectedTotalDocs,
+                totalBreakerBytes.get(),
+                circuitBreaker.getUsed()
+            );
+        }
+
+        // Acknowledge only after the bytes are retained and accounted.
+        releasable.close();
     }
 
     /**
@@ -118,8 +148,34 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             logger.debug("Building final result for shard [{}] with [{}] hits", shardIndex, queue.size());
         }
 
-        // Drain the queue: ownership of every hit moves to the final result.
+        // Drain the queue: ownership of every hit moves to the final result. Contains any
+        // already-deserialized hits from the embedded last chunk path.
         List<SequencedHit> sequencedHits = drainQueue();
+
+        // Deserialize the deferred streamed chunks now, off the chunk-ACK critical path.
+        PendingChunk pending;
+        while ((pending = pendingChunks.poll()) != null) {
+            try (
+                PendingChunk toClose = pending;
+                StreamInput in = new NamedWriteableAwareStreamInput(pending.bytes().streamInput(), namedWriteableRegistry)
+            ) {
+                for (int i = 0; i < pending.hitCount(); i++) {
+                    int position = in.readVInt();
+                    sequencedHits.add(new SequencedHit(SearchHit.readFrom(in), position));
+                }
+            } catch (IOException e) {
+                // Release everything collected so far and any remaining undeserialized chunks.
+                for (SequencedHit sh : sequencedHits) {
+                    sh.hit.decRef();
+                }
+                PendingChunk rest;
+                while ((rest = pendingChunks.poll()) != null) {
+                    rest.close();
+                }
+                throw new RuntimeException("Failed to deserialize hits from chunk", e);
+            }
+        }
+
         // Restore correct order (chunks may have arrived out of order).
         sequencedHits.sort(Comparator.comparingLong(sh -> sh.sequence));
 
@@ -187,6 +243,12 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             pending.hit.decRef();
         }
 
+        // Release any raw chunks that were never deserialized
+        PendingChunk pendingChunk;
+        while ((pendingChunk = pendingChunks.poll()) != null) {
+            pendingChunk.close();
+        }
+
         // Release circuit breaker bytes added during accumulation when hits are released from memory
         if (totalBreakerBytes.get() > 0) {
             circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get());
@@ -225,6 +287,17 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
         SequencedHit(SearchHit hit, long sequence) {
             this.hit = hit;
             this.sequence = sequence;
+        }
+    }
+
+    /**
+     * A streamed chunk whose hits have been received and accounted but not yet deserialized.
+     * Holds a retained reference to the raw serialized bytes; {@link #close()} releases it.
+     */
+    private record PendingChunk(ReleasableBytesReference bytes, int hitCount) implements Releasable {
+        @Override
+        public void close() {
+            Releasables.closeWhileHandlingException(bytes);
         }
     }
 }

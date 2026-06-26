@@ -969,9 +969,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         } else {
                             return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
                                 name(),
-                                useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE
-                                    : readInArrayOrder ? ArrayOrderSource.FROM_OFFSETS
-                                    : ArrayOrderSource.NONE
+                                useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE
                             );
                         }
                     } else {
@@ -1737,8 +1735,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else {
                 if (fieldType().usesArrayOrderBinaryDocValues()) {
                     layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
-                } else if (offsetsFieldName != null) {
-                    layers.add(new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
                 } else {
                     layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name(), indexCreatedVersion));
                 }

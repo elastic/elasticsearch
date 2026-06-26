@@ -268,7 +268,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             true,
             false,
-            false,
             DOC_VALUES_DISABLED
         );
 
@@ -293,7 +292,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             true,
-            false,
             false,
             DOC_VALUES_DISABLED
         );
@@ -326,7 +324,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             true,
-            false,
             false,
             DOC_VALUES_DISABLED
         );
@@ -377,7 +374,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             true,
-            false,
             false,
             DOC_VALUES_DISABLED
         );
@@ -432,7 +428,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             true,
             false,
-            false,
             DOC_VALUES_DISABLED
         );
 
@@ -470,7 +465,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             true,
-            false,
             false,
             DOC_VALUES_DISABLED
         );
@@ -523,7 +517,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             true,
             false,
-            false,
             DOC_VALUES_DISABLED
         );
 
@@ -551,7 +544,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             true,
             false,
-            false,
             DOC_VALUES_DISABLED
         );
 
@@ -578,7 +570,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES),
             true,
-            false,
             false,
             DOC_VALUES_DISABLED
         );
@@ -702,7 +693,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             false,
-            false,
             new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true),
             false
         );
@@ -722,7 +712,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             true,
-            false,
             new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true),
             false
         );

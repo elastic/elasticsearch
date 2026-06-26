@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -30,6 +32,8 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.ingest.geoip.GeoIpTestUtils;
+import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -124,6 +128,7 @@ import static org.hamcrest.Matchers.hasSize;
  * InternalTestCluster` reuses current jvm. This enables debugging all scenarios from IDE.
  * Test data is loaded lazily in order to facilitate faster startup when running/debugging individual test cases.
  */
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class CsvIT extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
@@ -262,6 +267,7 @@ public class CsvIT extends ESTestCase {
         var nodeDirectory = createTempDir();
         var configDirectory = nodeDirectory.resolve("config");
         createCustomRegexConfig(configDirectory);
+        createGeoIpConfig(configDirectory);
         cluster = new InternalTestCluster(
             randomLong(),
             nodeDirectory,
@@ -276,6 +282,7 @@ public class CsvIT extends ESTestCase {
                     return Settings.builder()
                         .put("xpack.security.enabled", false)
                         .put("xpack.license.self_generated.type", "trial")
+                        .put("ingest.geoip.downloader.enabled", false)
                         .build();
                 }
 
@@ -302,6 +309,7 @@ public class CsvIT extends ESTestCase {
                 SpatialPlugin.class,
                 UnsignedLongMapperPlugin.class,
                 UserAgentPlugin.class,
+                IngestGeoIpPlugin.class,
                 VersionFieldPlugin.class,
                 Wildcard.class
             ),
@@ -328,6 +336,10 @@ public class CsvIT extends ESTestCase {
         assumeFalseLogging(
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
+        );
+        assumeFalseLogging(
+            "CSV tests cannot handle dataset-backed FROM <dataset> sources (requires QA integration tests)",
+            testCase.datasetSources.isEmpty() == false
         );
         assumeTrueLogging(
             "CSV tests don't support remote cluster capability requirements",
@@ -698,6 +710,12 @@ public class CsvIT extends ESTestCase {
             assert is != null : "custom-regexes.yml not found on classpath";
             Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
         }
+    }
+
+    private static void createGeoIpConfig(Path configDir) throws IOException {
+        Path geoIpDir = configDir.resolve("ingest-geoip");
+        Files.createDirectories(geoIpDir);
+        GeoIpTestUtils.copyDefaultDatabases(geoIpDir);
     }
 
     private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {

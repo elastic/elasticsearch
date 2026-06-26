@@ -72,6 +72,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -138,6 +139,7 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
+import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
@@ -373,6 +375,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING);
             res.add(SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING);
             res.add(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING);
+            res.add(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING);
             res.add(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING);
             res.add(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING);
@@ -496,6 +499,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         clusterService(),
                         actionFilters,
                         indicesService,
+                        new CompositeRecoverySchedulingListener(),
                         peerRecoveryTargetService,
                         testStatelessPlugin.statelessCommitService,
                         mock(IndexShardCacheWarmer.class),
@@ -513,7 +517,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         projectResolver,
                         searchService,
                         new PITRelocationService(),
-                        new StatelessComponents(mock(TranslogReplicator.class), testStatelessPlugin.objectStoreService)
+                        new StatelessComponents(mock(TranslogReplicator.class), testStatelessPlugin.objectStoreService),
+                        new PitRelocationMetrics(MeterRegistry.NOOP)
                     ),
                     TransportShardRefreshAction.TYPE,
                     new TransportShardRefreshAction(
@@ -747,6 +752,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 threadPool,
                 new BlobCacheMetrics(MeterRegistry.NOOP),
                 clusterService,
+                services.indicesService(),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
@@ -840,10 +846,10 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             hollowShardsService = mock(HollowShardsService.class);
             // Let hollowShardsService pass on mutable operation check
             doAnswer(invocation -> {
-                ActionListener<Void> listener = invocation.getArgument(2);
+                ActionListener<Void> listener = invocation.getArgument(3);
                 listener.onResponse(null);
                 return null;
-            }).when(hollowShardsService).beforeMutableOperation(any(), anyBoolean(), anyActionListener());
+            }).when(hollowShardsService).beforeMutableOperation(any(), anyBoolean(), any(), anyActionListener());
             when(hollowShardsService.isHollowShard(any(ShardId.class))).thenReturn(false);
             when(hollowShardsService.isHollowableIndexShard(any(IndexShard.class), anyBoolean())).thenReturn(false);
 

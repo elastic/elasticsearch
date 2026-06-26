@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
@@ -86,6 +87,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -676,6 +678,28 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         public String key() {
             return key;
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            if (indexType.hasOnlyDocValues()) {
+                if (usesBinaryDocValues) {
+                    return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+                } else {
+                    return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                }
+            } else {
+                return super.termQuery(value, context);
+            }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            if (indexType.hasOnlyDocValues()) {
+                return defaultTermsQuery(values, this::termQuery, context);
+            } else {
+                return super.termsQuery(values, context);
+            }
         }
 
         @Override
@@ -1308,6 +1332,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 // reader checks every document.
                 return BlockSourceReader.lookupMatchingAll();
             }
+            if (mappedSubFields.isEmpty() == false) {
+                // The keyed-channel lookup can't be used here: a mapped sub-field lives in its own typed column,
+                // never the keyed channel, so a doc whose only flattened content is mapped sub-fields has an empty
+                // keyed channel. That lookup would treat it as "field absent" and the source reader would skip the
+                // load entirely. Match all docs so every doc's _source is checked.
+                return BlockSourceReader.lookupMatchingAll();
+            }
             return super.sourceBlockLoaderLookup(blContext, fieldName);
         }
 
@@ -1328,7 +1359,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             final boolean docValuesContainAllValues = ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled;
             final boolean preferLoadFromSource = blContext.fieldExtractPreference() == FieldExtractPreference.STORED
                 && isSyntheticSourceEnabled == false;
-            if (hasDocValues() && docValuesContainAllValues && preferLoadFromSource == false) {
+            // A flattened root with mapped sub-fields can't use the doc-values root loader: it would render mapped
+            // leaves with their native type (a long as 200, not "200") and can't reconstruct a sub-field that has
+            // neither doc values nor a stored field (a bare text), so its blob would diverge from the _source one.
+            // Loading from _source instead renders every leaf as a string and keeps every key, so KEEP <root> is
+            // identical on every loading path. The typed sub-field columns (e.g. attributes.status_code) are
+            // unaffected and still return native values.
+            if (hasDocValues() && docValuesContainAllValues && preferLoadFromSource == false && mappedSubFields.isEmpty()) {
                 return new RootFlattenedDocValuesBlockLoader(
                     name(),
                     ignoreAbove,

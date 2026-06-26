@@ -58,6 +58,8 @@ import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHand
 import org.elasticsearch.xpack.stateless.cache.reader.SwitchingCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -107,15 +109,13 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeThreadPool() throws Exception {
         threadPool = getThreadPool("BlobCacheIndexInputTests");
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
     }
 

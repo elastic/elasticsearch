@@ -10,6 +10,8 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.foreign.LoaderHelper;
+import org.elasticsearch.foreign.adapter.LinkerAdapter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
@@ -18,7 +20,6 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.BFloat16QueryTyp
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.DataType;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Function;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Operation;
-import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.lang.foreign.FunctionDescriptor;
@@ -41,8 +42,8 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.functionAddressOrNull;
+import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
+import static org.elasticsearch.foreign.LinkerHelper.functionAddressOrNull;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
@@ -117,7 +118,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             var function = functionAddressOrNull(functionName + suffix);
             if (function != null) {
                 logger.debug("Binding {}", fullFunctionName);
-                return downcallHandle(function, functionDescriptor, LinkerHelperUtil.critical());
+                return downcallHandle(function, functionDescriptor, LinkerAdapter.critical());
             }
         }
         throw new LinkageError("Native function [" + functionName + "] could not be found");

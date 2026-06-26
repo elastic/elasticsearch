@@ -12,30 +12,30 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
-import java.nio.ByteOrder;
-import java.util.function.Function;
+import java.util.function.LongFunction;
 
 /**
- * This is a GeoPoint-specific block loader that helps deal with an edge case where doc_values are available, yet
- * FieldExtractPreference = NONE. When this happens, the BlockLoader sanity checker (see PlannerUtils.toElementType) expects a BytesRef.
- * This implies that we need to load the value from _source. This however is very slow, especially when synthetic source is enabled.
- * We're better off reading from doc_values and converting to BytesRef to satisfy the checker. This is what this block loader is for.
+ * Block loader for point-encoded fields (e.g. {@code geo_point}, {@code point}) that handles an edge case where doc
+ * values are available yet {@code FieldExtractPreference = NONE}. When this happens, the BlockLoader sanity checker (see
+ * {@code PlannerUtils.toElementType}) expects a {@code BytesRef}, which implies loading the value from {@code _source} -
+ * very slow, especially with synthetic source. We are better off reading the encoded long from doc values and converting
+ * it to a {@code BytesRef} (WKB) to satisfy the checker. The caller supplies the type-specific {@code long -> BytesRef}
+ * decoding.
  */
-public final class GeoBytesRefFromLongsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+public final class LongToBytesRefBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
     private final String fieldName;
+    private final LongFunction<BytesRef> longToBytesRef;
 
-    public GeoBytesRefFromLongsBlockLoader(String fieldName) {
+    public LongToBytesRefBlockLoader(String fieldName, LongFunction<BytesRef> longToBytesRef) {
         this.fieldName = fieldName;
+        this.longToBytesRef = longToBytesRef;
     }
 
     @Override
@@ -50,22 +50,18 @@ public final class GeoBytesRefFromLongsBlockLoader extends BlockDocValuesReader.
             return ConstantNull.COLUMN_READER;
         }
         TrackingSortedNumericDocValues sorted = dv.forceSorted();
-        return new BytesRefsFromLong(sorted, geoPointLong -> {
-            GeoPoint gp = new GeoPoint().resetFromEncoded(geoPointLong);
-            byte[] wkb = WellKnownBinary.toWKB(new Point(gp.getX(), gp.getY()), ByteOrder.LITTLE_ENDIAN);
-            return new BytesRef(wkb);
-        });
+        return new BytesRefsFromLong(sorted, longToBytesRef);
     }
 
     private static final class BytesRefsFromLong extends BlockDocValuesReader {
 
         private final TrackingSortedNumericDocValues numericDocValues;
-        private final Function<Long, BytesRef> longsToBytesRef;
+        private final LongFunction<BytesRef> longToBytesRef;
 
-        BytesRefsFromLong(TrackingSortedNumericDocValues numericDocValues, Function<Long, BytesRef> longsToBytesRef) {
+        BytesRefsFromLong(TrackingSortedNumericDocValues numericDocValues, LongFunction<BytesRef> longToBytesRef) {
             super(null);
             this.numericDocValues = numericDocValues;
-            this.longsToBytesRef = longsToBytesRef;
+            this.longToBytesRef = longToBytesRef;
         }
 
         @Override
@@ -98,13 +94,13 @@ public final class GeoBytesRefFromLongsBlockLoader extends BlockDocValuesReader.
             }
             int count = numericDocValues.docValues().docValueCount();
             if (count == 1) {
-                BytesRef bytesRefValue = longsToBytesRef.apply(numericDocValues.docValues().nextValue());
+                BytesRef bytesRefValue = longToBytesRef.apply(numericDocValues.docValues().nextValue());
                 builder.appendBytesRef(bytesRefValue);
                 return;
             }
             builder.beginPositionEntry();
             for (int v = 0; v < count; v++) {
-                BytesRef bytesRefValue = longsToBytesRef.apply(numericDocValues.docValues().nextValue());
+                BytesRef bytesRefValue = longToBytesRef.apply(numericDocValues.docValues().nextValue());
                 builder.appendBytesRef(bytesRefValue);
             }
             builder.endPositionEntry();

@@ -366,7 +366,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                 field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 1);
                 doc.addAll(List.of(field, field.countField));
             } else {
-                // Safety net (rare cases like dotted-field flattening or duplicated field names):
+                // Safety net (for object arrays, dotted-field flattening or duplicated field names):
                 // a field under the same name has already been registered.
                 recordValue(doc, fieldName, value);
             }

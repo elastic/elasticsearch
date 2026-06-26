@@ -749,9 +749,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:stats_sparkline.weightedAvgAndSparklineWithSameWeightedAvg}
   issue: https://github.com/elastic/elasticsearch/issues/152162
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
-  method: testEvaluate {TestCase=geo_shape and geo_point}
-  issue: https://github.com/elastic/elasticsearch/issues/152236
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:keep.sortWithLimitFifteenAndProject}
   issue: https://github.com/elastic/elasticsearch/issues/152238
@@ -764,18 +761,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:highlight.highlightFieldWithNoMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152240
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
-  method: testEvaluate {TestCase=cartesian_shape and cartesian_shape}
-  issue: https://github.com/elastic/elasticsearch/issues/152247
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
-  method: testEvaluateBlockWithNulls {TestCase=cartesian_shape and cartesian_shape}
-  issue: https://github.com/elastic/elasticsearch/issues/152249
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:views.tsMainQueryInSubqueryReferencingView}
   issue: https://github.com/elastic/elasticsearch/issues/152253
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
-  method: testEvaluateBlockWithNulls {TestCase=geo_shape and geo_shape}
-  issue: https://github.com/elastic/elasticsearch/issues/152254
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:bucket.bucketMonth}
   issue: https://github.com/elastic/elasticsearch/issues/152256

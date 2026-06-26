@@ -41,8 +41,14 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
 
     @Override
     public WrappedKey wrap(byte[] plaintextPek) {
-        String passwordId = activePasswordId();
-        try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(settingsSupplier.get(), passwordId)) {
+        Settings s = settingsSupplier.get();
+        String passwordId = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(s);
+        if (passwordId == null) {
+            throw new ElasticsearchException(
+                "cannot wrap PEK for disk: [" + ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY + "] is not configured"
+            );
+        }
+        try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(s, passwordId)) {
             if (password == null) {
                 throw new ElasticsearchException(
                     "cannot wrap PEK for disk: secure setting ["

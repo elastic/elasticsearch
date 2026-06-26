@@ -123,6 +123,11 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         public int hashCode() {
             return Objects.hash(Arrays.hashCode(bytes), generatedAt);
         }
+
+        @Override
+        public String toString() {
+            return "KeyEntry[generatedAt=" + generatedAt + "]";
+        }
     }
 
     private final Map<String, KeyEntry> keys;
@@ -133,15 +138,12 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     @Nullable
     private final String unwrapFailureReason;
 
-    /** Structured key for the wrapped-key cache, combining the key id and the password id used for wrapping. */
-    record CacheKey(String keyId, String passwordId) {}
-
-    private final ConcurrentHashMap<CacheKey, byte[]> wrappedKeyCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, PekEncryption.WrappedKey> wrappedKeyCache = new ConcurrentHashMap<>();
 
     private record GatewayBytes(String passwordId, Map<String, byte[]> wrappedByKeyId) {}
 
     private record PreservedGatewayBlob(
-        @Nullable String activeKeyId,
+        String activeKeyId,
         String passwordId,
         Map<String, KeyEntry> wrappedKeys,
         Map<String, String> handlerKeyIds
@@ -384,12 +386,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
             if (blob == null || blob.wrappedKeys().isEmpty()) {
                 return emptyGatewayChunk();
             }
-            return gatewayChunk(
-                blob.activeKeyId() != null ? blob.activeKeyId() : "",
-                blob.passwordId(),
-                blob.wrappedKeys(),
-                blob.handlerKeyIds()
-            );
+            return gatewayChunk(blob.activeKeyId(), blob.passwordId(), blob.wrappedKeys(), blob.handlerKeyIds());
         }
 
         GatewayBytes gw = getOrComputeWrappedKeys();
@@ -460,12 +457,16 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         String activeId = pekEncryption.activePasswordId();
         Map<String, byte[]> result = HashMap.newHashMap(keys.size());
         for (Map.Entry<String, KeyEntry> e : keys.entrySet()) {
-            byte[] plaintextBytes = e.getValue().bytes();
-            byte[] wrapped = wrappedKeyCache.computeIfAbsent(
-                new CacheKey(e.getKey(), activeId),
-                ignored -> pekEncryption.wrap(plaintextBytes).wrapped()
-            );
-            result.put(e.getKey(), wrapped);
+            String keyId = e.getKey();
+            PekEncryption.WrappedKey cached = wrappedKeyCache.get(keyId);
+            if (cached == null || cached.passwordId().equals(activeId) == false) {
+                PekEncryption.WrappedKey wk = pekEncryption.wrap(e.getValue().bytes());
+                wrappedKeyCache.put(keyId, wk);
+                result.put(keyId, wk.wrapped());
+                activeId = wk.passwordId();
+            } else {
+                result.put(keyId, cached.wrapped());
+            }
         }
         return new GatewayBytes(activeId, result);
     }

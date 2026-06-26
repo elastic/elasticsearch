@@ -184,8 +184,9 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             Priority.NORMAL,
             new KeyRotationExecutor(projectResolver, pekEncryption)
         );
-        this.rotationInterval = ROTATION_INTERVAL_SETTING.get(settingsSupplier.get());
-        this.checkInterval = CHECK_INTERVAL_SETTING.get(settingsSupplier.get());
+        Settings initialSettings = settingsSupplier.get();
+        this.rotationInterval = ROTATION_INTERVAL_SETTING.get(initialSettings);
+        this.checkInterval = CHECK_INTERVAL_SETTING.get(initialSettings);
         this.pekEncryption = pekEncryption;
         this.settingsSupplier = settingsSupplier;
     }
@@ -524,6 +525,11 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         public String description() {
             return "project encryption key initial install";
         }
+
+        @Override
+        public String toString() {
+            return "InstallKeyTask[keyId=" + keyId + ", passwordId=" + passwordId + ", generatedAt=" + generatedAt + "]";
+        }
     }
 
     record BeginRotationTask(String newKeyId, byte[] pekBytes, long generatedAt, AtomicBoolean inFlight) implements KeyRotationTask {
@@ -536,6 +542,11 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         public void onFailure(@Nullable Exception e) {
             inFlight.set(false);
             KeyRotationTask.super.onFailure(e);
+        }
+
+        @Override
+        public String toString() {
+            return "BeginRotationTask[newKeyId=" + newKeyId + ", generatedAt=" + generatedAt + "]";
         }
     }
 

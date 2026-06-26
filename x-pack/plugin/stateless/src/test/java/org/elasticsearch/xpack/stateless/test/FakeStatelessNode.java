@@ -264,6 +264,7 @@ public class FakeStatelessNode implements Closeable {
             client = createClient(nodeSettings, threadPool);
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
+            indicesService = TestUtils.mockIndicesService(clusterService);
             sharedCacheService = createCacheService(nodeEnvironment, nodeSettings, threadPool, meterRegistry);
             this.meterRegistry = meterRegistry;
             localCloseables.add(sharedCacheService);
@@ -290,7 +291,6 @@ public class FakeStatelessNode implements Closeable {
             }
             objectStoreService.start();
             localCloseables.add(objectStoreService);
-            indicesService = mock(IndicesService.class);
             electionStrategy = new StatelessElectionStrategy(objectStoreService::getClusterStateBlobContainer, threadPool);
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);

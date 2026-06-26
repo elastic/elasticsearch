@@ -668,7 +668,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
         void performRemoteClusterOperation(final String clusterAlias, final OriginalIndices remoteIndices, final int opsIndex) {
             try {
-                TermsEnumRequest req = new TermsEnumRequest(request).indices(remoteIndices.indices()).indicesOptions(remoteIndices.indicesOptions());
+                TermsEnumRequest req = new TermsEnumRequest(request).indices(remoteIndices.indices())
+                    .indicesOptions(remoteIndices.indicesOptions());
                 req.includeResolvedTo(request.includeResolvedTo() || resolveCrossProject);
 
                 var remoteClient = remoteClusterService.getRemoteClusterClient(

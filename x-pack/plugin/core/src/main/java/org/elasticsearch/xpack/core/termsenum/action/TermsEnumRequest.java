@@ -51,7 +51,7 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
     @Nullable
     private transient ResolvedIndexExpressions resolvedIndexExpressions;
     @Nullable
-    private String projectRouting;
+    private transient String projectRouting;
 
     public TermsEnumRequest() {
         this(Strings.EMPTY_ARRAY);

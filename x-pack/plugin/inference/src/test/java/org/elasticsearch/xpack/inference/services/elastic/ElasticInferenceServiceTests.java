@@ -768,7 +768,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 new InferenceString(IMAGE, BASE64, InferenceStringTests.randomDataURI()),
                 ofText(randomAlphaOfLength(8))
             );
-            var query = new InferenceString(IMAGE, BASE64, InferenceStringTests.randomDataURI());
+            var query = ofText(randomAlphaOfLength(8));
             var topN = randomNonNegativeIntOrNull();
 
             var rerankRequest = new RerankRequest(docs, query, topN, null, Map.of());

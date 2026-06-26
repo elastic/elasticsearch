@@ -29,7 +29,8 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.inference.InferenceString.TYPE_FIELD;
 import static org.elasticsearch.inference.RerankRequest.INPUT_FIELD;
 import static org.elasticsearch.inference.RerankRequest.QUERY_FIELD;
-import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_DATA_TYPES;
+import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_INPUT_DATA_TYPES;
+import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_QUERY_DATA_TYPES;
 import static org.elasticsearch.inference.RerankRequest.TOP_N_FIELD;
 
 public class RerankAction extends ActionType<InferenceAction.Response> {
@@ -101,7 +102,7 @@ public class RerankAction extends ActionType<InferenceAction.Response> {
                 List<InferenceString> inputs = rerankRequest.inputs();
                 for (int i = 0; i < inputs.size(); ++i) {
                     var dataType = inputs.get(i).dataType();
-                    if (SUPPORTED_RERANK_DATA_TYPES.contains(dataType) == false) {
+                    if (SUPPORTED_RERANK_INPUT_DATA_TYPES.contains(dataType) == false) {
                         e = addValidationError(
                             format("Field [%s] contains unsupported [%s] value %s at index %d", INPUT_FIELD, TYPE_FIELD, dataType, i),
                             e
@@ -114,7 +115,7 @@ public class RerankAction extends ActionType<InferenceAction.Response> {
                 e = addValidationError(format("Field [%s] cannot be null", QUERY_FIELD), e);
             } else if (rerankRequest.query().value().isEmpty()) {
                 e = addValidationError(format("Field [%s] cannot be empty", QUERY_FIELD), e);
-            } else if (SUPPORTED_RERANK_DATA_TYPES.contains(rerankRequest.query().dataType()) == false) {
+            } else if (SUPPORTED_RERANK_QUERY_DATA_TYPES.contains(rerankRequest.query().dataType()) == false) {
                 e = addValidationError(
                     format("Field [%s] contains unsupported [%s] value %s", QUERY_FIELD, TYPE_FIELD, rerankRequest.query().dataType()),
                     e

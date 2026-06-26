@@ -16,15 +16,16 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
-import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_DATA_TYPES;
+import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_INPUT_DATA_TYPES;
+import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_QUERY_DATA_TYPES;
 import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QueryAndDocsInputsTests extends ESTestCase {
     public void testMinimalConstructor() {
-        var query = createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES);
-        var inputs = randomList(5, () -> createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES));
+        var query = createRandomUsingDataTypes(SUPPORTED_RERANK_QUERY_DATA_TYPES);
+        var inputs = randomList(5, () -> createRandomUsingDataTypes(SUPPORTED_RERANK_INPUT_DATA_TYPES));
         var queryAndDocsInputs = new QueryAndDocsInputs(query, inputs);
 
         assertThat(queryAndDocsInputs.getQuery(), is(query));
@@ -35,8 +36,8 @@ public class QueryAndDocsInputsTests extends ESTestCase {
     }
 
     public void testFromRerankRequest_ConstructsClassCorrectly() {
-        var inputs = randomList(5, () -> createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES));
-        var query = createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES);
+        var inputs = randomList(5, () -> createRandomUsingDataTypes(SUPPORTED_RERANK_INPUT_DATA_TYPES));
+        var query = createRandomUsingDataTypes(SUPPORTED_RERANK_QUERY_DATA_TYPES);
         var topN = randomIntOrNull();
         var returnDocuments = randomOptionalBoolean();
         var queryAndDocsInputs = fromRerankRequest(
@@ -70,14 +71,14 @@ public class QueryAndDocsInputsTests extends ESTestCase {
 
     public void testIsSingleInput() {
         var singleInput = new QueryAndDocsInputs(
-            createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES),
-            List.of(createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES))
+            createRandomUsingDataTypes(SUPPORTED_RERANK_QUERY_DATA_TYPES),
+            List.of(createRandomUsingDataTypes(SUPPORTED_RERANK_INPUT_DATA_TYPES))
         );
         assertThat(singleInput.isSingleInput(), is(true));
 
         var multipleInputs = new QueryAndDocsInputs(
-            createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES),
-            randomList(2, 5, () -> createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES))
+            createRandomUsingDataTypes(SUPPORTED_RERANK_QUERY_DATA_TYPES),
+            randomList(2, 5, () -> createRandomUsingDataTypes(SUPPORTED_RERANK_INPUT_DATA_TYPES))
         );
         assertThat(multipleInputs.isSingleInput(), is(false));
     }

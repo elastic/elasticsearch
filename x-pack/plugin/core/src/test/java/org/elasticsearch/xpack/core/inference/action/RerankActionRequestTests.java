@@ -26,7 +26,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_DATA_TYPES;
+import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_INPUT_DATA_TYPES;
+import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_QUERY_DATA_TYPES;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.inference.action.RerankAction.Request.parseRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -123,7 +124,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
     }
 
     public void testValidate_WithUnsupportedInputDataType_ReturnsValidationException() {
-        var unsupportedDataTypes = EnumSet.complementOf(SUPPORTED_RERANK_DATA_TYPES);
+        var unsupportedDataTypes = EnumSet.complementOf(SUPPORTED_RERANK_INPUT_DATA_TYPES);
         var inputWithUnsupportedType = InferenceStringTests.createRandomUsingDataTypes(unsupportedDataTypes);
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
@@ -140,12 +141,12 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
         );
     }
 
-    public void testValidate_WithImageInputAndQuery_ReturnsNoValidationException() {
+    public void testValidate_WithImageInputsAndTextQuery_ReturnsNoValidationException() {
         var imageInputs = randomList(1, 5, () -> InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.IMAGE)));
-        var imageQuery = InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.IMAGE));
+        var textQuery = InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(imageInputs, imageQuery, null, null, Map.of()),
+            new RerankRequest(imageInputs, textQuery, null, null, Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -200,7 +201,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
     }
 
     public void testValidate_WithUnsupportedQueryDataType_ReturnsValidationException() {
-        var unsupportedDataTypes = EnumSet.complementOf(SUPPORTED_RERANK_DATA_TYPES);
+        var unsupportedDataTypes = EnumSet.complementOf(SUPPORTED_RERANK_QUERY_DATA_TYPES);
         var inputWithUnsupportedType = InferenceStringTests.createRandomUsingDataTypes(unsupportedDataTypes);
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
@@ -253,10 +254,11 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
     }
 
     /**
-     * Returns a random {@link InferenceString} with a {@link DataType} that is supported by the {@link TaskType#RERANK} task
+     * Returns a random {@link InferenceString} with a {@link DataType} that is supported as a {@link TaskType#RERANK} query.
+     * Queries only support {@link DataType#TEXT}, which is also a valid input data type, so this is safe to use for both fields.
      */
     private static InferenceString randomInferenceString() {
-        return InferenceStringTests.createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES);
+        return InferenceStringTests.createRandomUsingDataTypes(SUPPORTED_RERANK_QUERY_DATA_TYPES);
     }
 
     @Override

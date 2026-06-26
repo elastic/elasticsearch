@@ -1,0 +1,100 @@
+testFieldExtractFlattened2Args
+required_capability: fn_field_extract_flattened
+
+FROM cross_cluster_failures
+| EVAL result = FIELD_EXTRACT_FLATTENED(flattened, "other")
+| WHERE result IS NOT NULL
+| KEEP result
+;
+result:flattened
+"{""else"":""yes"",""something"":""42""}"
+;
+
+testFieldExtractFlattenedNullWhenPathNotFound
+required_capability: fn_field_extract_flattened
+
+FROM cross_cluster_failures
+| EVAL result = FIELD_EXTRACT_FLATTENED(flattened, "nonexistent.path")
+| KEEP result
+| LIMIT 1
+;
+result:flattened
+null
+;
+
+testFieldExtractFlattenedSubkey
+required_capability: fn_field_extract_flattened
+
+// tag::field_extract_flattened_example[]
+FROM cross_cluster_failures
+| EVAL result = FIELD_EXTRACT_FLATTENED(flattened, "_clusters.details")
+| MV_EXPAND result
+| WHERE FIELD_EXTRACT(result, "status") == "successful"
+| STATS count = COUNT() BY result
+| KEEP result, count
+// end::field_extract_flattened_example[]
+;
+
+// tag::field_extract_flattened_example-result[]
+result:flattened | count:long
+"{""status"":""successful""}" | 13
+// end::field_extract_flattened_example-result[]
+;
+
+testFieldExtractFlattenedSubkeyError
+required_capability: fn_field_extract_flattened
+
+FROM cross_cluster_failures
+| EVAL result = FIELD_EXTRACT_FLATTENED(flattened, "_clusters.details")
+| MV_EXPAND result
+| WHERE FIELD_EXTRACT(result, "error") == "something sane looking"
+| KEEP result
+| LIMIT 1
+;
+result:flattened
+"{""error"":""something sane looking"",""failed"":""1"",""status"":""failed""}"
+;
+
+testFieldExtractFlattenedMultiValuedExpansions
+required_capability: fn_field_extract_flattened
+
+FROM cross_cluster_failures
+| EVAL remote1_details = FIELD_EXTRACT_FLATTENED(flattened, "_clusters.details", "cluster")
+| MV_EXPAND remote1_details
+| WHERE FIELD_EXTRACT(remote1_details, "cluster") == "remote1"
+| KEEP remote1_details
+| LIMIT 1
+;
+remote1_details:flattened
+"{""cluster"":""remote1"",""error"":""something sane looking"",""failed"":""1"",""status"":""failed""}"
+;
+
+testFieldExtractFlattenedMvExpand
+required_capability: fn_field_extract_flattened
+
+FROM cross_cluster_failures
+| EVAL cluster = FIELD_EXTRACT_FLATTENED(flattened, "_clusters.details", "cluster")
+| MV_EXPAND cluster
+| WHERE FIELD_EXTRACT(cluster, "error") IS NOT NULL
+| KEEP cluster
+| LIMIT 1
+;
+cluster:flattened
+"{""cluster"":""remote1"",""error"":""something sane looking"",""failed"":""1"",""status"":""failed""}"
+;
+
+testFieldExtractFlattenedComplex
+required_capability: fn_field_extract_flattened
+
+FROM cross_cluster_failures
+| EVAL cluster = FIELD_EXTRACT_FLATTENED(flattened, "_clusters.details", "cluster")
+| MV_EXPAND cluster
+| EVAL failed = FIELD_EXTRACT(cluster, "failed")::integer
+| WHERE failed > 0
+| EVAL error = FIELD_EXTRACT(cluster, "error")
+| KEEP cluster, error
+| LIMIT 1
+;
+cluster:flattened | error:keyword
+"{""cluster"":""remote1"",""error"":""something sane looking"",""failed"":""1"",""status"":""failed""}" | something sane looking
+;

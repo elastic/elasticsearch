@@ -223,6 +223,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtractFlattened;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
@@ -663,7 +664,8 @@ public class EsqlFunctionRegistry {
                 RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
                 ToText.DEFINITION,
-                FieldExtract.DEFINITION } };
+                FieldExtract.DEFINITION,
+                FieldExtractFlattened.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

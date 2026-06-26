@@ -120,6 +120,27 @@ public class PrometheusSeriesRestIT extends AbstractPrometheusRestIT {
         assertThat(names, containsInAnyOrder("multi_series_selector_a", "multi_series_selector_b"));
     }
 
+    public void testSeriesWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
+        writeMetric(MIXED_METRICS_PROMETHEUS_METRIC, Map.of("job", "prometheus"));
+        writeNonPrometheusMetricsDataStream();
+
+        String apiKey = createPrometheusReadApiKey("prometheus-read-view-index-metadata-key", "metrics-*");
+
+        List<Map<String, Object>> defaultScopeData = seriesData(
+            client().performRequest(seriesRequest("/_prometheus/api/v1/series", apiKey, MIXED_METRICS_PROMETHEUS_METRIC))
+        );
+        List<Map<String, Object>> prometheusScopeData = seriesData(
+            client().performRequest(
+                seriesRequest("/_prometheus/metrics-*.prometheus-*/api/v1/series", apiKey, MIXED_METRICS_PROMETHEUS_METRIC)
+            )
+        );
+
+        assertThat(defaultScopeData, hasSize(1));
+        assertThat(defaultScopeData.getFirst().get("__name__"), equalTo(MIXED_METRICS_PROMETHEUS_METRIC));
+        assertThat(prometheusScopeData, hasSize(1));
+        assertThat(prometheusScopeData.getFirst().get("__name__"), equalTo(MIXED_METRICS_PROMETHEUS_METRIC));
+    }
+
     // Helpers
 
     private Request seriesRequest(String matcher) {
@@ -129,6 +150,10 @@ public class PrometheusSeriesRestIT extends AbstractPrometheusRestIT {
     private Request seriesRequest(String index, String matcher) {
         String path = index == null ? "/_prometheus/api/v1/series" : "/_prometheus/" + index + "/api/v1/series";
         return prometheusReadRequest(path, new BasicNameValuePair("match[]", matcher));
+    }
+
+    private Request seriesRequest(String path, String apiKey, String matcher) {
+        return prometheusGetRequest(path, apiKey, new BasicNameValuePair("match[]", matcher));
     }
 
     private Response querySeries(String matcher) throws Exception {

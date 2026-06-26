@@ -41,6 +41,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -594,6 +595,104 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             } finally {
                 response.release();
             }
+        }
+    }
+
+    public void testRequestTimeoutReturnsTooManyRequests() throws Exception {
+        final var nodeName = internalCluster().getRandomNodeName();
+        final var timeout = TimeValue.timeValueMillis(100);
+        updateClusterSettings(Settings.builder().put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), timeout));
+        try (var clientContext = newClientContext(nodeName, cause -> ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(cause)))) {
+            final var request = new DefaultHttpRequest(HTTP_1_1, POST, "/_bulk");
+            request.headers().add(CONTENT_TYPE, APPLICATION_JSON);
+            HttpUtil.setTransferEncodingChunked(request, true);
+
+            // Sending the headers makes RestBulkAction accept the channel, build the Handler and arm the request timeout.
+            final var channel = clientContext.channel();
+            channel.writeAndFlush(request);
+
+            // Wait well past the timeout so the scheduled cancellation has fired before we send any item.
+            safeSleep(timeout.millis() * 10);
+
+            // The whole body arrives as a single last chunk: no sub-request is ever submitted, so the cancelled session
+            // produces a top-level failure -> HTTP 429 (the globalFailure path).
+            channel.writeAndFlush(new DefaultLastHttpContent(Unpooled.wrappedBuffer(Strings.format("""
+                {"index":{"_index":"%s"}}
+                {"field":"%s"}
+                """, randomIndexName(), randomAlphaOfLength(10)).getBytes(StandardCharsets.UTF_8))));
+
+            final var response = clientContext.getNextResponse();
+            try {
+                assertEquals(RestStatus.TOO_MANY_REQUESTS.getStatus(), response.status().code());
+            } finally {
+                response.release();
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(IncrementalBulkService.REQUEST_TIMEOUT.getKey()));
+        }
+    }
+
+    public void testRequestTimeoutPartialResponse() throws Exception {
+        final var nodeName = internalCluster().startCoordinatingOnlyNode(
+            Settings.builder()
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1b")
+                .build()
+        );
+        final var index = randomIndexName();
+        createIndex(index);
+        final var timeout = TimeValue.timeValueSeconds(2);
+        updateClusterSettings(Settings.builder().put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), timeout));
+        try (var clientContext = newClientContext(nodeName, cause -> ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(cause)))) {
+            final var request = new DefaultHttpRequest(HTTP_1_1, POST, "/_bulk");
+            request.headers().add(CONTENT_TYPE, APPLICATION_JSON);
+            HttpUtil.setTransferEncodingChunked(request, true);
+            final var channel = clientContext.channel();
+            channel.writeAndFlush(request);
+
+            // First chunk: 1b watermarks force an immediate split -> sub-request submitted, doc indexed.
+            channel.writeAndFlush(new DefaultHttpContent(Unpooled.wrappedBuffer(Strings.format("""
+                {"index":{"_index":"%s","_id":"before-timeout"}}
+                {"field":"%s"}
+                """, index, randomAlphaOfLength(10)).getBytes(StandardCharsets.UTF_8))));
+
+            // Wait until the first sub-request committed so the doc is durable and survives the descendant-cancellation
+            // that fires with the timeout, then wait past the timeout so the session is cancelled before the final chunk.
+            assertBusy(() -> assertTrue(client().prepareGet(index, "before-timeout").setRealtime(true).get().isExists()));
+            safeSleep(timeout);
+
+            channel.writeAndFlush(new DefaultLastHttpContent(Unpooled.wrappedBuffer(Strings.format("""
+                {"index":{"_index":"%s","_id":"after-timeout"}}
+                {"field":"%s"}
+                """, index, randomAlphaOfLength(10)).getBytes(StandardCharsets.UTF_8))));
+
+            final var response = clientContext.getNextResponse();
+            try {
+                assertEquals(RestStatus.OK.getStatus(), response.status().code());
+                final var copy = response.content().copy(); // Netty4Utils doesn't handle direct buffers, copy to heap
+                final ObjectPath body;
+                try {
+                    body = ObjectPath.createFromXContent(JsonXContent.jsonXContent, Netty4Utils.toBytesReference(copy));
+                } finally {
+                    copy.release();
+                }
+                assertTrue(body.evaluate("errors"));
+                assertEquals(2, body.evaluateArraySize("items"));
+                assertEquals(
+                    RestStatus.CREATED.getStatus(),
+                    (int) asInstanceOf(int.class, body.evaluateExact("items", "0", "index", "status"))
+                );
+                assertEquals(
+                    RestStatus.TOO_MANY_REQUESTS.getStatus(),
+                    (int) asInstanceOf(int.class, body.evaluateExact("items", "1", "index", "status"))
+                );
+            } finally {
+                response.release();
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(IncrementalBulkService.REQUEST_TIMEOUT.getKey()));
         }
     }
 

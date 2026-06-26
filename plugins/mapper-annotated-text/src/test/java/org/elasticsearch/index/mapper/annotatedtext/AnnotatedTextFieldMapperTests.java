@@ -693,7 +693,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
         // annotated_text uses stored fields for fallback (not binary doc values), so ignored values are not sorted
-        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false, false);
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false, false, false, false);
     }
 
     @Override

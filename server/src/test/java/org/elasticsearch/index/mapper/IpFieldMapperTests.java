@@ -356,10 +356,10 @@ public class IpFieldMapperTests extends MapperTestCase {
         private final boolean isColumnar;
         private final boolean enforceSingleValue;
 
-        private IpSyntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
+        private IpSyntheticSourceSupport(boolean ignoreMalformed, boolean isColumnar) {
             this.ignoreMalformed = ignoreMalformed;
-            this.isColumnar = columnar;
-            this.enforceSingleValue = columnar && randomBoolean();
+            this.isColumnar = isColumnar;
+            this.enforceSingleValue = isColumnar && randomBoolean();
         }
 
         @Override

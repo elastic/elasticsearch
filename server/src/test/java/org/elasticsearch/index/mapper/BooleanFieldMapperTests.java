@@ -315,10 +315,10 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         // boolean fields have doc_values enabled by default, so multi_value: false can be requested in columnar mode.
         private final boolean enforceSingleValue;
 
-        BooleanSyntheticSourceSupport(boolean ignoreMalformed, boolean columnar) {
+        BooleanSyntheticSourceSupport(boolean ignoreMalformed, boolean isColumnar) {
             this.ignoreMalformed = ignoreMalformed;
-            this.isColumnar = columnar;
-            this.enforceSingleValue = columnar && randomBoolean();
+            this.isColumnar = isColumnar;
+            this.enforceSingleValue = isColumnar && randomBoolean();
         }
 
         @Override

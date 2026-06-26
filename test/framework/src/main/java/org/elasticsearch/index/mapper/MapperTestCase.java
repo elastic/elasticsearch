@@ -1336,7 +1336,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         private String expected() throws IOException {
-            XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
+            return expectedWithKey("field");
+        }
+
+        private String expectedWithKey(String key) throws IOException {
+            XContentBuilder b = JsonXContent.contentBuilder().startObject().field(key);
             expectedForSyntheticSource.accept(b);
             return Strings.toString(b.endObject());
         }
@@ -1643,9 +1647,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }), support.isColumnar()).documentMapper();
         if (support.isColumnar()) {
             // In columnar mode, subobjects are disabled at root so obj.field is stored with a flat key
-            XContentBuilder flatExpectedBuilder = JsonXContent.contentBuilder().startObject().field("obj.field");
-            syntheticSourceExample.expectedForSyntheticSource().accept(flatExpectedBuilder);
-            String flatExpected = Strings.toString(flatExpectedBuilder.endObject());
+            String flatExpected = syntheticSourceExample.expectedWithKey("obj.field");
             assertThat(syntheticSource(mapper, b -> {
                 b.startObject("obj");
                 syntheticSourceExample.buildInput(b);
@@ -1770,8 +1772,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInNestedObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
-        SyntheticSourceExample syntheticSourceExample = support.example(5);
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("obj").field("type", "nested").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);

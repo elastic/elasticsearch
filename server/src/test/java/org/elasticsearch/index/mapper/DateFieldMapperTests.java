@@ -622,7 +622,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         return syntheticSourceSupportInternal(ignoreMalformed, false, false);
     }
 
-    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal, boolean columnar) {
+    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal, boolean isColumnar) {
         return new SyntheticSourceSupport() {
             private final DateFieldMapper.Resolution resolution = randomFrom(DateFieldMapper.Resolution.values());
             private final Object nullValue = usually()
@@ -635,11 +635,11 @@ public class DateFieldMapperTests extends MapperTestCase {
                 ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
                 : DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER;
             // date fields have doc_values enabled by default, so multi_value: false can be requested in columnar mode.
-            private final boolean enforceSingleValue = columnar && randomBoolean();
+            private final boolean enforceSingleValue = isColumnar && randomBoolean();
 
             @Override
             public boolean isColumnar() {
-                return columnar;
+                return isColumnar;
             }
 
             @Override
@@ -663,7 +663,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 List<Object> in = values.stream().map(Value::input).toList();
 
                 Stream<Value> nonMalformed = values.stream().filter(v -> v.malformedOutput == null);
-                if (columnar == false) {
+                if (isColumnar == false) {
                     nonMalformed = nonMalformed.sorted(
                         Comparator.comparing(
                             v -> Instant.from(formatter.parse(v.input == null ? nullValue.toString() : v.input.toString()))

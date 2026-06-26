@@ -30,27 +30,6 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
  */
 public final class TextFieldFamilySyntheticSourceTestSetup {
 
-    public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
-        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, true, false, false);
-    }
-
-    public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
-        String fieldType,
-        boolean supportsCustomIndexConfiguration,
-        boolean fallbackUsesBinaryDocValues
-    ) {
-        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, fallbackUsesBinaryDocValues, false, false);
-    }
-
-    public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
-        String fieldType,
-        boolean supportsCustomIndexConfiguration,
-        boolean fallbackUsesBinaryDocValues,
-        boolean supportsDocValues
-    ) {
-        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, fallbackUsesBinaryDocValues, supportsDocValues, false);
-    }
-
     public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
         String fieldType,
         boolean supportsCustomIndexConfiguration,
@@ -161,9 +140,6 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
 
         @Override
         public boolean preservesEmptyArray() {
-            if (store) {
-                return false;
-            }
             if (isColumnar) {
                 // In strict columnar mode canAddIgnoredField() is always false, so the empty-array recording
                 // block in DocumentParser.parseArrayElements is never reached; empty arrays produce {}.

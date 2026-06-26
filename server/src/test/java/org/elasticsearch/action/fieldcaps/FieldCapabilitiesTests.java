@@ -15,6 +15,10 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,6 +33,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<FieldCapabilities> {
     private static final String FIELD_NAME = "field";
@@ -376,6 +381,26 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             );
         });
         assertThat(error.getMessage(), containsString("indices aren't sorted"));
+    }
+
+    public void testBuilderWithPreInferenceFieldTransportVersionOmitsInference() throws IOException {
+        // Build a field where some indices are inference fields and some are not. On a current cluster
+        // this produces isInference=false with a nonInferenceIndices array. When the cluster's min
+        // transport version is too old to report inference status, both fields must be null / absent.
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
+        builder.setMinTransportVersion(
+            randomBoolean() ? TransportVersionUtils.randomVersionNotSupporting(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD) : null
+        );
+        builder.add(new String[] { "index1" }, false, true, false, true, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, false, false, false, null, Collections.emptyMap());
+
+        FieldCapabilities cap = builder.build(randomBoolean());
+        assertNull(cap.isInference());
+        assertNull(cap.nonInferenceIndices());
+
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
+        cap.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+        assertThat(xContentBuilder.toString(), not(containsString("inference")));
     }
 
     static FieldCapabilities randomFieldCaps(String fieldName) {

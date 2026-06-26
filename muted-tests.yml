@@ -755,3 +755,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:keep.sortWithLimitFifteenAndProject}
   issue: https://github.com/elastic/elasticsearch/issues/152238
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:bucket.docsBucketNumeric}
+  issue: https://github.com/elastic/elasticsearch/issues/152239

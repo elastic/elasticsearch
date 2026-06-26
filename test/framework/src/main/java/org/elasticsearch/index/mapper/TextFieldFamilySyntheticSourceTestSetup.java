@@ -139,16 +139,6 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         }
 
         @Override
-        public boolean preservesEmptyArray() {
-            if (isColumnar) {
-                // In strict columnar mode canAddIgnoredField() is always false, so the empty-array recording
-                // block in DocumentParser.parseArrayElements is never reached; empty arrays produce {}.
-                return false;
-            }
-            return preservesExactSource();
-        }
-
-        @Override
         public MapperTestCase.SyntheticSourceExample example(int maxValues) {
             if (store) {
                 return storedFieldExample(maxValues);

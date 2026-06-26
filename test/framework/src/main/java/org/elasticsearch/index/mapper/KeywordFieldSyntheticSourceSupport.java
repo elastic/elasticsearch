@@ -95,16 +95,6 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     @Override
-    public boolean preservesEmptyArray() {
-        if (isColumnar) {
-            // In strict columnar mode canAddIgnoredField() is always false, so the empty-array recording
-            // block in DocumentParser.parseArrayElements is never reached; empty arrays produce {}.
-            return false;
-        }
-        return preservesExactSource();
-    }
-
-    @Override
     public MapperTestCase.SyntheticSourceExample example(int maxValues) {
         // in columnar mode, ignored values (exceeding ignore_above) are stored in sorted binary doc values
         return example(maxValues, false, false, isColumnar);

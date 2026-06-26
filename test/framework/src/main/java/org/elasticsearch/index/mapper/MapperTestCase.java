@@ -1378,15 +1378,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         /**
-         * @return true when an empty array input {@code []} is returned as {@code {"field": []}} in synthetic source rather than omitted.
-         * Defaults to {@link #preservesExactSource()}. Sorted-set fields with doc values enabled in columnar mode return {@code true}
-         * because the offsets sidecar explicitly stores the zero-value count.
-         */
-        default boolean preservesEmptyArray() {
-            return preservesExactSource();
-        }
-
-        /**
          * Examples that should work when source is generated from doc values.
          */
         SyntheticSourceExample example(int maxValues) throws IOException;
@@ -1592,7 +1583,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             ) {
                 for (int i = 0; i < count; i++) {
                     if (rarely() && supportsEmptyInputArray()) {
-                        expected[i] = support.preservesEmptyArray() ? "{\"field\":[]}" : "{}";
+                        expected[i] = support.preservesExactSource() ? "{\"field\":[]}" : "{}";
                         iw.addDocument(mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc());
                         continue;
                     }
@@ -1700,7 +1691,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.endObject();
         }), support.isColumnar()).documentMapper();
 
-        var expected = support.preservesEmptyArray() ? "{\"field\":[]}" : "{}";
+        var expected = support.preservesExactSource() ? "{\"field\":[]}" : "{}";
         assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo(expected));
     }
 

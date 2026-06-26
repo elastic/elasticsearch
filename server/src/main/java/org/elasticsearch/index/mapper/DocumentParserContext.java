@@ -23,7 +23,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
-import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -1037,14 +1036,6 @@ public abstract class DocumentParserContext {
                 return doc;
             }
         };
-    }
-
-    /**
-     * Return a context for flattening subobjects
-     * @param fieldName   the name of the field to be flattened
-     */
-    public final DocumentParserContext createFlattenContext(String fieldName) {
-        return switchParser(new FlatteningXContentParser(parser(), fieldName));
     }
 
     /**

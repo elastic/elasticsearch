@@ -85,6 +85,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         @Param(
             name = "points",
             type = { "double", "integer", "long", "date", "date_nanos" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Remaining rounding points. Must be constants."
         ) List<Expression> points
     ) {

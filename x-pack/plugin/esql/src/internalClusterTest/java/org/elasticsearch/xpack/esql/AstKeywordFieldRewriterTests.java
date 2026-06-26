@@ -78,7 +78,10 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
      * can parse a {@code FILLNULL} query only in a snapshot build; otherwise the rewriter returns the query unmodified.
      */
     private static void assumeFillNullSupported() {
-        assumeTrue("FILLNULL is a snapshot-only grammar feature (EsqlCapabilities.Cap.FILLNULL)", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue(
+            "FILLNULL is a snapshot-only grammar feature (EsqlCapabilities.Cap.FILLNULL)",
+            EsqlCapabilities.Cap.FILLNULL.isEnabled()
+        );
     }
 
     /** An empty resolved scope returns the original query with {@code modified == false}. */

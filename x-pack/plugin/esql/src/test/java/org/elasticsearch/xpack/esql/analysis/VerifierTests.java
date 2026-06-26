@@ -413,6 +413,13 @@ public class VerifierTests extends ESTestCase {
             equalTo("1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.")
         );
 
+        // Testing the combo of FORK w/ an unsupported and multi-typed field
+        analyzer.error(
+            "from test* | FORK (where true) | eval x = multi_typed",
+            equalTo("1:43: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
+            )
+        );
     }
 
     public void testForkUnsupportedFields() {

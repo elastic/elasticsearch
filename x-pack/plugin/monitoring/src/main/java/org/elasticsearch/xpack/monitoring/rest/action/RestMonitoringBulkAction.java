@@ -35,8 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestMonitoringBulkAction extends BaseRestHandler {
 
-    static final String DEPRECATION_MESSAGE =
-        "Legacy monitoring is deprecated and will be removed in Elasticsearch 10.0.";
+    static final String DEPRECATION_MESSAGE = "Legacy monitoring is deprecated and will be removed in Elasticsearch 10.0.";
 
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";

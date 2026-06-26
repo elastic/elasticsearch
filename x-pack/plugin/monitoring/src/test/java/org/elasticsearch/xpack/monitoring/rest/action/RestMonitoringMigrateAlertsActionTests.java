@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.monitoring.rest.action;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler.Route;

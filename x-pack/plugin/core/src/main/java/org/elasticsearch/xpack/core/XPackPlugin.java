@@ -127,11 +127,11 @@ import java.util.stream.Collectors;
 @SuppressWarnings("HiddenField")
 public class XPackPlugin extends XPackClientPlugin
     implements
-    ExtensiblePlugin,
-    RepositoryPlugin,
-    EnginePlugin,
-    ClusterPlugin,
-    MapperPlugin {
+        ExtensiblePlugin,
+        RepositoryPlugin,
+        EnginePlugin,
+        ClusterPlugin,
+        MapperPlugin {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";

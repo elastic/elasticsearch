@@ -728,3 +728,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSymDifferenceTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152306
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
+  method: testFold {TestCase=cartesian_shape and cartesian_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152308

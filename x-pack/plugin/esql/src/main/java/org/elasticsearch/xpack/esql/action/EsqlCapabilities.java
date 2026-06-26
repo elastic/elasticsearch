@@ -3223,7 +3223,7 @@ public class EsqlCapabilities {
          * Enables {@code FROM index METADATA _slice}, {@code KEEP _slice}, and pushable
          * {@code WHERE _slice ==} / {@code LIKE} / {@code RLIKE} filters.
          */
-        METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()),
+        METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -938,7 +938,7 @@ version is not allowed:
 
 ---
 "Empty list named param is treated as null":
-  # https://github.com/elastic/elasticsearch/issues/147448
+  # https://github.com/elastic/elasticsearch/issues/152271
   - requires:
       test_runner_features: [ capabilities, allowed_warnings_regex ]
       capabilities:

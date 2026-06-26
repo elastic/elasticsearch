@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -963,7 +964,15 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
                 // Force merge checks if the engine is still open at the end, and sometimes it might
                 // throw an AlreadyClosedException even after the commit is already processed by ShardCommitState
             } catch (IOException e) {
-                fail(e);
+                // When the shard closes during relocation, the in-flight background merge is aborted.
+                // Lucene wraps the MergeAbortedException in an IOException ("background merge hit exception").
+                if (ExceptionsHelper.unwrapCausesAndSuppressed(
+                    e,
+                    t -> t instanceof MergePolicy.MergeAbortedException
+                        || (t.getMessage() != null && t.getMessage().contains("merge is aborted"))
+                ).isEmpty()) {
+                    fail(e);
+                }
             }
         }, "force-merge-thread");
         forceMergeThread.start();

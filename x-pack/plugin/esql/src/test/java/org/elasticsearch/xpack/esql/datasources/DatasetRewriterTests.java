@@ -439,7 +439,7 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testHeterogeneousFromUnderCpsEmitsShadowForDataset() {
-        // esql-planning#984: a heterogeneous FROM (local index + local dataset) under CPS must run the same
+        // A heterogeneous FROM (local index + local dataset) under CPS must run the same
         // non-remotable-abstraction rail as a dataset-only FROM. The dataset's exact name gets a DatasetShadowRelation
         // so a remote index of the same name reads both and a remote dataset/view of the same name fails. Before the
         // unification the heterogeneous path returned before the CPS rail, silently skipping the dataset's remote check.
@@ -464,7 +464,7 @@ public class DatasetRewriterTests extends ESTestCase {
         // The rewrite-time cap counts real reads (datasets + index branch), not the speculative shadows. A shadow
         // strips when its exact name has no remote namesake (the common case), so it must not eat the per-FROM budget.
         // Five exact datasets under CPS = 5 externals + 5 shadows = 10 UnionAll children but only 5 real reads, so it
-        // must NOT be rejected at rewrite -- otherwise the shadows would silently halve the dataset budget (#984).
+        // must NOT be rejected at rewrite -- otherwise the shadows would silently halve the dataset budget.
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i < 5; i++) {

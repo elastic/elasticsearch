@@ -275,7 +275,7 @@ public final class DatasetRewriter {
         // One rail for every FROM shape — dataset-only and heterogeneous (index + dataset). The non-remotable-abstraction
         // CPS rule (a remote view/dataset fails; a remote index of the same name reads both) must hold uniformly, so the
         // cross-project siblings below are appended regardless of whether the FROM also names local indices. Keeping the
-        // two shapes on one path is what stops them drifting (see esql-planning#984).
+        // two shapes on one path is what stops them drifting.
         List<LogicalPlan> children = new ArrayList<>();
         for (String name : datasetNames) {
             children.add(buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
@@ -305,7 +305,7 @@ public final class DatasetRewriter {
 
         // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
         // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
-        // shadow is a real read bounded post-analysis by Fork.checkBranchCount. See esql-planning#982/#983.
+        // shadow is a real read bounded post-analysis by Fork.checkBranchCount.
         if (Fork.exceedsMaxBranches(children.size())) {
             throw new VerificationException(
                 "FROM ["
@@ -320,7 +320,9 @@ public final class DatasetRewriter {
 
         // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half rides a
         // DatasetShadowRelation — a remote index of the same name federates in, a remote dataset/view of the same
-        // name fails (the detection rail). See DatasetShadowRelation for the full lifecycle.
+        // name fails (the detection rail). See DatasetShadowRelation for the full lifecycle. This whole rail is gated
+        // by the esql_external_datasources feature flag: datasetNames is non-empty only when datasets exist, which
+        // the flag must enable, so the shadow machinery stays inert until datasets are turned on.
         if (crossProjectEnabled) {
             children.addAll(crossProjectExactNameShadows(relation, datasetNames));
         }

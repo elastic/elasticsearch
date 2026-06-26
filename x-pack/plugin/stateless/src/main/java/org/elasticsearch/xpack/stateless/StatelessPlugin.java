@@ -1463,10 +1463,18 @@ public class StatelessPlugin extends Plugin
                 }
 
                 @Override
+                public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+                    if (indexShard != null) {
+                        // Must be called before engine.flushAndClose() to unblock any listeners waiting,
+                        // which would otherwise deadlock with drainForClose() waiting for ensureOpenRefs.
+                        statelessCommitService.closeShard(shardId);
+                    }
+                }
+
+                @Override
                 public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
                     if (indexShard != null) {
                         statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
-                        statelessCommitService.closeShard(shardId);
                         // release snapshot commits after shardCommitState is closed
                         snapshotsCommitService.releaseCommitsAndRemoveShardAfterShardClosed(shardId);
                         hollowShardsService.get().removeHollowShard(indexShard, "index shard closed");

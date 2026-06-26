@@ -1358,6 +1358,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "TO_DATEPERIOD:field is missing",
         "TO_DATETIME:field is missing",
         "TO_DATE_NANOS:field is missing",
+        "TO_DATE_RANGE:field is missing",
         "TO_DENSE_VECTOR:field is missing",
         "TO_DOUBLE:field is missing",
         "TO_GEOHASH:field is missing",

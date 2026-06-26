@@ -129,7 +129,7 @@ class SpatialBinaryGeometryBlockProcessor {
      * For anything else (a true heterogeneous collection), pre-flatten to a supported type
      * using a self-union so the binary operation can proceed.
      */
-    private static Geometry flattenIfHeterogeneousCollection(Geometry geom) {
+    static Geometry flattenIfHeterogeneousCollection(Geometry geom) {
         if (geom instanceof MultiPoint || geom instanceof MultiLineString || geom instanceof MultiPolygon) {
             return geom;
         }

@@ -10,18 +10,21 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -84,7 +87,7 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
         private final List<EnrichPolicy.NamedPolicy> policies;
 
@@ -107,29 +110,34 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
             out.writeCollection(policies);
         }
 
+        /**
+         * Renders the response in chunks -- one chunk per policy -- so that a large number of policies does not require the entire
+         * response to be held in memory at once while it is serialized.
+         */
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.startArray("policies");
-                {
-                    for (EnrichPolicy.NamedPolicy policy : policies) {
-                        builder.startObject();
-                        {
-                            builder.startObject("config");
-                            {
-                                policy.toXContent(builder, params);
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                }
-                builder.endArray();
-            }
-            builder.endObject();
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.startArray("policies"),
+                Iterators.map(policies.iterator(), Response::policyChunk),
+                ChunkedToXContentHelper.endArray(),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
 
-            return builder;
+        private static ToXContent policyChunk(EnrichPolicy.NamedPolicy policy) {
+            return (builder, params) -> {
+                builder.startObject();
+                {
+                    builder.startObject("config");
+                    {
+                        policy.toXContent(builder, params);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                return builder;
+            };
         }
 
         public List<EnrichPolicy.NamedPolicy> getPolicies() {

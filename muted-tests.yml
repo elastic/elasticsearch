@@ -728,3 +728,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSymDifferenceTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152306
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
+  method: testFold {TestCase=cartesian_shape and cartesian_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152308
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
+  method: testFold {TestCase=cartesian_shape and cartesian_point}
+  issue: https://github.com/elastic/elasticsearch/issues/152309
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:approximation.No confidence intervals}
+  issue: https://github.com/elastic/elasticsearch/issues/152310
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
+  issue: https://github.com/elastic/elasticsearch/issues/152311
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:folding.dateNanos_GreaterThan_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/152314
+- class: org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapperTests
+  method: testExponentialHistogramValuesReader
+  issue: https://github.com/elastic/elasticsearch/issues/152318
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnionTests
+  method: testFold {TestCase=geo_shape and geo_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152323

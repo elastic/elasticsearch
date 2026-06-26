@@ -2960,12 +2960,12 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with LOOKUP JOIN
          */
-        APPROXIMATION_LOOKUP_JOIN_V2(Build.current().isSnapshot()),
+        APPROXIMATION_LOOKUP_JOIN_V2,
 
         /**
          * Support query approximation with INLINE STATS
          */
-        APPROXIMATION_INLINE_STATS_V2(Build.current().isSnapshot()),
+        APPROXIMATION_INLINE_STATS_V2,
 
         /**
          * Support for PromQL year() function.
@@ -3084,7 +3084,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with FORK and subqueries.
          */
-        APPROXIMATION_FORK(Build.current().isSnapshot()),
+        APPROXIMATION_FORK,
 
         /**
          * Support FIRST aggregation on extended types: version, unsigned_long, geo_point,

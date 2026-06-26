@@ -18,10 +18,15 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.util.Arrays;
@@ -224,6 +229,38 @@ public class EsqlSessionTests extends ESTestCase {
             var resolved = Map.of(RemoteClusterAware.splitIndexName(index).getClusterGroupingKey(), List.of(index));
             return IndexResolution.valid(new EsIndex(index, Map.of(), Map.of(), resolved, resolved));
         }));
+    }
+
+    /**
+     * Wiring contract for {@code preAnalyzeExternalSources}: it computes
+     * {@link ExternalStatsRequirementExtractor#pathsRequiringEagerStats} and passes the result —
+     * always a non-null set — to the resolver. A {@code LIMIT}-shaped plan yields an empty (but
+     * non-null) set, switching the resolver to defer-everything for FFW multi-file globs.
+     */
+    public void testPathsRequiringEagerStatsEmptyForLimit() {
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(
+            EMPTY,
+            Literal.keyword(EMPTY, "s3://bucket/data/*.parquet"),
+            Map.of()
+        );
+        LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), relation);
+
+        Set<String> paths = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
+        assertNotNull("the wiring must always pass a non-null set", paths);
+        assertTrue("LIMIT does not consume eager global stats", paths.isEmpty());
+    }
+
+    /**
+     * Wiring contract: an ungrouped {@code STATS COUNT(*)} over an external relation yields a set
+     * containing the relation's path, so the resolver keeps eager all-file stats aggregation for it.
+     */
+    public void testPathsRequiringEagerStatsContainsPathForUngroupedStats() {
+        String path = "s3://bucket/data/*.parquet";
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
+        LogicalPlan plan = new Aggregate(EMPTY, relation, List.of(), List.of());
+
+        Set<String> paths = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
+        assertEquals(Set.of(path), paths);
     }
 
     private static IndexResolution resolvedIndex(String indexName) {

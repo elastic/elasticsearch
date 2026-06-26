@@ -2659,6 +2659,14 @@ public class EsqlCapabilities {
         DATASET_IN_FROM_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
+         * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
+         * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
+         * verification failure that old coordinators in a mixed cluster still hit.
+         */
+        FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
          * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
          * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator

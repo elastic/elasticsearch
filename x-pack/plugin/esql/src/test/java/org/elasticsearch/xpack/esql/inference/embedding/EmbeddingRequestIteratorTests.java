@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceReq
 
 import java.util.Base64;
 
-import static org.elasticsearch.xpack.esql.inference.InferenceService.EMBEDDING_PRODUCT_USE_CASE;
+import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -506,7 +506,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         ) {
             assertTrue(requestIterator.hasNext());
             EmbeddingAction.Request request = (EmbeddingAction.Request) requestIterator.next().inferenceRequest();
-            assertThat(request.getContext().productUseCase(), equalTo(EMBEDDING_PRODUCT_USE_CASE));
+            assertThat(request.getContext().productUseCase(), equalTo(ESQL_PRODUCT_USE_CASE));
         }
 
         allBreakersEmpty();

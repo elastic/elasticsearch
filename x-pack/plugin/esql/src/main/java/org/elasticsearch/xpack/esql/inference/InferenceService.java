@@ -29,10 +29,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class InferenceService {
 
-    public static final String COMPLETION_PRODUCT_USE_CASE = "internal_completion";
-    public static final String RERANK_PRODUCT_USE_CASE = "internal_rerank";
-    public static final String TEXT_EMBEDDING_PRODUCT_USE_CASE = "internal_text_embedding";
-    public static final String EMBEDDING_PRODUCT_USE_CASE = "internal_embedding";
+    /** Value of the {@code X-Elastic-Product-Use-Case} header for ESQL requests. */
+    public static final String ESQL_PRODUCT_USE_CASE = "ESQL";
 
     private InferenceSettings inferenceSettings;
 

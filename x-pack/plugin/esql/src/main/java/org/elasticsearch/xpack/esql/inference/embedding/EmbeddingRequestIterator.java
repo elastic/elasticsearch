@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.inference.InferenceService.EMBEDDING_PRODUCT_USE_CASE;
+import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 
 /**
  * Embedding request iterator for typed (DataType) inputs.
@@ -65,7 +65,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
                 inferenceId,
                 taskType,
                 embeddingRequest,
-                new InferenceContext(EMBEDDING_PRODUCT_USE_CASE),
+                new InferenceContext(ESQL_PRODUCT_USE_CASE),
                 Objects.requireNonNullElse(timeout, BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.TEXT_EMBEDDING))
             ),
             pvcs

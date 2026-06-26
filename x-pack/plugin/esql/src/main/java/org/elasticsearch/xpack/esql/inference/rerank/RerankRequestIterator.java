@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import static org.elasticsearch.inference.InferenceString.fromStringList;
-import static org.elasticsearch.xpack.esql.inference.InferenceService.RERANK_PRODUCT_USE_CASE;
+import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 
 /**
  * Iterator that converts a block of text strings into batched inference request items for reranking.
@@ -211,7 +211,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         }
 
         var rerankRequest = new RerankRequest(fromStringList(inputs), InferenceString.ofText(queryText), null, null, null);
-        return new RerankAction.Request(inferenceId, rerankRequest, new InferenceContext(RERANK_PRODUCT_USE_CASE), timeout);
+        return new RerankAction.Request(inferenceId, rerankRequest, new InferenceContext(ESQL_PRODUCT_USE_CASE), timeout);
     }
 
     @Override

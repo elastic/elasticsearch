@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.esql.session.schema;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.esql.action.TransportResolveSchemaAction;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -49,6 +52,8 @@ public final class SchemaService {
     private final ViewSchemaProvider viewProvider;
     private final DatasetSchemaProvider datasetProvider;
     private final List<AbstractionSchemaProvider> providers;
+    private final RemoteClusterService remoteClusterService;
+    private final Executor executor;
 
     public SchemaService(
         IndexResolver indexResolver,
@@ -62,6 +67,8 @@ public final class SchemaService {
         Client client,
         Executor executor
     ) {
+        this.remoteClusterService = remoteClusterService;
+        this.executor = executor;
         this.indexProvider = new IndexSchemaProvider(
             indexResolver,
             remoteClusterService,
@@ -84,6 +91,8 @@ public final class SchemaService {
         this.viewProvider = null;
         this.datasetProvider = null;
         this.providers = providers;
+        this.remoteClusterService = null;
+        this.executor = null;
     }
 
     /**
@@ -116,6 +125,83 @@ public final class SchemaService {
             listener.map(perProvider -> perProvider.stream().flatMap(List::stream).toList())
         );
         byProvider.forEach((provider, providerNames) -> provider.resolveSchema(ctx, projectMetadata, providerNames, grouped));
+    }
+
+    /**
+     * The coordinator's federating split (the design's {@code FederatingSchemaService}). Given a mix of local and
+     * {@code alias:foo} names, resolve the local part in-process through the singular {@link #resolveSchema} dispatch,
+     * resolve each remote alias's part by invoking {@code resolve_schema} on that remote via
+     * {@code getRemoteClusterClient(alias).execute(...)} — the recursion: a remote node running its own
+     * {@link SchemaService} umbrella against its own cluster state — then merge every kind's {@code Attribute}s into one
+     * list. {@code Attribute} is the merge currency; the remote returns only schema (and, for datasets, config), never
+     * its internal {@code IndexResolution} or expanded-view body.
+     *
+     * <p>This is additive: existing local resolution (datasets / indices / views via the in-process providers and the
+     * field-caps CCS path) is untouched. The federation kicks in only when a name carries a remote-cluster prefix.
+     *
+     * <p>POC scope. Cross-version protocol-compat (gating wire fields against the negotiated {@code TransportVersion}
+     * for old/new cluster pairs — the {@code #cps-project-team} "many protocol versions" problem) is a production
+     * follow-up and is not handled here; the wire form assumes both clusters speak the current {@code resolve_schema}.
+     */
+    public void resolveSchemaFederated(
+        SchemaContext ctx,
+        ProjectMetadata projectMetadata,
+        List<String> names,
+        ActionListener<List<ResolvedSchema>> listener
+    ) {
+        List<String> localNames = new ArrayList<>();
+        Map<String, List<String>> byRemote = new LinkedHashMap<>();
+        for (String name : names) {
+            if (RemoteClusterAware.isRemoteIndexName(name)) {
+                var split = RemoteClusterAware.splitIndexName(name);
+                byRemote.computeIfAbsent(split.clusterAlias(), k -> new ArrayList<>()).add(split.indexExpression());
+            } else {
+                localNames.add(name);
+            }
+        }
+        // No remote names → behaviour-identical to the in-process dispatch (the additive federation no-ops).
+        if (byRemote.isEmpty()) {
+            resolveSchema(ctx, projectMetadata, localNames, listener);
+            return;
+        }
+        int legs = byRemote.size() + (localNames.isEmpty() ? 0 : 1);
+        var grouped = new GroupedActionListener<List<ResolvedSchema>>(
+            legs,
+            listener.map(perLeg -> perLeg.stream().flatMap(List::stream).toList())
+        );
+        if (localNames.isEmpty() == false) {
+            resolveSchema(ctx, projectMetadata, localNames, grouped);
+        }
+        byRemote.forEach((alias, remoteNames) -> resolveRemoteSchema(alias, remoteNames, grouped));
+    }
+
+    /**
+     * Invoke {@code resolve_schema} on a single remote cluster. The remote runs its own {@link SchemaService} against
+     * its own cluster state (the recursion to the remote umbrella) and returns the resolved schemas as wire-serialized
+     * {@link ResolvedSchema.Remote}s; we re-qualify each name with the {@code alias:} prefix so merged attributes carry
+     * their origin, exactly as the analyzer's existing currency expects.
+     */
+    private void resolveRemoteSchema(String alias, List<String> remoteNames, ActionListener<List<ResolvedSchema>> listener) {
+        var remoteClient = remoteClusterService.getRemoteClusterClient(
+            alias,
+            executor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+        );
+        var request = new TransportResolveSchemaAction.Request(remoteNames.toArray(String[]::new));
+        remoteClient.execute(
+            TransportResolveSchemaAction.REMOTE_TYPE,
+            request,
+            new ThreadedActionListener<>(executor, listener.map(response -> {
+                List<ResolvedSchema> qualified = new ArrayList<>(response.schemas().size());
+                for (ResolvedSchema schema : response.schemas()) {
+                    ResolvedSchema.Remote remote = (ResolvedSchema.Remote) schema;
+                    qualified.add(
+                        new ResolvedSchema.Remote(alias + ":" + remote.name(), remote.kind(), remote.attributes(), remote.config())
+                    );
+                }
+                return qualified;
+            }))
+        );
     }
 
     // package-private for SchemaServiceTests
@@ -163,16 +249,22 @@ public final class SchemaService {
         ActionListener<Map<String, Map<String, Object>>> listener
     ) {
         SchemaContext ctx = null; // the dataset schema arm reads no SchemaContext fields
-        resolveSchema(ctx, projectMetadata, names, listener.map(resolved -> {
+        // Route through the federating split: it resolves local names in-process and any remote `alias:ds` names via the
+        // remote umbrella, merging the configs. This is the live in-session caller of the federation entry — closing the
+        // long-standing gap where the remotable resolve_schema action had no caller. For today's local-only dataset names
+        // it is behaviour-identical (the split no-ops to the in-process dispatch when there are no remote expressions);
+        // remote dataset *execution* (turning a remote config into an external read) is a production follow-up.
+        resolveSchemaFederated(ctx, projectMetadata, names, listener.map(resolved -> {
             Map<String, Map<String, Object>> configs = new LinkedHashMap<>();
             for (ResolvedSchema schema : resolved) {
-                if (schema instanceof ResolvedSchema.Dataset dataset) {
-                    configs.put(dataset.name(), dataset.config());
-                } else {
-                    throw new IllegalStateException(
+                Map<String, Object> config = switch (schema) {
+                    case ResolvedSchema.Dataset dataset -> dataset.config();
+                    case ResolvedSchema.Remote remote when remote.kind() == ResolvedSchema.Remote.Kind.DATASET -> remote.config();
+                    default -> throw new IllegalStateException(
                         "expected a dataset schema for [" + schema.name() + "] but got [" + schema.getClass().getSimpleName() + "]"
                     );
-                }
+                };
+                configs.put(schema.name(), config);
             }
             return configs;
         }));

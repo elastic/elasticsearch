@@ -74,6 +74,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
         @Param(
             name = "percentile",
             type = { "double", "integer", "long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "the percentile value to compute (between 0 and 100)"
         ) Expression percentile,
         Expression timestamp

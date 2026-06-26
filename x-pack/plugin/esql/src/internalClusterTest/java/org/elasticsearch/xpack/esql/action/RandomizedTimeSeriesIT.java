@@ -702,8 +702,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() throws IOException {
-        // List<Temporality> allowedTemporalities = randomNonEmptySubsetOf(Arrays.asList(Temporality.DELTA, Temporality.CUMULATIVE, null));
-        List<Temporality> allowedTemporalities = Arrays.asList(Temporality.DELTA, Temporality.CUMULATIVE, null);
+        List<Temporality> allowedTemporalities = randomNonEmptySubsetOf(Arrays.asList(Temporality.DELTA, Temporality.CUMULATIVE, null));
         dataGenerationHelper = new TSDataGenerationHelper(NUM_DOCS, TIME_RANGE_SECONDS, allowedTemporalities);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(dataGenerationHelper.mapping.raw());

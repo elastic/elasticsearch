@@ -14,6 +14,7 @@ import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -122,6 +123,10 @@ final class ParquetColumnDecoding {
         return switch (elementType) {
             case INTEGER -> readListIntColumn(cr, maxDef, rows, blockFactory);
             case LONG -> {
+                if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                    // TIME_MILLIS: physical INT32 widened to long (raw ms value, no unit conversion)
+                    yield readListInt32AsLongColumn(cr, maxDef, rows, blockFactory);
+                }
                 long multiplier = info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
                     ? timeNanoMultiplier(time)
                     : 1L;
@@ -197,6 +202,16 @@ final class ParquetColumnDecoding {
             Runnable appender = multiplier == 1
                 ? () -> builder.appendLong(cr.getLong())
                 : () -> builder.appendLong(cr.getLong() * multiplier);
+            for (int row = 0; row < rows; row++) {
+                readListRow(cr, maxDef, builder, appender);
+            }
+            return builder.build();
+        }
+    }
+
+    private static Block readListInt32AsLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+        try (var builder = blockFactory.newLongBlockBuilder(rows)) {
+            Runnable appender = () -> builder.appendLong(cr.getInteger());
             for (int row = 0; row < rows; row++) {
                 readListRow(cr, maxDef, builder, appender);
             }

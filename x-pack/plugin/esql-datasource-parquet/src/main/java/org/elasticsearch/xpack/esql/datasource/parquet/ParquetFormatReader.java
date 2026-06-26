@@ -1728,6 +1728,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     }
                 } else if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
+                } else if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
+                    // TIME_MILLIS: stored as INT32 but ESQL represents time values as LONG
+                    yield DataType.LONG;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
                 }
@@ -2170,6 +2173,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 case INTEGER -> readIntColumn(cr, info.maxDefLevel(), rowsToRead);
                 case LONG, UNSIGNED_LONG -> {
                     if (info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+                        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                            // TIME_MILLIS: physical INT32, widen to long (raw ms value, no unit conversion)
+                            yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead, true);
+                        }
                         yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, ParquetColumnDecoding.timeNanoMultiplier(time));
                     }
                     var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();

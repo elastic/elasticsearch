@@ -1191,13 +1191,13 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     // --- TIME logical type tests (PARQUET-6) ---
-    // Storage rule: TIME_MILLIS (INT32) → DataType.INTEGER, raw ms value in IntBlock (no conversion);
+    // Storage rule: TIME_MILLIS (INT32) → DataType.LONG, raw ms value in LongBlock (no conversion);
     // TIME_MICROS (INT64) → DataType.LONG, converted to nanoseconds (×1_000);
     // TIME_NANOS (INT64) → DataType.LONG, raw ns value in LongBlock (no conversion).
 
     public void testTimeMillisLogicalType() throws Exception {
         // 12:00:00 encoded as TIME_MILLIS (INT32): 43_200_000 ms since midnight.
-        // TIME_MILLIS stays INTEGER; raw ms value is stored as-is in an IntBlock.
+        // TIME_MILLIS maps to LONG; raw ms value is widened to long and stored as-is.
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT32)
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
@@ -1211,13 +1211,13 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
         SourceMetadata metadata = reader.metadata(so);
-        assertEquals("TIME_MILLIS should map to INTEGER", DataType.INTEGER, metadata.schema().get(0).dataType());
+        assertEquals("TIME_MILLIS should map to LONG", DataType.LONG, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            IntBlock block = (IntBlock) page.getBlock(0);
-            assertEquals("TIME_MILLIS: raw ms value stored as-is", rawMillis, block.getInt(0));
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals("TIME_MILLIS: raw ms value widened to long", (long) rawMillis, block.getLong(0));
             page.releaseBlocks();
         }
     }
@@ -1279,7 +1279,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     public void testTimeMillisNullableLogicalType() throws Exception {
         // Nullable TIME_MILLIS column: one null row, one value row.
-        // TIME_MILLIS stays INTEGER; the block is an IntBlock with the raw ms value.
+        // TIME_MILLIS maps to LONG; the block is a LongBlock with the raw ms value.
         MessageType schema = Types.buildMessage()
             .optional(PrimitiveType.PrimitiveTypeName.INT32)
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
@@ -1299,9 +1299,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            IntBlock block = (IntBlock) page.getBlock(0);
+            LongBlock block = (LongBlock) page.getBlock(0);
             assertTrue("first row should be null", block.isNull(0));
-            assertEquals("second row: raw ms value stored as-is", rawMillis, block.getInt(1));
+            assertEquals("second row: raw ms value widened to long", (long) rawMillis, block.getLong(1));
             page.releaseBlocks();
         }
     }

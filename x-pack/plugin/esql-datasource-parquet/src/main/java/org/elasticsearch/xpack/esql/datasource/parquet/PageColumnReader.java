@@ -154,6 +154,10 @@ final class PageColumnReader implements Releasable {
             case INTEGER -> readIntBatch(maxRows, blockFactory);
             case LONG, UNSIGNED_LONG -> {
                 if (info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+                    if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                        // TIME_MILLIS: physical INT32, widen to long (raw ms value, no unit conversion)
+                        yield readInt32AsLongBatch(maxRows, blockFactory, true);
+                    }
                     yield readLongBatch(maxRows, blockFactory, ParquetColumnDecoding.timeNanoMultiplier(time));
                 }
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {

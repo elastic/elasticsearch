@@ -1072,13 +1072,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * Resolves a parameter from an identifier-pattern segment to an {@link Expression}, enforcing
      * that it is not a bare constant or a defined-but-null value.
      * <p>
-     * Two sentinel outcomes are possible without throwing:
+     * Three outcomes are possible without throwing:
      * <ul>
      *   <li>{@link #MISSING_PARAMETER} — the parameter is missing; a "Unknown query parameter"
      *       parsing error has already been recorded by {@link #paramByNameOrPosition} and the
      *       caller should skip the segment.</li>
      *   <li>{@link UnresolvedAttribute} or {@link UnresolvedNamePattern} — the happy path;
      *       the caller uses the resolved name or pattern.</li>
+     *   <li>A regular null-literal for defined-but-null query params.
+     *       Allowing this is a bug, but fixing it would break e.g. {@code RENAME foo AS ?bar}
+     *       when {@code ?bar} is null.</li>
      * </ul>
      *
      * @param ctx          the single identifier-pattern segment that contains a {@code ?param} or {@code ??param}
@@ -1096,14 +1099,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     "Query parameter [{}] with value [{}] declared as a constant, cannot be used as an identifier or pattern",
                     paramDisplay,
                     lit
-                );
-            } else if (lit != MISSING_PARAMETER) {
-                // Defined-but-null param (e.g. from an empty list or explicit null): distinct from
-                // MISSING_PARAMETER, which already carries a parsing error from paramByNameOrPosition.
-                throw new ParsingException(
-                    src,
-                    "Query parameter [{}] is null or undefined, cannot be used as an identifier or pattern",
-                    paramDisplay
                 );
             }
         }

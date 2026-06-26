@@ -2610,8 +2610,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     /**
      * Null params in RENAME/KEEP/DROP/ENRICH identifier-pattern positions are silently skipped
-     * by {@code visitQualifiedNamePattern} (null falls through to an empty {@code patternContext}
-     * which is skipped by the loop), so no {@code ParsingException} is thrown at parse time.
+     * by {@code visitQualifiedNamePattern}, so no {@code ParsingException} is thrown at parse time.
+     * This is a bug, but we can't fix it without breaking some queries.
+     * <p>
      * Contrast with eval/stats/mv_expand which use {@code unresolvedAttributeNameInParam} and
      * do produce a parse-time error for null params.
      */

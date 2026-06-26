@@ -106,6 +106,18 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("field [field] cannot reconstruct _source from doc values"));
     }
 
+    public void testColumnarAllowsDocValuesEmptyMap() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        // The map form of doc_values (even empty) means "doc values enabled", so doc_values:{} resolves to enabled and
+        // the field is accepted in columnar rather than treated as disabled.
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("doc_values").endObject();
+        }));
+        assertTrue(mapperService.fieldType("field").hasDocValues());
+    }
+
     // -----------------------------------------------------------------------
     // Null-fallback: omitting one sub-parameter falls back to the field-type default
     // -----------------------------------------------------------------------

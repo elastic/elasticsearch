@@ -1,0 +1,6 @@
+area: Distributed
+issues:
+ - 152259
+pr: 152278
+summary: Fix an infinite BCC upload retry-loop during disrupted reshard
+type: bug

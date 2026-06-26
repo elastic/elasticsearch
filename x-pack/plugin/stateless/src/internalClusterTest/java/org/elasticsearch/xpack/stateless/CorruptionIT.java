@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless;
 
-
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 import org.apache.lucene.index.CorruptIndexException;

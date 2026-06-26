@@ -41,20 +41,42 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Compiles the deliberately small post-fetch pushdown fragment supported by remote fetch.
+ * Executes the deliberately small post-fetch pushdown fragment supported by remote fetch.
+ * <p>
+ * At runtime, this class translates the validated pushdown {@link FragmentExec} into a local operator pipeline and
+ * runs that pipeline against fetched pages on the target data node.
  * <p>
  * The source fragment's last output attribute is the synthetic position-mapping attribute. It corresponds to the final
- * {@link IntBlock} appended by this compiler and must remain the last output block after pushdown execution.
+ * {@link IntBlock} appended by this executor and must remain the last output block after pushdown execution.
  */
-final class RemoteFetchPushdownCompiler {
+final class RemoteFetchPushdownPlanExecutor {
     private final BigArrays bigArrays;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
 
-    private record CompiledPlan(Layout layout, NameId positionAttributeId) {}
+    private record PushdownPipeline(Layout layout, NameId positionAttributeId) {}
 
-    RemoteFetchPushdownCompiler(BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
+    RemoteFetchPushdownPlanExecutor(BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
         this.bigArrays = bigArrays;
         this.localBreakerSettings = localBreakerSettings;
+    }
+
+    List<Operator> buildOperators(
+        PhysicalPlan pushdownPlan,
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
+        FoldContext foldContext,
+        DriverContext driverContext
+    ) {
+        if (pushdownPlan == null) {
+            return List.of();
+        }
+        List<Operator.OperatorFactory> factories = new ArrayList<>();
+        PushdownPipeline pipeline = buildPipeline(pushdownPlan, factories, shardContexts, foldContext);
+        List<Operator> operators = new ArrayList<>(factories.size() + 1);
+        for (Operator.OperatorFactory factory : factories) {
+            operators.add(factory.get(driverContext));
+        }
+        appendPositionFinalizerIfNeeded(operators, pipeline, driverContext);
+        return operators;
     }
 
     List<Page> execute(
@@ -71,7 +93,7 @@ final class RemoteFetchPushdownCompiler {
         List<Operator.OperatorFactory> factories = new ArrayList<>();
         boolean success = false;
         try {
-            CompiledPlan compiledPlan = compile(pushdownPlan, factories, shardContexts, foldContext);
+            PushdownPipeline pipeline = buildPipeline(pushdownPlan, factories, shardContexts, foldContext);
             for (Operator.OperatorFactory factory : factories) {
                 List<Page> next = new ArrayList<>();
                 try (
@@ -96,7 +118,7 @@ final class RemoteFetchPushdownCompiler {
                 }
                 current = next;
             }
-            List<Page> reordered = movePositionColumnToEnd(current, compiledPlan);
+            List<Page> reordered = movePositionColumnToEnd(current, pipeline);
             if (reordered != current) {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(current.iterator(), page -> page::releaseBlocks)));
                 current = reordered;
@@ -133,12 +155,12 @@ final class RemoteFetchPushdownCompiler {
         return withPosition;
     }
 
-    private List<Page> movePositionColumnToEnd(List<Page> pages, CompiledPlan compiledPlan) {
-        NameId positionAttributeId = compiledPlan.positionAttributeId();
+    private List<Page> movePositionColumnToEnd(List<Page> pages, PushdownPipeline pipeline) {
+        NameId positionAttributeId = pipeline.positionAttributeId();
         if (positionAttributeId == null) {
             return pages;
         }
-        Layout.ChannelAndType position = compiledPlan.layout().get(positionAttributeId);
+        Layout.ChannelAndType position = pipeline.layout().get(positionAttributeId);
         if (position == null) {
             throw new IllegalStateException("remote fetch pushdown lost position-mapping attribute");
         }
@@ -178,56 +200,80 @@ final class RemoteFetchPushdownCompiler {
         }
     }
 
-    private CompiledPlan compile(
+    private PushdownPipeline buildPipeline(
         PhysicalPlan plan,
         List<Operator.OperatorFactory> factories,
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
         FoldContext foldContext
     ) {
         if (plan instanceof FragmentExec fragmentExec) {
-            return compileFragment(fragmentExec.fragment(), factories, shardContexts, foldContext);
+            return buildFragmentPipeline(fragmentExec.fragment(), factories, shardContexts, foldContext);
         }
         throw new IllegalStateException("unsupported remote fetch pushdown plan [" + plan.getClass().getSimpleName() + "]");
     }
 
-    private CompiledPlan compileFragment(
+    private void appendPositionFinalizerIfNeeded(List<Operator> operators, PushdownPipeline pipeline, DriverContext driverContext) {
+        NameId positionAttributeId = pipeline.positionAttributeId();
+        if (positionAttributeId == null) {
+            return;
+        }
+        Layout.ChannelAndType position = pipeline.layout().get(positionAttributeId);
+        if (position == null) {
+            throw new IllegalStateException("remote fetch pushdown lost position-mapping attribute");
+        }
+        int positionChannel = position.channel();
+        int totalChannels = pipeline.layout().numberOfChannels();
+        if (positionChannel == totalChannels - 1) {
+            return;
+        }
+        List<Integer> projection = new ArrayList<>(totalChannels);
+        for (int channel = 0; channel < totalChannels; channel++) {
+            if (channel != positionChannel) {
+                projection.add(channel);
+            }
+        }
+        projection.add(positionChannel);
+        operators.add(new ProjectOperatorFactory(projection).get(driverContext));
+    }
+
+    private PushdownPipeline buildFragmentPipeline(
         LogicalPlan plan,
         List<Operator.OperatorFactory> factories,
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
         FoldContext foldContext
     ) {
-        if (plan instanceof RemoteFetchSource sourceExec) {
+        if (plan instanceof RemoteFetchSource sourcePlan) {
             Layout.Builder builder = new Layout.Builder();
-            builder.append(sourceExec.output());
-            List<Attribute> output = sourceExec.output();
+            builder.append(sourcePlan.output());
+            List<Attribute> output = sourcePlan.output();
             NameId positionAttributeId = output.isEmpty() ? null : output.getLast().id();
-            return new CompiledPlan(builder.build(), positionAttributeId);
+            return new PushdownPipeline(builder.build(), positionAttributeId);
         }
-        if (plan instanceof Eval evalExec) {
-            CompiledPlan child = compileFragment(evalExec.child(), factories, shardContexts, foldContext);
+        if (plan instanceof Eval evalPlan) {
+            PushdownPipeline child = buildFragmentPipeline(evalPlan.child(), factories, shardContexts, foldContext);
             Layout childLayout = child.layout();
             Layout.Builder builder = childLayout.builder();
-            for (Alias field : evalExec.fields()) {
+            for (Alias field : evalPlan.fields()) {
                 factories.add(new EvalOperatorFactory(EvalMapper.toEvaluator(foldContext, field.child(), childLayout, shardContexts)));
                 builder.append(field.toAttribute());
             }
-            return new CompiledPlan(builder.build(), child.positionAttributeId());
+            return new PushdownPipeline(builder.build(), child.positionAttributeId());
         }
-        if (plan instanceof Filter filterExec) {
-            CompiledPlan child = compileFragment(filterExec.child(), factories, shardContexts, foldContext);
+        if (plan instanceof Filter filterPlan) {
+            PushdownPipeline child = buildFragmentPipeline(filterPlan.child(), factories, shardContexts, foldContext);
             Layout childLayout = child.layout();
             factories.add(
-                new FilterOperatorFactory(EvalMapper.toEvaluator(foldContext, filterExec.condition(), childLayout, shardContexts))
+                new FilterOperatorFactory(EvalMapper.toEvaluator(foldContext, filterPlan.condition(), childLayout, shardContexts))
             );
             return child;
         }
-        if (plan instanceof Project projectExec) {
-            CompiledPlan child = compileFragment(projectExec.child(), factories, shardContexts, foldContext);
+        if (plan instanceof Project projectPlan) {
+            PushdownPipeline child = buildFragmentPipeline(projectPlan.child(), factories, shardContexts, foldContext);
             Layout childLayout = child.layout();
-            List<Integer> projectionList = new ArrayList<>(projectExec.projections().size() + 1);
+            List<Integer> projectionList = new ArrayList<>(projectPlan.projections().size() + 1);
             Layout.Builder builder = new Layout.Builder();
-            for (NamedExpression projection : projectExec.projections()) {
-                NameId inputId = projectInputId(projection);
+            for (NamedExpression projection : projectPlan.projections()) {
+                NameId inputId = projectionInputId(projection);
                 if (inputId.equals(child.positionAttributeId())) {
                     continue;
                 }
@@ -247,12 +293,12 @@ final class RemoteFetchPushdownCompiler {
                 builder.append(childLayout.inverse().get(positionInput.channel()));
             }
             factories.add(new ProjectOperatorFactory(projectionList));
-            return new CompiledPlan(builder.build(), child.positionAttributeId());
+            return new PushdownPipeline(builder.build(), child.positionAttributeId());
         }
         throw new IllegalStateException("unsupported remote fetch pushdown plan [" + plan.getClass().getSimpleName() + "]");
     }
 
-    private NameId projectInputId(NamedExpression projection) {
+    private NameId projectionInputId(NamedExpression projection) {
         if (projection instanceof Alias alias) {
             if (alias.child() instanceof NamedExpression child) {
                 return child.id();

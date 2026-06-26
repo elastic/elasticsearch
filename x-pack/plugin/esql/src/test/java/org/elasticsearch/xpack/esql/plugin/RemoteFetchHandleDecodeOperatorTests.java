@@ -1,0 +1,118 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.plugin;
+
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public class RemoteFetchHandleDecodeOperatorTests extends ESTestCase {
+
+    public void testDecodeHandlesBuildsDocBlock() {
+        Page input = null;
+        Page output = null;
+        try (
+            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)
+        ) {
+            input = handlesPage(
+                List.of(new RemoteFetchHandle("node-1", "session-1", 3, 7, 11), new RemoteFetchHandle("node-1", "session-1", 5, 13, 17))
+            );
+            operator.addInput(input);
+            input = null;
+
+            output = operator.getOutput();
+            assertThat(output.getBlockCount(), equalTo(1));
+            assertThat(output.getPositionCount(), equalTo(2));
+
+            DocBlock docBlock = output.getBlock(0);
+            assertThat(docBlock.asVector().shards().getInt(0), equalTo(3));
+            assertThat(docBlock.asVector().segments().getInt(0), equalTo(7));
+            assertThat(docBlock.asVector().docs().getInt(0), equalTo(11));
+            assertThat(docBlock.asVector().shards().getInt(1), equalTo(5));
+            assertThat(docBlock.asVector().segments().getInt(1), equalTo(13));
+            assertThat(docBlock.asVector().docs().getInt(1), equalTo(17));
+        } finally {
+            if (input != null) {
+                input.releaseBlocks();
+            }
+            if (output != null) {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testDecodeHandlesWithPositionMappingAddsTrailingPositionColumn() {
+        Page input = null;
+        Page output = null;
+        try (
+            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), true)
+        ) {
+            input = handlesPage(
+                List.of(new RemoteFetchHandle("node-1", "session-1", 3, 7, 11), new RemoteFetchHandle("node-1", "session-1", 5, 13, 17))
+            );
+            operator.addInput(input);
+            input = null;
+
+            output = operator.getOutput();
+            assertThat(output.getBlockCount(), equalTo(2));
+            assertThat(output.getPositionCount(), equalTo(2));
+
+            IntBlock positionBlock = output.getBlock(1);
+            assertThat(positionBlock.getInt(positionBlock.getFirstValueIndex(0)), equalTo(0));
+            assertThat(positionBlock.getInt(positionBlock.getFirstValueIndex(1)), equalTo(1));
+        } finally {
+            if (input != null) {
+                input.releaseBlocks();
+            }
+            if (output != null) {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testRejectsMixedTargetSessions() {
+        Page input = null;
+        try (
+            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)
+        ) {
+            input = handlesPage(
+                List.of(new RemoteFetchHandle("node-1", "session-1", 3, 7, 11), new RemoteFetchHandle("node-2", "session-2", 5, 13, 17))
+            );
+            operator.addInput(input);
+            input = null;
+
+            IllegalStateException e = expectThrows(IllegalStateException.class, operator::getOutput);
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "remote fetch batch must contain handles from a single target session but saw [node-1/session-1] and [node-2/session-2]"
+                )
+            );
+        } finally {
+            if (input != null) {
+                input.releaseBlocks();
+            }
+        }
+    }
+
+    private static Page handlesPage(List<RemoteFetchHandle> handles) {
+        try (BytesRefBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(handles.size())) {
+            for (RemoteFetchHandle handle : handles) {
+                builder.appendBytesRef(handle.toBytesRef());
+            }
+            return new Page(builder.build());
+        }
+    }
+}

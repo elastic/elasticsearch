@@ -18,7 +18,7 @@ import java.util.Objects;
  * {@link ElasticInferenceServiceSettings#ELASTIC_INFERENCE_SERVICE_URL} setting.
  */
 public class CCMInformedSettings extends ElasticInferenceServiceSettings {
-    static final String DEFAULT_CCM_URL = "https://inference.us-east-1.aws.svc.elastic.cloud";
+    static final String DEFAULT_CCM_URL = "https://inference.svc.elastic.cloud";
 
     private final CCMFeature ccmFeature;
 

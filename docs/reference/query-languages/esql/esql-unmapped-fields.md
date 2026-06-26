@@ -48,7 +48,7 @@ Reading the real values of an unmapped field with `LOAD` is newer than the other
 
 `LOAD` does not support every command, function, and field type. For the current restrictions, refer to the [`SET unmapped_fields`](commands/set.md#esql-unmapped_fields) reference.
 
-One restriction worth planning around is performance: reading from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is slower than querying a mapped field, because the values aren't stored in a data structure optimized for fast access. The trade-off is that the data is available in seconds instead of after a full reindex.
+One restriction worth planning around is performance: reading from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is slower than querying a mapped field, because the values aren't stored in a data structure optimized for fast access. The trade-off is that the data is available immediately without a full reindex.
 
 ## Unmapped fields and runtime fields [esql-unmapped-fields-vs-runtime-fields]
 

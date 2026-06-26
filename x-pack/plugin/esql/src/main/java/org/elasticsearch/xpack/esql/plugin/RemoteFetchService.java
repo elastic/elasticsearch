@@ -39,6 +39,8 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
@@ -57,6 +59,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -68,6 +71,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * Internal transport service that fetches field values for coordinator-selected rows from the owning data node.
@@ -167,6 +171,12 @@ public final class RemoteFetchService {
         return transportService.getThreadPool().getThreadContext();
     }
 
+    /**
+     * Creates a batch exchange client without automatic retained-session release.
+     * <p>
+     * Callers that use this overload are responsible for releasing remote retained search contexts themselves
+     * (e.g. via {@link #releaseAsync}); otherwise the contexts will leak until they expire.
+     */
     public Client newBatchExchangeClient(CancellableTask parentTask) {
         return newBatchExchangeClient(parentTask, RetainedSessionReleaser.NOOP);
     }
@@ -571,7 +581,22 @@ public final class RemoteFetchService {
                 clusterService.getSettings()
             );
             releasable = Releasables.wrap(server, lease, localBreaker);
-            List<Operator> intermediate = buildDataNodeOperators(request, shardContexts, settings, driverContext);
+            List<Operator> intermediate;
+            try {
+                intermediate = buildDataNodeOperators(request, shardContexts, settings, driverContext);
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                    "remote fetch exchange setup failed while building data-node operators for session ["
+                        + request.retainedSessionId()
+                        + "]",
+                    e
+                );
+            }
+            logger.debug(
+                "starting remote fetch exchange setup [{}] with operator chain [{}]",
+                request.retainedSessionId(),
+                describeOperatorChain(intermediate)
+            );
             server.startWithOperators(
                 driverContext,
                 transportService.getThreadPool().getThreadContext(),
@@ -604,7 +629,7 @@ public final class RemoteFetchService {
         List<Operator> operators = new ArrayList<>();
         operators.add(new RemoteFetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping));
 
-        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = RemoteFieldLoader.buildFieldInfos(
+        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = buildFieldInfos(
             request.fields(),
             shardContexts,
             settings
@@ -629,15 +654,55 @@ public final class RemoteFetchService {
             ).get(driverContext)
         );
         operators.add(new ProjectOperatorFactory(fetchedFieldsProjection(fieldInfos.size(), includePositionMapping)).get(driverContext));
-        operators.addAll(
-            pushdownPlanExecutor.buildOperators(
-                request.pushdownPlan(),
-                shardContexts,
-                request.configuration().newFoldContext(),
-                driverContext
-            )
-        );
+        try {
+            operators.addAll(
+                pushdownPlanExecutor.buildOperators(
+                    request.pushdownPlan(),
+                    shardContexts,
+                    request.configuration().newFoldContext(),
+                    driverContext
+                )
+            );
+        } catch (Exception e) {
+            String planName = request.pushdownPlan() == null ? "none" : request.pushdownPlan().getClass().getSimpleName();
+            throw new IllegalStateException("failed to build remote fetch pushdown operators for plan [" + planName + "]", e);
+        }
         return operators;
+    }
+
+    private static List<ValuesSourceReaderOperator.FieldInfo> buildFieldInfos(
+        List<FetchField> fields,
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
+        PlannerSettings plannerSettings
+    ) {
+        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(fields.size());
+        for (FetchField field : fields) {
+            fieldInfos.add(
+                new ValuesSourceReaderOperator.FieldInfo(
+                    field.fieldName(),
+                    PlannerUtils.toElementType(field.dataType()),
+                    false,
+                    (warningsMode, shardIdx) -> {
+                        BlockLoader loader = shardContexts.get(shardIdx)
+                            .blockLoader(
+                                field.fieldName(),
+                                field.dataType() == DataType.UNSUPPORTED,
+                                MappedFieldType.FieldExtractPreference.NONE,
+                                null,
+                                null,
+                                plannerSettings.blockLoaderSizeOrdinals(),
+                                plannerSettings.blockLoaderSizeScript()
+                            );
+                        return ValuesSourceReaderOperator.load(loader);
+                    }
+                )
+            );
+        }
+        return fieldInfos;
+    }
+
+    private static String describeOperatorChain(List<Operator> operators) {
+        return operators.stream().map(op -> op.getClass().getSimpleName()).collect(Collectors.joining(" -> "));
     }
 
     private List<Integer> fetchedFieldsProjection(int fieldCount, boolean includePositionMapping) {
@@ -761,11 +826,10 @@ public final class RemoteFetchService {
             if (this.fields.isEmpty()) {
                 throw new IllegalArgumentException("remote fetch requires at least one request field");
             }
-            RemoteFetchPushdownPlanValidator.validate(pushdownPlan);
-            this.pushdownPlan = pushdownPlan;
-            this.configuration = Objects.requireNonNull(configuration);
-            this.clientToServerId = Objects.requireNonNull(clientToServerId);
-            this.serverToClientId = Objects.requireNonNull(serverToClientId);
+            this.pushdownPlan = validatePushdownPlan(pushdownPlan, "request_build");
+            this.configuration = Objects.requireNonNull(configuration, "configuration");
+            this.clientToServerId = requireNonBlank(clientToServerId, "clientToServerId");
+            this.serverToClientId = requireNonBlank(serverToClientId, "serverToClientId");
         }
 
         ExchangeSetupRequest(StreamInput in) throws IOException {
@@ -777,10 +841,9 @@ public final class RemoteFetchService {
             }
             this.configuration = readConfiguration(in);
             PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration);
-            this.pushdownPlan = pin.readOptionalNamedWriteable(PhysicalPlan.class);
-            RemoteFetchPushdownPlanValidator.validate(pushdownPlan);
-            this.clientToServerId = in.readString();
-            this.serverToClientId = in.readString();
+            this.pushdownPlan = validatePushdownPlan(pin.readOptionalNamedWriteable(PhysicalPlan.class), "request_deserialize");
+            this.clientToServerId = requireNonBlank(in.readString(), "clientToServerId");
+            this.serverToClientId = requireNonBlank(in.readString(), "serverToClientId");
         }
 
         String retainedSessionId() {
@@ -814,7 +877,9 @@ public final class RemoteFetchService {
             out.writeCollection(fields);
             Configuration serializedConfiguration = configuration.withoutTables();
             serializedConfiguration.writeTo(out);
-            new PlanStreamOutput(out, serializedConfiguration).writeOptionalNamedWriteable(pushdownPlan);
+            new PlanStreamOutput(out, serializedConfiguration).writeOptionalNamedWriteable(
+                validatePushdownPlan(pushdownPlan, "request_serialize")
+            );
             out.writeString(clientToServerId);
             out.writeString(serverToClientId);
         }
@@ -831,6 +896,22 @@ public final class RemoteFetchService {
                     return "remote fetch exchange setup [" + retainedSessionId + "]";
                 }
             };
+        }
+
+        private static String requireNonBlank(String value, String fieldName) {
+            if (value == null || value.isBlank()) {
+                throw new IllegalArgumentException("remote fetch exchange setup requires a non-empty [" + fieldName + "]");
+            }
+            return value;
+        }
+
+        private static PhysicalPlan validatePushdownPlan(PhysicalPlan pushdownPlan, String phase) {
+            try {
+                RemoteFetchPushdownPlanValidator.validate(pushdownPlan);
+                return pushdownPlan;
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("remote fetch pushdown plan is invalid during [" + phase + "]: " + e.getMessage(), e);
+            }
         }
     }
 

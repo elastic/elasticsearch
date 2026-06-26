@@ -391,6 +391,12 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             finalResolvedSettings.putList(INDEX_ROUTING_PATH.getKey(), List.of("path"));
         }
 
+        if (IndexSettings.SLICE_ENABLED.get(indexTemplateAndCreateRequestSettings)) {
+            // SLICE_VALIDATED is a private index setting just attempting to ensure x-pack is loaded supply it here to bypass spurious
+            // warn logging
+            finalResolvedSettings.put(IndexSettings.SLICE_VALIDATED.getKey(), true);
+        }
+
         tmpIndexMetadata.settings(finalResolvedSettings);
         return tmpIndexMetadata.build();
     }

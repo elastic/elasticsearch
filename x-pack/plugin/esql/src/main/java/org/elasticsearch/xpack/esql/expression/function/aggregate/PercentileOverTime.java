@@ -48,6 +48,8 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
         )
         .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.")
         .example("quantile_over_time(0.5, http_requests_total[1h])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.QUANTILE_NOTE)
         .name("quantile_over_time");
 
     private final Expression timestamp;
@@ -72,6 +74,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
         @Param(
             name = "percentile",
             type = { "double", "integer", "long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "the percentile value to compute (between 0 and 100)"
         ) Expression percentile,
         Expression timestamp

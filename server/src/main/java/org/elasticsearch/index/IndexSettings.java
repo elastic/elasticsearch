@@ -637,8 +637,6 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
-    public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
-
     /** Feature flag gating the ES95 pipeline-based TSDB doc values codec. */
     public static final FeatureFlag ES95_CODEC_FEATURE_FLAG = new FeatureFlag("es95_codec");
 

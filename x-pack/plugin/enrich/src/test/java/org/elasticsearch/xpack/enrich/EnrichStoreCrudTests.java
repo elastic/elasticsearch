@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -175,13 +176,13 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         // With a limit of one, the first policy can be stored.
         EnrichPolicy policy1 = randomEnrichPolicy(XContentType.JSON);
         createSourceIndices(policy1);
-        AtomicReference<Exception> error = putPolicyWithLimit("policy-1", policy1, 1, clusterService, resolver);
+        AtomicReference<Exception> error = putPolicyWithLimits("policy-1", policy1, 1, ByteSizeValue.ofGb(1), clusterService, resolver);
         assertThat(error.get(), nullValue());
 
         // A second policy is rejected because the limit has already been reached.
         EnrichPolicy policy2 = randomEnrichPolicy(XContentType.JSON);
         createSourceIndices(policy2);
-        error = putPolicyWithLimit("policy-2", policy2, 1, clusterService, resolver);
+        error = putPolicyWithLimits("policy-2", policy2, 1, ByteSizeValue.ofGb(1), clusterService, resolver);
         assertThat(error.get(), instanceOf(IllegalArgumentException.class));
         assertThat(error.get().getMessage(), containsString("maximum number of enrich policies [1]"));
         assertThat(error.get().getMessage(), containsString("enrich.max_policies"));
@@ -189,16 +190,45 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         deleteEnrichPolicy("policy-1", clusterService);
     }
 
-    private AtomicReference<Exception> putPolicyWithLimit(
+    public void testMaxTotalMetadataSize() throws Exception {
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+
+        EnrichPolicy policy1 = randomEnrichPolicy(XContentType.JSON);
+        createSourceIndices(policy1);
+        // A generous count limit but a tiny total-size budget: the first policy fits, the second pushes the aggregate over the budget.
+        long firstPolicySize = policy1.serializedSizeInBytes();
+        AtomicReference<Exception> error = putPolicyWithLimits(
+            "policy-1",
+            policy1,
+            1000,
+            ByteSizeValue.ofBytes(firstPolicySize + 10),
+            clusterService,
+            resolver
+        );
+        assertThat(error.get(), nullValue());
+
+        EnrichPolicy policy2 = randomEnrichPolicy(XContentType.JSON);
+        createSourceIndices(policy2);
+        error = putPolicyWithLimits("policy-2", policy2, 1000, ByteSizeValue.ofBytes(firstPolicySize + 10), clusterService, resolver);
+        assertThat(error.get(), instanceOf(IllegalArgumentException.class));
+        assertThat(error.get().getMessage(), containsString("total size of all enrich policies"));
+        assertThat(error.get().getMessage(), containsString("enrich.max_total_metadata_size"));
+
+        deleteEnrichPolicy("policy-1", clusterService);
+    }
+
+    private AtomicReference<Exception> putPolicyWithLimits(
         String name,
         EnrichPolicy policy,
         int maxPolicies,
+        ByteSizeValue maxTotalSize,
         ClusterService clusterService,
         IndexNameExpressionResolver resolver
     ) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.putPolicy(projectId, name, policy, maxPolicies, clusterService, resolver, e -> {
+        EnrichStore.putPolicy(projectId, name, policy, maxPolicies, maxTotalSize, clusterService, resolver, e -> {
             error.set(e);
             latch.countDown();
         });

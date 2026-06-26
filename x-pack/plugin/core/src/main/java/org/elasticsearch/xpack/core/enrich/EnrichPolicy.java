@@ -201,14 +201,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                 );
             }
         }
-        // Measure the serialized size without materializing it, so that an oversized policy cannot itself cause a large allocation here.
-        final long policySize;
-        try (CountingStreamOutput out = new CountingStreamOutput()) {
-            writeTo(out);
-            policySize = out.position();
-        } catch (IOException e) {
-            throw new IllegalStateException("unable to compute the size of enrich policy", e);
-        }
+        final long policySize = serializedSizeInBytes();
         if (policySize > maxPolicySize.getBytes()) {
             throw new IllegalArgumentException(
                 "the enrich policy ["
@@ -217,6 +210,20 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                     + maxPolicySize
                     + "]; this limit is controlled by the [enrich.max_policy_size] setting"
             );
+        }
+    }
+
+    /**
+     * Returns the number of bytes this policy occupies when serialized. The size is measured without materializing the serialized form,
+     * so that even an oversized policy does not cause a large allocation here. Used to bound both a single policy and the aggregate size
+     * of all stored policies.
+     */
+    public long serializedSizeInBytes() {
+        try (CountingStreamOutput out = new CountingStreamOutput()) {
+            writeTo(out);
+            return out.position();
+        } catch (IOException e) {
+            throw new IllegalStateException("unable to compute the size of enrich policy", e);
         }
     }
 

@@ -133,6 +133,7 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
             request.getName(),
             request.getPolicy(),
             clusterSettings.get(EnrichPlugin.ENRICH_MAX_POLICIES),
+            clusterSettings.get(EnrichPlugin.ENRICH_MAX_TOTAL_METADATA_SIZE),
             clusterService,
             indexNameExpressionResolver,
             e -> {

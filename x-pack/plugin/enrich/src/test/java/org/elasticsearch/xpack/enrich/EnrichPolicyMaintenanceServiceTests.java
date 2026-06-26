@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
@@ -166,6 +167,7 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
                 policyName,
                 policy,
                 Integer.MAX_VALUE,
+                ByteSizeValue.ofGb(1),
                 clusterService,
                 resolver,
                 exceptionConsumer

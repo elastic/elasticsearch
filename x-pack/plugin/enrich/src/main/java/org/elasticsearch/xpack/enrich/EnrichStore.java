@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -43,18 +44,21 @@ public final class EnrichStore {
      * this method throws an {@link IllegalArgumentException}.
      * This method can only be invoked on the elected master node.
      *
-     * @param projectId   The project ID
-     * @param name        The unique name of the policy
-     * @param policy      The policy to store
-     * @param maxPolicies The maximum number of policies that may exist; storing the new policy is rejected once this many already exist.
-     *                    This is only enforced when creating a new policy, so existing policies above the limit are left untouched.
-     * @param handler     The handler that gets invoked if policy has been stored or a failure has occurred.
+     * @param projectId       The project ID
+     * @param name            The unique name of the policy
+     * @param policy          The policy to store
+     * @param maxPolicies     The maximum number of policies that may exist; storing the new policy is rejected once this many already
+     *                        exist. Only enforced when creating a new policy, so existing policies above the limit are left untouched.
+     * @param maxTotalSize    The maximum combined serialized size of all policies; storing the new policy is rejected when adding it would
+     *                        exceed this. Only enforced when creating a new policy, so existing policies above the limit are left untouched.
+     * @param handler         The handler that gets invoked if policy has been stored or a failure has occurred.
      */
     public static void putPolicy(
         final ProjectId projectId,
         final String name,
         final EnrichPolicy policy,
         final int maxPolicies,
+        final ByteSizeValue maxTotalSize,
         final ClusterService clusterService,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Consumer<Exception> handler
@@ -98,6 +102,24 @@ public final class EnrichStore {
                         + "] because the maximum number of enrich policies ["
                         + maxPolicies
                         + "] would be exceeded; this limit is controlled by the [enrich.max_policies] setting"
+                );
+            }
+            // Per-policy and per-count limits do not bound the aggregate, so also cap the combined size of all policies. This is the
+            // quantity that actually determines how much heap the enrich metadata occupies in the cluster state.
+            long existingSize = 0;
+            for (EnrichPolicy existing : originalPolicies.values()) {
+                existingSize += existing.serializedSizeInBytes();
+            }
+            long totalSize = existingSize + policy.serializedSizeInBytes();
+            if (totalSize > maxTotalSize.getBytes()) {
+                throw new IllegalArgumentException(
+                    "could not store policy ["
+                        + name
+                        + "] because the total size of all enrich policies ["
+                        + ByteSizeValue.ofBytes(totalSize)
+                        + "] would exceed the maximum allowed size of ["
+                        + maxTotalSize
+                        + "]; this limit is controlled by the [enrich.max_total_metadata_size] setting"
                 );
             }
             for (String indexExpression : policy.getIndices()) {

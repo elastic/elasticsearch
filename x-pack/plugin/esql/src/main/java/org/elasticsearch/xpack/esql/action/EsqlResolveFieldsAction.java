@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -78,27 +80,33 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
-        // During CCS, resolveViews is only set on a request from the originating cluster and is therefore only true on a remote cluster
-        if (request.indicesOptions().indexAbstractionOptions().resolveViews()) {
-            Set<String> viewsLocalToRemoteCluster = getViews(
-                request.indices(),
-                request.indicesOptions(),
-                request.getResolvedIndexExpressions()
-            );
-            if (viewsLocalToRemoteCluster.isEmpty() == false) {
-                listener.onFailure(remoteViewDetectedException(request.clusterAlias(), viewsLocalToRemoteCluster));
-                return;
+        // resolveViews / resolveDatasets are only set on a request from the originating cluster, so this detection runs
+        // only on a remote cluster. Views and datasets are both non-remotable abstractions; detect both here and report
+        // them together, so a single remote that hosts both fails with one exception naming both rather than just the
+        // first kind checked.
+        var abstractionOptions = request.indicesOptions().indexAbstractionOptions();
+        List<String> remoteViews = abstractionOptions.resolveViews()
+            ? qualify(request.clusterAlias(), getViews(request.indices(), request.indicesOptions(), request.getResolvedIndexExpressions()))
+            : List.of();
+        List<String> remoteDatasets = abstractionOptions.resolveDatasets()
+            ? qualify(request.clusterAlias(), getDatasets(request.indices(), request.indicesOptions()))
+            : List.of();
+        boolean hasRemoteViews = remoteViews.isEmpty() == false;
+        boolean hasRemoteDatasets = remoteDatasets.isEmpty() == false;
+        if (hasRemoteViews || hasRemoteDatasets) {
+            // A coordinator that asked for datasets (resolveDatasets) also understands the combined exception; an older,
+            // views-only coordinator only knows RemoteViewNotSupportedException, so a single-kind failure keeps using the
+            // per-kind exception it can deserialize.
+            ElasticsearchException failure;
+            if (hasRemoteViews && hasRemoteDatasets) {
+                failure = new RemoteResourceNotSupportedException(remoteViews, remoteDatasets);
+            } else if (hasRemoteViews) {
+                failure = new RemoteViewNotSupportedException(remoteViews);
+            } else {
+                failure = new RemoteDatasetNotSupportedException(remoteDatasets);
             }
-        }
-
-        // During CCS/CPS, resolveDatasets is only set on a request from the originating cluster and is therefore only true on a
-        // remote cluster. Datasets ride the same remote-detect rail as views.
-        if (request.indicesOptions().indexAbstractionOptions().resolveDatasets()) {
-            Set<String> datasetsLocalToRemoteCluster = getDatasets(request.indices(), request.indicesOptions());
-            if (datasetsLocalToRemoteCluster.isEmpty() == false) {
-                listener.onFailure(remoteDatasetDetectedException(request.clusterAlias(), datasetsLocalToRemoteCluster));
-                return;
-            }
+            listener.onFailure(failure);
+            return;
         }
 
         fieldCapsAction.executeRequest(task, request, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
@@ -150,9 +158,11 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         return Arrays.stream(result.views()).map(View::getName).collect(Collectors.toSet());
     }
 
-    private RemoteViewNotSupportedException remoteViewDetectedException(String clusterAlias, Set<String> detectedViews) {
-        List<String> qualifiedViews = detectedViews.stream().sorted().map(v -> clusterAlias + ":" + v).toList();
-        return new RemoteViewNotSupportedException(qualifiedViews);
+    /**
+     * Qualify each local abstraction name with the remote cluster alias (sorted for a stable error message).
+     */
+    private static List<String> qualify(String clusterAlias, Set<String> names) {
+        return names.stream().sorted().map(name -> clusterAlias + ":" + name).toList();
     }
 
     private Set<String> getDatasets(String[] indices, IndicesOptions indicesOptions) {
@@ -169,10 +179,5 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                 return indicesOptions;
             }
         }));
-    }
-
-    private RemoteDatasetNotSupportedException remoteDatasetDetectedException(String clusterAlias, Set<String> detectedDatasets) {
-        List<String> qualifiedDatasets = detectedDatasets.stream().sorted().map(d -> clusterAlias + ":" + d).toList();
-        return new RemoteDatasetNotSupportedException(qualifiedDatasets);
     }
 }

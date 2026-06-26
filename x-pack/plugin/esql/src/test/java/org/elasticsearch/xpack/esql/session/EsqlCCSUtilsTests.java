@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -598,19 +599,19 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
     }
 
-    public void testCheckForViewErrors() {
+    public void testCheckForRemoteResourceErrorsWithViews() {
         {
             var viewEx = new RemoteViewNotSupportedException(List.of("r1:v"));
             var wrapped = new RemoteTransportException("test failure", viewEx);
             List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
             var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
             expectThrows(
-                RemoteViewNotSupportedException.class,
+                RemoteResourceNotSupportedException.class,
                 containsString(
                     "ES|QL queries with remote views are not supported. Matched [r1:v]."
                         + " Remove them from the query pattern or exclude them with [r1:-v] if matched by a wildcard."
                 ),
-                () -> EsqlCCSUtils.checkForViewErrors(grouped)
+                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
             );
         }
         {
@@ -623,9 +624,9 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, wrapped2)
             );
             var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            RemoteViewNotSupportedException ex = expectThrows(
-                RemoteViewNotSupportedException.class,
-                () -> EsqlCCSUtils.checkForViewErrors(grouped)
+            RemoteResourceNotSupportedException ex = expectThrows(
+                RemoteResourceNotSupportedException.class,
+                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
             );
             assertThat(ex.getMessage(), containsString("ES|QL queries with remote views are not supported."));
             assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v1", "r2:v2"));
@@ -635,26 +636,26 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RuntimeException("some other error"))
             );
             var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            EsqlCCSUtils.checkForViewErrors(grouped);
+            EsqlCCSUtils.checkForRemoteResourceErrors(grouped);
         }
         {
-            EsqlCCSUtils.checkForViewErrors(Map.of());
+            EsqlCCSUtils.checkForRemoteResourceErrors(Map.of());
         }
     }
 
-    public void testCheckForDatasetErrors() {
+    public void testCheckForRemoteResourceErrorsWithDatasets() {
         {
             var datasetEx = new RemoteDatasetNotSupportedException(List.of("r1:d"));
             var wrapped = new RemoteTransportException("test failure", datasetEx);
             List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
             var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
             expectThrows(
-                RemoteDatasetNotSupportedException.class,
+                RemoteResourceNotSupportedException.class,
                 containsString(
                     "ES|QL queries with remote datasets are not supported. Matched [r1:d]."
                         + " Remove them from the query pattern or exclude them with [r1:-d] if matched by a wildcard."
                 ),
-                () -> EsqlCCSUtils.checkForDatasetErrors(grouped)
+                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
             );
         }
         {
@@ -667,9 +668,9 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, wrapped2)
             );
             var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            RemoteDatasetNotSupportedException ex = expectThrows(
-                RemoteDatasetNotSupportedException.class,
-                () -> EsqlCCSUtils.checkForDatasetErrors(grouped)
+            RemoteResourceNotSupportedException ex = expectThrows(
+                RemoteResourceNotSupportedException.class,
+                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
             );
             assertThat(ex.getMessage(), containsString("ES|QL queries with remote datasets are not supported."));
             assertThat(ex.getMetadata("es.esql.dataset.names"), containsInAnyOrder("r1:d1", "r2:d2"));
@@ -679,11 +680,52 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RuntimeException("some other error"))
             );
             var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            EsqlCCSUtils.checkForDatasetErrors(grouped);
+            EsqlCCSUtils.checkForRemoteResourceErrors(grouped);
         }
         {
-            EsqlCCSUtils.checkForDatasetErrors(Map.of());
+            EsqlCCSUtils.checkForRemoteResourceErrors(Map.of());
         }
+    }
+
+    public void testCheckForRemoteResourceErrorsReportsViewsAndDatasetsTogether() {
+        // A query that matches a remote view on one cluster and a remote dataset on another must surface BOTH in a
+        // single response rather than whichever kind was checked first.
+        var viewEx = new RemoteViewNotSupportedException(List.of("r1:v"));
+        var datasetEx = new RemoteDatasetNotSupportedException(List.of("r2:d"));
+        List<FieldCapabilitiesFailure> failures = List.of(
+            new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RemoteTransportException("test failure", viewEx)),
+            new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, new RemoteTransportException("test failure", datasetEx))
+        );
+        var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+        RemoteResourceNotSupportedException ex = expectThrows(
+            RemoteResourceNotSupportedException.class,
+            () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "ES|QL queries with remote views and datasets are not supported. Matched views [r1:v], datasets [r2:d]."
+                    + " Remove them from the query pattern or exclude them with [r1:-v,r2:-d] if matched by a wildcard."
+            )
+        );
+        assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v"));
+        assertThat(ex.getMetadata("es.esql.dataset.names"), containsInAnyOrder("r2:d"));
+    }
+
+    public void testCheckForRemoteResourceErrorsCollectsFromAnAlreadyCombinedRemote() {
+        // A single remote that hosts both kinds combines them into RemoteResourceNotSupportedException before it reaches
+        // the coordinator; the coordinator must collect both kinds from that combined shape, not just the per-kind ones.
+        var combined = new RemoteResourceNotSupportedException(List.of("r1:v"), List.of("r1:d"));
+        List<FieldCapabilitiesFailure> failures = List.of(
+            new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RemoteTransportException("test failure", combined))
+        );
+        var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+        RemoteResourceNotSupportedException ex = expectThrows(
+            RemoteResourceNotSupportedException.class,
+            () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+        );
+        assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v"));
+        assertThat(ex.getMetadata("es.esql.dataset.names"), containsInAnyOrder("r1:d"));
     }
 
     public void testUpdateExecutionInfoAtEndOfPlanning() {

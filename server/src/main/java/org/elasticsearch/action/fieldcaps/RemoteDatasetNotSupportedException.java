@@ -17,7 +17,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Thrown when ES|QL detects datasets during cross-cluster search field resolution.
@@ -38,12 +37,10 @@ public class RemoteDatasetNotSupportedException extends ElasticsearchException {
     }
 
     /**
-     * Merge two exceptions into one that reports all matched datasets.
+     * The qualified names of the remote datasets that triggered this exception.
      */
-    public static RemoteDatasetNotSupportedException merge(RemoteDatasetNotSupportedException a, RemoteDatasetNotSupportedException b) {
-        return new RemoteDatasetNotSupportedException(
-            Stream.concat(a.getMetadata(DATASET_NAMES_KEY).stream(), b.getMetadata(DATASET_NAMES_KEY).stream()).toList()
-        );
+    public List<String> datasets() {
+        return getMetadata(DATASET_NAMES_KEY);
     }
 
     private static String message(List<String> datasets) {

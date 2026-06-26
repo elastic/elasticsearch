@@ -776,3 +776,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
+- class: org.elasticsearch.search.basic.SearchDuringRollingRestartIT
+  method: testSearchesSurviveRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/151828

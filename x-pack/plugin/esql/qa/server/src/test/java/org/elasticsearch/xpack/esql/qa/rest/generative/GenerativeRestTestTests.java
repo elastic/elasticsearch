@@ -8,11 +8,54 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.FillNullGenerator;
+
+import java.util.List;
+import java.util.Map;
 
 /**
- * Tests the predicates that classify known generative-test failures as allowed failures.
+ * Tests the predicates that classify known generative-test failures as allowed failures,
+ * and the schema-propagation helpers used by the generative pipeline.
  */
 public class GenerativeRestTestTests extends ESTestCase {
+
+    public void testFillNullAllFieldsClearsIndexMappedForEveryColumn() {
+        List<Column> previous = List.of(
+            new Column("message", "keyword", List.of("keyword"), true),
+            new Column("age", "integer", List.of("integer"), true)
+        );
+        CommandGenerator.CommandDescription command = new CommandGenerator.CommandDescription(
+            FillNullGenerator.FILL_NULL,
+            FillNullGenerator.INSTANCE,
+            " | fillnull with 0",
+            Map.of(FillNullGenerator.ALL_FIELDS, Boolean.TRUE)
+        );
+
+        List<Column> updated = GenerativeRestTest.updateIndexMapped(previous, previous, command);
+
+        assertFalse(updated.get(0).indexMapped());
+        assertFalse(updated.get(1).indexMapped());
+    }
+
+    public void testFillNullTargetedClearsOnlyNamedTargets() {
+        List<Column> previous = List.of(
+            new Column("message", "keyword", List.of("keyword"), true),
+            new Column("age", "integer", List.of("integer"), true)
+        );
+        CommandGenerator.CommandDescription command = new CommandGenerator.CommandDescription(
+            FillNullGenerator.FILL_NULL,
+            FillNullGenerator.INSTANCE,
+            " | fillnull message",
+            Map.of(FillNullGenerator.FILLED_FIELDS, List.of("message"))
+        );
+
+        List<Column> updated = GenerativeRestTest.updateIndexMapped(previous, previous, command);
+
+        assertFalse(updated.get(0).indexMapped());
+        assertTrue(updated.get(1).indexMapped());
+    }
 
     public void testLimitByMvExpandBugMatchesDedup() {
         String query = "ROW x = 1 | MV_EXPAND x | DEDUP";

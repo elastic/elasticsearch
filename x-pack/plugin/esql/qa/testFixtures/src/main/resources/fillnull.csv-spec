@@ -216,6 +216,21 @@ i:integer | k:keyword
 0          | null
 ;
 
+// All-fields mode: the LONG fill value is type-compatible with the INTEGER column but its value
+// overflows the INTEGER range, so that column is skipped (left null) instead of failing the query;
+// the LONG column is filled normally.
+fillNullWithValueSkipsOutOfRangeAllFields
+required_capability: fillnull
+
+ROW i = null, l = null
+| EVAL i = i::integer, l = l::long
+| FILLNULL WITH 9999999999999
+;
+
+i:integer | l:long
+null       | 9999999999999
+;
+
 fillNullUnsupportedTypeLeftNull
 required_capability: fillnull
 
@@ -751,4 +766,45 @@ ROW i = null, l = null, d = null, k = null, b = null
 
 i:integer | l:long | d:double | k:keyword | b:boolean
 0          | 0      | 0.0      |           | false
+;
+
+fillNullDottedFieldNameAfterColumnNarrowing
+required_capability: fillnull
+
+FROM datenanos-k8s
+| FILLNULL WITH 0 network.eth0.rx
+| STATS c = COUNT(*)
+;
+
+c:long
+200
+;
+
+
+fillNullPlainDottedFieldNameAfterColumnNarrowing
+required_capability: fillnull
+
+FROM datenanos-k8s
+| FILLNULL WITH 0 network.bytes_in
+| STATS c = COUNT(*)
+;
+
+c:long
+200
+;
+
+fillNullDottedFieldNameAfterForkAndStats
+required_capability: fillnull
+required_capability: fork_v9
+
+FROM datenanos-k8s
+| FORK (WHERE true) (WHERE true)
+| WHERE _fork == "fork1"
+| DROP _fork
+| FILLNULL WITH 0 network.eth0.rx
+| STATS c = COUNT(*)
+;
+
+c:long
+200
 ;

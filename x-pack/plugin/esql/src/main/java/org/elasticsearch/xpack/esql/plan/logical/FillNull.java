@@ -12,10 +12,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -118,7 +120,16 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     @Override
     protected AttributeSet computeReferences() {
-        return fields == null ? AttributeSet.EMPTY : Eval.computeReferences(fields);
+        if (fields != null) {
+            return Eval.computeReferences(fields);
+        }
+        // Before the fill aliases are materialized - notably during pre-analysis field-name collection
+        // (see FieldNameUtils) - the command's inputs are the explicit target fields plus the fill value.
+        // These must be reported so field-caps requests them; otherwise the source relation loads none of
+        // them and resolution fails with "Unknown column". The all-fields form (empty targets) needs every
+        // field and relies on the all-fields fallback rather than explicit references.
+        AttributeSet refs = Expressions.references(targetFields);
+        return fillValue == null ? refs : refs.combine(fillValue.references());
     }
 
     /**
@@ -218,16 +229,42 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
     public void postAnalysisVerification(Failures failures) {
         if (fillValue != null && targetFields.isEmpty() == false) {
             for (Attribute field : targetFields) {
-                if (field.resolved() && DataType.areCompatible(fillValue.dataType(), field.dataType()) == false) {
+                if (field.resolved() == false) {
+                    continue;
+                }
+                DataType fieldType = field.dataType();
+                if (DataType.areCompatible(fillValue.dataType(), fieldType) == false) {
                     failures.add(
                         fail(
                             field,
                             "[FILLNULL] fill value type [{}] is incompatible with field [{}] type [{}]",
                             fillValue.dataType().typeName(),
                             field.name(),
-                            field.dataType().typeName()
+                            fieldType.typeName()
                         )
                     );
+                    continue;
+                }
+                // Type-compatible but the literal value may not fit the field's type (e.g. a LONG value outside
+                // the INTEGER range). An explicitly targeted field must report this rather than being silently
+                // skipped, mirroring the conversion done in resolveDefaultValue.
+                if (fillValue instanceof Literal lit
+                    && lit.value() != null
+                    && fillValue.dataType() != fieldType
+                    && DataType.isNull(fieldType) == false) {
+                    try {
+                        DataTypeConverter.convert(lit.value(), fieldType.noText());
+                    } catch (InvalidArgumentException e) {
+                        failures.add(
+                            fail(
+                                field,
+                                "[FILLNULL] fill value [{}] does not fit field [{}] of type [{}]",
+                                lit.value(),
+                                field.name(),
+                                fieldType.typeName()
+                            )
+                        );
+                    }
                 }
             }
         }
@@ -278,7 +315,17 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             // so a TEXT column takes a KEYWORD literal (matching defaultForType).
             if (DataType.areCompatible(fillType, type) && fillValue instanceof Literal lit) {
                 DataType literalType = type.noText();
-                Object converted = DataTypeConverter.convert(lit.value(), literalType);
+                Object converted;
+                try {
+                    converted = DataTypeConverter.convert(lit.value(), literalType);
+                } catch (InvalidArgumentException e) {
+                    // Type-compatible but the value does not fit the column type (e.g. a LONG literal
+                    // outside the INTEGER range). In all-fields mode such columns are silently skipped,
+                    // matching how an incompatible fill type is skipped here; explicitly targeted fields
+                    // are rejected earlier by postAnalysisVerification, so this is only reached for
+                    // implicit (all-fields) targets.
+                    return null;
+                }
                 return new Literal(lit.source(), converted, literalType);
             }
             return null;

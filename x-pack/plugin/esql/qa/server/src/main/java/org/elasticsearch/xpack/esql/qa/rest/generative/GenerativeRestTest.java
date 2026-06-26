@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.FillNullGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
@@ -787,6 +788,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             }
             case StatsGenerator.STATS, InlineStatsGenerator.INLINE_STATS -> {
                 return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
+            }
+            case FillNullGenerator.FILL_NULL -> {
+                // FILLNULL turns each filled column into a reference attribute. The all-fields form may fill any
+                // column, so conservatively clear the flag for all of them; the targeted form only touches its targets.
+                if (Boolean.TRUE.equals(command.context().get(FillNullGenerator.ALL_FIELDS))) {
+                    return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
+                }
+                Object filled = command.context().get(FillNullGenerator.FILLED_FIELDS);
+                if (filled instanceof List<?> list) {
+                    list.forEach(name -> createdColumns.add((String) name));
+                }
             }
             case RenameGenerator.RENAME -> {
                 return handleRenameIndexMapped(newSchema, prevMapped, command.commandString());

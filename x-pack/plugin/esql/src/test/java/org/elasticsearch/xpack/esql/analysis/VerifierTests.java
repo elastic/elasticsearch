@@ -3384,6 +3384,18 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testFillNullTargetedOutOfRangeValueRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // emp_no is INTEGER and the LONG fill value is type-compatible, but its value overflows the
+        // INTEGER range. An explicitly targeted field must report a clear error instead of being
+        // silently skipped (all-fields mode skips such columns on purpose).
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL WITH 9999999999999 emp_no",
+            containsString("[FILLNULL] fill value [9999999999999] does not fit field [emp_no] of type [integer]")
+        );
+    }
+
     public void testFillNullAllFieldsModeSkipsIncompatibleSilently() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
@@ -3391,6 +3403,15 @@ public class VerifierTests extends ESTestCase {
         // with the fill value, so this query must analyze cleanly. We assert success by parsing
         // and analyzing the query through the standard analyzer.
         defaultAnalyzer().query("FROM test | FILLNULL WITH 0");
+    }
+
+    public void testFillNullAllFieldsModeSkipsOutOfRangeValueSilently() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // All-fields mode: the LONG fill value is type-compatible with the INTEGER columns (emp_no, salary, ...)
+        // but its value overflows the INTEGER range. Such columns must be silently skipped at plan time rather
+        // than failing the query with an "out of [integer] range" conversion error.
+        defaultAnalyzer().query("FROM test | FILLNULL WITH 9999999999999");
     }
 
     public void testFillNullDuplicateField() {

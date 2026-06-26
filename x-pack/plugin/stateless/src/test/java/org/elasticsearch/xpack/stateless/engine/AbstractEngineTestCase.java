@@ -12,8 +12,10 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -39,9 +42,12 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -98,6 +104,8 @@ import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -126,10 +134,12 @@ import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL_SETTING;
+import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -147,6 +157,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     private BlobContainer blobContainer;
     protected StatelessSharedBlobCacheService sharedBlobCacheService;
     protected NodeEnvironment nodeEnvironment;
+    private final List<NodeEnvironment> indexDirectoryNodeEnvironments = new ArrayList<>();
+    private final List<StatelessSharedBlobCacheService> indexDirectoryCacheServices = new ArrayList<>();
 
     @SuppressWarnings("unchecked")
     @Override
@@ -178,6 +190,12 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         assert threadPools.isEmpty() : threadPools;
         IOUtils.rm(blobStorePath);
         nodeEnvironment.close();
+        for (NodeEnvironment extraNodeEnvironment : indexDirectoryNodeEnvironments) {
+            extraNodeEnvironment.close();
+        }
+        indexDirectoryNodeEnvironments.clear();
+        IOUtils.close(indexDirectoryCacheServices);
+        indexDirectoryCacheServices.clear();
         for (CircuitBreaker breaker : readerHeapBreakers) {
             assertEquals(
                 "reader-heap breaker leaked bytes after test — every reservation must be released by reader close",
@@ -375,6 +393,34 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         store.associateIndexWithNewTranslog(translogUuid);
 
+        return buildEngineConfig(
+            shardId,
+            indexSettings,
+            translogConfig,
+            threadPool,
+            threadPoolMergeExecutorService,
+            store,
+            mergePolicy,
+            indexWriterConfig,
+            mapperService,
+            primaryTermSupplier,
+            new CapturingEngineEventListener()
+        );
+    }
+
+    private EngineConfig buildEngineConfig(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        TranslogConfig translogConfig,
+        ThreadPool threadPool,
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+        Store store,
+        MergePolicy mergePolicy,
+        IndexWriterConfig indexWriterConfig,
+        MapperService mapperService,
+        LongSupplier primaryTermSupplier,
+        Engine.EventListener eventListener
+    ) {
         return EngineConfig.builder()
             .shardId(shardId)
             .threadPool(threadPool)
@@ -385,7 +431,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .analyzer(indexWriterConfig.getAnalyzer())
             .similarity(indexWriterConfig.getSimilarity())
             .codecProvider(new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, threadPool))
-            .eventListener(new CapturingEngineEventListener())
+            .eventListener(eventListener)
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
@@ -403,6 +449,98 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .mergeMetrics(MergeMetrics.NOOP)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
+    }
+
+    protected EngineConfig indexConfigWithIndexDirectory(Settings settings, Settings nodeSettings) throws IOException {
+        var primaryTerm = new AtomicLong(1L);
+        return indexConfigWithIndexDirectory(settings, nodeSettings, primaryTerm::get);
+    }
+
+    protected EngineConfig indexConfigWithIndexDirectory(Settings settings, Settings nodeSettings, LongSupplier primaryTermSupplier)
+        throws IOException {
+        // Mock is sufficient: tests only index Lucene fields directly and do not require bbq_hnsw mapping or codec support.
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
+        return indexConfigWithIndexDirectory(settings, nodeSettings, primaryTermSupplier, newMergePolicy(), mapperService);
+    }
+
+    protected EngineConfig indexConfigWithIndexDirectory(
+        Settings settings,
+        Settings nodeSettings,
+        LongSupplier primaryTermSupplier,
+        MergePolicy mergePolicy,
+        MapperService mapperService
+    ) throws IOException {
+        return indexConfigWithIndexDirectory(settings, nodeSettings, primaryTermSupplier, mergePolicy, mapperService, null);
+    }
+
+    protected EngineConfig indexConfigWithIndexDirectory(
+        Settings settings,
+        Settings nodeSettings,
+        LongSupplier primaryTermSupplier,
+        MergePolicy mergePolicy,
+        MapperService mapperService,
+        CapturingEngineEventListener eventListener
+    ) throws IOException {
+        Settings.Builder mergedNodeSettingsBuilder = Settings.builder().put(nodeSettings);
+        if (nodeSettings.hasValue(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey()) == false) {
+            mergedNodeSettingsBuilder.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true);
+        }
+        Settings mergedNodeSettings = mergedNodeSettingsBuilder.build();
+
+        var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
+        var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, mergedNodeSettings);
+        var translogConfig = new TranslogConfig(shardId, createTempDir(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        var indexWriterConfig = newIndexWriterConfig();
+        var threadPool = registerThreadPool(
+            new TestThreadPool(
+                getTestName() + "[" + shardId + "][index-directory]",
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        );
+        var threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            ClusterSettings.createBuiltInClusterSettings(mergedNodeSettings),
+            nodeEnvironment
+        );
+        Settings envSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+            .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(10))
+            .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256))
+            .build();
+        NodeEnvironment cacheNodeEnvironment = new NodeEnvironment(envSettings, TestEnvironment.newEnvironment(envSettings));
+        indexDirectoryNodeEnvironments.add(cacheNodeEnvironment);
+        StatelessSharedBlobCacheService cacheService = newCacheService(cacheNodeEnvironment, envSettings, threadPool);
+        indexDirectoryCacheServices.add(cacheService);
+        IndexBlobStoreCacheDirectory cacheDirectory = new IndexBlobStoreCacheDirectory(cacheService, shardId);
+        cacheDirectory.setBlobContainer(term -> blobContainer);
+
+        var underlying = new ByteBuffersDirectory();
+        IndexDirectory indexDirectory = new IndexDirectory(underlying, cacheDirectory, null, true);
+        var store = new Store(shardId, indexSettings, indexDirectory, new DummyShardLock(shardId));
+        store.createEmpty();
+        final String translogUuid = Translog.createEmptyTranslog(
+            translogConfig.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTermSupplier.getAsLong()
+        );
+        store.associateIndexWithNewTranslog(translogUuid);
+
+        return buildEngineConfig(
+            shardId,
+            indexSettings,
+            translogConfig,
+            threadPool,
+            threadPoolMergeExecutorService,
+            store,
+            mergePolicy,
+            indexWriterConfig,
+            mapperService,
+            primaryTermSupplier,
+            eventListener != null ? eventListener : new CapturingEngineEventListener()
+        );
     }
 
     protected SearchEngine newSearchEngine() {

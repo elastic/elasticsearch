@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.stateless.lucene;
 
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyUploadedException;
@@ -1682,6 +1685,246 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 objectStore.getRangeInputStream(position, length, listener);
             }
         };
+    }
+
+    public void testAbortMergeReadsBeforeReadInternal() throws IOException {
+        final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+        final byte[] input = randomByteArrayOfLength(randomIntBetween(64, 512));
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(64));
+        final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(regionSize.getBytes() * 10), regionSize);
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(sharedBlobCacheService, input, abortMergeReads)
+        ) {
+            byte[] actual = new byte[16];
+            indexInput.readBytes(actual, 0, actual.length);
+        }
+    }
+
+    public void testAbortMergeReadsThrowsOnReadInternal() throws IOException {
+        final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+        final byte[] input = randomByteArrayOfLength(randomIntBetween(64, 512));
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(64));
+        final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(regionSize.getBytes() * 10), regionSize);
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(sharedBlobCacheService, input, abortMergeReads)
+        ) {
+            byte[] actual = new byte[16];
+            indexInput.readBytes(actual, 0, actual.length);
+            abortMergeReads.set(true);
+            expectThrows(MergePolicy.MergeAbortedException.class, () -> {
+                try (
+                    BlobCacheIndexInput abortedInput = newAbortableBlobCacheIndexInput(
+                        sharedBlobCacheService,
+                        input,
+                        abortMergeReads,
+                        IOContext.merge(new MergeInfo(100, 1024L, false, -1))
+                    )
+                ) {
+                    abortedInput.readByte();
+                }
+            });
+        }
+    }
+
+    public void testAbortMergeReadsIgnoresNonMergeReadAfterAbort() throws IOException {
+        final AtomicBoolean abortMergeReads = new AtomicBoolean(true);
+        final byte[] input = randomByteArrayOfLength(randomIntBetween(64, 512));
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(64));
+        final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(regionSize.getBytes() * 10), regionSize);
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(
+                sharedBlobCacheService,
+                input,
+                abortMergeReads,
+                IOContext.DEFAULT
+            )
+        ) {
+            byte[] actual = new byte[16];
+            indexInput.readBytes(actual, 0, actual.length);
+        }
+    }
+
+    public void testAbortMergeReadsBeforeWithByteBufferSlice() throws IOException {
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
+        final var settings = Settings.builder()
+            .put(sharedCacheSettings(cacheSize, regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .build();
+        final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+        final byte[] input = randomByteArrayOfLength(randomIntBetween(64, (int) regionSize.getBytes() / 2));
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(sharedBlobCacheService, input, abortMergeReads)
+        ) {
+            populateCache(indexInput, input);
+            boolean available = indexInput.withByteBufferSlice(0, input.length, slice -> {
+                byte[] sliceBytes = new byte[input.length];
+                slice.get(sliceBytes);
+                assertArrayEquals(input, sliceBytes);
+            });
+            assertTrue(available);
+        }
+    }
+
+    public void testAbortMergeReadsThrowsOnWithByteBufferSlice() throws IOException {
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
+        final var settings = Settings.builder()
+            .put(sharedCacheSettings(cacheSize, regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .build();
+        final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+        final byte[] input = randomByteArrayOfLength(randomIntBetween(64, (int) regionSize.getBytes() / 2));
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(
+                sharedBlobCacheService,
+                input,
+                abortMergeReads,
+                IOContext.merge(new MergeInfo(100, 1024L, false, -1))
+            )
+        ) {
+            populateCache(indexInput, input);
+            abortMergeReads.set(true);
+            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withByteBufferSlice(0, input.length, slice -> {
+                throw new AssertionError("should not run");
+            }));
+        }
+    }
+
+    public void testAbortMergeReadsBeforeWithByteBufferSlices() throws IOException {
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
+        final var settings = Settings.builder()
+            .put(sharedCacheSettings(cacheSize, regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .build();
+        final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+        final byte[] input = randomByteArrayOfLength(randomIntBetween(200, (int) regionSize.getBytes() / 2));
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(sharedBlobCacheService, input, abortMergeReads)
+        ) {
+            populateCache(indexInput, input);
+            int sliceLen = randomIntBetween(1, input.length / 4);
+            long[] offsets = new long[] { 0, randomIntBetween(1, input.length / 2 - sliceLen), input.length - sliceLen };
+            boolean available = indexInput.withByteBufferSlices(offsets, sliceLen, 3, slices -> { assertEquals(3, slices.length); });
+            assertTrue(available);
+        }
+    }
+
+    public void testAbortMergeReadsThrowsOnWithByteBufferSlices() throws IOException {
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
+        final var settings = Settings.builder()
+            .put(sharedCacheSettings(cacheSize, regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .build();
+        final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+        final byte[] input = randomByteArrayOfLength(randomIntBetween(200, (int) regionSize.getBytes() / 2));
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(
+                sharedBlobCacheService,
+                input,
+                abortMergeReads,
+                IOContext.merge(new MergeInfo(100, 1024L, false, -1))
+            )
+        ) {
+            populateCache(indexInput, input);
+            int sliceLen = randomIntBetween(1, input.length / 4);
+            long[] offsets = new long[] { 0, randomIntBetween(1, input.length / 2 - sliceLen), input.length - sliceLen };
+            abortMergeReads.set(true);
+            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withByteBufferSlices(offsets, sliceLen, 3, slices -> {
+                throw new AssertionError("should not run");
+            }));
+        }
+    }
+
+    private BlobCacheIndexInput newAbortableBlobCacheIndexInput(
+        StatelessSharedBlobCacheService sharedBlobCacheService,
+        byte[] input,
+        AtomicBoolean abortMergeReads
+    ) throws IOException {
+        return newAbortableBlobCacheIndexInput(sharedBlobCacheService, input, abortMergeReads, randomIOContext());
+    }
+
+    private BlobCacheIndexInput newAbortableBlobCacheIndexInput(
+        StatelessSharedBlobCacheService sharedBlobCacheService,
+        byte[] input,
+        AtomicBoolean abortMergeReads,
+        IOContext context
+    ) throws IOException {
+        final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+        final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+        final long primaryTerm = randomNonNegativeLong();
+        return newAbortableBlobCacheIndexInput(sharedBlobCacheService, shardId, fileName, primaryTerm, input, abortMergeReads, context);
+    }
+
+    private BlobCacheIndexInput newAbortableBlobCacheIndexInput(
+        StatelessSharedBlobCacheService sharedBlobCacheService,
+        ShardId shardId,
+        String fileName,
+        long primaryTerm,
+        byte[] input,
+        AtomicBoolean abortMergeReads
+    ) throws IOException {
+        return newAbortableBlobCacheIndexInput(
+            sharedBlobCacheService,
+            shardId,
+            fileName,
+            primaryTerm,
+            input,
+            abortMergeReads,
+            randomIOContext()
+        );
+    }
+
+    private BlobCacheIndexInput newAbortableBlobCacheIndexInput(
+        StatelessSharedBlobCacheService sharedBlobCacheService,
+        ShardId shardId,
+        String fileName,
+        long primaryTerm,
+        byte[] input,
+        AtomicBoolean abortMergeReads,
+        IOContext context
+    ) throws IOException {
+        return new BlobCacheIndexInput(
+            fileName,
+            context,
+            new CacheFileReader(
+                sharedBlobCacheService.getCacheFile(
+                    new FileCacheKey(shardId, primaryTerm, fileName),
+                    input.length,
+                    SharedBlobCacheService.CacheMissHandler.NOOP
+                ),
+                createBlobReader(fileName, input, sharedBlobCacheService),
+                createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                BlobCacheMetrics.NOOP,
+                System::currentTimeMillis
+            ),
+            null,
+            input.length,
+            0,
+            null,
+            abortMergeReads::get
+        );
+    }
+
+    private void populateCache(BlobCacheIndexInput indexInput, byte[] input) throws IOException {
+        byte[] output = randomReadAndSlice(indexInput, input.length);
+        assertArrayEquals(input, output);
     }
 
     private static Settings sharedCacheSettings(ByteSizeValue cacheSize) {

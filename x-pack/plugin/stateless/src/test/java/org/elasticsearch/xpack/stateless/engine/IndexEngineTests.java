@@ -12,26 +12,39 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -57,6 +70,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.stream.LongStream;
@@ -70,7 +84,10 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -756,5 +773,138 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 assertEquals(0, ongoingMemoryEstimations.size());
             });
         }
+    }
+
+    public void testCloseDuringVectorMergeCompletesQuickly() throws Exception {
+        assertCloseDuringForceMergeCompletesQuickly(VectorDocType.FLOAT, true, true);
+    }
+
+    public void testCloseDuringMergeBeforeFlushCompletesQuickly() throws Exception {
+        assertCloseDuringForceMergeCompletesQuickly(VectorDocType.BBQ_HNSW, true, false);
+    }
+
+    public void testCloseDuringBbqHnswMergeCompletesQuickly() throws Exception {
+        assertCloseDuringForceMergeCompletesQuickly(VectorDocType.BBQ_HNSW, true, true);
+    }
+
+    private enum VectorDocType {
+        FLOAT,
+        BBQ_HNSW
+    }
+
+    private void assertCloseDuringForceMergeCompletesQuickly(
+        VectorDocType vectorDocType,
+        boolean periodicFlush,
+        boolean finalFlushBeforeMerge
+    ) throws Exception {
+        Settings nodeSettings = Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
+        CapturingEngineEventListener eventListener = new CapturingEngineEventListener();
+        EngineConfig config;
+        if (vectorDocType == VectorDocType.BBQ_HNSW) {
+            int numDimensions = randomIntBetween(64, 128);
+            MapperService mapperService = createBbqHnswMapperService(numDimensions);
+            config = indexConfigWithIndexDirectory(Settings.EMPTY, nodeSettings, () -> 1L, newMergePolicy(), mapperService, eventListener);
+            assertCloseDuringForceMerge(config, eventListener, numDimensions, vectorDocType, periodicFlush, finalFlushBeforeMerge);
+        } else {
+            // Mock is sufficient: float vector tests index KnnFloatVectorField on the Lucene document directly
+            // without requiring bbq_hnsw mapping or codec support.
+            config = indexConfigWithIndexDirectory(
+                Settings.EMPTY,
+                nodeSettings,
+                () -> 1L,
+                newMergePolicy(),
+                mock(MapperService.class),
+                eventListener
+            );
+            when(config.getMapperService().mappingLookup()).thenReturn(MappingLookup.EMPTY);
+            int numDimensions = randomIntBetween(16, 64);
+            assertCloseDuringForceMerge(config, eventListener, numDimensions, vectorDocType, periodicFlush, finalFlushBeforeMerge);
+        }
+    }
+
+    private void assertCloseDuringForceMerge(
+        EngineConfig config,
+        CapturingEngineEventListener eventListener,
+        int numDimensions,
+        VectorDocType vectorDocType,
+        boolean periodicFlush,
+        boolean finalFlushBeforeMerge
+    ) throws Exception {
+        final Thread[] mergeThread = new Thread[1];
+        long startNanos;
+        try (IndexEngine engine = newIndexEngine(config)) {
+            int numDocs = finalFlushBeforeMerge ? randomIntBetween(40, 100) : randomIntBetween(80, 150);
+            for (int i = 0; i < numDocs; i++) {
+                indexVectorDoc(engine, config, vectorDocType, numDimensions, String.valueOf(i));
+                if (periodicFlush && i % 10 == 0) {
+                    engine.flush();
+                }
+            }
+            if (finalFlushBeforeMerge) {
+                engine.flush();
+            }
+
+            mergeThread[0] = new Thread(() -> {
+                try {
+                    engine.forceMerge(false, 1, false, UUIDs.randomBase64UUID());
+                } catch (Throwable e) {
+                    // merge may be aborted during close
+                }
+            });
+            mergeThread[0].start();
+            assertBusy(() -> assertTrue("merge was not queued or running before engine close", engine.hasQueuedOrRunningMerges()));
+            startNanos = System.nanoTime();
+        }
+        mergeThread[0].join(TimeUnit.SECONDS.toMillis(5));
+        assertFalse("merge thread should finish after engine close", mergeThread[0].isAlive());
+        assertThat(System.nanoTime() - startNanos, lessThan(TimeValue.timeValueSeconds(5).nanos()));
+        assertThat(eventListener.reason.get(), is(nullValue()));
+        assertThat(eventListener.exception.get(), is(nullValue()));
+    }
+
+    private void indexVectorDoc(IndexEngine engine, EngineConfig config, VectorDocType vectorDocType, int numDimensions, String id)
+        throws IOException {
+        if (vectorDocType == VectorDocType.BBQ_HNSW) {
+            engine.index(bbqHnswDoc(config.getMapperService(), id, randomVector(numDimensions)));
+        } else {
+            float[] vector = randomVector(numDimensions);
+            engine.index(randomDoc(id, (builder, doc) -> doc.add(new KnnFloatVectorField("vector", vector))));
+        }
+    }
+
+    private static Engine.Index bbqHnswDoc(MapperService mapperService, String id, float[] vector) throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder().startObject().array("vector", vector).endObject()) {
+            DocumentMapper documentMapper = mapperService.documentMapper();
+            ParsedDocument parsed = documentMapper.parse(new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON));
+            return new Engine.Index(Uid.encodeId(id), 1L, parsed);
+        }
+    }
+
+    private MapperService createBbqHnswMapperService(int dims) throws IOException {
+        String mapping = """
+            {
+              "properties": {
+                "vector": {
+                  "type": "dense_vector",
+                  "dims": %d,
+                  "index": true,
+                  "similarity": "cosine",
+                  "index_options": { "type": "bbq_hnsw" }
+                }
+              }
+            }
+            """.formatted(dims);
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .putMapping(mapping)
+            .build();
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+            createTempDir(),
+            indexMetadata.getSettings(),
+            "index"
+        );
+        mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
+        return mapperService;
     }
 }

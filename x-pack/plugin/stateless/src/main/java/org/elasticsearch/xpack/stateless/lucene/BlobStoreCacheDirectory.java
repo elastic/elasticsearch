@@ -39,10 +39,12 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
@@ -67,6 +69,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
     protected volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
     protected volatile long currentDataSetSizeInBytes = 0L;
+    private BooleanSupplier mergeReadAbortSupplier = () -> false;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
 
     BlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
@@ -98,6 +101,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
 
     public final void setBlobContainer(LongFunction<BlobContainer> blobContainer) {
         this.blobContainer.compareAndSet(null, blobContainer); // set once
+    }
+
+    public void setMergeReadAbortSupplier(BooleanSupplier mergeReadAbortSupplier) {
+        this.mergeReadAbortSupplier = Objects.requireNonNull(mergeReadAbortSupplier);
     }
 
     public boolean containsFile(String name) {
@@ -302,7 +309,16 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             blobCacheMetrics,
             cacheService.getThreadPool().relativeTimeInMillisSupplier()
         );
-        return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
+        return new BlobCacheIndexInput(
+            name,
+            context,
+            reader,
+            releasable,
+            blobFileRanges.fileLength(),
+            blobFileRanges.fileOffset(),
+            null,
+            mergeReadAbortSupplier
+        );
     }
 
     private SharedBlobCacheService<FileCacheKey>.CacheFile getCacheFile(BlobFileRanges blobFileRanges) {

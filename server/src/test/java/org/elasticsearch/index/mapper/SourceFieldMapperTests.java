@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
@@ -708,6 +709,57 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 // Source comes from the _ignored_source blob, not from kwd doc values
                 assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"kwd\":\"blob_value\"}"));
             }
+        });
+    }
+
+    /**
+     * Verifies that in columnar_stored mode a nested field round-trips: the source blob is materialized at index time
+     * from the in-memory document tree (children reconstructed by parent-pointer match), and read back from the blob.
+     */
+    public void testColumnarStoredSourceNestedRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("comments");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("message").field("type", "keyword").endObject();
+                    b.startObject("votes").field("type", "long").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument parsed = mapperService.documentMapper().parse(source(b -> {
+            b.startArray("comments");
+            b.startObject().field("message", "first").field("votes", 3).endObject();
+            b.startObject().field("message", "second").field("votes", 7).endObject();
+            b.endArray();
+        }));
+
+        // addDocuments indexes the nested children followed by the root as a block; the root is the last doc.
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), unwrapped -> {
+            // The nested source loader builds a parent bitset, which needs a shard-wrapped reader (as in production).
+            DirectoryReader reader = wrapInMockESDirectoryReader(unwrapped);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            LeafReaderContext leaf = reader.leaves().get(0);
+            int rootDocId = parsed.docs().size() - 1;
+            int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+            LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+            sfLoader.advanceTo(rootDocId);
+            Source source = sourceLeaf.source(sfLoader, rootDocId);
+            assertThat(
+                source.internalSourceRef().utf8ToString(),
+                equalTo("{\"comments\":[{\"message\":\"first\",\"votes\":3},{\"message\":\"second\",\"votes\":7}]}")
+            );
         });
     }
 

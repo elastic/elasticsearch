@@ -356,7 +356,12 @@ public class ObjectMapper extends Mapper {
             MapperMergeContext dedupContext = MapperMergeContext.from(builderContext, Long.MAX_VALUE);
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
-                if (subobjects.value() == Subobjects.DISABLED && builder instanceof ObjectMapper.Builder objectMapperBuilder) {
+                // Nested builders are a genuine document boundary and must survive subobjects:false rather than
+                // being flattened into dotted leaves. Plain object builders have no internal existence and are
+                // flattened away. NestedObjectMapper.Builder extends ObjectMapper.Builder, hence the explicit guard.
+                if (subobjects.value() == Subobjects.DISABLED
+                    && builder instanceof ObjectMapper.Builder objectMapperBuilder
+                    && builder instanceof NestedObjectMapper.Builder == false) {
                     objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.prefixProperties);
                 } else {
                     Mapper.Builder existing = map.get(builder.leafName());
@@ -406,7 +411,13 @@ public class ObjectMapper extends Mapper {
             }
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
-                if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
+                if (childBuilder instanceof NestedObjectMapper.Builder nestedBuilder) {
+                    // A nested field is a document boundary, not a flattenable object: keep it as a child mapper,
+                    // renaming it with the accumulated dotted prefix so it builds under its full path (e.g.
+                    // a nested 'comments' inside object 'meta' becomes the nested field 'meta.comments').
+                    nestedBuilder.setLeafName(path.pathAsText(nestedBuilder.leafName()));
+                    result.put(nestedBuilder.leafName(), nestedBuilder);
+                } else if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
                     objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, collector);
                 } else if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
                     fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
@@ -684,15 +695,9 @@ public class ObjectMapper extends Mapper {
                         }
                     }
 
-                    if (objBuilder.subobjects.value() == Subobjects.DISABLED && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperParsingException(
-                            "Tried to add nested object ["
-                                + fieldName
-                                + "] to object ["
-                                + objBuilder.leafName()
-                                + "] which does not support subobjects"
-                        );
-                    }
+                    // A nested field is accepted under subobjects:false: unlike a plain object (whose leaves index flat
+                    // under dotted names and whose node is auto-flattened away), nested introduces a genuine
+                    // child-document boundary, so it is kept as a hierarchical mapping rather than flattened.
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
                         throw new MapperParsingException(
@@ -794,13 +799,33 @@ public class ObjectMapper extends Mapper {
                         dot = fieldName.indexOf('.', dot + 1);
                     }
                 }
+                // A nested field's sub-fields must live in its own [properties], not as flat dotted siblings: a flat
+                // [foo.bar] next to a nested [foo] is ambiguous (a child of the nested document, or a standalone
+                // field?), so reject it. Plain objects never hit this - they are flattened away entirely.
+                for (Map.Entry<String, Mapper> entry : mappers.entrySet()) {
+                    if (entry.getValue() instanceof ObjectMapper nestedChild && prefixes.contains(entry.getKey())) {
+                        String prefix = entry.getKey() + ".";
+                        String conflict = mappers.keySet().stream().filter(k -> k.startsWith(prefix)).findFirst().orElse(prefix + "*");
+                        // The conflicting sibling shares the nested field's key as a dotted prefix; reconstruct its full
+                        // path from the nested field's full path so the error is correct regardless of the root name.
+                        String conflictFullName = nestedChild.fullPath() + conflict.substring(entry.getKey().length());
+                        throw new MapperParsingException(
+                            "Field ["
+                                + conflictFullName
+                                + "] cannot be added because ["
+                                + nestedChild.fullPath()
+                                + "] is a nested field; its sub-fields must be declared within its [properties]"
+                        );
+                    }
+                }
                 this.mappedPrefixes = prefixes.isEmpty() ? Set.of() : Set.copyOf(prefixes);
             } else {
                 this.mappedPrefixes = Set.of();
             }
         }
-        assert subobjects.value() != Subobjects.DISABLED || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
-            : "When subobjects is false, mappers must not contain an ObjectMapper";
+        assert subobjects.value() != Subobjects.DISABLED
+            || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper && m instanceof NestedObjectMapper == false)
+            : "When subobjects is false, mappers must not contain a non-nested ObjectMapper";
     }
 
     /**

@@ -779,3 +779,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:bucket.bucketMonth}
   issue: https://github.com/elastic/elasticsearch/issues/152256
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:grok.shadowingSubfields}
+  issue: https://github.com/elastic/elasticsearch/issues/152257

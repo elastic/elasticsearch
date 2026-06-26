@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.core.Nullable;
@@ -36,8 +37,8 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
     // Downsamplers are shared across leaf collectors, but doc-values iterators are leaf-local and forward-only.
     // Keep the active iterator and read its docID() when switching back to it instead of storing per-leaf positions.
     private DocIdSetIterator leafDocIdIterator;
-    private int leafDocIdIteratorDoc = -1;
-    private boolean leafIteratorExhausted;
+    int leafDocIdIteratorDoc = -1;
+    boolean leafIteratorExhausted;
 
     NumericMetricFieldDownsampler(String name, IndexFieldData<?> fieldData) {
         super(name, fieldData);
@@ -73,7 +74,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
     }
 
-    private void resetLeafIteratorStateIfNeeded(DocIdSetIterator docIdIterator) {
+    void resetLeafIteratorStateIfNeeded(DocIdSetIterator docIdIterator) {
         if (leafDocIdIterator != docIdIterator) {
             // If we see a previously used iterator again, its own docID() is the last position for that leaf.
             leafDocIdIterator = docIdIterator;
@@ -153,23 +154,9 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
     }
 
-    private void advanceLeafDocIdIterator(int targetDocId) throws IOException {
+    void advanceLeafDocIdIterator(int targetDocId) throws IOException {
         leafDocIdIteratorDoc = leafDocIdIterator.advance(targetDocId);
         leafIteratorExhausted = leafDocIdIteratorDoc == DocIdSetIterator.NO_MORE_DOCS;
-    }
-
-    private static int lowerBound(int[] values, int from, int to, int target) {
-        int low = from;
-        int high = to;
-        while (low < high) {
-            int mid = (low + high) >>> 1;
-            if (values[mid] < target) {
-                low = mid + 1;
-            } else {
-                high = mid;
-            }
-        }
-        return low;
     }
 
     @Override
@@ -316,21 +303,40 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         public void collect(
             SortedNumericDoubleValues counterDocValues,
-            long[] timestamps,
+            LongArrayList timestampBuffer,
             IntArrayList docIdBuffer,
             Temporality temporality
         ) throws IOException {
             assert assertTemporality(temporality) : "delegate should change only after a tsid reset";
+            if (docIdBuffer.isEmpty()) {
+                return;
+            }
+            assert timestampBuffer.size() == docIdBuffer.size() : "timestampBuffer and docIdBuffer should have the same size";
             if (temporalityCollector == null) {
                 temporalityCollector = switch (temporality) {
                     case DELTA -> deltaCollector;
                     case CUMULATIVE, DEFAULT -> cumulativeCollector;
                 };
             }
-            assert timestamps.length == docIdBuffer.size() : "timestamps and docIdBuffer should have the same size";
+            DocIdSetIterator docIdIterator = counterDocValues.docIdIterator();
+            if (docIdIterator == null) {
+                collectCounterUsingAdvanceExact(counterDocValues, timestampBuffer, docIdBuffer);
+            } else {
+                resetLeafIteratorStateIfNeeded(docIdIterator);
+                if (leafIteratorExhausted == false) {
+                    collectCounterUsingDocIdIterator(counterDocValues, timestampBuffer, docIdBuffer);
+                }
+            }
+        }
+
+        private void collectCounterUsingAdvanceExact(
+            SortedNumericDoubleValues counterDocValues,
+            LongArrayList timestampBuffer,
+            IntArrayList docIdBuffer
+        ) throws IOException {
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
-                var currentTimestamp = timestamps[i];
+                long currentTimestamp = timestampBuffer.get(i);
                 if (counterDocValues.advanceExact(docId) == false || currentTimestamp < 0) {
                     continue;
                 }
@@ -338,6 +344,62 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 assert docValuesCount > 0;
                 temporalityCollector.collect(counterDocValues.nextValue(), currentTimestamp);
                 state = State.IN_PROGRESS;
+            }
+        }
+
+        /**
+         * Mirrors {@link NumericMetricFieldDownsampler#collectUsingDocIdIterator} but threads the timestamp
+         * alongside each matched doc. {@code timestamps[index]} is always the timestamp for
+         * {@code docIdBuffer.get(index)}, so the same {@code index} used to walk the buffer also addresses
+         * the correct timestamp — even when {@link #lowerBound} skips ahead past unmatched entries.
+         * <p>
+         * When a doc is skipped due to {@code timestamp < 0}, the iterator has already advanced to that doc;
+         * the subsequent {@link #advanceLeafDocIdIterator} call to the next target naturally moves past it.
+         */
+        private void collectCounterUsingDocIdIterator(
+            SortedNumericDoubleValues counterDocValues,
+            LongArrayList timestampBuffer,
+            IntArrayList docIdBuffer
+        ) throws IOException {
+            int bufferedDocCount = docIdBuffer.size();
+            int[] bufferedDocIds = docIdBuffer.buffer;
+            if (leafDocIdIteratorDoc > bufferedDocIds[bufferedDocCount - 1]) {
+                return;
+            }
+
+            int firstBufferedDocId = bufferedDocIds[0];
+            if (leafDocIdIteratorDoc < firstBufferedDocId) {
+                advanceLeafDocIdIterator(firstBufferedDocId);
+                if (leafIteratorExhausted) {
+                    return;
+                }
+            }
+
+            int index = lowerBound(bufferedDocIds, 0, bufferedDocCount, leafDocIdIteratorDoc);
+            while (index < bufferedDocCount && leafIteratorExhausted == false) {
+                int targetDocId = bufferedDocIds[index];
+                if (leafDocIdIteratorDoc < targetDocId) {
+                    advanceLeafDocIdIterator(targetDocId);
+                    continue;
+                }
+
+                if (leafDocIdIteratorDoc == targetDocId) {
+                    long timestamp = timestampBuffer.get(index);
+                    if (timestamp >= 0) {
+                        int docValuesCount = counterDocValues.docValueCount();
+                        assert docValuesCount > 0;
+                        temporalityCollector.collect(counterDocValues.nextValue(), timestamp);
+                        state = State.IN_PROGRESS;
+                    }
+                    index++;
+                    if (index < bufferedDocCount) {
+                        advanceLeafDocIdIterator(bufferedDocIds[index]);
+                    }
+                    continue;
+                }
+
+                // leafDocIdIteratorDoc > targetDocId: skip ahead in the buffer to the next candidate
+                index = lowerBound(bufferedDocIds, index + 1, bufferedDocCount, leafDocIdIteratorDoc);
             }
         }
 
@@ -385,7 +447,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, LongArrayList, IntArrayList, Temporality) }
          * instead.
          */
         @Override
@@ -394,7 +456,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, LongArrayList, IntArrayList, Temporality) }
          * instead.
          */
         @Override

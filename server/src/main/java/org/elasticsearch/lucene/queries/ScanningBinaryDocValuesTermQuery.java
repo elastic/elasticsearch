@@ -22,11 +22,11 @@ import java.util.Objects;
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-public final class SlowCustomBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQuery {
+public final class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQuery {
 
     private final BytesRef term;
 
-    public SlowCustomBinaryDocValuesTermQuery(String fieldName, BytesRef term) {
+    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term) {
         super(fieldName, term::equals);
         this.term = Objects.requireNonNull(term);
     }
@@ -47,7 +47,7 @@ public final class SlowCustomBinaryDocValuesTermQuery extends AbstractBinaryDocV
 
     @Override
     public String toString(String field) {
-        return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + fieldName + ",term=" + term.toString() + ")";
+        return "ScanningBinaryDocValuesTermQuery(fieldName=" + fieldName + ",term=" + term.toString() + ")";
     }
 
     @Override
@@ -58,7 +58,7 @@ public final class SlowCustomBinaryDocValuesTermQuery extends AbstractBinaryDocV
         if (sameClassAs(o) == false) {
             return false;
         }
-        SlowCustomBinaryDocValuesTermQuery that = (SlowCustomBinaryDocValuesTermQuery) o;
+        ScanningBinaryDocValuesTermQuery that = (ScanningBinaryDocValuesTermQuery) o;
         return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term);
     }
 

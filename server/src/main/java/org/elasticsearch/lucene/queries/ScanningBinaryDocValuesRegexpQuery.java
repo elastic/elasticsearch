@@ -22,7 +22,7 @@ import java.util.Objects;
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDocValuesAutomatonQuery {
+public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocValuesAutomatonQuery {
 
     private final String pattern;
     private final int syntaxFlags;
@@ -34,7 +34,7 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
      *                {@link org.elasticsearch.common.lucene.search.AutomatonQueries#collapseConsecutiveQuantifiers}
      *                to avoid determinization complexity blowup on patterns like {@code a**}.
      */
-    public SlowCustomBinaryDocValuesRegexpQuery(
+    public ScanningBinaryDocValuesRegexpQuery(
         String fieldName,
         String pattern,
         int syntaxFlags,
@@ -59,7 +59,7 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
 
     @Override
     public String toString(String field) {
-        return "SlowCustomBinaryDocValuesRegexpQuery(fieldName="
+        return "ScanningBinaryDocValuesRegexpQuery(fieldName="
             + fieldName
             + ",pattern=/"
             + pattern
@@ -78,7 +78,7 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
         if (sameClassAs(o) == false) {
             return false;
         }
-        SlowCustomBinaryDocValuesRegexpQuery that = (SlowCustomBinaryDocValuesRegexpQuery) o;
+        ScanningBinaryDocValuesRegexpQuery that = (ScanningBinaryDocValuesRegexpQuery) o;
         return Objects.equals(fieldName, that.fieldName)
             && Objects.equals(pattern, that.pattern)
             && syntaxFlags == that.syntaxFlags

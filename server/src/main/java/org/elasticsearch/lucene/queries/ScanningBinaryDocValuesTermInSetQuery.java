@@ -27,16 +27,16 @@ import java.util.function.Predicate;
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-public final class SlowCustomBinaryDocValuesTermInSetQuery extends AbstractBinaryDocValuesQuery {
+public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryDocValuesQuery {
 
     private final PrefixCodedTerms termData;
     private final int termDataHashCode;
 
-    public SlowCustomBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms) {
+    public ScanningBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms) {
         this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)));
     }
 
-    private SlowCustomBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData) {
+    private ScanningBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData) {
         super(fieldName, buildMatchPredicate(termData));
         this.termData = termData;
         this.termDataHashCode = termData.hashCode();
@@ -96,7 +96,7 @@ public final class SlowCustomBinaryDocValuesTermInSetQuery extends AbstractBinar
 
     @Override
     public String toString(String field) {
-        StringBuilder sb = new StringBuilder("SlowCustomBinaryDocValuesTermInSetQuery(fieldName=");
+        StringBuilder sb = new StringBuilder("ScanningBinaryDocValuesTermInSetQuery(fieldName=");
         sb.append(field).append(",terms=[");
         PrefixCodedTerms.TermIterator iterator = termData.iterator();
         boolean first = true;
@@ -119,7 +119,7 @@ public final class SlowCustomBinaryDocValuesTermInSetQuery extends AbstractBinar
         if (sameClassAs(o) == false) {
             return false;
         }
-        SlowCustomBinaryDocValuesTermInSetQuery that = (SlowCustomBinaryDocValuesTermInSetQuery) o;
+        ScanningBinaryDocValuesTermInSetQuery that = (ScanningBinaryDocValuesTermInSetQuery) o;
         return Objects.equals(fieldName, that.fieldName) && termDataHashCode == that.termDataHashCode && termData.equals(that.termData);
     }
 

@@ -60,17 +60,11 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         encryptedDataHandlerProviders.addAll(loader.loadExtensions(EncryptedDataHandlerProvider.class));
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            return List.of();
-        }
         ProjectEncryptionKeyService pekService = ProjectEncryptionKeyService.create(
             services.clusterService(),
             services.projectResolver(),
@@ -114,9 +108,6 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public List<Setting<?>> getSettings() {
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            return List.of();
-        }
         List<Setting<?>> all = new ArrayList<>();
         all.add(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING);
         all.add(KeyRotationCoordinator.CHECK_INTERVAL_SETTING);
@@ -146,9 +137,6 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public Collection<ActionHandler> getActions() {
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            return List.of();
-        }
         return List.of(new ActionHandler(TransportEncryptionResetAction.TYPE, TransportEncryptionResetAction.class));
     }
 
@@ -158,9 +146,6 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            return List.of();
-        }
         return List.of(new RestEncryptionResetAction(clusterSupportsFeature));
     }
 

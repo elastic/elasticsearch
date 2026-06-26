@@ -237,7 +237,7 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * The three-state warm-aggregate profiling signal (esql-planning#909), end to end over CSV.
+     * The three-state warm-aggregate profiling signal, end to end over CSV.
      * CSV has no embedded row count, so the first {@code COUNT(*)} must scan the whole file. The scan
      * harvests canonical-stripe statistics and reconciles them into the coordinator's source-stats cache;
      * a second identical {@code COUNT(*)} is then answered purely from those stats with the scan

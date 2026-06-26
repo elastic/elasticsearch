@@ -277,7 +277,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Pins the typed-failure contract from elastic/esql-planning#836 on the streaming coordinator: a raw
+     * Pins the typed-failure contract on the streaming coordinator: a raw
      * {@link IOException} thrown by a worker (here, {@code FailingFormatReader.read}) is stored in
      * {@code firstError} and surfaced by {@code checkError()}'s {@code surface()} as a typed
      * {@link ExternalClientException} (HTTP 400) — including the coordinator's "Streaming parallel parsing

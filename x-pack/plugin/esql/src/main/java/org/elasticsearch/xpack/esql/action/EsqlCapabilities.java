@@ -3192,10 +3192,10 @@ public class EsqlCapabilities {
         PROMQL_SUM_ON_HISTOGRAM,
 
         /**
-         * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
-         * throws "not implemented yet". Snapshot-only.
+         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes the
+         * generated {@code highlight_*} columns. Snapshot-only.
          */
-        HIGHLIGHT_V0(Build.current().isSnapshot()),
+        HIGHLIGHT_V1(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

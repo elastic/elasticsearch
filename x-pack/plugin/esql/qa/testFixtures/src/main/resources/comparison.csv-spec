@@ -213,3 +213,211 @@ from employees
 cnt:long
 5
 ;
+
+
+// salary ranges [25324, 74999] with no nulls; salary > 100000 is always false -> empty relation
+comparisonAlwaysFalseWithSalary
+from employees
+| where salary > 100000
+| keep salary
+;
+
+salary:integer
+;
+
+
+// salary ranges [25324, 74999] with no nulls; salary > 10000 is always true -> filter removed
+comparisonAlwaysTrueWithSalaryNoNulls
+from employees
+| where salary > 10000
+| stats cnt = count(*)
+;
+
+cnt:long
+100
+;
+
+
+// languages ranges [1, 5] with nulls; languages > 0 is true for non-nulls -> replaced with IS NOT NULL
+comparisonAlwaysTrueWithLanguagesHasNulls
+from employees
+| where languages > 0
+| stats cnt = count(*)
+;
+
+cnt:long
+90
+;
+
+
+// >= boundary always false
+comparisonGteBoundaryAlwaysFalse
+from employees
+| where salary >= 75000
+| keep salary
+;
+
+salary:integer
+;
+
+
+// >= boundary always true no nulls
+comparisonGteBoundaryAlwaysTrueNoNulls
+from employees
+| where salary >= 25324
+| stats cnt = count(*)
+;
+
+cnt:long
+100
+;
+
+
+// >= boundary always true with nulls
+comparisonGteBoundaryAlwaysTrueWithNulls
+from employees
+| where languages >= 1
+| stats cnt = count(*)
+;
+
+cnt:long
+90
+;
+
+
+// < boundary always false
+comparisonLtBoundaryAlwaysFalse
+from employees
+| where salary < 25324
+| keep salary
+;
+
+salary:integer
+;
+
+
+// < boundary always true no nulls
+comparisonLtBoundaryAlwaysTrueNoNulls
+from employees
+| where salary < 75000
+| stats cnt = count(*)
+;
+
+cnt:long
+100
+;
+
+
+// < boundary always true with nulls
+comparisonLtBoundaryAlwaysTrueWithNulls
+from employees
+| where languages < 6
+| stats cnt = count(*)
+;
+
+cnt:long
+90
+;
+
+
+// <= boundary always false
+comparisonLteBoundaryAlwaysFalse
+from employees
+| where salary <= 25323
+| keep salary
+;
+
+salary:integer
+;
+
+// <= boundary always true no nulls
+comparisonLteBoundaryAlwaysTrueNoNulls
+from employees
+| where salary <= 74999
+| stats cnt = count(*)
+;
+
+cnt:long
+100
+;
+
+
+// == below range always false
+comparisonEqualsBelowRange
+from employees
+| where salary == 10000
+| keep salary
+;
+
+salary:integer
+;
+
+
+// == above range always false
+comparisonEqualsAboveRange
+from employees
+| where salary == 100000
+| keep salary
+;
+
+salary:integer
+;
+
+
+// != below range no nulls
+comparisonNotEqualsBelowRangeNoNulls
+from employees
+| where salary != 10000
+| stats cnt = count(*)
+;
+
+cnt:long
+100
+;
+
+
+comparisonNotEqualsBelowRangeWithNulls
+from employees
+| where languages != 0
+| stats cnt = count(*)
+;
+
+cnt:long
+90
+;
+
+
+// <= boundary always true with nulls
+comparisonLteBoundaryAlwaysTrueWithNulls
+from employees
+| where languages <= 5
+| stats cnt = count(*)
+;
+
+cnt:long
+90
+;
+
+
+// != above range no nulls
+comparisonNotEqualsAboveRangeNoNulls
+from employees
+| where salary != 100000
+| stats cnt = count(*)
+;
+
+cnt:long
+100
+;
+
+
+// != above range with nulls
+comparisonNotEqualsAboveRangeWithNulls
+from employees
+| where languages != 10
+| stats cnt = count(*)
+;
+
+cnt:long
+90
+;

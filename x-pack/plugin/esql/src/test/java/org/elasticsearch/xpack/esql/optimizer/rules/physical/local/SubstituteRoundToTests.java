@@ -132,9 +132,9 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         Map.ofEntries(
             Map.entry("keyword == \"keyword\"", termQuery("keyword", "keyword").boost(0)),
             Map.entry(
-                "date >= \"2023-10-19\" and date <= \"2023-10-24\"",
-                rangeQuery("date").gte("2023-10-19T00:00:00.000Z")
-                    .lte("2023-10-24T00:00:00.000Z")
+                "date >= \"2023-10-21\" and date <= \"2023-10-23\"",
+                rangeQuery("date").gte("2023-10-21T00:00:00.000Z")
+                    .lte("2023-10-23T00:00:00.000Z")
                     .timeZone("Z")
                     .boost(0)
                     .format(DEFAULT_DATE_TIME_FORMATTER.pattern())
@@ -408,15 +408,6 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
 
                     var expectedQueryBuilderAndTags = List.of(
                         new EsQueryExec.QueryBuilderAndTags(
-                            rangeQuery("date").from("2023-10-19T00:00:00.000Z")
-                                .to("2023-10-21T00:00:00.000Z")
-                                .includeUpper(false)
-                                .timeZone("Z")
-                                .format("strict_date_optional_time")
-                                .boost(0),
-                            List.of(dateTimeToLong("2023-10-20"))
-                        ),
-                        new EsQueryExec.QueryBuilderAndTags(
                             rangeQuery("date").from("2023-10-21T00:00:00.000Z")
                                 .includeUpper(false)
                                 .to("2023-10-22T00:00:00.000Z")
@@ -435,11 +426,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                             List.of(dateTimeToLong("2023-10-22"))
                         ),
                         new EsQueryExec.QueryBuilderAndTags(
-                            rangeQuery("date").from("2023-10-23T00:00:00.000Z")
-                                .to("2023-10-24T00:00:00.000Z")
-                                .timeZone("Z")
-                                .format("strict_date_optional_time")
-                                .boost(0),
+                            termQuery("date", "2023-10-23T00:00:00.000Z").boost(1),
                             List.of(dateTimeToLong("2023-10-23"))
                         )
                     );

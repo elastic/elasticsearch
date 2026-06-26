@@ -242,9 +242,30 @@ public class PrometheusMetadataRestIT extends AbstractPrometheusRestIT {
         assertThat(op.evaluate("data.http_request_duration_seconds.0.unit"), equalTo("seconds"));
     }
 
+    public void testMetricsExplorerDiscoveryWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
+        writeMetric(MIXED_METRICS_PROMETHEUS_METRIC, Map.of("job", "prometheus"));
+        writeNonPrometheusMetricsDataStream();
+
+        String apiKey = createPrometheusReadApiKey("prometheus-read-view-index-metadata-key", "metrics-*");
+
+        ObjectPath defaultScope = ObjectPath.createFromResponse(
+            client().performRequest(metadataRequest("/_prometheus/api/v1/metadata", apiKey))
+        );
+        ObjectPath prometheusScope = ObjectPath.createFromResponse(
+            client().performRequest(metadataRequest("/_prometheus/metrics-*.prometheus-*/api/v1/metadata", apiKey))
+        );
+
+        assertThat(defaultScope.evaluate("status"), equalTo("success"));
+        assertThat(prometheusScope.evaluate("status"), equalTo("success"));
+        assertThat(defaultScope.evaluate("data." + MIXED_METRICS_PROMETHEUS_METRIC), notNullValue());
+        assertThat(prometheusScope.evaluate("data." + MIXED_METRICS_PROMETHEUS_METRIC), notNullValue());
+    }
+
     private Request metadataRequest() {
-        Request request = new Request("GET", "/_prometheus/api/v1/metadata");
-        addReadAuth(request);
-        return request;
+        return metadataRequest("/_prometheus/api/v1/metadata", readApiKey);
+    }
+
+    private Request metadataRequest(String path, String apiKey) {
+        return prometheusGetRequest(path, apiKey);
     }
 }

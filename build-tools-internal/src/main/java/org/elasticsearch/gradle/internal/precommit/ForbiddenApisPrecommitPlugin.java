@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -21,7 +20,6 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
-import org.gradle.jvm.toolchain.JvmVendorSpec;
 
 import java.io.File;
 import java.util.Set;
@@ -30,6 +28,7 @@ import javax.inject.Inject;
 
 import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
 import static org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask.BUNDLED_SIGNATURE_DEFAULTS;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
 
@@ -43,7 +42,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPluginManager().apply(JavaBasePlugin.class);
-        var buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
+        var buildParams = loadBuildParams(project).get();
         // Create a convenience task for all checks (this does not conflict with extension, as it has higher priority in DSL):
         var forbiddenTask = project.getTasks()
             .register(FORBIDDEN_APIS_TASK_NAME, task -> { task.setDescription("Runs forbidden-apis checks."); });
@@ -59,6 +58,8 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             t.copy("forbidden/es-test-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
             t.copy("forbidden/es-server-signatures.txt");
+            t.copy("forbidden/jdk-foreign-signatures.txt");
+            t.copy("forbidden/jdk-foreign-signatures22.txt");
         });
 
         project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> {
@@ -83,7 +84,6 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 if (buildParams.getMinimumRuntimeVersion().equals(JavaVersion.current()) == false) {
                     t.getJavaLauncher().set(javaToolchains.launcherFor(spec -> {
                         spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));
-                        spec.getVendor().set(JvmVendorSpec.ORACLE);
                     }));
                 }
                 if (t.getName().endsWith("Test")) {

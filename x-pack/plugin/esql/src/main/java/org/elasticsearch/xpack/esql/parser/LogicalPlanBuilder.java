@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -250,7 +251,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 // as multiple invalid patterns could be combined to form a valid one
                 // see https://github.com/elastic/elasticsearch/issues/136750
                 try {
-                    Grok.pattern(source, pattern);
+                    Grok.pattern(source, pattern, context.grokMatcherWatchdog());
                 } catch (SyntaxException e) {
                     throw new ParsingException(source(ctx.string(i)), "Invalid GROK pattern [{}]: [{}]", pattern, e.getMessage());
                 }
@@ -258,7 +259,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             String combinePattern = org.elasticsearch.grok.Grok.combinePatterns(patterns);
 
-            Grok.Parser grokParser = Grok.pattern(source, combinePattern);
+            Grok.Parser grokParser = Grok.pattern(source, combinePattern, context.grokMatcherWatchdog());
 
             validateGrokPattern(source, grokParser, combinePattern, patterns);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
@@ -991,7 +992,27 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
 
-        return new UnresolvedExternalRelation(source, tablePath, config);
+        // TEMPORARY SHIM — delete when the inline EXTERNAL command is retired in favour of
+        // FROM <dataset>. External metadata is otherwise purely request-driven: a column appears
+        // only when the user names it in a METADATA clause (the FROM path) and surfaces only when
+        // KEEP'd by name. The legacy EXTERNAL command has no METADATA clause, so to preserve its
+        // historical behaviour (_file.* resolvable in WHERE / STATS BY / KEEP) we inject the
+        // _file.* names as if the user had written `METADATA _file.path, _file.name, ...`.
+        // ResolveExternalRelations.bindMetadataFields binds them to ExternalMetadataAttributes; the
+        // surfacing rule still hides them from default output unless explicitly KEEP'd. The schema
+        // auto-attach that used to glue _file.* onto every external source is gone (it leaked the
+        // columns through DROP / wildcard).
+        List<NamedExpression> metadataFields = new ArrayList<>(FileMetadataColumns.NAMES.size());
+        for (String name : FileMetadataColumns.NAMES) {
+            // _file.record_ref is a FROM-only, request-driven column (it drives _id and forces the
+            // reader's row-position channel). The legacy EXTERNAL auto-attach is limited to the
+            // historical per-file constant _file.* columns, so it is deliberately excluded here.
+            if (FileMetadataColumns.RECORD_REF.equals(name)) {
+                continue;
+            }
+            metadataFields.add(new UnresolvedAttribute(source, name));
+        }
+        return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
     }
 
     /**
@@ -1434,9 +1455,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // The prefix isn't user-configurable in v1; the plan node carries it as a field so a future
         // grammar extension can override it without changing serialization.
         String prefix = Highlight.DEFAULT_PREFIX;
+        // TODO: support the bare form by deriving the query from a preceding full-text WHERE, stopping at row-shaping
+        // commands such as STATS, INLINESTATS, and LOOKUP JOIN.
         Expression query = ctx.queryText == null ? null : visitString(ctx.queryText);
-        List<Expression> fields = ctx.highlightFields.qualifiedName().stream().map(qn -> (Expression) visitQualifiedName(qn)).toList();
-        return p -> applyHighlightOptions(new Highlight(source, p, prefix, query, fields, null), ctx.commandNamedParameters());
+        // TODO: support `HIGHLIGHT ON *` and deriving ON fields from the resolved query. Today fields must be listed.
+        List<NamedExpression> fields = ctx.highlightFields.qualifiedName()
+            .stream()
+            .map(qn -> (NamedExpression) visitQualifiedName(qn))
+            .toList();
+        // Recompute generatedFields when fields can be derived after analysis.
+        List<Attribute> generatedFields = Highlight.generatedAttributesFor(source, prefix, fields);
+        return p -> applyHighlightOptions(
+            new Highlight(source, p, prefix, query, fields, null, generatedFields),
+            ctx.commandNamedParameters()
+        );
     }
 
     private Highlight applyHighlightOptions(Highlight h, EsqlBaseParser.CommandNamedParametersContext ctx) {

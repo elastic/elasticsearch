@@ -1149,12 +1149,7 @@ final class PageColumnReader implements Releasable {
             if (constant != null) {
                 return constant;
             }
-            try (var builder = blockFactory.newBytesRefBlockBuilder(produced)) {
-                for (int i = 0; i < produced; i++) {
-                    builder.appendBytesRef(allValues[i]);
-                }
-                return builder.build();
-            }
+            return buildBytesRefBlock(allValues, null, produced, blockFactory);
         }
         BytesRef[] allValues = new BytesRef[maxRows];
         WordMask allNulls = buffers.nullsMask(maxRows);
@@ -1186,12 +1181,28 @@ final class PageColumnReader implements Releasable {
                 return allNull;
             }
         }
-        try (var builder = blockFactory.newBytesRefBlockBuilder(produced)) {
-            for (int i = 0; i < produced; i++) {
-                if (allNulls.get(i)) {
+        return buildBytesRefBlock(allValues, allNulls, produced, blockFactory);
+    }
+
+    /**
+     * Builds a {@code BytesRefBlock} from already-materialized values, pre-sizing the byte storage to
+     * the exact total byte size so the backing {@code BytesRefArray} does not regrow as values are
+     * appended. {@code nulls} may be {@code null} when no position is null; otherwise a set bit marks a
+     * null position that is skipped when sizing and appended as null.
+     */
+    private static Block buildBytesRefBlock(BytesRef[] values, WordMask nulls, int count, BlockFactory blockFactory) {
+        long byteHint = 0;
+        for (int i = 0; i < count; i++) {
+            if (nulls == null || nulls.get(i) == false) {
+                byteHint += values[i].length;
+            }
+        }
+        try (var builder = blockFactory.newBytesRefBlockBuilder(count, byteHint)) {
+            for (int i = 0; i < count; i++) {
+                if (nulls != null && nulls.get(i)) {
                     builder.appendNull();
                 } else {
-                    builder.appendBytesRef(allValues[i]);
+                    builder.appendBytesRef(values[i]);
                 }
             }
             return builder.build();
@@ -1395,16 +1406,7 @@ final class PageColumnReader implements Releasable {
                 return allNull;
             }
         }
-        try (var builder = blockFactory.newBytesRefBlockBuilder(filled)) {
-            for (int i = 0; i < filled; i++) {
-                if (combinedNulls != null && combinedNulls.get(i)) {
-                    builder.appendNull();
-                } else {
-                    builder.appendBytesRef(all[i]);
-                }
-            }
-            return builder.build();
-        }
+        return buildBytesRefBlock(all, combinedNulls, filled, blockFactory);
     }
 
     // --- Datetime ---

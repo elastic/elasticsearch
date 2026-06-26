@@ -779,7 +779,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         public boolean test(Exception e) {
-            if (commitState.isClosed()) {
+            if (commitState.isClosed()
+                || objectStoreService.lifecycleState() == Lifecycle.State.STOPPED
+                || objectStoreService.lifecycleState() == Lifecycle.State.CLOSED) {
                 return false;
             }
 

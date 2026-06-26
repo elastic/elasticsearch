@@ -71,8 +71,8 @@ public class StorageProviderRegistry implements Closeable {
     /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
     @Nullable
     private final DataSourceCredentials credentials;
-    private volatile int maxConnections;
-    private volatile int throttleMaxRetryDurationSeconds;
+    private final int maxConnections;
+    private final int throttleMaxRetryDurationSeconds;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
 

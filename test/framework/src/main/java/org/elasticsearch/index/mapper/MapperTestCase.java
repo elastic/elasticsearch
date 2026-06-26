@@ -1641,7 +1641,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSourceExample.mapping().accept(b);
             b.endObject().endObject().endObject();
         }), support.isColumnar()).documentMapper();
-        if (isColumnar) {
+        if (support.isColumnar()) {
             // In columnar mode, subobjects are disabled at root so obj.field is stored with a flat key
             XContentBuilder flatExpectedBuilder = JsonXContent.contentBuilder().startObject().field("obj.field");
             syntheticSourceExample.expectedForSyntheticSource().accept(flatExpectedBuilder);

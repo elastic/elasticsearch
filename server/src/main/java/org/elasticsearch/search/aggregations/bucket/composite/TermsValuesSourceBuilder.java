@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -53,6 +52,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     }
 
     static final String TYPE = "terms";
+
     static final ValuesSourceRegistry.RegistryKey<TermsCompositeSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         TYPE,
         TermsCompositeSupplier.class
@@ -169,19 +169,20 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     LongConsumer addRequestCircuitBreakerBytes,
                     CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
 
-                    if (valuesSourceConfig.hasOrdinals() && reader instanceof DirectoryReader) {
-                        ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
-                        long maxOrd;
-                        try {
-                            maxOrd = vs.globalMaxOrd(reader);
-                        } catch (IOException e) {
-                            throw new UnsupportedOperationException(e);
-                        }
-                        return new GlobalOrdinalValuesSource(
+                    if (valuesSourceConfig.hasOrdinals()
+                        && reader instanceof DirectoryReader
+                        && compositeValuesSourceConfig.fieldType() != null) {
+                        // Order composite buckets by _key on per-segment ordinals, remapping the (at most `size`) queue
+                        // slots at each segment boundary. Read the segment ordinals through the value source (rather than
+                        // the raw doc values) so synthetic sources such as constant_keyword resolve correctly; these are
+                        // per-segment ordinals, so no global OrdinalMap is built.
+                        final ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig
+                            .valuesSource();
+                        return new SegmentOrdinalValuesSource(
                             bigArrays,
+                            addRequestCircuitBreakerBytes,
                             compositeValuesSourceConfig.fieldType(),
-                            maxOrd,
-                            vs::globalOrdinalsValues,
+                            vs::ordinalsValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
                             compositeValuesSourceConfig.missingOrder(),
@@ -221,10 +222,8 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     @Override
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
-        if (script() == null) {
-            long cardinality = fieldCardinalityResolver.applyAsLong(field());
-            return cardinality != -1 && cardinality <= TermsAggregationBuilder.KEY_ORDER_CONCURRENCY_THRESHOLD;
-        }
+        // The keyword/IP composite source orders by _key on segment ordinals, keeping per-segment slot state that is
+        // remapped at each segment boundary, so collection is single-threaded.
         return false;
     }
 }

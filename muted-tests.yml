@@ -647,12 +647,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
   method: testGenerateDefinitions
   issue: https://github.com/elastic/elasticsearch/issues/152095
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
-  methods:
-  - testEvaluate {TestCase=geo_shape and geo_shape}
-  - testCrankyEvaluateBlockWithoutNulls {TestCase=geo_shape and geo_shape}
-  - testEvaluateInManyThreads {TestCase=geo_shape and geo_shape}
-  issue: https://github.com/elastic/elasticsearch/issues/152108
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/152113
@@ -719,3 +713,18 @@ tests:
 - class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
   method: testCancelAllReindexTasksByActionWithMixedRelocationState
   issue: https://github.com/elastic/elasticsearch/issues/152291
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationCompletesWithMultipleHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/152292
+- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
+  method: testProviderIsDiscoveredAndHandlerIsInvoked
+  issue: https://github.com/elastic/elasticsearch/issues/152303
+- class: org.elasticsearch.xpack.stateless.StatelessConcurrentRefreshIT
+  method: testWaitUntilShouldNotWaitForUpload
+  issue: https://github.com/elastic/elasticsearch/issues/152304
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testThreadSafety
+  issue: https://github.com/elastic/elasticsearch/issues/152305
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSymDifferenceTests
+  method: testFold {TestCase=geo_shape and geo_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152306

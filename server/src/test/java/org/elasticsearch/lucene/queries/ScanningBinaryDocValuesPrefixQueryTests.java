@@ -36,7 +36,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class SlowCustomBinaryDocValuesPrefixQueryTests extends ESTestCase {
+public class ScanningBinaryDocValuesPrefixQueryTests extends ESTestCase {
 
     public void testBasics() throws Exception {
         String fieldName = "field";
@@ -72,16 +72,16 @@ public class SlowCustomBinaryDocValuesPrefixQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     // prefix "a" matches apple (2), apricot (5), avocado (10)
-                    assertEquals(17, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "a", false)));
+                    assertEquals(17, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "a", false)));
                     // prefix "ap" matches apple (2), apricot (5)
-                    assertEquals(7, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "ap", false)));
+                    assertEquals(7, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "ap", false)));
                     // prefix "b" matches banana (1), blueberry (3)
-                    assertEquals(4, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "b", false)));
+                    assertEquals(4, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "b", false)));
                     // exact prefix matches all docs with that value
                     for (var entry : expectedCounts.entrySet()) {
                         assertEquals(
                             entry.getValue().longValue(),
-                            searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, entry.getKey(), false))
+                            searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, entry.getKey(), false))
                         );
                     }
                 }
@@ -98,7 +98,7 @@ public class SlowCustomBinaryDocValuesPrefixQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertEquals(0, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "foo", false)));
+                    assertEquals(0, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "foo", false)));
                 }
             }
         }
@@ -121,7 +121,7 @@ public class SlowCustomBinaryDocValuesPrefixQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertEquals(1, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "foo", false)));
+                    assertEquals(1, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "foo", false)));
                 }
             }
         }
@@ -160,7 +160,7 @@ public class SlowCustomBinaryDocValuesPrefixQueryTests extends ESTestCase {
                     Query baselineQuery = new PrefixQuery(new Term("baseline_field", prefix), MultiTermQuery.DOC_VALUES_REWRITE);
                     TopDocs baselineResults = searcher.search(baselineQuery, 32);
 
-                    Query contenderQuery = new SlowCustomBinaryDocValuesPrefixQuery("contender_field", prefix, false);
+                    Query contenderQuery = new ScanningBinaryDocValuesPrefixQuery("contender_field", prefix, false);
                     TopDocs contenderResults = searcher.search(contenderQuery, 32);
 
                     assertThat(contenderResults.totalHits, equalTo(baselineResults.totalHits));
@@ -187,14 +187,14 @@ public class SlowCustomBinaryDocValuesPrefixQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     // "elastic" case-insensitive prefix matches "Elasticsearch" and "ELASTIC"
-                    assertEquals(2, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "elastic", true)));
+                    assertEquals(2, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "elastic", true)));
                     // case-sensitive matches only the exact-cased docs
-                    assertEquals(0, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "elastic", false)));
-                    assertEquals(1, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "Elastic", false)));
+                    assertEquals(0, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "elastic", false)));
+                    assertEquals(1, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "Elastic", false)));
                     // "log" case-insensitive matches "Logstash"
-                    assertEquals(1, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "log", true)));
-                    assertEquals(1, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "LOG", true)));
-                    assertEquals(0, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "log", false)));
+                    assertEquals(1, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "log", true)));
+                    assertEquals(1, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "LOG", true)));
+                    assertEquals(0, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "log", false)));
                 }
             }
         }
@@ -211,8 +211,8 @@ public class SlowCustomBinaryDocValuesPrefixQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     // empty prefix matches everything
-                    assertEquals(3, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "", false)));
-                    assertEquals(3, searcher.count(new SlowCustomBinaryDocValuesPrefixQuery(fieldName, "", true)));
+                    assertEquals(3, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "", false)));
+                    assertEquals(3, searcher.count(new ScanningBinaryDocValuesPrefixQuery(fieldName, "", true)));
                 }
             }
         }

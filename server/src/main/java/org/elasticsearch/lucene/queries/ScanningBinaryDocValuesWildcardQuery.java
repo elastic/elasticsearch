@@ -29,12 +29,12 @@ import java.util.Objects;
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinaryDocValuesAutomatonQuery {
+public final class ScanningBinaryDocValuesWildcardQuery extends AbstractBinaryDocValuesAutomatonQuery {
 
     private final String pattern;
     private final boolean caseInsensitive;
 
-    public SlowCustomBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive) {
+    public ScanningBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive) {
         super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive));
         this.pattern = Objects.requireNonNull(pattern);
         this.caseInsensitive = caseInsensitive;
@@ -84,7 +84,7 @@ public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinary
 
     @Override
     public String toString(String field) {
-        return "SlowCustomBinaryDocValuesWildcardQuery(fieldName="
+        return "ScanningBinaryDocValuesWildcardQuery(fieldName="
             + fieldName
             + ",pattern="
             + pattern
@@ -101,7 +101,7 @@ public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinary
         if (sameClassAs(o) == false) {
             return false;
         }
-        SlowCustomBinaryDocValuesWildcardQuery that = (SlowCustomBinaryDocValuesWildcardQuery) o;
+        ScanningBinaryDocValuesWildcardQuery that = (ScanningBinaryDocValuesWildcardQuery) o;
         return Objects.equals(fieldName, that.fieldName)
             && Objects.equals(pattern, that.pattern)
             && caseInsensitive == that.caseInsensitive;

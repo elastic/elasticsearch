@@ -527,6 +527,145 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         );
     }
 
+    public void testSubqueryWithLookupJoinIndicesExistOnAllClustersReferencedBySubqueries() {
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup_1", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup_2", 10);
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+
+        String query = """
+            FROM
+                logs-*,
+                (FROM cluster-a:logs-* metadata _index
+                 | where v > 1
+                 | LOOKUP JOIN values_lookup_1 on v == lookup_key),
+                (FROM remote-b:logs-* metadata _index
+                 | where v > 1
+                 | LOOKUP JOIN values_lookup_2 on v == lookup_key),
+                (FROM logs-*, *:logs-* metadata _index
+                 | where v > 1
+                 | LOOKUP JOIN values_lookup on v == lookup_key)
+                metadata _index
+            | WHERE v < 5
+            | EVAL lookup_tag = coalesce(lookup_tag, "local")
+            | KEEP tag, v, _index, lookup_tag
+            | SORT tag, v, _index
+            """;
+
+        try (EsqlQueryResponse resp = runQuery(query, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("tag", "v", "_index", "lookup_tag"));
+
+            List<List<Object>> values = getValuesList(resp);
+            List<List<Object>> expected = List.of(
+                List.of("local", 0L, LOCAL_INDEX, "local"),
+                List.of("local", 1L, LOCAL_INDEX, "local"),
+                List.of("local", 2L, LOCAL_INDEX, "local"),
+                List.of("local", 2L, LOCAL_INDEX, "local"),
+                List.of("local", 3L, LOCAL_INDEX, "local"),
+                List.of("local", 3L, LOCAL_INDEX, "local"),
+                List.of("local", 4L, LOCAL_INDEX, "local"),
+                List.of("local", 4L, LOCAL_INDEX, "local"),
+                List.of("remote", 4L, REMOTE_CLUSTER_1_INDEX, REMOTE_CLUSTER_1),
+                List.of("remote", 4L, REMOTE_CLUSTER_1_INDEX, REMOTE_CLUSTER_1),
+                List.of("remote", 4L, REMOTE_CLUSTER_2_INDEX, REMOTE_CLUSTER_2),
+                List.of("remote", 4L, REMOTE_CLUSTER_2_INDEX, REMOTE_CLUSTER_2)
+
+            );
+            assertEquals(expected, values);
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
+    }
+
+    /**
+     * A {@code LOOKUP JOIN} inside a subquery references a lookup index that does not exist on any cluster referenced by the subquery. A
+     * completely missing lookup index is an analysis-time error - index resolution returns an invalid resolution ("Unknown index"), which
+     * short-circuits before the skip-vs-error decision is reached. The behavior is therefore independent of {@code skip_unavailable}: the
+     * query always fails with a {@link VerificationException}, identically for {@code skip_unavailable=true} and {@code false}, same
+     * behavior as CrossClusterLookupJoinIT.testLookupJoinMissingRemoteIndex. This test runs every case under both settings to capture that
+     * the behavior does not change.
+     */
+    public void testSubqueryWithLookupJoinMissingLookupIndexOnSomeClusters() {
+        // values_lookup exists only on cluster-a; missing_lookup is never created, so it is absent from every cluster.
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup_1", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup_2", 10);
+
+        // (1) lookup join in a subquery scoped to a single remote cluster: missing only on that cluster.
+        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM
+                logs-*,
+                (FROM cluster-a:logs-* metadata _index | LOOKUP JOIN missing_lookup ON v == lookup_key)
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+
+        // (2) lookup join in a subquery scoped to the local cluster: missing locally.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM
+                cluster-a:logs-*,
+                (FROM logs-* metadata _index | LOOKUP JOIN missing_lookup ON v == lookup_key)
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [missing_lookup]"));
+
+        // (3) two remote subqueries joining the same missing lookup index: the lookup is scoped to both remotes, so the missing
+        // index is reported for both clusters.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM
+                logs-*,
+                (FROM cluster-a:logs-* metadata _index | LOOKUP JOIN missing_lookup ON v == lookup_key),
+                (FROM remote-b:logs-* metadata _index | LOOKUP JOIN missing_lookup ON v == lookup_key)
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup,remote-b:missing_lookup]"));
+
+        // (4) one subquery uses an existing lookup index (values_lookup on remote-b), the sibling subquery references the missing
+        // lookup index: the missing index fails the query, but it is reported only for remote-b because that is the only cluster
+        // relevant to its LOOKUP JOIN - cluster-a is not queried for missing_lookup since it belongs to the sibling subquery.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM
+                (FROM remote-b:logs-* metadata _index | LOOKUP JOIN values_lookup_2 ON v == lookup_key),
+                (FROM remote-b:logs-* metadata _index | LOOKUP JOIN missing_lookup ON v == lookup_key)
+            """, randomBoolean()));
+        assertThat(
+            ex.getMessage(),
+            allOf(containsString("Unknown index [remote-b:missing_lookup]"), not(containsString("cluster-a:missing_lookup")))
+        );
+
+        // (5) one subquery on local, plus a remote subquery whose lookup index is missing.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM
+                (FROM logs-*),
+                (FROM cluster-a:logs-* metadata _index | LOOKUP JOIN missing_lookup ON v == lookup_key)
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+
+        // (6) lookup index missing on remote-b, but exists on cluster-a
+        // cluster-a has skipUnavailable=false by default in this test suite
+        String query = """
+            FROM
+                (FROM logs-*),
+                (FROM *:logs-* metadata _index | LOOKUP JOIN values_lookup_2 ON v == lookup_key)
+            """;
+
+        ex = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("lookup index [values_lookup_2] is not available in remote cluster [cluster-a]"));
+        // validate the behavior of skipUnavailable on cluster-a, lookup index exists on remote-b but not on cluster-a
+        try {
+            setSkipUnavailable(REMOTE_CLUSTER_1, true);
+            try (EsqlQueryResponse resp = runQuery(query, randomBoolean())) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(20)); // 10 docs from local cluster, 10 from remote-b
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+                assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+            }
+        } finally {
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        }
+    }
+
     public void testSubqueryWithInlineStatsInSubquery() {
         // inline stats inside subquery is supported
         try (EsqlQueryResponse resp = runQuery("""

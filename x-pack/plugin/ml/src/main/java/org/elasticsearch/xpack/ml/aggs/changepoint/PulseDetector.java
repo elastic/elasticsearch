@@ -50,16 +50,33 @@ public class PulseDetector {
             return new ArrayList<>();
         }
 
-        // Residual signal and its robust scale. The scale is the larger of the global first-difference noise
-        // (which stays meaningful on smooth/monotone data where residuals are mostly exactly zero) and the
-        // composite scale of the residuals (which inflates once a heteroscedastic high-variance regime appears,
-        // so that regime's ordinary fluctuations are not each treated as candidates).
+        // Residual signal and its robust scale. The scale is the largest of three estimators:
+        // - the composite scale of the residuals (which inflates once a heteroscedastic high-variance regime
+        // appears, so that regime's ordinary fluctuations are not each treated as candidates),
+        // - the global first-difference noise from the median of |first differences| (meaningful on smooth data),
+        // - a tie-robust movement scale from the IQR of first differences. The median estimator collapses to
+        // zero on a quantized or stepped series with many repeated values (>50% tied differences) -- and then
+        // even a tiny residual reads as many sigma, so a trend's extreme endpoint (the series min/max, which
+        // the value gate trivially calls a tail event) is mis-proposed as a spurious spike/dip. The IQR
+        // tolerates 25%-per-tail ties, recovering the characteristic step size; it is taken as a per-sample
+        // equivalent (differences have sqrt(2) the per-sample spread) so it matches the median estimator on
+        // clean data and only ever raises the scale where the median has collapsed.
         double[] residuals = Stats.rollingMedianResiduals(values, WEIGHT_HALF_WINDOW);
+        // The centred rolling-median window collapses at the ends (a point becomes its own median), leaving the
+        // first/last WEIGHT_HALF_WINDOW residuals ~0 -- so a spike or dip sitting in those boundary regions was
+        // invisible to the proposer. Re-residual the boundary points against a robust Theil-Sen line over a local
+        // window: a point on a local trend keeps a ~0 residual (no false boundary spike), while a genuine boundary
+        // excursion the robust line ignores gets a large residual and is proposed like any interior point.
+        Stats.applyBoundaryLineResiduals(values, residuals, WEIGHT_HALF_WINDOW, BOUNDARY_LINE_WINDOW);
         double maxAbs = 0.0;
         for (double v : values) {
             maxAbs = Math.max(maxAbs, Math.abs(v));
         }
-        double scale = Math.max(Stats.compositeScale(residuals, maxAbs), Math.sqrt(Stats.globalNoiseVariance(values)));
+        double movementScale = Math.sqrt(Stats.interquartileNoiseVariance(values, 0, n) / 2.0);
+        double scale = Math.max(
+            Stats.compositeScale(residuals, maxAbs),
+            Math.max(Math.sqrt(Stats.globalNoiseVariance(values)), movementScale)
+        );
         logger.trace("Pulse detection on series of length [{}] has residual scale [{}]", n, scale);
         if (scale <= 0.0) {
             return new ArrayList<>();
@@ -181,14 +198,14 @@ public class PulseDetector {
         // trailing slots stay 0.0, injecting phantom zero-valued samples into the KDE null (which, for a series
         // away from zero, masks dips by making low values look unremarkable).
         int count = 0;
-        for (int i = 1; i < n - 1; i++) {
+        for (int i = 0; i < n; i++) {
             if (excluded[i] == false) {
                 count++;
             }
         }
         double[] background = new double[count];
         int b = 0;
-        for (int i = 1; i < n - 1; i++) {
+        for (int i = 0; i < n; i++) {
             if (excluded[i] == false) {
                 background[b++] = values[i];
             }
@@ -212,6 +229,10 @@ public class PulseDetector {
 
     // Half-width of the centred window used for the rolling-median baseline that residuals are taken from.
     private static final int WEIGHT_HALF_WINDOW = 5;
+    // Width of the local window used to fit the robust Theil-Sen boundary line that restores the first/last
+    // WEIGHT_HALF_WINDOW residuals (where the centred rolling median has collapsed). Wide enough for a stable
+    // slope, local enough to track the boundary.
+    private static final int BOUNDARY_LINE_WINDOW = 2 * WEIGHT_HALF_WINDOW + 1;
     // Candidate ("long list") threshold: a point is a candidate excursion when its residual from the local
     // rolling-median baseline exceeds this many robust sigmas of the residual scale. Generous pre-filter; the
     // significance decision is the KDE gate.

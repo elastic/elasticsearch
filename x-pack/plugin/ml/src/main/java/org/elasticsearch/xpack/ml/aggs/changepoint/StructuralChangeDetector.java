@@ -38,11 +38,11 @@ public class StructuralChangeDetector {
     }
 
     /**
-     * @param effectiveSampleFactor fraction of the channel's samples that are statistically independent — 1.0 for a
-     * raw value channel, {@code stride/window} for an overlapping dispersion channel — passed to the verifier so it
-     * does not over-count the evidence from correlated samples.
-     * @param detectVarianceShifts whether the verifier reports a variance-driven boundary as a distribution change
-     * (on for the value channel, off for the dispersion channel).
+     * @param effectiveSampleFactor fraction of the channel's samples that are statistically independent —
+     * 1.0 for a raw value channel, {@code stride/window} for an overlapping dispersion channel — passed to
+     * the verifier so it does not over-count the evidence from correlated samples.
+     * @param detectVarianceShifts whether the verifier reports a variance-driven boundary as a distribution
+     * change (on for the value channel, off for the dispersion channel).
      */
     public StructuralChangeDetector(
         int minSegmentLength,
@@ -305,7 +305,7 @@ public class StructuralChangeDetector {
         // trends. Re-residual the boundary points against a robust (Theil-Sen) line over a local boundary
         // window: on a trend the endpoint lies on the line (residual ~0, full weight, trends preserved),
         // while a spike is an outlier the robust line ignores (large residual, down-weighted).
-        applyBoundaryLineResiduals(values, residuals);
+        Stats.applyBoundaryLineResiduals(values, residuals, WEIGHT_HALF_WINDOW, BOUNDARY_LINE_WINDOW);
         double maxAbs = 0.0;
         for (double v : values) {
             maxAbs = Math.max(maxAbs, Math.abs(v));
@@ -331,7 +331,7 @@ public class StructuralChangeDetector {
         for (int i = 0; i < n; i++) {
             int lo = Math.max(0, i - scaleHalfWindow);
             int hi = Math.min(n, i + scaleHalfWindow + 1);
-            double scale = Math.min(globalScale, Stats.localRobustScale(residuals, lo, hi, maxAbs));
+            double scale = Math.max(Stats.localRobustScale(residuals, lo, hi, maxAbs), scaleFloor);
             double u = Math.abs(residuals[i]) / scale;
             // Cauchy weight loss rho = log(1 + (u/c)^2) grows only logarithmically, so a gross excursion's
             // contribution to the segment cost saturates rather than dominating it. That is what we want on
@@ -342,50 +342,6 @@ public class StructuralChangeDetector {
             weights[i] = Math.max(MIN_WEIGHT, 1.0 / (1.0 + z * z));
         }
         return weights;
-    }
-
-    /**
-     * Replaces the residuals of the first and last {@link #WEIGHT_HALF_WINDOW} points (where the symmetric
-     * rolling-median window has collapsed and the residual is ~0) with the residual from a robust Theil-Sen
-     * line fitted over a local boundary window. This keeps trend endpoints at full weight while exposing
-     * endpoint spikes.
-     */
-    private static void applyBoundaryLineResiduals(double[] values, double[] residuals) {
-        int n = values.length;
-        int window = Math.min(n, BOUNDARY_LINE_WINDOW);
-        if (window < 3) {
-            return;
-        }
-        double[] head = theilSenLine(values, 0, window);
-        for (int i = 0; i < WEIGHT_HALF_WINDOW && i < n; i++) {
-            residuals[i] = values[i] - (head[0] + head[1] * i);
-        }
-        int tailStart = n - window;
-        double[] tail = theilSenLine(values, tailStart, window);
-        for (int i = Math.max(0, n - WEIGHT_HALF_WINDOW); i < n; i++) {
-            residuals[i] = values[i] - (tail[0] + tail[1] * (i - tailStart));
-        }
-    }
-
-    /**
-     * Robust line over {@code values[start, start+length)} as {@code {intercept_at_start, slope}},
-     * via Theil-Sen (median pairwise slope, then median intercept) so a boundary spike does not pull
-     * the fit.
-     */
-    private static double[] theilSenLine(double[] values, int start, int length) {
-        double[] slopes = new double[length * (length - 1) / 2];
-        int s = 0;
-        for (int j = 0; j < length; j++) {
-            for (int k = j + 1; k < length; k++) {
-                slopes[s++] = (values[start + k] - values[start + j]) / (k - j);
-            }
-        }
-        double slope = Stats.median(slopes);
-        double[] intercepts = new double[length];
-        for (int j = 0; j < length; j++) {
-            intercepts[j] = values[start + j] - slope * j;
-        }
-        return new double[] { Stats.median(intercepts), slope };
     }
 
     // PELT generates candidates with constant/linear segments only: higher-order segments are unstable
@@ -417,8 +373,8 @@ public class StructuralChangeDetector {
     private static final double MIN_WEIGHT = 1e-4;
     private static final int WEIGHT_HALF_WINDOW = 4;
     // Boundary window for the robust line used to residual the first/last WEIGHT_HALF_WINDOW points
-    // (see applyBoundaryLineResiduals): wide enough for a stable Theil-Sen slope, local enough to
-    // track the boundary.
+    // (see Stats.applyBoundaryLineResiduals): wide enough for a stable Theil-Sen slope, local enough
+    // to track the boundary.
     private static final int BOUNDARY_LINE_WINDOW = 2 * WEIGHT_HALF_WINDOW + 1;
 
     private final int minSegmentLength;

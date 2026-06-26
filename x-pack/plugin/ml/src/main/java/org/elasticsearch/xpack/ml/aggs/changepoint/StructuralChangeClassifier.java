@@ -481,7 +481,7 @@ public class StructuralChangeClassifier {
             LeastSquaresOnlineRegression regression = fitPolynomial(values, weights, start, end, maxDegree);
             int length = end - start;
             for (int degree = 1; degree <= maxDegree; degree++) {
-                rss[degree] = Math.max(regression.residualVarianceForDegree(degree), SCALE_FLOOR * SCALE_FLOOR) * length;
+                rss[degree] = Math.max(regression.residualVarianceForDegree(degree), VAR_FLOOR) * length;
             }
         }
         return rss;

@@ -92,6 +92,31 @@ public class Stats {
         return new double[] { median(intercepts), slope };
     }
 
+    /**
+     * Replaces the residuals of the first and last {@code halfWindow} points with the residual from a robust
+     * Theil-Sen line fitted over a local boundary window of {@code boundaryWindow} points. A symmetric centred
+     * rolling-median window collapses at the ends (a point becomes its own median, so its residual is ~0), which
+     * leaves a boundary excursion invisible. The robust line restores a meaningful residual: ~0 for a point that
+     * lies on a local trend (so trend endpoints are not mistaken for excursions) and large for a boundary spike
+     * (which the median-of-slopes line ignores as an outlier). A no-op for series shorter than three points.
+     */
+    public static void applyBoundaryLineResiduals(double[] values, double[] residuals, int halfWindow, int boundaryWindow) {
+        int n = values.length;
+        int window = Math.min(n, boundaryWindow);
+        if (window < 3) {
+            return;
+        }
+        double[] head = theilSenLine(values, 0, window);
+        for (int i = 0; i < halfWindow && i < n; i++) {
+            residuals[i] = values[i] - (head[0] + head[1] * i);
+        }
+        int tailStart = n - window;
+        double[] tail = theilSenLine(values, tailStart, window);
+        for (int i = Math.max(0, n - halfWindow); i < n; i++) {
+            residuals[i] = values[i] - (tail[0] + tail[1] * (i - tailStart));
+        }
+    }
+
     public static double weightedMean(double[] values, double[] weights, int start, int end) {
         double weightedSum = 0.0;
         double weightTotal = 0.0;

@@ -76,6 +76,42 @@ public class StatsTests extends ESTestCase {
         );
     }
 
+    public void testQuantizationStepRecoversGranularityAndIgnoresRareSmallGaps() {
+        double[] integers = new double[144];
+        for (int i = 0; i < integers.length; i++) {
+            integers[i] = (i % 4 == 3) ? 4.0 : 5.0;
+        }
+        assertTrue("an integer oscillation resolves to a step of 1", Stats.quantizationStep(integers, 0, integers.length) > 0.0);
+
+        // One rare sub-integer value introduces a 0.1 gap; it occurs once and so does not recur, while the integer
+        // (size-1) differences recur many times - so the estimate stays at the bulk granularity, not the lone gap.
+        integers[70] = 4.9;
+        assertTrue(
+            "a single sub-granularity gap must not collapse the quantization step",
+            Stats.quantizationStep(integers, 0, integers.length) > 0.5
+        );
+
+        double[] constant = new double[50];
+        assertEquals("an exactly constant series has no step", 0.0, Stats.quantizationStep(constant, 0, constant.length), 0.0);
+
+        // A clean step series' only nonzero differences ARE the step jumps - distinct and isolated, so none recurs and
+        // the step is 0 (no floor). This is the crucial property: a noiseless step must not be read as "quantized" at
+        // the step size, which would floor away the very change we want to detect.
+        double[] step = new double[180];
+        for (int i = 90; i < step.length; i++) {
+            step[i] = 9.0;
+        }
+        assertEquals("an isolated step jump does not recur, so the step is zero", 0.0, Stats.quantizationStep(step, 0, step.length), 0.0);
+
+        // Continuous (Gaussian) data: differences are all distinct, so nothing recurs and there is no quantization.
+        Random random = new Random(17);
+        double[] continuous = new double[200];
+        for (int i = 0; i < continuous.length; i++) {
+            continuous[i] = 100.0 + 3.0 * random.nextGaussian();
+        }
+        assertEquals("continuous data has no recurring difference", 0.0, Stats.quantizationStep(continuous, 0, continuous.length), 0.0);
+    }
+
     public void testCompositeScaleIsPositiveAndCollapseResistant() {
         // Pure MAD would be zero here (>half the residuals identical); the composite stays positive via the floor.
         double[] mostlyZero = new double[20];
@@ -122,6 +158,32 @@ public class StatsTests extends ESTestCase {
         // With a degenerate bandwidth the tail is the empirical fraction beyond the value.
         double empirical = Stats.kdeTailProbability(1.0, new double[] { 0, 0, 2, 2 }, 0.0, 1);
         assertEquals(0.5, empirical, 1e-12);
+    }
+
+    public void testKdeBandwidthFloorRescuesADegenerateBackground() {
+        // A constant background collapses the estimated spread to zero, so the unfloored bandwidth is zero (the tail
+        // then falls back to an empirical step that cannot resolve an outlier). A positive bandwidth floor keeps a
+        // minimal kernel width, so a clear outlier gets a tiny upper-tail probability instead of a coin-flip.
+        double[] flat = new double[200];
+        assertEquals("a constant background has zero bandwidth unfloored", 0.0, Stats.kdeBandwidth(flat), 1e-12);
+        double floored = Stats.kdeBandwidth(flat, 0.3);
+        assertEquals("the floor sets the bandwidth directly on a degenerate background", 0.3, floored, 1e-12);
+        assertTrue(
+            "with a floored bandwidth a clear outlier above a flat background is highly significant",
+            Stats.kdeTailProbability(4.0, flat, floored, 1) < 1e-3
+        );
+        // The floor only raises the bandwidth; a background with real spread above the floor is unchanged.
+        Random random = new Random(11);
+        double[] noisy = new double[200];
+        for (int i = 0; i < noisy.length; i++) {
+            noisy[i] = random.nextGaussian() * 5.0;
+        }
+        assertEquals(
+            "a small floor leaves a well-spread background unchanged",
+            Stats.kdeBandwidth(noisy),
+            Stats.kdeBandwidth(noisy, 0.01),
+            1e-12
+        );
     }
 
     public void testWindowedDispersionIsNullWhenTooShortAndRisesWithVariance() {

@@ -740,3 +740,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/152311
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:folding.dateNanos_GreaterThan_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/152314

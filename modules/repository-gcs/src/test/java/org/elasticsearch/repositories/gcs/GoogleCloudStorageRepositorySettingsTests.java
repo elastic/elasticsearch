@@ -17,11 +17,13 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -43,6 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class GoogleCloudStorageRepositorySettingsTests extends ESTestCase {
 
@@ -89,19 +92,25 @@ public class GoogleCloudStorageRepositorySettingsTests extends ESTestCase {
     }
 
     private GoogleCloudStorageRepository createGcsRepo(ProjectId projectId, RepositoryMetadata metadata) {
-        Settings internalSettings = Settings.builder()
+        return createGcsRepo(projectId, metadata, Settings.EMPTY);
+    }
+
+    private GoogleCloudStorageRepository createGcsRepo(ProjectId projectId, RepositoryMetadata metadata, Settings nodeSettings) {
+        Settings updateNodeSettings = Settings.builder()
+            .put(nodeSettings)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
             .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
-            .put(metadata.settings())
             .build();
+        ClusterService clusterService = BlobStoreTestUtil.mockClusterService();
+        when(clusterService.getSettings()).thenReturn(nodeSettings);
         return new GoogleCloudStorageRepository(
             projectId,
-            new RepositoryMetadata(metadata.name(), metadata.type(), internalSettings),
+            metadata,
             NamedXContentRegistry.EMPTY,
             mock(GoogleCloudStorageService.class),
-            BlobStoreTestUtil.mockClusterService(),
+            clusterService,
             MockBigArrays.NON_RECYCLING_INSTANCE,
-            new RecoverySettings(internalSettings, new ClusterSettings(internalSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            new RecoverySettings(updateNodeSettings, new ClusterSettings(updateNodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             new GcsRepositoryStatsCollector(),
             SnapshotMetrics.NOOP
         );
@@ -125,13 +134,42 @@ public class GoogleCloudStorageRepositorySettingsTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test")).build();
     }
 
-    private GoogleCloudStorageRepository gcsRepository(Settings settings) {
+    private GoogleCloudStorageRepository gcsRepository(Settings repoSettings) {
+        return gcsRepository(repoSettings, Settings.EMPTY);
+    }
+
+    private GoogleCloudStorageRepository gcsRepository(Settings repoSettings, Settings nodeSettings) {
         // A valid bucket must always be configured, otherwise construction fails for that reason instead of the one under test.
-        Settings repoSettings = Settings.builder()
+        Settings settingsWithBucket = Settings.builder()
             .put(GoogleCloudStorageRepository.BUCKET.getKey(), randomIdentifier())
-            .put(settings)
+            .put(repoSettings)
             .build();
-        return createGcsRepo(randomProjectIdOrDefault(), new RepositoryMetadata("foo", GoogleCloudStorageRepository.TYPE, repoSettings));
+        return createGcsRepo(
+            randomProjectIdOrDefault(),
+            new RepositoryMetadata("foo", GoogleCloudStorageRepository.TYPE, settingsWithBucket),
+            nodeSettings
+        );
+    }
+
+    public void testResumableWriteBufferIsEmptyByDefaultInStateful() {
+        GoogleCloudStorageRepository repo = gcsRepository(Settings.EMPTY);
+        assertTrue(repo.getResumableWriteBufferSize().isEmpty());
+    }
+
+    public void testResumableWriteBufferIs256KbByDefaultInStateless() {
+        Settings statelessNodeSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        GoogleCloudStorageRepository repo = gcsRepository(Settings.EMPTY, statelessNodeSettings);
+        assertEquals(ByteSizeValue.ofKb(256).getBytes(), repo.getResumableWriteBufferSize().getAsInt());
+    }
+
+    public void testResumableWriteBufferExplicitValueIsAlwaysPreferred() {
+        int sizeMb = between(1, 100);
+        Settings statelessNodeSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, randomBoolean()).build();
+        Settings repoSettings = Settings.builder()
+            .put(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.getKey(), ByteSizeValue.ofMb(sizeMb))
+            .build();
+        GoogleCloudStorageRepository repo = gcsRepository(repoSettings, statelessNodeSettings);
+        assertEquals(ByteSizeValue.ofMb(sizeMb).getBytes(), repo.getResumableWriteBufferSize().getAsInt());
     }
 
     public void testInvalidDataStorageClassFailsAtConstruction() {

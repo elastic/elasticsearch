@@ -52,7 +52,7 @@ One restriction worth planning around is performance: reading from the stored [`
 
 ## Unmapped fields and runtime fields [esql-unmapped-fields-vs-runtime-fields]
 
-Unmapped fields differ from runtime fields. A runtime field is a computed field defined in the index mapping, and {{esql}} treats it like any other mapped field. You cannot define new runtime fields at search time in {{esql}}. To create computed columns instead, use the [`EVAL`](commands/eval.md) command. To learn more, refer to [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md).
+Unmapped fields differ from runtime fields. A runtime field is a computed field that can be defined in the index mapping, while an unmapped field is not in the mapping at all but can be present in documents. If a runtime field is part of the index mapping, {{esql}} treats it like any other mapped field. In {{esql}}, you create computed columns with the [`EVAL`](commands/eval.md) command. To learn more, refer to [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md).
 
 ## Related resources [esql-unmapped-fields-related]
 

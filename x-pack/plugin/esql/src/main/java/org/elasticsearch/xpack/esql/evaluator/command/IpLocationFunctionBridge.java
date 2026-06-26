@@ -16,12 +16,8 @@ import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
-import java.util.Map;
 import java.util.SequencedCollection;
-import java.util.Set;
 
 /**
  * Bridge for the IP_LOCATION command that looks up IP addresses in geolocation databases.
@@ -68,8 +64,6 @@ public final class IpLocationFunctionBridge {
          */
         private final String ioFailureMessage;
 
-        private final Map<Class<? extends Exception>, Set<String>> emittedWarningKeys = new HashMap<>();
-
         /**
          * Maps each {@link DatabaseProperty} to its output block index, or {@code -1} if that property was not requested.
          * Indexed by {@link DatabaseProperty#ordinal()}.
@@ -115,19 +109,19 @@ public final class IpLocationFunctionBridge {
         protected void evaluate(String input) {
             if (ipDataLookup == null) {
                 fillSentinelToKeywordFields(unavailableSentinel);
-                registerOnce(IpLocationDatabaseUnavailableException.class, unavailableMessage);
+                warnings.registerException(IpLocationDatabaseUnavailableException.class, unavailableMessage);
                 return;
             }
             if (cachedIsValid == false) {
                 fillSentinelToKeywordFields(EXPIRED_SENTINEL);
-                registerOnce(IpLocationDatabaseExpiredException.class, expiredMessage);
+                warnings.registerException(IpLocationDatabaseExpiredException.class, expiredMessage);
                 return;
             }
             Boolean result;
             try {
                 result = ipDataLookup.lookup(input, this);
             } catch (IOException e) {
-                registerOnce(IOException.class, ioFailureMessage);
+                warnings.registerException(IOException.class, ioFailureMessage);
                 if (logger.isDebugEnabled()) {
                     logger.debug(() -> "IP location lookup failed for [" + input + "] with [" + e.getClass().getSimpleName() + "]", e);
                 }
@@ -135,7 +129,7 @@ public final class IpLocationFunctionBridge {
             }
             if (result == null) {
                 fillSentinelToKeywordFields(unavailableSentinel);
-                registerOnce(IpLocationDatabaseUnavailableException.class, midQueryUnavailableMessage);
+                warnings.registerException(IpLocationDatabaseUnavailableException.class, midQueryUnavailableMessage);
             }
             // result==false → no callbacks invoked, fillMissingValues nullifies
             // result==true → callbacks already pushed values
@@ -146,22 +140,6 @@ public final class IpLocationFunctionBridge {
                 if (keywordSlots[i]) {
                     rowOutput.appendValue(sentinel, i);
                 }
-            }
-        }
-
-        /**
-         * {@code registerException} does not deduplicate (only the emitted HTTP header does, via
-         * {@code HeaderWarning.addWarning}), and each call consumes one of the bounded {@code MAX_ADDED_WARNINGS} slots.
-         * These failure messages can repeat per row, so we forward each distinct (exception type, message) only once:
-         * this both avoids the per-call string building and synchronized {@code addWarning} (bounded to the first
-         * {@code MAX_ADDED_WARNINGS} calls, after which {@code registerException} is a no-op) and keeps duplicates from
-         * exhausting the budget and crowding out other distinct warnings. We use {@code registerException} rather than
-         * the self-deduplicating {@code registerWarning} to keep the standard "evaluation failed, treating result as
-         * null preamble and exception-class categorization shared by all other ES|QL failure warnings.
-         */
-        private void registerOnce(Class<? extends Exception> cls, String message) {
-            if (emittedWarningKeys.computeIfAbsent(cls, k -> new HashSet<>()).add(message)) {
-                warnings.registerException(cls, message);
             }
         }
 

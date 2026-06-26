@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
 
-    private static final TimeSeriesEligibleWriteWindowLocator DLM_ONLY = new TimeSeriesEligibleWriteWindowLocator.DlmOnly();
+    private static final TimeSeriesEligibleWriteWindowLocator DLM_ONLY = new TimeSeriesEligibleWriteWindowLocator();
 
     public void testInfiniteWriteWindow() {
         DataStream dataStream = dataStream("metrics-test", null);

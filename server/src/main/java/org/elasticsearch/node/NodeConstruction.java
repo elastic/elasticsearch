@@ -1052,7 +1052,7 @@ class NodeConstruction {
         final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
         final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator = pluginsService.loadSingletonServiceProvider(
             TimeSeriesEligibleWriteWindowLocator.class,
-            TimeSeriesEligibleWriteWindowLocator.DlmOnly::new
+            TimeSeriesEligibleWriteWindowLocator::new
         );
         modules.bindToInstance(TimeSeriesEligibleWriteWindowLocator.class, timeSeriesEligibleWriteWindowLocator);
 

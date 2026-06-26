@@ -5,4 +5,4 @@
 # 2.0.
 #
 
-org.elasticsearch.xpack.ilm.IlmTimeSeriesEligibleWriteWindowLocator
+org.elasticsearch.xpack.ilm.TimeSeriesEligibleWriteWindowLocatorWithIlm

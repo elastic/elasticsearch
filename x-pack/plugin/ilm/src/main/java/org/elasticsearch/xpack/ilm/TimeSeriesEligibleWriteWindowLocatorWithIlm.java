@@ -25,18 +25,20 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
  * Extends {@link TimeSeriesEligibleWriteWindowLocator} to calculate the eligible write window including
  * ILM policies as well.
  */
-public class IlmTimeSeriesEligibleWriteWindowLocator implements TimeSeriesEligibleWriteWindowLocator {
+public class TimeSeriesEligibleWriteWindowLocatorWithIlm extends TimeSeriesEligibleWriteWindowLocator {
 
     /**
-     * Resolves the settings for the data stream based on the applicable index template and then retrieves
-     * the name of the ILM policy, and if both data stream lifecycle and ILM policy as configured, also the
-     * value of `prefer_ilm`.
+     * Returns the effective ILM policy name for the provided data stream based on the index template
+     * that is associated with this data stream. If the data stream has a data stream lifecycle configured,
+     * it will take it into account and return null if the data stream lifecycle is effective. This choice
+     * was made for performance reasons, since we need to resolve the settings for both the policy and the
+     * `prefer_ilm` setting.
      * @param dataStream the requested data stream
      * @param projectMetadata the project metadata based on which we will resolve the data stream configuration
-     * @return the ILM policy if configured AND effective, otherwise null.
+     * @return the effective ILM policy name or null
      */
     @Override
-    public String getEffectiveIlmPolicy(DataStream dataStream, ProjectMetadata projectMetadata) {
+    protected String getEffectiveIlmPolicy(DataStream dataStream, ProjectMetadata projectMetadata) {
         String indexTemplateName = MetadataIndexTemplateService.findV2Template(projectMetadata, dataStream.getName(), false);
         if (indexTemplateName == null) {
             return null;
@@ -62,7 +64,7 @@ public class IlmTimeSeriesEligibleWriteWindowLocator implements TimeSeriesEligib
      * @return the min age of the first phase that makes an index read-only, otherwise -1
      */
     @Override
-    public long getEligibleWriteWindowFromPolicy(String policy, ProjectMetadata projectMetadata) {
+    protected long getEligibleWriteWindowFromPolicy(String policy, ProjectMetadata projectMetadata) {
         IndexLifecycleMetadata metadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             return -1;

@@ -100,7 +100,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     private final SetOnce<ILMHistoryStore> ilmHistoryStore = new SetOnce<>();
     private final SetOnce<IlmHealthIndicatorService> ilmHealthIndicatorService = new SetOnce<>();
     private final SetOnce<ReservedLifecycleAction> reservedLifecycleAction = new SetOnce<>();
-    private final SetOnce<IlmTimeSeriesEligibleWriteWindowLocator> ilmTimeSeriesEligibleWriteWindowLocator = new SetOnce<>();
+    private final SetOnce<TimeSeriesEligibleWriteWindowLocatorWithIlm> timeSeriesEligibleWriteWindowLocator = new SetOnce<>();
     private final Settings settings;
 
     public IndexLifecycle(Settings settings) {
@@ -198,8 +198,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         reservedLifecycleAction.set(
             new ReservedLifecycleAction(services.xContentRegistry(), services.client(), XPackPlugin.getSharedLicenseState())
         );
-        ilmTimeSeriesEligibleWriteWindowLocator.set(new IlmTimeSeriesEligibleWriteWindowLocator());
-        components.add(ilmTimeSeriesEligibleWriteWindowLocator.get());
+        timeSeriesEligibleWriteWindowLocator.set(new TimeSeriesEligibleWriteWindowLocatorWithIlm());
+        components.add(timeSeriesEligibleWriteWindowLocator.get());
 
         return components;
     }

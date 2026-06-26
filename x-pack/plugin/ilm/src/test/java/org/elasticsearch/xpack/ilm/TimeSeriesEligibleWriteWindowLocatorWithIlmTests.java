@@ -42,9 +42,9 @@ import static org.elasticsearch.xpack.core.ilm.DeleteAction.WITH_SNAPSHOT_DELETE
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class IlmTimeSeriesEligibleWriteWindowLocatorTests extends ESTestCase {
+public class TimeSeriesEligibleWriteWindowLocatorWithIlmTests extends ESTestCase {
 
-    private final IlmTimeSeriesEligibleWriteWindowLocator locator = new IlmTimeSeriesEligibleWriteWindowLocator();
+    private final TimeSeriesEligibleWriteWindowLocatorWithIlm locator = new TimeSeriesEligibleWriteWindowLocatorWithIlm();
     private static final Map<String, LifecycleAction> readOnlyActions = Map.of(
         ReadOnlyAction.NAME,
         new ReadOnlyAction(),

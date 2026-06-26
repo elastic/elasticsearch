@@ -84,7 +84,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPar
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 // This test can run very long in serverless configurations
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 45 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)
@@ -519,7 +519,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, logger);
-        CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, (int) answer.get("documents_found"));
+        if (testCase.expectedDocumentsFound != null) {
+            assertTrue(
+                "cluster is too old to assert returned document count",
+                clusterHasCapability(EsqlCapabilities.Cap.DOCUMENTS_FOUND_AND_VALUES_LOADED)
+            );
+            CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, (int) answer.get("documents_found"));
+        }
 
         if (checkTook) {
             LOGGER.info("checking took incremented from {}", prevTooks);
@@ -675,34 +681,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected boolean supportsViews() {
         if (supportsViews == null) {
             try {
-                // Step 1: check via /_capabilities that ALL nodes understand views (allMatch semantics).
-                boolean esqlViewsSupported = clusterHasCapability(
-                    adminClient(),
-                    "POST",
-                    "/_query",
-                    List.of(),
-                    List.of("views_crud_as_index_actions")
-                ).orElse(false);
-
-                if (esqlViewsSupported == false) {
-                    supportsViews = false;
-                } else {
-                    // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes return
-                    // 200 regardless of @ServerlessScope. In serverless mode an old node without
-                    // @ServerlessScope(Scope.PUBLIC) returns 410. A single probe cannot cover every node
-                    // in a mixed-serverless cluster, but any 410 is a definitive signal that view loading
-                    // will fail on at least some nodes.
-                    try {
-                        adminClient().performRequest(new Request("GET", "/_query/view"));
-                        supportsViews = true;
-                    } catch (ResponseException e) {
-                        if (e.getResponse().getStatusLine().getStatusCode() == 410) {
-                            supportsViews = false;
-                        } else {
-                            throw e;
-                        }
-                    }
-                }
+                // Keep the views support probe identical to the data loader to avoid drift across test setup paths.
+                supportsViews = CsvTestsDataLoader.clusterSupportsViews(adminClient());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

@@ -236,23 +236,18 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         verifyEnum(failures, HighlightOptions.ENCODER_OPTION);
         verifyEnum(failures, HighlightOptions.BOUNDARY_SCANNER_OPTION);
         verifyEnum(failures, HighlightOptions.ORDER_OPTION);
-        // Type and range checks for the non-enum options, driven by the same schema as HighlightOptions.from, so invalid
-        // values fail here at analysis time instead of only later during local planning.
         for (String name : VALID_OPTION_NAMES) {
             verifyValue(failures, name);
         }
     }
 
-    // Returns the option's value only if it is foldable enough to check now. A non-foldable value (the grammar allows
-    // constants, nested maps and parameters in WITH { ... }) is skipped here and fails later at fold time; expanding
-    // non-foldable handling is out of scope.
+    // Non-foldable values (WITH { ... } allows constants, nested maps and parameters) are skipped here and fail later at
+    // fold time.
     private Expression foldableOption(String name) {
         Expression value = options.get(name);
         return value != null && value.foldable() ? value : null;
     }
 
-    // Checks an enum option against its shared descriptor so the analyzer and HighlightOptions.from can never disagree on
-    // the allowed set or case-sensitivity.
     private void verifyEnum(Failures failures, HighlightOptions.EnumOption option) {
         Expression value = foldableOption(option.name());
         if (value == null) {
@@ -264,8 +259,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
     }
 
-    // Runs the shared HighlightOptions.validate type/range checks, turning the IllegalArgumentException it throws on a bad
-    // value into an analysis Failure.
     private void verifyValue(Failures failures, String name) {
         Expression value = foldableOption(name);
         if (value == null) {

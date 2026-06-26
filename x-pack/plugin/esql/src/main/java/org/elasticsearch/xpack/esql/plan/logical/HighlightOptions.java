@@ -26,9 +26,9 @@ import java.util.Locale;
  * only honoured by the FastVectorHighlighter. HIGHLIGHT always uses the unified highlighter, so they are grammar-only
  * no-ops that never reach this record.
  * <p>
- * The per-option type, range and enum rules enforced while building this record are the single source of truth for
- * validation: {@link Highlight#postAnalysisVerification} reuses {@link #validate} so that invalid option values fail at
- * analysis time on the same path as the enum checks, instead of only later during local planning.
+ * The validation done while building this record is also the single source of truth for analysis-time checks:
+ * {@link Highlight#postAnalysisVerification} reuses {@link #validate} so invalid values fail during analysis rather
+ * than only later during local planning.
  */
 public record HighlightOptions(
     String preTag,
@@ -67,15 +67,11 @@ public record HighlightOptions(
     public static final int DEFAULT_MAX_ANALYZED_OFFSET = -1;
 
     /**
-     * Validation policy for a string-valued enum option: its allowed values and whether matching is case-insensitive.
-     * Shared by analyzer verification ({@link Highlight#postAnalysisVerification}) and parsing ({@link #from}) so the two
-     * paths cannot drift on either the allowed set or the case-sensitivity contract.
+     * A string-valued enum option together with its allowed values and case-sensitivity. Shared by
+     * {@link Highlight#postAnalysisVerification} and {@link #from} so the two paths can never disagree on the allowed
+     * set or whether matching is case-insensitive.
      */
-    // TODO: this EnumOption descriptor (and the validate(...) bridge that catches IllegalArgumentException) is
-    // HIGHLIGHT-specific. It's fine as-is, but if we ever want tighter consistency with the rest of ES|QL the enum/type
-    // checks could move toward the shared Options-style descriptor that the full-text functions use.
     public record EnumOption(String name, List<String> allowed, boolean caseInsensitive) {
-        /** Normalizes a raw value for comparison/storage: lower-cased when case-insensitive, otherwise unchanged. */
         public String normalize(String raw) {
             return caseInsensitive ? raw.toLowerCase(Locale.ROOT) : raw;
         }
@@ -85,8 +81,7 @@ public record HighlightOptions(
         }
     }
 
-    // encoder is case-sensitive to mirror Query DSL (default/html only); boundary_scanner and order are normalized
-    // case-insensitively.
+    // encoder is case-sensitive to mirror Query DSL (default/html only); boundary_scanner and order are case-insensitive.
     public static final EnumOption ENCODER_OPTION = new EnumOption(Highlight.ENCODER, ALLOWED_ENCODERS, false);
     public static final EnumOption BOUNDARY_SCANNER_OPTION = new EnumOption(Highlight.BOUNDARY_SCANNER, ALLOWED_BOUNDARY_SCANNERS, true);
     public static final EnumOption ORDER_OPTION = new EnumOption(Highlight.ORDER, ALLOWED_ORDERS, true);
@@ -125,14 +120,12 @@ public record HighlightOptions(
     }
 
     /**
-     * Type/range-checks a single (non-null, foldable) option value by parsing it the same way {@link #from} would and
-     * discarding the result, throwing {@link IllegalArgumentException} on a bad value. Enum options are checked
-     * separately by the verifier against their {@link EnumOption} descriptor (so it keeps the established
-     * {@code Invalid [..] value [..]} message), so they - along with unknown names (validated in the parser) - are
-     * no-ops here.
-     * <p>
-     * {@code boundary_chars} and {@code boundary_max_scan} are FastVectorHighlighter-only no-ops at execution, but we
-     * still check their value types here for Query DSL parity.
+     * Type/range-checks a single (non-null, foldable) option value by parsing it exactly as {@link #from} would and
+     * discarding the result, throwing {@link IllegalArgumentException} on a bad value. Enum options ({@code encoder},
+     * {@code boundary_scanner}, {@code order}) are checked separately against their {@link EnumOption} descriptor, and
+     * {@code phrase_limit} is grammar-only, so all of them are no-ops here. {@code boundary_chars} and
+     * {@code boundary_max_scan} are FastVectorHighlighter-only at execution but we still type-check them for Query DSL
+     * parity.
      */
     public static void validate(String name, Expression value, FoldContext foldContext) {
         switch (name) {
@@ -145,11 +138,8 @@ public record HighlightOptions(
                 0
             );
             case Highlight.MAX_ANALYZED_OFFSET -> maxAnalyzedOffset(value, foldContext);
-            case Highlight.PHRASE_LIMIT -> {
-                // Grammar-only no-op: accepted for Query DSL parity, intentionally not parsed or value-validated.
-            }
-            case Highlight.ENCODER, Highlight.BOUNDARY_SCANNER, Highlight.ORDER -> {
-                // Verified separately against the EnumOption descriptor.
+            case Highlight.ENCODER, Highlight.BOUNDARY_SCANNER, Highlight.ORDER, Highlight.PHRASE_LIMIT -> {
+                // Handled elsewhere (enums against EnumOption, phrase_limit is grammar-only).
             }
             default -> {
                 // Unknown name; the parser already rejected anything not in VALID_OPTION_NAMES.
@@ -178,8 +168,8 @@ public record HighlightOptions(
     }
 
     /**
-     * Coerces a folded value to a string only when it actually is one. Numbers, booleans and other types are rejected
-     * rather than silently stringified via {@link BytesRefs#toString} (e.g. {@code pre_tags: 123}).
+     * Coerces a folded value to a string only when it actually is one, rejecting numbers, booleans and other types
+     * rather than silently stringifying them (e.g. {@code pre_tags: 123}).
      */
     private static String requireString(Object folded) {
         if (folded instanceof BytesRef || folded instanceof String) {
@@ -189,10 +179,9 @@ public record HighlightOptions(
     }
 
     /**
-     * Parses {@code boundary_scanner_locale} as a language tag (for example {@code en-US}). Malformed tags are rejected
-     * early instead of silently degrading to {@link Locale#ROOT} via {@link LocaleUtils#parseLanguageTag(String)}, which
-     * normalizes the JDK {@link java.util.IllformedLocaleException} into a stable {@link IllegalArgumentException} so the
-     * failure surfaces on the same {@code HIGHLIGHT} validation path as the other options.
+     * Parses {@code boundary_scanner_locale} as a language tag (for example {@code en-US}). Uses the strict
+     * {@link LocaleUtils#parseLanguageTag(String)} so a malformed tag fails here instead of silently degrading to
+     * {@link Locale#ROOT}.
      */
     private static Locale locale(Expression value, FoldContext foldContext) {
         if (value == null) {
@@ -214,7 +203,7 @@ public record HighlightOptions(
 
     /**
      * {@code max_analyzed_offset} accepts the same values as Query DSL: a positive integer, or {@code -1} to fall back
-     * to the index setting. {@code 0} and any value below {@code -1} are rejected (see
+     * to the index setting. {@code 0} and anything below {@code -1} are rejected (see
      * {@code AbstractHighlighterBuilder#maxAnalyzedOffset}).
      */
     private static int maxAnalyzedOffset(Expression value, FoldContext foldContext) {
@@ -229,8 +218,8 @@ public record HighlightOptions(
     }
 
     /**
-     * Extracts an integral value from a folded numeric option, rejecting non-numbers as well as numbers with a fractional
-     * part (e.g. {@code number_of_fragments: 0.9}) instead of silently truncating them via {@link Number#intValue()}.
+     * Extracts an int from a folded numeric option, rejecting non-numbers and fractional values (e.g. {@code 0.9})
+     * rather than silently truncating them.
      */
     private static int integral(Object folded) {
         if (folded instanceof Number number) {

@@ -123,16 +123,15 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.query = parsedQuery != null ? parsedQuery : new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
         Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
         this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
-        // Coordinator-side highlighting has no IndexSettings yet, so use the default index cap
-        // Keep the index cap separate from the query cap so user input cannot raise the default.
+        // Coordinator-side highlighting has no IndexSettings yet, so the index cap is just the default. Clamping the
+        // user's max_analyzed_offset to it (rather than overwriting the index cap) prevents raising the default.
         this.indexMaxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
-        this.queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(
-            effectiveQueryMaxAnalyzedOffset(config.maxAnalyzedOffset()),
-            indexMaxAnalyzedOffset
-        );
+        int configuredOffset = config.maxAnalyzedOffset();
+        int queryOffset = configuredOffset < 0 ? indexMaxAnalyzedOffset : Math.min(configuredOffset, indexMaxAnalyzedOffset);
+        this.queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(queryOffset, indexMaxAnalyzedOffset);
         this.memoryIndexAnalyzer = new LimitTokenOffsetAnalyzer(analyzer, queryMaxAnalyzedOffset.getNotNull());
-        // For order=score, let Lucene apply a positive fragment cap directly; otherwise keep the
-        // current path that collects all passages so we can preserve document order before trimming.
+        // For order=score we let Lucene cap fragments directly; otherwise we collect every passage and trim later so we
+        // can keep document order.
         this.highlighterNumberOfFragments = config.orderByScore() && config.numberOfFragments() > 0
             ? config.numberOfFragments()
             : Integer.MAX_VALUE - 1;
@@ -144,23 +143,16 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         );
     }
 
-    private int effectiveQueryMaxAnalyzedOffset(int configuredMaxAnalyzedOffset) {
-        return configuredMaxAnalyzedOffset < 0 ? indexMaxAnalyzedOffset : Math.min(configuredMaxAnalyzedOffset, indexMaxAnalyzedOffset);
-    }
-
-    // Mirrors DefaultHighlighter getBreakIterator: word scanner ignores fragment_size, sentence scanner honours it.
+    // Mirrors DefaultHighlighter#getBreakIterator: the word scanner ignores fragment_size, the sentence scanner honours it.
     private static Supplier<BreakIterator> breakIterator(int numberOfFragments, int fragmentSize, boolean wordBoundary, Locale locale) {
         if (numberOfFragments == 0) {
             // One passage per (multi-)value: only break on the multi-value separator.
             return () -> new CustomSeparatorBreakIterator(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
         }
         return () -> {
-            BreakIterator passageIterator;
-            if (wordBoundary) {
-                passageIterator = BreakIterator.getWordInstance(locale);
-            } else {
-                passageIterator = sentenceBreakIterator(fragmentSize, locale);
-            }
+            BreakIterator passageIterator = wordBoundary
+                ? BreakIterator.getWordInstance(locale)
+                : sentenceBreakIterator(fragmentSize, locale);
             return new SplittingBreakIterator(passageIterator, CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
         };
     }
@@ -271,51 +263,34 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      * {@code number_of_fragments > 0} they are then capped to that many fragments.
      */
     private void appendSnippets(BytesRefBlock.Builder builder, Snippet[] snippets) {
-        Snippet[] selectedSnippets = selectSnippets(snippets);
-        appendSelectedSnippets(builder, selectedSnippets);
-    }
-
-    private Snippet[] selectSnippets(Snippet[] snippets) {
         if (snippets == null || snippets.length == 0) {
-            return new Snippet[0];
+            builder.appendNull();
+            return;
         }
         if (config.orderByScore() && snippets.length > 1) {
-            // Stable sort by descending score: TimSort keeps equal-score fragments in document order, which is a
-            // deliberate (more deterministic) divergence from Query DSL's non-stable introSort. NaN scores are forced
-            // to the bottom rather than the top: the no-match fallback passage carries a NaN score, and the default
-            // comparingDouble ordering would otherwise float such a snippet to the front under order=score.
             Arrays.sort(snippets, SCORE_DESCENDING);
         }
-        int numberOfFragments = config.numberOfFragments();
-        if (numberOfFragments > 0 && snippets.length > numberOfFragments) {
-            return Arrays.copyOf(snippets, numberOfFragments);
+        int count = snippets.length;
+        if (config.numberOfFragments() > 0) {
+            count = Math.min(count, config.numberOfFragments());
         }
-        return snippets;
+        if (count == 1) {
+            builder.appendBytesRef(new BytesRef(snippets[0].getText()));
+            return;
+        }
+        builder.beginPositionEntry();
+        for (int i = 0; i < count; i++) {
+            builder.appendBytesRef(new BytesRef(snippets[i].getText()));
+        }
+        builder.endPositionEntry();
     }
 
-    // Highest score first, with NaN treated as the lowest possible score so a NaN-scored snippet never sorts ahead of a
-    // real one. Equal scores keep their input (document) order because Arrays.sort is stable. Package-private so the
-    // NaN/tie-break behavior can be asserted directly in tests.
+    // Highest score first. NaN counts as the lowest score so the no-match fallback passage (which carries a NaN score)
+    // never sorts ahead of a real fragment. Arrays.sort is stable, so equal scores keep document order.
     static final Comparator<Snippet> SCORE_DESCENDING = Comparator.comparingDouble((Snippet s) -> {
         float score = s.getScore();
         return Float.isNaN(score) ? Double.NEGATIVE_INFINITY : score;
     }).reversed();
-
-    private static void appendSelectedSnippets(BytesRefBlock.Builder builder, Snippet[] selectedSnippets) {
-        if (selectedSnippets.length == 0) {
-            builder.appendNull();
-            return;
-        }
-        if (selectedSnippets.length == 1) {
-            builder.appendBytesRef(new BytesRef(selectedSnippets[0].getText()));
-            return;
-        }
-        builder.beginPositionEntry();
-        for (Snippet snippet : selectedSnippets) {
-            builder.appendBytesRef(new BytesRef(snippet.getText()));
-        }
-        builder.endPositionEntry();
-    }
 
     @Override
     public String toString() {

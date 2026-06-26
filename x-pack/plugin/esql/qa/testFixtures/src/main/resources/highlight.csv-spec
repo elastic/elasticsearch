@@ -82,9 +82,7 @@ null
 ;
 
 
-# no_match_size > 0 makes a non-matching field fall back to its leading text instead of null. Contrast
-# with highlightNoMatch above, which returns null for the same kind of non-matching query when no_match_size
-# is left at its default of 0.
+# no_match_size > 0 makes a non-matching field fall back to its leading text instead of null.
 highlightNoMatchSize
 required_capability: highlight_v2
 
@@ -197,8 +195,7 @@ highlight_content:keyword
 ;
 
 
-# number_of_fragments = 0 disables fragmentation: the whole field value is returned as a single fragment
-# with the matches still wrapped, instead of being split into per-sentence fragments.
+# number_of_fragments = 0 disables fragmentation: the whole value is returned as one fragment, matches still wrapped.
 highlightNumberOfFragmentsZero
 required_capability: highlight_v2
 
@@ -284,8 +281,7 @@ The One Ring was forged by Sauron. | The One <em>Ring</em> was forged by Sauron.
 ;
 
 
-# fragment_size bounds each sentence-based fragment to that many characters. A large value lets both
-# sentences share one fragment; the contrasting small-fragment_size test below splits them apart.
+# fragment_size bounds each sentence-based fragment; a large value lets both sentences share one fragment.
 highlightFragmentSizeLargerThanText
 required_capability: highlight_v2
 
@@ -299,8 +295,7 @@ highlight_content:keyword
 ;
 
 
-# A small fragment_size keeps each sentence in its own fragment, so the two matching sentences become
-# two separate values instead of sharing one fragment as they do with the large fragment_size above.
+# A small fragment_size keeps each sentence in its own fragment, so the two matching sentences become two values.
 highlightSmallFragmentSizeSplitsSentences
 required_capability: highlight_v2
 
@@ -314,9 +309,7 @@ highlight_content:keyword
 ;
 
 
-# The default sentence boundary scanner breaks fragments on sentence boundaries: with a fragment_size that
-# spans both sentences, the match brings back the full surrounding text. Contrast with the word boundary
-# scanner test directly below, which scopes the fragment to the matched word instead.
+# boundary_scanner=sentence (the default) breaks fragments on sentences, so the match brings back the whole sentence.
 highlightSentenceBoundaryScanner
 required_capability: highlight_v2
 
@@ -330,8 +323,7 @@ The One <em>Ring</em> was forged by Sauron. Frodo carried it to Mount Doom.
 ;
 
 
-# The word boundary scanner breaks fragments on word boundaries instead of sentences, so the fragment is
-# scoped to the words around the match rather than the full sentence the sentence scanner returns above.
+# boundary_scanner=word breaks on word boundaries, so the fragment is scoped to the matched word.
 highlightWordBoundaryScanner
 required_capability: highlight_v2
 
@@ -345,9 +337,7 @@ highlight_content:keyword
 ;
 
 
-# boundary_scanner_locale picks the Locale for the break iterator. For ROOT-equivalent English input it
-# breaks identically to the default locale, so the highlighted output is unchanged; this asserts the option
-# is accepted and applied without altering the result for this input.
+# boundary_scanner_locale picks the break-iterator Locale; en-US breaks like the default here, so output is unchanged.
 highlightBoundaryScannerLocale
 required_capability: highlight_v2
 
@@ -361,9 +351,7 @@ The One <em>Ring</em> was forged by Sauron.
 ;
 
 
-# order=none (the default) keeps fragments in document order, so the values come back in the order they
-# appear in the input regardless of how many matches each fragment has. Contrast with the order=score test
-# below, which reorders these same two values by descending score.
+# order=none (the default) keeps fragments in document order regardless of how many matches each one has.
 highlightOrderNoneKeepsDocumentOrder
 required_capability: highlight_v2
 
@@ -377,8 +365,7 @@ highlight_content:keyword
 ;
 
 
-# order=score reorders fragments by descending score: the second value has two matches so it scores higher
-# and is returned first, flipping the document order seen in the order=none test above.
+# order=score reorders fragments by descending score: the second value has two matches, so it comes first.
 highlightOrderByScore
 required_capability: highlight_v2
 
@@ -392,9 +379,7 @@ highlight_content:keyword
 ;
 
 
-# max_analyzed_offset caps how far into the field analysis runs: only terms whose offset is below the cap
-# are considered for matching. A match within the first 10 characters ("One" ends at offset 7) is still
-# highlighted under a cap of 10.
+# max_analyzed_offset caps how far analysis runs; "One" ends at offset 7, so it is still matched under a cap of 10.
 highlightMaxAnalyzedOffsetWithinLimit
 required_capability: highlight_v2
 
@@ -408,9 +393,7 @@ The <em>One</em> Ring was forged by Sauron.
 ;
 
 
-# A match that sits past the max_analyzed_offset cap is invisible to the highlighter: "Sauron" starts well
-# beyond offset 10, so analysis stops before reaching it, nothing matches, and (with the default
-# no_match_size = 0) the row is null.
+# A match past the max_analyzed_offset cap is never seen: "Sauron" is beyond offset 10, so the row is null.
 highlightMaxAnalyzedOffsetTruncatesMatch
 required_capability: highlight_v2
 
@@ -424,9 +407,7 @@ null
 ;
 
 
-# boundary_chars, boundary_max_scan and phrase_limit only affect the FastVectorHighlighter. HIGHLIGHT
-# always uses the unified highlighter, so these are accepted for Query DSL parity but are no-ops: the
-# output is identical to running with default options.
+# boundary_chars, boundary_max_scan and phrase_limit are FastVectorHighlighter-only, so they are accepted but no-ops.
 highlightUnifiedNoOpOptions
 required_capability: highlight_v2
 
@@ -440,10 +421,7 @@ The One <em>Ring</em> was forged by Sauron.
 ;
 
 
-# The query is a bag of words, so adjacent matched terms are each wrapped independently rather than being
-# merged into one span: "new york" matches "New" and "York" as two separate terms, producing two adjacent
-# <em>...</em> wraps. (Span merging in the formatter only kicks in for overlapping offsets, which a
-# term-based query does not produce.)
+# The query is a bag of words, so adjacent terms "New" and "York" are each wrapped independently rather than merged.
 highlightAdjacentMatchesWrappedIndependently
 required_capability: highlight_v2
 
@@ -457,9 +435,7 @@ I love <em>New</em> <em>York</em> City in the spring.
 ;
 
 
-# order=score combined with a number_of_fragments cap keeps the highest-scoring fragments, not the first in
-# document order. The third value has two matches so it scores highest and survives the cap of 1, even
-# though it is last in document order.
+# order=score with a number_of_fragments cap keeps the highest-scoring fragment: the last value wins despite its order.
 highlightOrderByScoreWithFragmentCap
 required_capability: highlight_v2
 
@@ -473,9 +449,7 @@ highlight_content:keyword
 ;
 
 
-# no_match_size bounds the leading text returned for a non-matching field. With a field longer than the
-# size, only the leading portion (the first sentence here, trimmed at the sentence boundary) is returned
-# rather than the whole multi-sentence value.
+# no_match_size bounds the leading text returned for a non-matching field, trimmed to the first sentence here.
 highlightNoMatchSizeTruncatesLongText
 required_capability: highlight_v2
 
@@ -489,8 +463,7 @@ Gardens and flowers bloom in spring
 ;
 
 
-# In a multi-valued field, only values that contain a match are highlighted and returned; values with no
-# match are dropped, so a single matching value comes back as a single value rather than a multi-value.
+# In a multi-valued field only matching values are returned; the single match here comes back as a single value.
 highlightMultivaluedPartialMatch
 required_capability: highlight_v2
 
@@ -504,8 +477,7 @@ Team <em>Lead</em>
 ;
 
 
-# An empty query analyzes to no terms and, with the default no_match_size = 0, yields null (the
-# MatchNoDocsQuery path) rather than echoing the field text back.
+# An empty query analyzes to no terms and, with the default no_match_size = 0, yields null.
 highlightEmptyQueryDefaultNoMatchSizeIsNull
 required_capability: highlight_v2
 
@@ -519,9 +491,7 @@ null
 ;
 
 
-# Column pruning: with two ON fields but only one highlight_<field> column kept downstream, the other
-# highlight column is pruned away by the KEEP without breaking the operator's block layout (the operator
-# always appends one block per ON field, so HIGHLIGHT itself is never partially pruned).
+# Column pruning: with two ON fields, KEEP can drop one highlight_<field> column without breaking the block layout.
 highlightColumnPruningKeepsSingleHighlight
 required_capability: highlight_v2
 
@@ -535,8 +505,7 @@ highlight_body:keyword
 ;
 
 
-# Column pruning also drops the original ON columns while keeping only the requested highlight column: the
-# title/body inputs are still read to compute the highlights, but neither survives in the final output.
+# Column pruning can also drop the original ON columns while keeping only the requested highlight column.
 highlightColumnPruningDropsOriginalColumns
 required_capability: highlight_v2
 
@@ -550,9 +519,7 @@ Return of the <em>King</em>
 ;
 
 
-# Same column pruning over fields loaded from an index: two ON fields are highlighted but only
-# highlight_title is kept, so the unused highlight_description column is pruned downstream while both
-# ON fields are still extracted and highlighted by the operator.
+# Column pruning over fields loaded from an index: two ON fields are highlighted but only highlight_title is kept.
 highlightColumnPruningFromIndex
 required_capability: highlight_v2
 required_capability: match_function
@@ -570,9 +537,7 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
-# RENAME a single highlight column: HIGHLIGHT is a GeneratingPlan, so renaming a generated column flows
-# through withGeneratedNames and the renamed column carries the same highlighted value, while the
-# unrenamed highlight column keeps its default name.
+# RENAME a single highlight column: the renamed column carries the highlighted value, the other keeps its name.
 highlightRenameSingleColumn
 required_capability: highlight_v2
 
@@ -587,8 +552,7 @@ Return of the <em>King</em> | <em>Tolkien</em> wrote the epic saga.
 ;
 
 
-# RENAME both highlight columns: each generated column is renamed independently and keeps its own
-# highlighted value, confirming the ON-field-to-column alignment survives renaming.
+# RENAME both highlight columns: each one is renamed independently and keeps its own highlighted value.
 highlightRenameAllColumns
 required_capability: highlight_v2
 
@@ -603,8 +567,7 @@ Return of the <em>King</em> | <em>Tolkien</em> wrote the epic saga.
 ;
 
 
-# DROP one highlight column: dropping highlight_title removes it from the output while the remaining
-# highlight_body column keeps its correct value, and the operator still appends one block per ON field.
+# DROP one highlight column: dropping highlight_title leaves highlight_body with its correct value.
 highlightDropSingleHighlightColumn
 required_capability: highlight_v2
 
@@ -618,8 +581,7 @@ highlight_body:keyword
 ;
 
 
-# DROP the original ON columns but keep both highlight columns: the inputs are consumed by HIGHLIGHT and
-# dropped from the output, leaving only the two highlighted columns.
+# DROP the original ON columns but keep both highlight columns, leaving only the two highlighted columns.
 highlightDropOriginalColumns
 required_capability: highlight_v2
 
@@ -633,8 +595,7 @@ Return of the <em>King</em> | <em>Tolkien</em> wrote the epic saga.
 ;
 
 
-# RENAME the original ON column before HIGHLIGHT references it: HIGHLIGHT highlights the renamed column and
-# names its generated output after the new column name.
+# RENAME the original ON column before HIGHLIGHT: it highlights the renamed column and names its output accordingly.
 highlightRenameOnFieldBeforeHighlight
 required_capability: highlight_v2
 

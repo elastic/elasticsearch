@@ -722,9 +722,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationCompletesWithMultipleHandlers
   issue: https://github.com/elastic/elasticsearch/issues/152292
-- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
-  method: testProviderIsDiscoveredAndHandlerIsInvoked
-  issue: https://github.com/elastic/elasticsearch/issues/152303
 - class: org.elasticsearch.xpack.stateless.StatelessConcurrentRefreshIT
   method: testWaitUntilShouldNotWaitForUpload
   issue: https://github.com/elastic/elasticsearch/issues/152304

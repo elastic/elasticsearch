@@ -894,18 +894,18 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          */
         private static long base64BinarySize(String value) {
             int dataStart = value.indexOf(',') + 1;
-            int base64Length = value.length() - dataStart;
-            if (base64Length <= 0) {
+            if (dataStart >= value.length()) {
                 return 0;
             }
-            int padding = 0;
-            if (value.charAt(value.length() - 1) == '=') {
-                padding++;
-                if (value.length() - 2 >= dataStart && value.charAt(value.length() - 2) == '=') {
-                    padding++;
-                }
+
+            int lastIdx = value.length() - 1;
+            while (lastIdx >= dataStart && value.charAt(lastIdx) == '=') {
+                lastIdx--;
             }
-            return (long) base64Length / 4 * 3 - padding;
+
+            long dataChars = lastIdx + 1 - dataStart;
+            long rem = dataChars % 4;
+            return dataChars / 4 * 3 + (rem > 0 ? rem - 1 : 0);
         }
 
         private boolean incrementIndexingPressurePreInference(ExtendedIndexRequest indexRequest, int itemIndex) {

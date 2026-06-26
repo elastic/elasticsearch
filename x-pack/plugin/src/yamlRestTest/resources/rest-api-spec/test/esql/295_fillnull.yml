@@ -72,6 +72,22 @@ setup:
                 type: keyword
               client_ip:
                 type: keyword
+  #
+  # Like `events_partial` (dynamic:false, so `extra_tag` is only in _source) but with one document that leaves
+  # `extra_tag` unset. Under SET unmapped_fields=load that row's loaded keyword column is genuinely null, so an
+  # all-fields FILLNULL has something to fill. Kept separate from `events_partial` to not disturb its row counts.
+  #
+  - do:
+      indices.create:
+        index: events_partial_nulls
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              event_id:
+                type: integer
+              message:
+                type: keyword
   - do:
       bulk:
         refresh: true
@@ -88,6 +104,10 @@ setup:
           - '{"event_id": 10, "message": "first", "extra_tag": "alpha"}'
           - '{"index": {"_index": "events_partial"}}'
           - '{"event_id": 11, "message": "second", "extra_tag": "beta"}'
+          - '{"index": {"_index": "events_partial_nulls"}}'
+          - '{"event_id": 20, "message": "has tag", "extra_tag": "gamma"}'
+          - '{"index": {"_index": "events_partial_nulls"}}'
+          - '{"event_id": 21, "message": "no tag"}'
 
 ---
 'fillnull on union typed field is rejected':
@@ -195,6 +215,31 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [ 10, 'alpha' ] }
   - match: { values.1: [ 11, 'beta' ] }
+
+---
+'fillnull all-fields under SET unmapped_fields load fills the loaded keyword column':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_v5 ]
+      reason: 'requires SET unmapped_fields="load" support'
+  - do:
+      esql.query:
+        body:
+          # `extra_tag` is unmapped and referenced only by the trailing KEEP, so SET load injects it into the source
+          # AFTER the all-fields FILLNULL first materialized its fill aliases. The all-fields FILLNULL must still fill
+          # the loaded keyword column: event_id 21 has no extra_tag (null when loaded) and must become "filled";
+          # event_id 20 keeps its value. Regression for the FILLNULL materialization-ordering gap.
+          query: 'SET unmapped_fields="load"; FROM events_partial_nulls | FILLNULL WITH "filled" | KEEP event_id, extra_tag | SORT event_id | LIMIT 10'
+  - match: { columns.0.name: event_id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: extra_tag }
+  - match: { columns.1.type: keyword }
+  - length: { values: 2 }
+  - match: { values.0: [ 20, 'gamma' ] }
+  - match: { values.1: [ 21, 'filled' ] }
 
 ---
 'fillnull all-fields under SET unmapped_fields nullify is safe with null typed columns':

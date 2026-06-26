@@ -153,7 +153,30 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         // Keep the node "unresolved" until the fill aliases are materialized, so that ResolveRefs (which skips
         // already-resolved nodes) is guaranteed to run resolveFillNull and build them - including for the
         // all-fields form `... | FILLNULL`, which has no unresolved target attributes to begin with.
-        return inputsResolved() && fields != null;
+        if (inputsResolved() == false || fields == null) {
+            return false;
+        }
+        // All-fields form: unmapped_fields="load" injects columns into the source after the first ResolveRefs
+        // materialization (ResolveUnmapped runs later in the same analyzer batch), so a fillable column can appear in
+        // the child output only on a later pass. Stay unresolved while such a column is still missing a fill alias, so
+        // ResolveRefs re-materializes to cover it (the targeted form gates on inputsResolved() instead and is unaffected).
+        if (targetFields.isEmpty() && childrenResolved() && allFillableColumnsCovered() == false) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean allFillableColumnsCovered() {
+        Set<String> filled = new HashSet<>(fields.size());
+        for (Alias a : fields) {
+            filled.add(a.name());
+        }
+        for (Attribute attr : child().output()) {
+            if (filled.contains(attr.name()) == false && resolveDefaultValue(attr.dataType()) != null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -167,8 +190,10 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     /**
      * Builds the fill aliases against the given (resolved) child output and returns a copy carrying them.
-     * Invoked once during analysis. The aliases reference the same child attributes that {@link #output()}
-     * and {@link #surrogate()} build on, so later attribute rewrites stay consistent.
+     * The aliases reference the same child attributes that {@link #output()} and {@link #surrogate()} build on, so
+     * later attribute rewrites stay consistent. Idempotent and incremental: for the all-fields form it may run again
+     * (driven by {@link #expressionsResolved()}) to cover columns that {@code unmapped_fields="load"} injects after the
+     * first pass, preserving the aliases already built.
      */
     public FillNull materialize(List<Attribute> childOutput) {
         List<Attribute> fieldsToFill = targetFields.isEmpty() ? childOutput : targetFields;
@@ -177,9 +202,28 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             fillNames.add(a.name());
         }
 
+        // Preserve any aliases already built (keyed by column name). Re-materialization happens for the all-fields form
+        // once unmapped_fields="load" injects columns into the source after the first pass (see expressionsResolved):
+        // keeping the existing aliases means columns that were already filled retain their attribute ids and only the
+        // newly appeared columns get a fresh fill alias.
+        Map<String, Alias> existing;
+        if (fields == null || fields.isEmpty()) {
+            existing = Map.of();
+        } else {
+            existing = new HashMap<>(fields.size());
+            for (Alias a : fields) {
+                existing.put(a.name(), a);
+            }
+        }
+
         List<Alias> built = new ArrayList<>(fieldsToFill.size());
         for (Attribute field : childOutput) {
             if (fillNames.contains(field.name())) {
+                Alias previous = existing.get(field.name());
+                if (previous != null) {
+                    built.add(previous);
+                    continue;
+                }
                 Expression defaultValue = resolveDefaultValue(field.dataType());
                 if (defaultValue != null) {
                     Coalesce coalesce = new Coalesce(field.source(), field, List.of(defaultValue));

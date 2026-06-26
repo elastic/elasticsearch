@@ -72,6 +72,15 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         );
     }
 
+    /**
+     * Skips the calling test on release builds, where {@code FILLNULL} is unavailable. The grammar rule is gated by
+     * {@code DEV_FILLNULL} (tracked by {@link EsqlCapabilities.Cap#FILLNULL}), so {@code EsqlTestUtils.TEST_PARSER}
+     * can parse a {@code FILLNULL} query only in a snapshot build; otherwise the rewriter returns the query unmodified.
+     */
+    private static void assumeFillNullSupported() {
+        assumeTrue("FILLNULL is a snapshot-only grammar feature (EsqlCapabilities.Cap.FILLNULL)", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+    }
+
     /** An empty resolved scope returns the original query with {@code modified == false}. */
     public void testEmptyInitialScopeReturnsUnmodifiedQuery() {
         String query = "FROM employees | KEEP first_name";
@@ -205,6 +214,20 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         assertTrue(result.modified());
         // The hoist rebinds the field before the command; the MV_EXPAND argument itself stays a bare attribute.
         assertThat(result.rewrittenQuery(), containsString("EVAL first_name = field_extract(first_name, \"v\")\n| MV_EXPAND first_name"));
+        assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
+    }
+
+    /**
+     * An in-scope {@code FILLNULL} target is hoisted into a preceding {@code EVAL} and then leaves scope, mirroring
+     * {@code MV_EXPAND}: the target-field slot accepts only a bare attribute, so the field is rebound to keyword
+     * before the command rather than wrapped in place (which would be unparseable).
+     */
+    public void testFillNullTargetHoistedBeforeCommand() {
+        assumeFillNullSupported();
+        RewriteResult result = rewrite("FROM employees | FILLNULL first_name | KEEP first_name", Set.of("first_name"));
+        assertTrue(result.modified());
+        // The hoist rebinds the field before the command; the FILLNULL target itself stays a bare attribute.
+        assertThat(result.rewrittenQuery(), containsString("EVAL first_name = field_extract(first_name, \"v\")\n| FILLNULL first_name"));
         assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
     }
 

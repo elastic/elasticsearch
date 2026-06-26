@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -651,6 +652,33 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadModeAllowsNonBranchingViewEquivalentWithRename() {
         test().statement(setUnmappedLoad("FROM test | RENAME first_name AS fname | KEEP fname, does_not_exist"));
+    }
+
+    /**
+     * All-fields FILLNULL must fill a column that {@code unmapped_fields="load"} injects into the source.
+     * ResolveUnmapped runs after the first ResolveRefs pass, so the load-injected keyword column only appears in the
+     * FILLNULL child output on a later pass; the all-fields fill alias list must be (re)materialized to include it.
+     * Regression for the materialization-ordering gap: previously the loaded column passed through FILLNULL unfilled.
+     */
+    public void testAllFieldsFillNullFillsLoadInjectedUnmappedColumn() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+
+        // does_not_exist is unmapped in `test`; under load it surfaces as a KEYWORD column loaded from _source and is
+        // injected into the EsRelation below FILLNULL only after the all-fields aliases were first built.
+        var plan = test().statement(setUnmappedLoad("FROM test | FILLNULL | KEEP emp_no, does_not_exist"));
+
+        Holder<FillNull> holder = new Holder<>();
+        plan.forEachDown(FillNull.class, holder::set);
+        FillNull fillNull = holder.get();
+        assertThat("FILLNULL node should be present in the analyzed plan", fillNull, notNullValue());
+
+        Set<String> filledNames = new HashSet<>();
+        fillNull.fields().forEach(alias -> filledNames.add(alias.name()));
+        assertThat(
+            "all-fields FILLNULL must fill the load-injected unmapped keyword column [does_not_exist]",
+            filledNames,
+            Matchers.hasItem("does_not_exist")
+        );
     }
 
     public void testLoadModeDisallowsBranchingViewEquivalent() {

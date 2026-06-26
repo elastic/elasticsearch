@@ -1645,12 +1645,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 result = fillNull.withTargetFields(resolved);
             }
-            // Materialize the fill aliases (col = COALESCE(col, default)) as proper NodeInfo state, exactly once,
-            // as soon as the inputs are resolved. This runs in the same post-order ResolveRefs pass that builds the
-            // command's output, so downstream consumers in this pass (resolveKeep, resolveFork, ...) see the filled
-            // schema, and later attribute rewrites (ResolveUnionTypes, UnionTypesCleanup) transform the Coalesce
-            // attributes through the standard tree-transform machinery.
-            if (result.fields() == null && result.inputsResolved()) {
+            // Materialize the fill aliases (col = COALESCE(col, default)) as proper NodeInfo state, as soon as the
+            // inputs are resolved. This runs in the same post-order ResolveRefs pass that builds the command's output,
+            // so downstream consumers in this pass (resolveKeep, resolveFork, ...) see the filled schema, and later
+            // attribute rewrites (ResolveUnionTypes, UnionTypesCleanup) transform the Coalesce attributes through the
+            // standard tree-transform machinery. For the all-fields form, materialize() is idempotent and incremental:
+            // it re-runs here (driven by expressionsResolved) to pick up columns that unmapped_fields="load" injects
+            // after this rule first ran, while preserving the aliases already built.
+            if (result.inputsResolved() && result.expressionsResolved() == false) {
                 result = result.materialize(childrenOutput);
             }
             return result;

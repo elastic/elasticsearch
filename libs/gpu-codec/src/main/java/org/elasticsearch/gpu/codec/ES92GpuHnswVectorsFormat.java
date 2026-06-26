@@ -16,7 +16,6 @@ import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.gpu.CuVSGPUSupport;
@@ -94,8 +93,8 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     }
 
     @Override
-    public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+    public KnnVectorsReader fieldsReader(SegmentReadState state) {
+        throw new UnsupportedOperationException("GPU format is write-only; reading uses the CPU format resolved via SPI");
     }
 
     @Override

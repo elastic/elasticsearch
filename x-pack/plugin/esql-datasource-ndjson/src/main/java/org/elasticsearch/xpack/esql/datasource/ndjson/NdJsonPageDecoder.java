@@ -96,9 +96,10 @@ public class NdJsonPageDecoder implements Closeable {
      * ({@code floor(offset / B)}) — exactly as the CSV reader uses its per-row {@code rowStartBytes}. The
      * page is NOT capped at stripe lines: byte-range cover attribution by record offset needs no page
      * alignment. {@code baseOffset} is this read's first byte in file/decompressed coordinates; the absolute
-     * offset of the parser's current position is {@code baseOffset + parserSliceStart +
-     * parser.getCurrentLocation().getByteOffset()}. Disabled by default — a pure stats overlay, never
-     * affecting page contents.
+     * offset of the START of the parser's current token (a record's opening brace) is {@code baseOffset +
+     * parserSliceStart + parser.getTokenLocation().getByteOffset()} — see {@link #tokenStartOffset()}, which
+     * uses the token-start location (not the current/end location) so attribution is scan-invariant. Disabled
+     * by default — a pure stats overlay, never affecting page contents.
      */
     private long statsBaseOffset = 0L;
     private boolean recordOffsetTracking = false;

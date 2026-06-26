@@ -54,6 +54,14 @@ import java.util.concurrent.ConcurrentMap;
  * {@code StripeStatsHarvester}). A page is NOT capped at stripe lines — it may span stripes; the iterator
  * splits the page's rows by their recorded offsets. Each fragment's byte sub-range is the chunk range clamped
  * to the stripe's grid cell, so sibling chunks' fragments for a split stripe tile contiguously.
+ *
+ * <p>The format-agnostic byte-range-cover GEOMETRY (dense ordinals, contiguous tiling, empty stripes for
+ * oversized records, the partial trailing stripe of a non-final chunk, a record starting on a stripe boundary)
+ * is tested directly at the shared component's own layer in {@code StripeStatsHarvesterTests} and is not
+ * duplicated here. What stays in this file is reader-specific: end-to-end folds through the production
+ * reconciler, the harvest-scope (COUNT/PROJECTED/ALL) tests, and the NDJSON iterator's page-cap / page-split
+ * behavior ({@link #testPageWouldStraddleStripeButIsCapped}, {@link #testTinyBatchSplitsStripeAcrossPagesThenFolds}),
+ * which exercise the decoder's own paging rather than the harvester's cover math.
  */
 public class NdJsonStripeStatsCaptureTests extends ESTestCase {
 
@@ -196,14 +204,6 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         assertEquals("per-stripe rows must sum to the file's true row count", totalRows, rowSum);
     }
 
-    public void testStripeSmallerThanBatchTilesDenselyAndSumsExact() throws Exception {
-        // B (16) is far below the page's batchSize budget, so the decoder's page-cap — not batchSize —
-        // ends each page. Records 8 bytes each: every ~2 records cross a stripe line.
-        byte[] data = ndjson(1, 10); // 10 records, 80 bytes
-        List<Frag> frags = captureStripes(data, 0, true, true, 1000, 16);
-        assertDenseFileFinalCover(frags, 10, 10L * RECORD_BYTES);
-    }
-
     public void testPageWouldStraddleStripeButIsCapped() throws Exception {
         // batchSize=1000 would pull the whole file into one page if uncapped; the per-stripe cap forces a
         // page break at each stripe line, so no fragment spans more than one stripe.
@@ -215,47 +215,12 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         assertTrue("the per-stripe cap must split a huge-batch read into multiple stripe fragments", frags.size() > 1);
     }
 
-    public void testRecordLargerThanStripeEmitsEmptyStripes() throws Exception {
-        // B=3 < record size (8): every record spans multiple stripe rows, so stripe lines fall between
-        // records and the skipped ordinals must surface as explicit empty (zero-row) fragments to keep
-        // the cover contiguous.
-        byte[] data = ndjson(1, 5); // 40 bytes
-        List<Frag> frags = captureStripes(data, 0, true, true, 1000, 3);
-        assertDenseFileFinalCover(frags, 5, 40);
-        long emptyCount = frags.stream().filter(f -> f.rows == 0).count();
-        assertTrue("oversized records must create at least one empty stripe", emptyCount > 0);
-        // Under the byte-range cover model an empty stripe carries its grid-width sub-range (start < end),
-        // not a zero-length one — that contiguity is exactly what keeps the whole-file cover complete. The
-        // contiguous-tiling check in assertDenseFileFinalCover already pins every fragment's [start, end).
-    }
-
-    public void testRecordStartOnStripeBoundary() throws Exception {
-        // B=7: record 1's scan-start (offset 7, just past record 0's '}') lands exactly on stripe line 7,
-        // so record 1 opens stripe 1 cleanly. Tiling must stay exact.
-        byte[] data = ndjson(2, 6);
-        List<Frag> frags = captureStripes(data, 0, true, true, 1000, 7);
-        assertDenseFileFinalCover(frags, 6, 6L * RECORD_BYTES);
-    }
-
     public void testTinyBatchSplitsStripeAcrossPagesThenFolds() throws Exception {
         // batchSize=1 forces one record per page; multiple pages land in the same stripe and must
         // aggregate into a single per-stripe fragment (not one fragment per page).
         byte[] data = ndjson(1, 9);
         List<Frag> frags = captureStripes(data, 0, true, true, 1, 32);
         assertDenseFileFinalCover(frags, 9, 9L * RECORD_BYTES);
-    }
-
-    public void testNonFinalChunkTrailingStripeIsNotMarkedComplete() throws Exception {
-        // A non-file-final chunk ends mid-stripe at a chunk boundary; its trailing stripe must be a
-        // partial right fragment (atEnd=false, eof=false) so the next chunk's continuation completes the
-        // cover. Marking it complete would silently drop the next chunk's records for that stripe.
-        byte[] data = ndjson(1, 8); // 64 bytes
-        List<Frag> frags = captureStripes(data, 0, true, false, 1000, 1024); // one big stripe, NOT file-final
-        assertEquals("the whole non-final chunk is one stripe here", 1, frags.size());
-        Frag only = frags.get(0);
-        assertTrue("a non-final chunk's first stripe still anchors atStart at offset 0", only.atStart);
-        assertFalse("a non-final chunk's trailing stripe must NOT be complete-on-the-right", only.atEnd);
-        assertFalse("a non-final chunk must NOT mark its trailing stripe terminal", only.eof);
     }
 
     public void testTwoChunkScanFoldsToExactCountThroughReconciler() throws Exception {
@@ -311,7 +276,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             List<Map<String, Object>> frags = new ArrayList<>();
             frags.addAll(captureScoped(slice(full, 0, cut), 0, true, false, 1000, stripe, null, scope));
             frags.addAll(captureScoped(slice(full, cut, full.length), cut, false, true, 1000, stripe, null, scope));
-            assertFoldsTo(frags, total);
+            assertFoldsTo(frags, total, "scope=" + scope);
         }
     }
 
@@ -495,6 +460,11 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             }
         }
         return total;
+    }
+
+    private void assertFoldsTo(List<Map<String, Object>> fragments, long expectedRows, String message) throws Exception {
+        assertFalse(message + ": expected real reader fragments", fragments.isEmpty());
+        assertFoldsTo(fragments, expectedRows);
     }
 
     /** Seeds the schema cache with the fragments' own fingerprint, reconciles, and asserts the folded row count. */

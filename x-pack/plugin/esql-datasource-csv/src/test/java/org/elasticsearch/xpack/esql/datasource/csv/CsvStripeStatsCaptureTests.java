@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
+import org.junit.After;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -56,6 +57,15 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    }
+
+    // The CSV reader emits response warning headers (escaped-mode config + null-marker) via
+    // HeaderWarning.addWarning. Drop them at teardown so ESTestCase.ensureAllWarningsAsserted doesn't fail.
+    @After
+    public void clearWarningHeaders() {
+        if (threadContext != null) {
+            threadContext.stashContext();
+        }
     }
 
     // Fixed-width single-column records keep byte offsets predictable. ASCII: "v\n" = 2 bytes.

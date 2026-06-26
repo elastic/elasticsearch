@@ -99,6 +99,11 @@ public final class StripeStatsHarvester {
      * agree on shared columns, so the projected map is overlaid first and the full-schema map fills in (and
      * re-affirms) the rest. Either may be {@code null}: COUNT commits neither, PROJECTED only the projected
      * one, ALL both.
+     * <p>
+     * Invariant the {@code merged.putAll(allSnapshot)} relies on: {@code all} must be a strict superset of
+     * {@code projected} over the SAME rows, so the two accumulators agree on every shared column and ALL
+     * simply wins on the overlap. Passing two accumulators that disagree on a shared column (e.g. computed
+     * over different row sets) would silently let the ALL value clobber the PROJECTED one — never do that.
      */
     public static Map<String, ExternalStats.ColumnStats> mergeColumnStats(ColumnStatsAccumulator projected, ColumnStatsAccumulator all) {
         Map<String, ExternalStats.ColumnStats> projectedSnapshot = projected == null ? Map.of() : projected.snapshot();

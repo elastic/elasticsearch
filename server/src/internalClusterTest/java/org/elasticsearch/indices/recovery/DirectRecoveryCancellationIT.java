@@ -66,6 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -814,6 +815,15 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
         TestRecoveryBlockerPlugin.beforeShardCreatedGate.release();
         ensureGreen(indexName);
+
+        // The cancelled allocation should have failed and been re-assigned with a new allocation ID.
+        final var finalShard = indicesService.indexServiceSafe(index).getShard(0);
+        assertThat(finalShard.state(), equalTo(IndexShardState.STARTED));
+        assertThat(
+            "shard should have been re-assigned with a new allocation ID after the cancelled allocation was rejected",
+            finalShard.routingEntry().allocationId().getId(),
+            not(equalTo(allocationId.getId()))
+        );
         assertThat(directCancellationMetric(node), equalTo(0L));
     }
 

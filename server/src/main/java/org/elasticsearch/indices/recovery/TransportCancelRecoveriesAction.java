@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -30,6 +29,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -65,7 +65,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
             transportService,
             actionFilters,
             CancelRecoveriesAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
         );
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -87,6 +87,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
     }
 
     private void processCancellations(CancelRecoveriesAction.Request request, ActionListener<CancelRecoveriesAction.Response> listener) {
+        assert Transports.assertNotTransportThread("TransportCancelRecoveriesAction must not run on a transport thread");
         final Map<String, ShardId> toCancel = new HashMap<>(request.cancellations().size());
         for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
             toCancel.put(cancellation.allocationId(), cancellation.shardId());

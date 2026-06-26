@@ -2054,7 +2054,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ///
     /// Must only be called from within the active recovery sequence [StoreRecovery] phase boundaries (non-PEER
     /// recoveries). On throw, invokes the [RecoverySchedulingListener] (which may increment the relevant cancellation
-    /// metrics). Callers must let the exception propagate rather than catching it, in to avoid this method being called twice.
+    /// metrics). Callers must let the exception propagate rather than catching it, to avoid this method being called twice.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
         final var recoveryState = recoveryState();
         assert recoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";

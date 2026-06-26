@@ -449,7 +449,36 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
                 "serverToClient-1"
             )
         );
+        assertThat(exception.getMessage(), containsString("request_build"));
         assertThat(exception.getMessage(), containsString("unsupported remote fetch pushdown plan [LimitExec]"));
+    }
+
+    public void testExchangeSetupRequestRejectsBlankExchangeIds() {
+        IllegalArgumentException blankClientToServer = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RemoteFetchService.ExchangeSetupRequest(
+                "session-1",
+                List.of(new RemoteFetchService.FetchField("n", DataType.LONG)),
+                null,
+                ConfigurationTestUtils.randomConfiguration(),
+                " ",
+                "serverToClient-1"
+            )
+        );
+        assertThat(blankClientToServer.getMessage(), containsString("clientToServerId"));
+
+        IllegalArgumentException blankServerToClient = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RemoteFetchService.ExchangeSetupRequest(
+                "session-1",
+                List.of(new RemoteFetchService.FetchField("n", DataType.LONG)),
+                null,
+                ConfigurationTestUtils.randomConfiguration(),
+                "clientToServer-1",
+                ""
+            )
+        );
+        assertThat(blankServerToClient.getMessage(), containsString("serverToClientId"));
     }
 
     public void testExchangeSetupRequestSerializesConfigurationWithoutTables() throws IOException {

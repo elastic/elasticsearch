@@ -5,45 +5,37 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql;
+package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * Builder to modify configurations on tests.
- * <p>
- *     The {@link Configuration#now()} field is actually modified, so built configurations will also differ there.
- * </p>
+ * Builder for {@link Configuration}. Use {@link #ConfigurationBuilder(Configuration)} to copy an
+ * existing configuration and override individual fields before calling {@link #build()}.
  */
 public class ConfigurationBuilder {
 
     private String clusterName;
     private String username;
     private ZoneId zoneId;
-
     private QueryPragmas pragmas;
-
     private int resultTruncationMaxSizeRegular;
     private int resultTruncationDefaultSizeRegular;
     private int resultTruncationMaxSizeTimeseries;
     private int resultTruncationDefaultSizeTimeseries;
-
     private Locale locale;
-
     private String query;
-
     private boolean profile;
     private boolean allowPartialResults;
-
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
-
     private String projectRouting;
+    private long grokMatcherWatchdogMs;
 
     public ConfigurationBuilder(Configuration configuration) {
         clusterName = configuration.clusterName();
@@ -61,6 +53,7 @@ public class ConfigurationBuilder {
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
         projectRouting = configuration.projectRouting();
+        grokMatcherWatchdogMs = configuration.grokMatcherWatchdogMs();
     }
 
     public ConfigurationBuilder clusterName(String clusterName) {
@@ -138,6 +131,11 @@ public class ConfigurationBuilder {
         return this;
     }
 
+    public ConfigurationBuilder grokMatcherWatchdogMs(long grokMatcherWatchdogMs) {
+        this.grokMatcherWatchdogMs = grokMatcherWatchdogMs;
+        return this;
+    }
+
     public Configuration build() {
         return new Configuration(
             zoneId,
@@ -154,7 +152,8 @@ public class ConfigurationBuilder {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting
+            projectRouting,
+            grokMatcherWatchdogMs
         );
     }
 }

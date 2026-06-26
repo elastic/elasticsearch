@@ -19,6 +19,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -128,7 +129,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParsingContext context;
 
-    public record ParsingContext(QueryParams params, PlanTelemetry telemetry, InferenceSettings inferenceSettings) {}
+    public record ParsingContext(
+        QueryParams params,
+        PlanTelemetry telemetry,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        MatcherWatchdog grokMatcherWatchdog
+    ) {}
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;

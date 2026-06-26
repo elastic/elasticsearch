@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
@@ -142,6 +143,7 @@ public class EsqlSession {
     private final ByteSizeValue intermediateLocalRelationMaxSize;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
+    private final long grokMatcherWatchdogMs;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -179,6 +181,7 @@ public class EsqlSession {
         this.intermediateLocalRelationMaxSize = services.plannerSettings().intermediateLocalRelationMaxSize();
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
+        this.grokMatcherWatchdogMs = EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME.get(services.clusterService().getSettings()).millis();
     }
 
     public String sessionId() {
@@ -199,26 +202,28 @@ public class EsqlSession {
         LOGGER.debug("ESQL query:\n{}", request.query());
         EsqlStatement statement = parse(request);
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
-        Configuration configuration = new Configuration(
-            request.timeZone() == null
-                ? statement.setting(QuerySettings.TIME_ZONE)
-                : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone()),
-            request.locale() != null ? request.locale() : Locale.US,
-            // TODO: plug-in security
-            null,
-            clusterName,
-            request.pragmas(),
-            analyzerSettings.resultTruncationMaxSize(),
-            analyzerSettings.resultTruncationDefaultSize(),
-            request.query(),
-            request.profile(),
-            request.tables(),
-            System.nanoTime(),
-            request.allowPartialResults(),
-            analyzerSettings.timeseriesResultTruncationMaxSize(),
-            analyzerSettings.timeseriesResultTruncationDefaultSize(),
-            projectRouting(request, statement)
-        );
+        Configuration configuration = new ConfigurationBuilder(
+            new Configuration(
+                request.timeZone() == null
+                    ? statement.setting(QuerySettings.TIME_ZONE)
+                    : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone()),
+                request.locale() != null ? request.locale() : Locale.US,
+                // TODO: plug-in security
+                null,
+                clusterName,
+                request.pragmas(),
+                analyzerSettings.resultTruncationMaxSize(),
+                analyzerSettings.resultTruncationDefaultSize(),
+                request.query(),
+                request.profile(),
+                request.tables(),
+                System.nanoTime(),
+                request.allowPartialResults(),
+                analyzerSettings.timeseriesResultTruncationMaxSize(),
+                analyzerSettings.timeseriesResultTruncationDefaultSize(),
+                projectRouting(request, statement)
+            )
+        ).grokMatcherWatchdogMs(grokMatcherWatchdogMs).build();
         FoldContext foldContext = configuration.newFoldContext();
 
         if (statement.plan() instanceof Explain explain) {

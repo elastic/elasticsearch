@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
@@ -17,15 +18,16 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
-import java.time.ZoneId;
-import java.util.Locale;
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ConfigurationSerializationTests extends AbstractWireSerializingTestCase<Configuration> {
 
@@ -43,35 +45,26 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
 
     @Override
     protected Configuration mutateInstance(Configuration in) {
-        ZoneId zoneId = in.zoneId();
-        Locale locale = in.locale();
-        String username = in.username();
-        String clusterName = in.clusterName();
-        QueryPragmas pragmas = in.pragmas();
-        int resultTruncationMaxSize = in.resultTruncationMaxSize(false);
-        int resultTruncationDefaultSize = in.resultTruncationDefaultSize(false);
-        String query = in.query();
-        boolean profile = in.profile();
-        Map<String, Map<String, Column>> tables = in.tables();
-        switch (between(0, 9)) {
-            case 0 -> zoneId = randomValueOtherThan(zoneId, () -> randomZone().normalized());
-            case 1 -> locale = randomValueOtherThan(in.locale(), () -> randomLocale(random()));
-            case 2 -> username = randomAlphaOfLength(15);
-            case 3 -> clusterName = randomAlphaOfLength(15);
-            case 4 -> pragmas = new QueryPragmas(
-                Settings.builder().put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), between(1, 10)).build()
+        ConfigurationBuilder builder = new ConfigurationBuilder(in);
+        switch (between(0, 10)) {
+            case 0 -> builder.zoneId(randomValueOtherThan(in.zoneId(), () -> randomZone().normalized()));
+            case 1 -> builder.locale(randomValueOtherThan(in.locale(), () -> randomLocale(random())));
+            case 2 -> builder.username(randomAlphaOfLength(15));
+            case 3 -> builder.clusterName(randomAlphaOfLength(15));
+            case 4 -> builder.pragmas(
+                new QueryPragmas(Settings.builder().put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), between(1, 10)).build())
             );
-            case 5 -> resultTruncationMaxSize += randomIntBetween(3, 10);
-            case 6 -> resultTruncationDefaultSize += randomIntBetween(3, 10);
-            case 7 -> query += randomAlphaOfLength(2);
-            case 8 -> profile = false == profile;
+            case 5 -> builder.resultTruncationMaxSizeRegular(in.resultTruncationMaxSize(false) + randomIntBetween(3, 10));
+            case 6 -> builder.resultTruncationDefaultSizeRegular(in.resultTruncationDefaultSize(false) + randomIntBetween(3, 10));
+            case 7 -> builder.query(in.query() + randomAlphaOfLength(2));
+            case 8 -> builder.profile(in.profile() == false);
             case 9 -> {
                 while (true) {
                     Map<String, Map<String, Column>> newTables = null;
                     try {
                         newTables = randomTables();
-                        if (false == tables.equals(newTables)) {
-                            tables = newTables;
+                        if (false == in.tables().equals(newTables)) {
+                            builder.tables(newTables);
                             newTables = null;
                             break;
                         }
@@ -89,23 +82,15 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
                     }
                 }
             }
+            case 10 -> builder.grokMatcherWatchdogMs(randomValueOtherThan(in.grokMatcherWatchdogMs(), () -> randomLongBetween(0, 5000)));
         }
-        return new Configuration(
-            zoneId,
-            locale,
-            username,
-            clusterName,
-            pragmas,
-            resultTruncationMaxSize,
-            resultTruncationDefaultSize,
-            query,
-            profile,
-            tables,
-            System.nanoTime(),
-            randomBoolean(),
-            in.resultTruncationMaxSize(true),
-            in.resultTruncationDefaultSize(true),
-            null
-        );
+        return builder.build();
+    }
+
+    public void testOldNodeFallsBackToDefaultWatchdogMs() throws IOException {
+        Configuration original = new ConfigurationBuilder(randomConfiguration()).grokMatcherWatchdogMs(500).build();
+        TransportVersion preWatchdog = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_grok_watchdog"));
+        Configuration roundTripped = copyInstance(original, preWatchdog);
+        assertThat(roundTripped.grokMatcherWatchdogMs(), equalTo(1000L));
     }
 }

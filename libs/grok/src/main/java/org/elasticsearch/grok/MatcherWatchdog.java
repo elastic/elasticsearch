@@ -12,6 +12,7 @@ import org.joni.Matcher;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -70,6 +71,18 @@ public interface MatcherWatchdog {
     }
 
     /**
+     * Returns an implementation that uses {@link org.joni.Matcher#setTimeout(long)} to enforce the timeout.
+     * No background threads are required.
+     *
+     * @param maxExecutionTimeMillis The time in milliseconds a matcher is allowed to run. Pass {@code 0} to
+     *                               interrupt after the first Joni check point; pass a negative value to
+     *                               disable timeouts entirely.
+     */
+    static MatcherWatchdog newInstance(long maxExecutionTimeMillis) {
+        return new TimeoutDefault(maxExecutionTimeMillis);
+    }
+
+    /**
      * @return A noop implementation that does not interrupt threads and is useful for testing and pre-defined grok expressions.
      */
     static MatcherWatchdog noop() {
@@ -88,6 +101,38 @@ public interface MatcherWatchdog {
         @Override
         public long maxExecutionTimeInMillis() {
             return Long.MAX_VALUE;
+        }
+
+        @Override
+        public void unregister(Matcher matcher) {}
+    }
+
+    /**
+     * Implementation that uses {@link Matcher#setTimeout(long)} to enforce execution time limits.
+     * No background threads are required.
+     */
+    final class TimeoutDefault implements MatcherWatchdog {
+
+        private static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
+
+        private final long maxExecutionTimeMillis;
+
+        private TimeoutDefault(long maxExecutionTimeMillis) {
+            this.maxExecutionTimeMillis = maxExecutionTimeMillis;
+        }
+
+        @Override
+        public void register(Matcher matcher) {
+            if (maxExecutionTimeMillis >= 0) {
+                matcher.setTimeout(maxExecutionTimeMillis * NSEC_PER_MSEC);
+            } else {
+                matcher.setTimeout(-1);
+            }
+        }
+
+        @Override
+        public long maxExecutionTimeInMillis() {
+            return maxExecutionTimeMillis;
         }
 
         @Override

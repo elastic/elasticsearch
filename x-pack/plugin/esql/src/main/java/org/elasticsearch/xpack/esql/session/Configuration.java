@@ -39,6 +39,8 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
 
+    private static final TransportVersion ESQL_GROK_WATCHDOG = TransportVersion.fromName("esql_grok_watchdog");
+
     private final String clusterName;
     private final String username;
     private final ZonedDateTime now;
@@ -62,6 +64,8 @@ public class Configuration implements Writeable {
     private final long queryStartTimeNanos;
     private final String projectRouting;
 
+    private final long grokMatcherWatchdogMs;
+
     public Configuration(
         ZoneId zi,
         Locale locale,
@@ -78,6 +82,48 @@ public class Configuration implements Writeable {
         int resultTruncationMaxSizeTimeseries,
         int resultTruncationDefaultSizeTimeseries,
         String projectRouting
+    ) {
+        this(
+            zi,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting,
+            1000
+        );
+    }
+
+    /**
+     * Canonical constructor — every field is a parameter. {@link ConfigurationBuilder#build()} calls this
+     * directly, so any new field added here must also be added to {@link ConfigurationBuilder}.
+     */
+    Configuration(
+        ZoneId zi,
+        Locale locale,
+        String username,
+        String clusterName,
+        QueryPragmas pragmas,
+        int resultTruncationMaxSizeRegular,
+        int resultTruncationDefaultSizeRegular,
+        String query,
+        boolean profile,
+        Map<String, Map<String, Column>> tables,
+        long queryStartTimeNanos,
+        boolean allowPartialResults,
+        int resultTruncationMaxSizeTimeseries,
+        int resultTruncationDefaultSizeTimeseries,
+        String projectRouting,
+        long grokMatcherWatchdogMs
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -96,6 +142,7 @@ public class Configuration implements Writeable {
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
         this.projectRouting = projectRouting;
+        this.grokMatcherWatchdogMs = grokMatcherWatchdogMs;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -122,6 +169,11 @@ public class Configuration implements Writeable {
         } else {
             this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
             this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
+        }
+        if (in.getTransportVersion().supports(ESQL_GROK_WATCHDOG)) {
+            this.grokMatcherWatchdogMs = in.readVLong();
+        } else {
+            this.grokMatcherWatchdogMs = 1000;
         }
 
         // not needed on the data nodes for now
@@ -150,6 +202,9 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
+        }
+        if (out.getTransportVersion().supports(ESQL_GROK_WATCHDOG)) {
+            out.writeVLong(grokMatcherWatchdogMs);
         }
     }
 
@@ -240,7 +295,8 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting
+            projectRouting,
+            grokMatcherWatchdogMs
         );
     }
 
@@ -261,6 +317,13 @@ public class Configuration implements Writeable {
 
     public String projectRouting() {
         return projectRouting;
+    }
+
+    /**
+     * Returns the grok MatcherWatchdog timeout in milliseconds.
+     */
+    public long grokMatcherWatchdogMs() {
+        return grokMatcherWatchdogMs;
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
@@ -302,7 +365,8 @@ public class Configuration implements Writeable {
             && Objects.equals(that.query, query)
             && profile == that.profile
             && tables.equals(that.tables)
-            && allowPartialResults == that.allowPartialResults;
+            && allowPartialResults == that.allowPartialResults
+            && grokMatcherWatchdogMs == that.grokMatcherWatchdogMs;
     }
 
     @Override
@@ -321,7 +385,8 @@ public class Configuration implements Writeable {
             tables,
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries
+            resultTruncationDefaultSizeTimeseries,
+            grokMatcherWatchdogMs
         );
     }
 

@@ -17,6 +17,7 @@ import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.VocabularyImpl;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -104,6 +105,10 @@ public class EsqlParser {
 
     private EsqlParser() { // when default, use the INSTANCE member
         this(new EsqlConfig());
+    }
+
+    public MatcherWatchdog grokMatcherWatchdog() {
+        return config.grokMatcherWatchdog();
     }
 
     // testing utility
@@ -235,7 +240,10 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics, inferenceSettings)), tree);
+            return result.apply(
+                new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics, inferenceSettings, null, config.grokMatcherWatchdog())),
+                tree
+            );
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
             // likely thrown by an invalid popMode (such as extra closing parenthesis)

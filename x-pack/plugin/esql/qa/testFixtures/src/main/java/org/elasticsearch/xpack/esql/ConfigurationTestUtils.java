@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +37,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLength;
 import static org.elasticsearch.test.ESTestCase.randomZone;
@@ -66,23 +68,25 @@ public class ConfigurationTestUtils {
         var defaultTsTruncation = defaultTruncation + randomNonNegativeInt();
         boolean profile = randomBoolean();
 
-        return new Configuration(
-            zoneId,
-            locale,
-            username,
-            clusterName,
-            randomQueryPragmas(),
-            truncation,
-            defaultTruncation,
-            query,
-            profile,
-            tables,
-            System.nanoTime(),
-            false,
-            tsTruncation,
-            defaultTsTruncation,
-            null
-        );
+        return new ConfigurationBuilder(
+            new Configuration(
+                zoneId,
+                locale,
+                username,
+                clusterName,
+                randomQueryPragmas(),
+                truncation,
+                defaultTruncation,
+                query,
+                profile,
+                tables,
+                System.nanoTime(),
+                false,
+                tsTruncation,
+                defaultTsTruncation,
+                null
+            )
+        ).grokMatcherWatchdogMs(randomLongBetween(0, 5000)).build();
     }
 
     public static ConfigurationBuilder randomConfigurationBuilder() {

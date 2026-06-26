@@ -186,6 +186,11 @@ public final class Grok {
         } finally {
             matcherWatchdog.unregister(matcher);
         }
+        if (result == Matcher.INTERRUPTED) {
+            throw new RuntimeException(
+                "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
+            );
+        }
         return (result != -1);
     }
 

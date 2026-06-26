@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,7 +38,6 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class StatelessSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
@@ -285,17 +283,5 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public boolean isCacheBoostPreferenceEnabled() {
         return cacheBoostPreferenceEnabled;
-    }
-
-    /**
-     * Schedules an asynchronous reset of access counts for the given shard.
-     * The predicate is evaluated when the task runs; the reset is skipped when it returns {@code false}.
-     */
-    public void asyncResetAccessCounts(ShardId shardId, Predicate<ShardId> shouldReset) {
-        submitAsyncEviction(() -> {
-            if (shouldReset.test(shardId)) {
-                resetAccessCounts(shardId);
-            }
-        });
     }
 }

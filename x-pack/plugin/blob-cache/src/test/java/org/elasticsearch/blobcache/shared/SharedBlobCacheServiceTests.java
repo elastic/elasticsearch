@@ -675,7 +675,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testResetAccessCounts() throws IOException {
+    public void testDemoteAll() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
@@ -706,24 +706,20 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(1, cacheService.getFreq(region0));
             assertEquals(1, cacheService.getFreq(region1));
 
-            assertEquals(2, cacheService.resetAccessCounts(shard1));
+            assertEquals(2, cacheService.demoteAll(shard1));
             assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shard1)), equalTo(Map.of(0, 2)));
             assertEquals(0, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
             assertEquals(1, cacheService.getFreq(region2));
 
-            assertEquals(0, cacheService.resetAccessCounts(shard1));
-            assertEquals(0, cacheService.resetAccessCounts(randomShardId()));
+            assertEquals(0, cacheService.demoteAll(shard1));
+            assertEquals(0, cacheService.demoteAll(randomShardId()));
         }
     }
 
-    /// Verifies that {@link SharedBlobCacheService#resetAccessCounts} moves reset regions to the freq-0 head
-    /// so they are evicted before higher-frequency entries.
-    ///
-    /// This uses regions still at frequency 1 rather than decaying them to frequency 0 first:
-    /// {@code resetAccessCounts} skips entries that are already at frequency 0, so a post-decay setup
-    /// would not exercise {@code pushEntryToFront}.
-    public void testResetAccessCountsMovesRegionsToFrontForEviction() throws IOException {
+    /// Verifies that {@link SharedBlobCacheService#demoteAll} moves demoted regions to the freq-0 head
+    /// so they are evicted before other freq-0 entries.
+    public void testDemoteAllMovesRegionsToFrontForEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(300)).getStringRep())
@@ -749,14 +745,21 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             final var protectedRegion0 = cacheService.get(protectedKey, size(250), 0);
             final var protectedRegion1 = cacheService.get(protectedKey, size(250), 1);
+            assertThat(cacheService.freeRegionCount(), equalTo(1));
+
+            cacheService.computeDecay();
+            taskQueue.runAllRunnableTasks();
+            assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(protectedShard)), equalTo(Map.of(0, 2)));
+            assertEquals(0, cacheService.getFreq(protectedRegion0));
+            assertEquals(0, cacheService.getFreq(protectedRegion1));
+
             final var victimRegion0 = cacheService.get(victimKey, size(250), 0);
             assertThat(cacheService.freeRegionCount(), equalTo(0));
-            assertEquals(1, cacheService.getFreq(protectedRegion0));
             assertEquals(1, cacheService.getFreq(victimRegion0));
 
-            // Without a reset, eviction scans the empty freq-0 list then evicts the freq-1 head (protectedRegion0).
-            assertEquals(1, cacheService.resetAccessCounts(victimShard));
+            assertEquals(1, cacheService.demoteAll(victimShard));
             assertEquals(0, cacheService.getFreq(victimRegion0));
+            assertThat(cacheService.countCachedRegionsByFreq(key -> true), equalTo(Map.of(0, 3)));
 
             assertThat(cacheService.maybeEvictLeastUsed(randomTestCacheKey(randomShardId()), size(250), 0), is(true));
             assertTrue(victimRegion0.isEvicted());

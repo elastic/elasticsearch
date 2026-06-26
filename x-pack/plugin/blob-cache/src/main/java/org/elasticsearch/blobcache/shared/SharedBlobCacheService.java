@@ -350,7 +350,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         int forceEvict(ShardId shard, Predicate<K> cacheKeyPredicate);
 
-        int resetAccessCounts(ShardId shard);
+        int demoteAll(ShardId shard);
     }
 
     private abstract static class CacheEntry<T> {
@@ -952,34 +952,36 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /**
-     * Submits a task to be executed asynchronously on the cache eviction thread pool,
-     * respecting the same throttling as other eviction tasks.
+     * Demotes all active cache regions for the given shard to frequency 0.
+     *
+     * @return the number of regions demoted
      */
-    public void submitAsyncEviction(Runnable task) {
+    public int demoteAll(ShardId shard) {
+        return cache.demoteAll(shard);
+    }
+
+    /**
+     * Schedules an asynchronous demotion of all active cache regions for the given shard to frequency 0.
+     * The predicate is evaluated when the task runs; demotion is skipped when it returns {@code false}.
+     */
+    public void demoteAllAsync(ShardId shard, Predicate<ShardId> shouldDemote) {
         asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
             @Override
             public void onResponse(Releasable releasable) {
                 try (releasable) {
-                    task.run();
+                    if (shouldDemote.test(shard)) {
+                        cache.demoteAll(shard);
+                    }
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                final String message = "unexpected failure in async eviction task";
+                final String message = "unexpected failure in async demotion task for shard [" + shard + "]";
                 logger.error(message, e);
                 assert false : new AssertionError(message, e);
             }
         });
-    }
-
-    /**
-     * Resets LFU access counts to zero for all active cache regions belonging to the given shard.
-     *
-     * @return the number of regions whose access count was reset
-     */
-    public int resetAccessCounts(ShardId shard) {
-        return cache.resetAccessCounts(shard);
     }
 
     // used by tests
@@ -2370,11 +2372,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         @Override
-        public int resetAccessCounts(ShardId shard) {
+        public int demoteAll(ShardId shard) {
             final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
             keyMapping.forEach(shard, (key, entry) -> matchingEntries.add(entry));
 
-            var resetCount = 0;
+            var demotedCount = 0;
             if (matchingEntries.isEmpty() == false) {
                 synchronized (SharedBlobCacheService.this) {
                     for (LFUCacheEntry entry : matchingEntries) {
@@ -2383,15 +2385,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         }
                         unlink(entry);
                         entry.freq = 0;
-                        pushEntryToFront(entry);
-                        resetCount++;
+                        entry.lastAccessedEpoch = -1;
+                        pushEntry(entry, true);
+                        demotedCount++;
                     }
                 }
             }
-            if (logger.isDebugEnabled() && resetCount > 0) {
-                logger.debug("{} reset access counts for [{}] cache regions", shard, resetCount);
+            if (demotedCount > 0) {
+                logger.debug("{} demoted [{}] cache regions to frequency 0", shard, demotedCount);
             }
-            return resetCount;
+            return demotedCount;
         }
 
         private LFUCacheEntry initChunk(LFUCacheEntry entry) {
@@ -2454,35 +2457,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         private void pushEntryToBack(final LFUCacheEntry entry) {
-            assert Thread.holdsLock(SharedBlobCacheService.this);
-            assert invariant(entry, false);
-            assert entry.prev == null;
-            assert entry.next == null;
-            final FreqLevel level = freqs[entry.freq];
-            assert level != null : entry.freq;
-            final LFUCacheEntry currFront = level.head;
-            if (currFront == null) {
-                level.head = entry;
-                entry.prev = entry;
-                entry.next = null;
-            } else {
-                assert currFront.freq == entry.freq;
-                final LFUCacheEntry last = currFront.prev;
-                currFront.prev = entry;
-                last.next = entry;
-                entry.prev = last;
-                entry.next = null;
-            }
-            level.count++;
-            assert freqs[entry.freq].head.prev == entry;
-            assert freqs[entry.freq].head.prev.next == null;
-            assert entry.prev != null;
-            assert entry.prev.next == null || entry.prev.next == entry;
-            assert entry.next == null;
-            assert invariant(entry, true);
+            pushEntry(entry, false);
         }
 
         private void pushEntryToFront(final LFUCacheEntry entry) {
+            pushEntry(entry, true);
+        }
+
+        private void pushEntry(final LFUCacheEntry entry, boolean toFront) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
             assert invariant(entry, false);
             assert entry.prev == null;
@@ -2496,16 +2478,31 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 entry.next = null;
             } else {
                 assert currFront.freq == entry.freq;
-                entry.next = currFront;
-                entry.prev = currFront.prev;
-                currFront.prev = entry;
-                level.head = entry;
+                if (toFront) {
+                    entry.next = currFront;
+                    entry.prev = currFront.prev;
+                    currFront.prev = entry;
+                    level.head = entry;
+                } else {
+                    final LFUCacheEntry last = currFront.prev;
+                    currFront.prev = entry;
+                    last.next = entry;
+                    entry.prev = last;
+                    entry.next = null;
+                }
             }
             level.count++;
-            assert freqs[entry.freq].head == entry;
+            if (toFront) {
+                assert freqs[entry.freq].head == entry;
+            } else {
+                assert freqs[entry.freq].head.prev == entry;
+            }
             assert freqs[entry.freq].head.prev != null;
             assert entry.prev != null;
             assert entry.prev.next == null || entry.prev.next == entry;
+            if (toFront == false) {
+                assert entry.next == null;
+            }
             assert invariant(entry, true);
         }
 

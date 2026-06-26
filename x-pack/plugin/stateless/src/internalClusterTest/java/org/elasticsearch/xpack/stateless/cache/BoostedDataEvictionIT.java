@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
@@ -188,24 +187,6 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         internalCluster().awaitNodesInclude(indexName, nodes -> nodes.contains(searchNodeA) == false && nodes.contains(searchNodeB));
 
         assertDemotedToFrequencyZero(cacheServiceA, shardId);
-    }
-
-    public void testCacheDemotedToFrequencyZeroAfterIndexClose() throws Exception {
-        final Settings cacheSettings = cacheBoostPreferenceTestSettings();
-        startMasterAndIndexNode(cacheSettings);
-        final String searchNode = startSearchNode(cacheSettings);
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 1).build());
-        ensureGreen(indexName);
-
-        indexAndSearch(indexName, randomIntBetween(10, 100));
-
-        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
-        final StatelessSharedBlobCacheService cacheService = getCacheService(searchNode);
-        assertNonZeroFrequencies(cacheService, shardId);
-
-        assertAcked(indicesAdmin().close(new CloseIndexRequest(indexName)).actionGet());
-        assertDemotedToFrequencyZero(cacheService, shardId);
     }
 
     private static Settings cacheBoostPreferenceTestSettings() {

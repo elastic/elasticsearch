@@ -37,6 +37,7 @@ public class RTrim extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "keyword" },
+        briefSummary = "Removes trailing whitespaces from a string.",
         description = "Removes trailing whitespaces from a string.",
         examples = @Example(file = "string", tag = "rtrim")
     )

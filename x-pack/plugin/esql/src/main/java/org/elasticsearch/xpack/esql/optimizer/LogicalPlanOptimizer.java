@@ -34,16 +34,17 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneConstantSortKeysFromOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyForkBranches;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInChangePointBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInLimitBy;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantSortClauses;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneUnusedIndexMode;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushAggregateThroughUnionAll;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimitBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
@@ -232,7 +233,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // prune/elimination
             new PruneFilters(),
             new PruneColumns(),
-            new PruneLiteralsInOrderBy(),
+            new PruneConstantSortKeysFromOrderBy(),
             new PruneLiteralsInLimitBy(),
             new PruneLiteralsInChangePointBy(),
             new PushDownAndCombineLimits(),
@@ -249,6 +250,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownJoinPastProject(),
             new PushDownAndCombineOrderBy(),
             new PushDownFilterAndLimitIntoUnionAll(),
+            new PushAggregateThroughUnionAll(),
             new PushDownLimitAndOrderByIntoFork(),
             new PushDownFiltersIntoFork(),
             new PruneRedundantOrderBy(),

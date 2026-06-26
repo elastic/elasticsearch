@@ -61,6 +61,8 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
@@ -82,13 +84,17 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
@@ -205,6 +211,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 randomBoolean(),
                 randomInt(),
                 MEMORY_ACCOUNTING_BUFFER_SIZE,
+                null,
                 null
             );
             contextWithoutScroll.from(300);
@@ -250,6 +257,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomBoolean(),
                     randomInt(),
                     MEMORY_ACCOUNTING_BUFFER_SIZE,
+                    null,
                     null
                 )
             ) {
@@ -335,6 +343,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomBoolean(),
                     randomInt(),
                     MEMORY_ACCOUNTING_BUFFER_SIZE,
+                    null,
                     null
                 )
             ) {
@@ -379,6 +388,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomBoolean(),
                     randomInt(),
                     MEMORY_ACCOUNTING_BUFFER_SIZE,
+                    null,
                     null
                 )
             ) {
@@ -413,6 +423,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomBoolean(),
                     randomInt(),
                     MEMORY_ACCOUNTING_BUFFER_SIZE,
+                    null,
                     null
                 )
             ) {
@@ -487,6 +498,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 randomBoolean(),
                 randomInt(),
                 MEMORY_ACCOUNTING_BUFFER_SIZE,
+                null,
                 null
             );
 
@@ -504,7 +516,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
     }
 
     public void testNewIdLoader() throws Exception {
-        try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY)) {
+        var mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject();
+        try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY, mapping)) {
             assertThat(context.newIdLoader(), instanceOf(IdLoader.StoredIdLoader.class));
             context.indexShard().getThreadPool().shutdown();
         }
@@ -1144,6 +1157,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 randomBoolean(),
                 randomInt(),
                 MEMORY_ACCOUNTING_BUFFER_SIZE,
+                null,
                 null
             );
         }
@@ -1151,5 +1165,61 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
 
     private ShardSearchContextId newContextId() {
         return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+    }
+
+    public void testStoreMetricsAwareExecutorAccumulatesForkedTaskBytes() throws Exception {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        ThreadLocal<StoreMetrics> threadStoreMetrics = ThreadLocal.withInitial(StoreMetrics::new);
+        Supplier<StoreMetrics> currentThreadStoreMetrics = threadStoreMetrics::get;
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(1, 3));
+        try {
+            StoreMetrics callerMetrics = threadStoreMetrics.get();
+            var wrapped = new StoreMetricsAwareExecutor(executor, currentThreadStoreMetrics);
+
+            final long bytesPerTask = randomLongBetween(1L, 10_000L);
+            int numTasks = randomIntBetween(2, 10);
+            CountDownLatch latch = new CountDownLatch(numTasks);
+            for (int i = 0; i < numTasks; i++) {
+                wrapped.execute(() -> {
+                    try {
+                        threadStoreMetrics.get().addBytesRead(bytesPerTask);
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+            }
+
+            assertTrue("forked tasks did not complete in time", latch.await(30, TimeUnit.SECONDS));
+            assertEquals(0L, callerMetrics.getBytesRead());
+            long expectedBytesRead = bytesPerTask * numTasks;
+            assertBusy(
+                () -> assertEquals("executor must aggregate every forked task's delta", expectedBytesRead, wrapped.workerBytesRead())
+            );
+
+            // the executor only records worker bytes; it must not mutate the caller thread's metrics, the summing happens externally
+            assertEquals(0L, callerMetrics.getBytesRead());
+        } finally {
+            terminate(executor);
+            threadStoreMetrics.remove();
+        }
+    }
+
+    public void testStoreMetricsAwareExecutorPropagatesExceptionsAndStillAccumulates() {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        ThreadLocal<StoreMetrics> threadStoreMetrics = ThreadLocal.withInitial(StoreMetrics::new);
+        Executor executor = Runnable::run;
+        var wrapped = new StoreMetricsAwareExecutor(executor, threadStoreMetrics::get);
+        final long bytes = randomLongBetween(1L, 1000L);
+
+        try {
+            expectThrows(RuntimeException.class, () -> wrapped.execute(() -> {
+                threadStoreMetrics.get().addBytesRead(bytes);
+                throw new RuntimeException("boom");
+            }));
+
+            assertEquals(bytes, wrapped.workerBytesRead());
+        } finally {
+            threadStoreMetrics.remove();
+        }
     }
 }

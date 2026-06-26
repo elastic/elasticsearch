@@ -1,0 +1,5 @@
+pr: 151059
+summary: "Painless: `script_aware` wrappers for native iteration methods"
+area: Infra/Scripting
+type: enhancement
+issues: []

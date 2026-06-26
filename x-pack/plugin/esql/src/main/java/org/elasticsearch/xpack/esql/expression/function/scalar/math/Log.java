@@ -41,11 +41,15 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
         .unaryValueTransformation((source, value) -> new Log(source, Literal.fromDouble(source, 2d), value))
         .description("Calculates the binary logarithm for all elements in the input vector.")
         .example("log2(memory_usage_bytes)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.LOG_DOMAIN_NOTE)
         .name("log2");
     public static final PromqlFunctionDefinition PROMQL_LN_DEFINITION = PromqlFunctionDefinition.def()
         .unaryValueTransformation((source, value) -> new Log(source, value, null))
         .description("Calculates the natural logarithm for all elements in the input vector.")
         .example("ln(memory_usage_bytes)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.LOG_DOMAIN_NOTE)
         .name("ln");
 
     private final Expression base;
@@ -53,6 +57,7 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the logarithm of a value to a base.",
         description = "Returns the logarithm of a value to a base. The input can be any numeric value, "
             + "the return value is always a double.\n"
             + "\n"

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -26,10 +28,13 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -168,6 +173,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor,
                 ErrorPolicy.STRICT,
                 null,
+                0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 sink
             );
@@ -221,6 +227,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor,
                 ErrorPolicy.STRICT,
                 null,
+                0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 sink
             );
@@ -282,6 +289,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor,
                 ErrorPolicy.STRICT,
                 null,
+                0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 sink
             );
@@ -317,6 +325,54 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 "Expected injected failure message but got: " + ex.getMessage(),
                 ex.getMessage().contains("injected") || (ex.getCause() != null && ex.getCause().getMessage().contains("injected"))
             );
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Pins the typed-failure contract from elastic/esql-planning#836 on the streaming coordinator: a raw
+     * {@link IOException} thrown by a worker (here, {@code FailingFormatReader.read}) is stored in
+     * {@code firstError} and surfaced by {@code checkError()}'s {@code surface()} as a typed
+     * {@link ExternalClientException} (HTTP 400) — including the coordinator's "Streaming parallel parsing
+     * failed" prefix — rather than a status-neutral {@link RuntimeException} that would later be
+     * misclassified as 500. The injected "injected failure" mirrors the path real failures take (e.g. a
+     * record exceeding {@code max_record_size}).
+     */
+    public void testParserIoFailureSurfacesAsExternalClientException() throws Exception {
+        String content = buildContent(100);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            FailingFormatReader reader = new FailingFormatReader(5, 1024);
+            RuntimeException ex = expectThrows(
+                RuntimeException.class,
+                () -> collectLines(
+                    StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
+                )
+            );
+            assertThat(
+                "stored IOException must surface as a typed ExternalClientException, not a generic RuntimeException",
+                ex,
+                Matchers.instanceOf(ExternalClientException.class)
+            );
+            assertEquals(
+                "ExternalClientException must classify as HTTP 400 so the read failure stops being labeled as a server fault",
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(ex)
+            );
+            assertThat(
+                "the original IOException must remain reachable as the cause",
+                ex.getCause(),
+                Matchers.instanceOf(IOException.class)
+            );
+            assertThat(
+                "the coordinator's context prefix must survive in the surfaced message",
+                ex.getMessage(),
+                Matchers.containsString("Streaming parallel parsing failed")
+            );
+            assertThat("the injected detail must survive end-to-end", ex.getMessage(), Matchers.containsString("injected"));
         } finally {
             executor.shutdownNow();
         }
@@ -886,6 +942,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor,
                 ErrorPolicy.STRICT,
                 null,
+                0L,
                 maxRecordBytes,
                 null
             );
@@ -1147,6 +1204,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * dispatches every parser-thread read to the schema-bound variant.
      */
     private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegment;
         private final List<Attribute> resolvedSchema;
@@ -1291,6 +1352,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * grow-loop bound fails fast.
      */
     private static class NeverBoundaryFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegment;
 
@@ -1363,6 +1428,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * key into the sink by a known string.
      */
     private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final LineFormatReader delegate;
         private final String path;
@@ -1464,6 +1533,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * A format reader that fails after reading a configured number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final int failAfterLines;
         private final long minSegment;
@@ -1551,6 +1624,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * logic but does not model full RFC 4180 quoting.
      */
     private static class QuoteAwareLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegment;
         private final List<Attribute> resolvedSchema;

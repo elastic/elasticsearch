@@ -63,7 +63,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFields;
+import static org.elasticsearch.index.get.ShardGetService.maybeExcludeLargeFields;
 import static org.elasticsearch.index.get.ShardGetService.shouldExcludeInferenceFieldsFromSource;
 
 /**
@@ -272,12 +272,12 @@ public final class FetchPhase {
     ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
-        // Optionally remove sparse and dense vector fields early to:
+        // Optionally remove sparse or dense vector fields and base64 values of semantic fields early to:
         // - Reduce the in-memory size of the source
         // - Speed up retrieval of the synthetic source
-        // Note: These vectors will no longer be accessible via _source for any sub-fetch processors,
+        // Note: In case of vectors, these vectors will no longer be accessible via _source for any sub-fetch processors,
         // but they are typically accessed through doc values instead (e.g: re-scorer).
-        var res = maybeExcludeVectorFields(
+        var res = maybeExcludeLargeFields(
             context.getSearchExecutionContext().getMappingLookup(),
             context.getSearchExecutionContext().getIndexSettings(),
             context.fetchSourceContext(),

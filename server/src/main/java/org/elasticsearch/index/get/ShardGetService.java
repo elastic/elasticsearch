@@ -391,7 +391,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> metadataFields = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
 
-        var res = maybeExcludeVectorFields(mappingLookup, indexSettings, fetchSourceContext, null);
+        var res = maybeExcludeLargeFields(mappingLookup, indexSettings, fetchSourceContext, null);
         if (res.v1() != fetchSourceContext) {
             fetchSourceContext = res.v1();
         }
@@ -543,7 +543,66 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      * unless vectors are explicitly requested to be included in the source.
      * Returns {@code null} when vectors should not be filtered out.
      */
-    public static Tuple<FetchSourceContext, SourceFilter> maybeExcludeVectorFields(
+    private static Tuple<FetchSourceContext, SourceFilter> maybeExcludeSemanticFields(
+        MappingLookup mappingLookup,
+        FetchSourceContext fetchSourceContext,
+        FetchFieldsContext fetchFieldsContext
+    ) {
+        if (fetchSourceContext != null && fetchSourceContext.includeSemanticFields()) {
+            return Tuple.tuple(fetchSourceContext, null);
+        }
+        // exclude semantic field if not explicitly requested by fields
+        var fetchFieldsAut = fetchFieldsContext != null && !fetchFieldsContext.fields().isEmpty()
+            ? new CharacterRunAutomaton(
+                Regex.simpleMatchToAutomaton(fetchFieldsContext.fields().stream().map(f -> f.field).toArray(String[]::new))
+            )
+            : null;
+
+        SourceFilter filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
+
+        List<String> lateExcludes = new ArrayList<>();
+        var excludes = mappingLookup.getFullNameToFieldType().values().stream().filter(f -> f.typeName().equals("semantic")).filter(f -> {
+            // Keep the fields that are explicitly included and not explicitly excluded
+            if (filter != null && filter.isExplicitlyIncluded(f.name())) {
+                return filter.isPathFiltered(f.name(), false);
+            }
+            // Exclude the field specified by the `fields` option
+            if (fetchFieldsAut != null && fetchFieldsAut.run(f.name())) {
+                lateExcludes.add(f.name() + ".value");
+                return false;
+            }
+            return true;
+        }).map(fld -> fld.name() + ".value").toList();
+
+        var sourceFilter = excludes.isEmpty() ? null : new SourceFilter(new String[] {}, excludes.toArray(String[]::new));
+        if (!lateExcludes.isEmpty()) {
+            /**
+             * Adds the semantic fields specified by the `fields` option to the excludes list of the fetch source context.
+             * This ensures that semantic fields are available to sub-fetch phases, but excluded during the {@link FetchSourcePhase}.
+             */
+            if (fetchSourceContext != null && fetchSourceContext.excludes() != null) {
+                lateExcludes.addAll(Arrays.asList(fetchSourceContext.excludes()));
+            }
+            var newFetchSourceContext = fetchSourceContext == null
+                ? FetchSourceContext.of(true, false, null, lateExcludes.toArray(String[]::new))
+                : FetchSourceContext.of(
+                    fetchSourceContext.fetchSource(),
+                    fetchSourceContext.excludeVectors(),
+                    fetchSourceContext.excludeInferenceFields(),
+                    fetchSourceContext.includes(),
+                    lateExcludes.toArray(String[]::new)
+                );
+            return Tuple.tuple(newFetchSourceContext, sourceFilter);
+        }
+        return Tuple.tuple(fetchSourceContext, sourceFilter);
+    }
+
+    /**
+     * Returns a {@link SourceFilter} that excludes vector fields not associated with semantic text fields,
+     * unless vectors are explicitly requested to be included in the source.
+     * Returns {@code null} when vectors should not be filtered out.
+     */
+    private static Tuple<FetchSourceContext, SourceFilter> maybeExcludeVectorFields(
         MappingLookup mappingLookup,
         IndexSettings indexSettings,
         FetchSourceContext fetchSourceContext,
@@ -590,17 +649,36 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 lateExcludes.addAll(Arrays.asList(fetchSourceContext.excludes()));
             }
             var newFetchSourceContext = fetchSourceContext == null
-                ? FetchSourceContext.of(true, false, null, lateExcludes.toArray(String[]::new))
+                ? FetchSourceContext.of(true, false, false, null, lateExcludes.toArray(String[]::new))
                 : FetchSourceContext.of(
                     fetchSourceContext.fetchSource(),
                     fetchSourceContext.excludeVectors(),
                     fetchSourceContext.excludeInferenceFields(),
+                    fetchSourceContext.includeSemanticFields(),
                     fetchSourceContext.includes(),
                     lateExcludes.toArray(String[]::new)
                 );
             return Tuple.tuple(newFetchSourceContext, sourceFilter);
         }
         return Tuple.tuple(fetchSourceContext, sourceFilter);
+    }
+
+    public static Tuple<FetchSourceContext, SourceFilter> maybeExcludeLargeFields(
+        MappingLookup mappingLookup,
+        IndexSettings indexSettings,
+        FetchSourceContext fetchSourceContext,
+        FetchFieldsContext fetchFieldsContext
+    ) {
+        var excludeVectors = maybeExcludeVectorFields(mappingLookup, indexSettings, fetchSourceContext, fetchFieldsContext);
+        var excludeSemanticFields = maybeExcludeSemanticFields(mappingLookup, excludeVectors.v1(), fetchFieldsContext);
+        final Set<String> excludes = new HashSet<>();
+        if (excludeVectors.v2() != null) {
+            excludes.addAll(Arrays.asList(excludeVectors.v2().getExcludes()));
+        }
+        if (excludeSemanticFields.v2() != null) {
+            excludes.addAll(Arrays.asList(excludeSemanticFields.v2().getExcludes()));
+        }
+        return Tuple.tuple(excludeSemanticFields.v1(), new SourceFilter(new String[] {}, excludes.toArray(String[]::new)));
     }
 
     private static DocumentField loadIgnoredMetadataField(final DocIdAndVersion docIdAndVersion) throws IOException {

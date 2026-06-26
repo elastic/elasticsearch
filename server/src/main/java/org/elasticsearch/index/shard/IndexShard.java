@@ -150,12 +150,12 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryRole;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
@@ -282,7 +282,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Nullable
     private volatile RecoveryCancelledException recoveryCancellationRequest;
 
-    private final CompositeRecoverySchedulingListener recoverySchedulingListeners;
+    private final RecoverySchedulingListener recoverySchedulingListeners;
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric externalRefreshMetric = new MeanMetric();
@@ -367,7 +367,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
         final MergeMetrics mergeMetrics,
-        final CompositeRecoverySchedulingListener recoverySchedulingListeners
+        final RecoverySchedulingListener recoverySchedulingListeners
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -2053,8 +2053,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
     ///
     /// Must only be called from within the active recovery sequence [StoreRecovery] phase boundaries (non-PEER
-    /// recoveries). Emits the cancellation metric on throw; callers must let the exception propagate rather than
-    /// catching and re-throwing, to avoid double-counting.
+    /// recoveries). On throw, invokes the [RecoverySchedulingListener] (which may increment the relevant cancellation
+    /// metrics). Callers must let the exception propagate rather than catching it, in to avoid this method being called twice.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
         final var recoveryState = recoveryState();
         assert recoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";

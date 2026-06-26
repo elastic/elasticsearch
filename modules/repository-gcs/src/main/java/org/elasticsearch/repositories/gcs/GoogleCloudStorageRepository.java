@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
@@ -65,8 +66,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
 
     /**
      * Size of the write buffer passed to the GCS SDK for resumable uploads. Controls the amount of
-     * data buffered in memory before each HTTP PUT request. When not set the SDK default of 16 MiB
-     * is used. GCS requires this value to be a multiple of 256 KiB; values that are not will be
+     * data buffered in memory before each HTTP PUT request. When not set, stateful uses the SDK default of 16 MiB
+     * while stateless uses 256 KiB. GCS requires this value to be a multiple of 256 KiB; values that are not will be
      * rounded up automatically.
      */
     static final Setting<ByteSizeValue> RESUMABLE_WRITE_BUFFER_SIZE = byteSizeSetting(
@@ -77,6 +78,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         Property.NodeScope,
         Property.Dynamic
     );
+
+    static final int STATELESS_DEFAULT_RESUMABLE_WRITE_BUFFER_SIZE_IN_BYTES = Math.toIntExact(ByteSizeValue.ofKb(256).getBytes());
 
     /**
      * Storage class applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_DATA}.
@@ -150,9 +153,15 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
         this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
         this.statsCollector = statsCollector;
-        this.resumableWriteBufferSize = RESUMABLE_WRITE_BUFFER_SIZE.exists(metadata.settings())
-            ? OptionalInt.of(Math.toIntExact(getSetting(RESUMABLE_WRITE_BUFFER_SIZE, metadata).getBytes()))
-            : OptionalInt.empty();
+
+        if (RESUMABLE_WRITE_BUFFER_SIZE.exists(metadata.settings())) {
+            this.resumableWriteBufferSize = OptionalInt.of(Math.toIntExact(getSetting(RESUMABLE_WRITE_BUFFER_SIZE, metadata).getBytes()));
+        } else if (DiscoveryNode.isStateless(clusterService.getSettings())) {
+            this.resumableWriteBufferSize = OptionalInt.of(STATELESS_DEFAULT_RESUMABLE_WRITE_BUFFER_SIZE_IN_BYTES);
+        } else {
+            this.resumableWriteBufferSize = OptionalInt.empty();
+        }
+
         this.dataStorageClass = DATA_STORAGE_CLASS.get(metadata.settings());
         this.metadataStorageClass = METADATA_STORAGE_CLASS.get(metadata.settings());
         validateStorageClassIfSpecified(metadata.name(), DATA_STORAGE_CLASS.getKey(), this.dataStorageClass);

@@ -9,7 +9,12 @@ steps:
     steps:
       - label: "{{matrix.CHECK_TASK}} / release-tests"
         command: .buildkite/scripts/release-tests.sh {{matrix.CHECK_TASK}}
-        timeout_in_minutes: 120
+        timeout_in_minutes: 150
+        env:
+          # Cap Gradle workers (default on this agent is ~10) to limit how many full
+          # test clusters run concurrently (TestClusters throttle = workers/2), reducing
+          # heap/GC pressure that makes the heavy subquery/TS/union ES|QL queries balloon.
+          MAX_WORKER_ENV: 6
         matrix:
           setup:
             CHECK_TASK:

@@ -10,7 +10,7 @@ description: How ES|QL queries fields that aren't in the index mapping, using th
 
 {{esql}} can query fields that are not defined in your index mapping, with no reindex and no change to the mapping. The [`SET unmapped_fields`](commands/set.md#esql-unmapped_fields) directive controls how each query handles them.
 
-An unmapped field is a field that a query references but that the mapping does not define. By default, {{esql}} returns an error for it.
+An unmapped field is a field in indexed documents that the index' mapping does not define. By default, {{esql}} treats such fields as `null` and returns an error if a referenced field is not mapped in any index.
 
 Without this capability, the usual fix is to add the field to your mapping and reindex your data before you can query it. On a large dataset, that reindex can take hours.
 

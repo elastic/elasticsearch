@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.core.inference.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -20,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class PutRegionPolicyAction extends ActionType<RegionPolicyResponse> {
@@ -62,7 +65,28 @@ public class PutRegionPolicyAction extends ActionType<RegionPolicyResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException exception = null;
+            exception = validateNonNullListIsNotEmpty(regionPolicy.allowedRegions(), RegionPolicy.ALLOWED_REGIONS_FIELD, exception);
+            exception = validateNonNullListIsNotEmpty(regionPolicy.allowedGeos(), RegionPolicy.ALLOWED_GEOS_FIELD, exception);
+            return exception;
+        }
+
+        private static ActionRequestValidationException validateNonNullListIsNotEmpty(
+            List<?> list,
+            ParseField regionPolicyField,
+            ActionRequestValidationException exception
+        ) {
+            if (list != null && list.isEmpty()) {
+                return ValidateActions.addValidationError(
+                    Strings.format(
+                        "[%s.%s] must not be empty",
+                        REGION_POLICY_FIELD.getPreferredName(),
+                        regionPolicyField.getPreferredName()
+                    ),
+                    exception
+                );
+            }
+            return exception;
         }
 
         @Override

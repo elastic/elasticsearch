@@ -165,6 +165,28 @@ teardown:
   - match: { error.caused_by.reason: /.*not\ allowed\ together.*/ }
 
 ---
+"Put region policy rejects empty allowed_geos":
+  - do:
+      catch: bad_request
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos: []
+  - match:
+      error.reason: /.*\[region_policy\.allowed_geos\]\ must\ not\ be\ empty.*/
+
+---
+"Put region policy rejects empty allowed_regions":
+  - do:
+      catch: bad_request
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_regions: []
+  - match:
+      error.reason: /.*\[region_policy\.allowed_regions\]\ must\ not\ be\ empty.*/
+
+---
 "Delete region policy when none exists":
   - do:
       catch: missing

@@ -54,9 +54,9 @@ public class RegionPolicyTests extends AbstractBWCSerializationTestCase<RegionPo
 
         boolean useGeos = randomBoolean();
         if (useGeos) {
-            allowedGeos = randomList(10, () -> randomAlphaOfLength(10));
+            allowedGeos = randomList(1, 10, () -> randomAlphaOfLength(10));
         } else {
-            allowedRegions = randomList(10, () -> CspRegionTests.createRandom());
+            allowedRegions = randomList(1, 10, () -> CspRegionTests.createRandom());
         }
 
         if (randomBoolean()) {

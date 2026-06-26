@@ -675,7 +675,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testDemoteAll() throws IOException {
+    public void testDemoteAll() throws Exception {
+        final boolean async = randomBoolean();
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
@@ -705,8 +706,16 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertEquals(1, cacheService.getFreq(region0));
             assertEquals(1, cacheService.getFreq(region1));
+            assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shard1)), equalTo(Map.of(1, 2)));
 
-            assertEquals(2, cacheService.demoteAll(shard1));
+            if (async) {
+                cacheService.demoteAllAsync(shard1, id -> id.equals(shard1));
+                assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shard1)), equalTo(Map.of(1, 2)));
+                taskQueue.runAllRunnableTasks();
+            } else {
+                assertEquals(2, cacheService.demoteAll(shard1));
+            }
+
             assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shard1)), equalTo(Map.of(0, 2)));
             assertEquals(0, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));

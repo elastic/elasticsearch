@@ -953,6 +953,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     /**
      * Demotes all active cache regions for the given shard to frequency 0.
+     * Demoted entries are inserted at the front of the frequency-0 list so they are evicted before
+     * other frequency-0 entries. {@code lastAccessedEpoch} is set to {@code -1} so demoted entries
+     * are not frequency-promoted before the next epoch.
      *
      * @return the number of regions demoted
      */

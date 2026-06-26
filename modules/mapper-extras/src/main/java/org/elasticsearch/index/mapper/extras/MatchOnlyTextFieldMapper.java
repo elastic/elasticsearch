@@ -91,11 +91,11 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryM
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRegexpQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
@@ -696,7 +696,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
 
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
             } else {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -712,7 +712,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
             List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
+                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs);
             } else {
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
@@ -730,7 +730,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesPrefixQuery(name(), value, caseInsensitive);
+                return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive);
             }
             if (caseInsensitive == false) {
                 return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
@@ -756,7 +756,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesWildcardQuery(name(), value, caseInsensitive);
+                return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive);
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
@@ -790,7 +790,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesRegexpQuery(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates);
+                return new ScanningBinaryDocValuesRegexpQuery(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates);
             }
             if (context.getCircuitBreaker() != null) {
                 Term term = new Term(name(), value);

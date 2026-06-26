@@ -85,11 +85,11 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomB
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRegexpQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
@@ -1006,7 +1006,7 @@ public final class TextFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
 
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
             } else {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -1022,7 +1022,7 @@ public final class TextFieldMapper extends FieldMapper {
 
             List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
+                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs);
             } else {
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
@@ -1050,7 +1050,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesPrefixQuery(name(), value, caseInsensitive);
+                return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive);
             }
             if (caseInsensitive == false) {
                 return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
@@ -1076,7 +1076,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesWildcardQuery(name(), value, caseInsensitive);
+                return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive);
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
@@ -1110,7 +1110,7 @@ public final class TextFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesRegexpQuery(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates);
+                return new ScanningBinaryDocValuesRegexpQuery(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates);
             }
             if (context.getCircuitBreaker() != null) {
                 Term term = new Term(name(), value);
@@ -1390,7 +1390,13 @@ public final class TextFieldMapper extends FieldMapper {
                 };
             }
             BlockLoader fallbackLoader = nonDelegateBlockLoader(blContext);
-            if (syntheticSourceDelegate.isPresent() && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored()) {
+            // Use the keyword delegate only when ignore_above may drop values but null_value is not configured.
+            // A null_value substitution stores a synthetic value for null inputs, which would be incorrectly
+            // returned by the prefer loader for documents where the parent field is absent — the _ignore field
+            // only tracks values dropped by ignore_above, not null-value substitutions.
+            if (syntheticSourceDelegate.isPresent()
+                && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored()
+                && syntheticSourceDelegate.get().hasNullValue() == false) {
                 DelegatingBlockLoader preferLoader = new DelegatingBlockLoader(syntheticSourceDelegate.get().blockLoader(blContext)) {
                     @Override
                     public String delegatingTo() {

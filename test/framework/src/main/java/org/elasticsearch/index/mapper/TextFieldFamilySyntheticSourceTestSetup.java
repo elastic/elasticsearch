@@ -165,12 +165,9 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 return false;
             }
             if (isColumnar) {
-                if (docValues.enabled()) {
-                    // columnar mode preserves empty arrays via the offsets sidecar only when multi_value is enabled
-                    return docValues.multiValue();
-                }
-                // doc values disabled — falls back to keyword sub-field in columnar mode
-                return keywordMultiFieldSyntheticSourceSupport.preservesEmptyArray();
+                // In strict columnar mode canAddIgnoredField() is always false, so the empty-array recording
+                // block in DocumentParser.parseArrayElements is never reached; empty arrays produce {}.
+                return false;
             }
             return preservesExactSource();
         }

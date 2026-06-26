@@ -97,9 +97,9 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     @Override
     public boolean preservesEmptyArray() {
         if (isColumnar) {
-            // In columnar mode, empty arrays are preserved via the offsets sidecar only when doc values are
-            // enabled and multi_value is not forced to false (which would skip offset recording entirely).
-            return docValues.enabled() && docValues.multiValue();
+            // In strict columnar mode canAddIgnoredField() is always false, so the empty-array recording
+            // block in DocumentParser.parseArrayElements is never reached; empty arrays produce {}.
+            return false;
         }
         return preservesExactSource();
     }

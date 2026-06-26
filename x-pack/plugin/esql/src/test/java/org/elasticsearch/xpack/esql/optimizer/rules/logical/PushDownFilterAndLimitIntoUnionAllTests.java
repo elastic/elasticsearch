@@ -8,14 +8,25 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
@@ -32,8 +43,10 @@ import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -46,9 +59,13 @@ import org.junit.Before;
 
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigurationBuilder;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.hamcrest.Matchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlanOptimizerTests {
@@ -64,6 +81,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
     private static void checkSubqueryWithTSCommand() {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+    }
+
+    private static void checkExternalDatasetSupport() {
+        assumeTrue("Requires external dataset in FROM command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
     }
 
     /*
@@ -1941,5 +1962,174 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         Eval rowEval = as(rowProject.child(), Eval.class);
         Subquery rowSubquery = as(rowEval.child(), Subquery.class);
         as(rowSubquery.child(), LocalRelation.class);
+    }
+
+    /*
+     * The external dataset exposes the _file.* metadata columns, so the UnionAll carries them and the
+     * final Project strips them back off; the test branch gains an Eval that nulls the _file.* columns
+     * while the dataset branch gains an Eval that nulls the test columns absent from the dataset schema.
+     *
+     *Project[[...test columns, no _file.*...]]
+     * \_Limit[1000[INTEGER]]
+     *   \_UnionAll[[...test columns + _file.* columns...]]
+     *     |_Project[[...]]
+     *     | \_Eval[[null AS _file.path, _file.name, _file.directory, _file.size, _file.modified]]
+     *     |   \_Filter[emp_no > 10000]
+     *     |     \_EsRelation[test][...]
+     *     |_EsqlProject[[...]]
+     *       \_Eval[[null AS <test columns absent from the dataset schema>...]]
+     *         \_Subquery[]
+     *           \_Filter[salary > 50000 AND emp_no > 10000]
+     *             \_ExternalRelation[s3://bucket/external_employees.parquet]
+     */
+    public void testPushDownFilterIntoExternalDatasetSubquery() {
+        checkExternalDatasetSupport();
+        var plan = planExternalDatasetSubquery("""
+            FROM test, (FROM external_employees | WHERE salary > 50000)
+            | WHERE emp_no > 10000
+            """);
+
+        // No top-level Project: the dataset is read via FROM with no METADATA, so it carries no
+        // _file.* columns and the union output has nothing to strip from default output.
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // branch 1 — FROM test: the outer emp_no filter is pushed down onto the EsRelation.
+        Project testProject = as(unionAll.children().get(0), Project.class);
+        // No Eval on this branch: the union carries no _file.* (the dataset is FROM with no
+        // METADATA), so the index branch already has every union column — nothing to null-fill.
+        Filter testFilter = as(testProject.child(), Filter.class);
+        GreaterThan testGt = as(testFilter.condition(), GreaterThan.class);
+        assertEquals("emp_no", as(testGt.left(), FieldAttribute.class).name());
+        assertEquals(10000, as(testGt.right(), Literal.class).value());
+        EsRelation esRelation = as(testFilter.child(), EsRelation.class);
+        assertEquals("test", esRelation.indexPattern());
+
+        // branch 2 — FROM external_employees subquery: the pushed-down emp_no predicate is combined with
+        // the subquery's own salary filter and lands directly above the ExternalRelation. The Eval fills
+        // the UnionAll columns that exist in test but not in the external dataset schema with nulls.
+        Project datasetProject = as(unionAll.children().get(1), Project.class);
+        Eval datasetEval = as(datasetProject.child(), Eval.class);
+        Subquery subquery = as(datasetEval.child(), Subquery.class);
+        Filter datasetFilter = as(subquery.child(), Filter.class);
+        And and = as(datasetFilter.condition(), And.class);
+        GreaterThan salaryGt = as(and.left(), GreaterThan.class);
+        assertEquals("salary", as(salaryGt.left(), Attribute.class).name());
+        assertEquals(50000, as(salaryGt.right(), Literal.class).value());
+        GreaterThan empGt = as(and.right(), GreaterThan.class);
+        assertEquals("emp_no", as(empGt.left(), Attribute.class).name());
+        assertEquals(10000, as(empGt.right(), Literal.class).value());
+        as(datasetFilter.child(), ExternalRelation.class);
+    }
+
+    /*
+     * Same _file.* handling as testPushDownFilterIntoExternalDatasetSubquery: the UnionAll carries the
+     * external _file.* columns and the final Project strips them off.
+     *
+     *Project[[...test columns, no _file.*...]]
+     * \_Limit[10000[INTEGER]]
+     *   \_UnionAll[[...test columns + _file.* columns...]]
+     *     |_Project[[...]]
+     *     | \_Eval[[null AS _file.path, _file.name, _file.directory, _file.size, _file.modified]]
+     *     |   \_Filter[emp_no > 10000]
+     *     |     \_EsRelation[test][...]
+     *     |_EsqlProject[[...]]
+     *       \_Eval[[null AS <test columns absent from the dataset schema>...]]
+     *         \_Subquery[]
+     *           \_TopN[[Order[emp_no,ASC,LAST]],10000[INTEGER]]
+     *             \_Filter[salary > 50000 AND emp_no > 10000]
+     *               \_ExternalRelation[s3://bucket/external_employees.parquet]
+     */
+    public void testPushDownFilterAndLimitIntoExternalDatasetSubqueryWithSort() {
+        checkExternalDatasetSupport();
+        var plan = planExternalDatasetSubquery("""
+            FROM test, (FROM external_employees | WHERE salary > 50000 | SORT emp_no)
+            | WHERE emp_no > 10000
+            """);
+
+        // No top-level Project: the dataset is read via FROM with no METADATA, so it carries no
+        // _file.* columns and the union output has nothing to strip from default output.
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // branch 1 — FROM test: the outer emp_no filter is pushed down onto the EsRelation.
+        Project testProject = as(unionAll.children().get(0), Project.class);
+        // No Eval on this branch: the union carries no _file.* (the dataset is FROM with no
+        // METADATA), so the index branch already has every union column — nothing to null-fill.
+        Filter testFilter = as(testProject.child(), Filter.class);
+        GreaterThan testGt = as(testFilter.condition(), GreaterThan.class);
+        assertEquals("emp_no", as(testGt.left(), FieldAttribute.class).name());
+        assertEquals(10000, as(testGt.right(), Literal.class).value());
+        as(testFilter.child(), EsRelation.class);
+
+        // branch 2 — FROM external_employees subquery
+        Project datasetProject = as(unionAll.children().get(1), Project.class);
+        Eval datasetEval = as(datasetProject.child(), Eval.class);
+        Subquery subquery = as(datasetEval.child(), Subquery.class);
+        TopN topN = as(subquery.child(), TopN.class);
+        Literal topNLimit = as(topN.limit(), Literal.class);
+        assertEquals(10000, topNLimit.value());
+        Filter datasetFilter = as(topN.child(), Filter.class);
+        And and = as(datasetFilter.condition(), And.class);
+        GreaterThan salaryGt = as(and.left(), GreaterThan.class);
+        assertEquals("salary", as(salaryGt.left(), Attribute.class).name());
+        assertEquals(50000, as(salaryGt.right(), Literal.class).value());
+        GreaterThan empGt = as(and.right(), GreaterThan.class);
+        assertEquals("emp_no", as(empGt.left(), Attribute.class).name());
+        assertEquals(10000, as(empGt.right(), Literal.class).value());
+        as(datasetFilter.child(), ExternalRelation.class);
+    }
+
+    public void testFullTextFunctionOnExternalDatasetFieldIsRejected() {
+        checkExternalDatasetSupport();
+        VerificationException e = expectThrows(VerificationException.class, () -> planExternalDatasetSubquery("""
+            FROM test, (FROM external_employees | WHERE salary > 50000)
+            | WHERE first_name:"first"
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("[:] operator cannot operate on [first_name], which is not a field from an index mapping")
+        );
+    }
+
+    private static final String EXTERNAL_DATASET = "external_employees";
+    private static final String EXTERNAL_DATASET_RESOURCE = "s3://bucket/external_employees.parquet";
+
+    /**
+     * Build the analyzed-then-optimized plan for a {@code FROM ..., (FROM <dataset> | ...)} query whose
+     * subquery source is a registered external dataset. Mirrors the production pipeline: {@code FROM
+     * <dataset>} is rewritten by {@link DatasetRewriter} into the same {@code UnresolvedExternalRelation}
+     * the {@code EXTERNAL} command produces, which the analyzer resolves against the configured external
+     * source schema, so the optimizer sees a {@code UnionAll} branch backed by an {@link ExternalRelation}
+     * (wrapped in a {@code Subquery}) exactly like a real dataset subquery would produce.
+     *
+     * <p>The dataset deliberately exposes a subset of the {@code test} index schema ({@code emp_no},
+     * {@code first_name}, {@code salary}); the analyzer fills the remaining {@code UnionAll} columns on the
+     * dataset branch with nulls via an {@code Eval}.
+     */
+    private LogicalPlan planExternalDatasetSubquery(String query) {
+        DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
+        Dataset dataset = new Dataset(EXTERNAL_DATASET, new DataSourceReference("external_ds"), EXTERNAL_DATASET_RESOURCE, null, Map.of());
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("external_ds", dataSource)))
+            .datasets(Map.of(EXTERNAL_DATASET, dataset))
+            .build();
+        // FROM <dataset> -> UnresolvedExternalRelation, the same shape the EXTERNAL command would parse to.
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+            TEST_PARSER.parseQuery(query),
+            projectMetadata,
+            TestIndexNameExpressionResolver.newInstance()
+        );
+        List<Attribute> externalSchema = List.of(
+            referenceAttribute("emp_no", DataType.INTEGER),
+            referenceAttribute("first_name", DataType.KEYWORD),
+            referenceAttribute("salary", DataType.INTEGER)
+        );
+        LogicalPlan analyzed = subqueryAnalyzer().externalSourceResolution(EXTERNAL_DATASET_RESOURCE, externalSchema, FileList.UNRESOLVED)
+            .buildAnalyzer()
+            .analyze(rewritten);
+        return optimize(analyzed);
     }
 }

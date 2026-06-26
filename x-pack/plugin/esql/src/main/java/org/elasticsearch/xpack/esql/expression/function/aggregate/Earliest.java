@@ -59,6 +59,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "tdigest",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns the earliest value of a field sorted by timestamp.",
         description = """
             An alias for [`FIRST`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md) where
             the sort field (the second parameter) is implicit and is set to `@timestamp`.""",
@@ -147,6 +148,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 || dt == DataType.GEOHEX
                 || dt == DataType.DENSE_VECTOR
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.FLATTENED
                 || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
@@ -154,6 +156,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "date",
             "dense_vector",
             "exponential_histogram",
+            "flattened",
             "ip",
             "string",
             "tdigest",

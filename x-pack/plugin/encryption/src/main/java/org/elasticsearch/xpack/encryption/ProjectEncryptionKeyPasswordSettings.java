@@ -18,13 +18,7 @@ import java.security.GeneralSecurityException;
 import java.util.List;
 
 /**
- * Secure settings that hold the password used to wrap the project encryption key (PEK) at rest.
- *
- * <p>Two settings are required to enable cluster-state encryption:
- * <ul>
- *   <li>{@code cluster.state.encryption.password.<id>} — password material for a given id
- *   <li>{@code cluster.state.encryption.active_password_id} — the id whose password is active
- * </ul>
+ * Settings governing the project encryption key (PEK) at rest.
  */
 final class ProjectEncryptionKeyPasswordSettings {
 
@@ -38,10 +32,17 @@ final class ProjectEncryptionKeyPasswordSettings {
 
     static final Setting<SecureString> ACTIVE_PASSWORD_ID = SecureSetting.secureString(ACTIVE_PASSWORD_ID_KEY, null);
 
+    static final Setting<Boolean> ENCRYPTION_REQUIRED = Setting.boolSetting(
+        "cluster.state.encryption.required",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
     private ProjectEncryptionKeyPasswordSettings() {}
 
     static List<Setting<?>> getSettings() {
-        return List.of(PASSWORD, ACTIVE_PASSWORD_ID);
+        return List.of(PASSWORD, ACTIVE_PASSWORD_ID, ENCRYPTION_REQUIRED);
     }
 
     /**
@@ -82,13 +83,16 @@ final class ProjectEncryptionKeyPasswordSettings {
     }
 
     /**
-     * Detaches the encryption-related secure settings from {@code source} so callers can keep using {@link Settings} accessors
-     * (e.g. {@link #getPassword}, {@link #getActivePasswordId}) after the original keystore has been closed by the
-     * {@link org.elasticsearch.plugins.ReloadablePlugin#reload}.
+     * Returns a {@link Settings} that merges all non-secure entries from {@code settings} with a durable in-memory snapshot of the
+     * encryption-related secure settings read from the same source. The returned instance does not hold a reference to the original
+     * keystore, so it remains valid after {@link org.elasticsearch.plugins.ReloadablePlugin#reload} closes it.
      */
-    static Settings cloneSettings(Settings source) {
+    static Settings cloneSettings(Settings settings) {
         try {
-            return Settings.builder().setSecureSettings(InMemoryClonedSecureSettings.cloneSecureSettings(source, getSettings())).build();
+            return Settings.builder()
+                .put(settings, false)
+                .setSecureSettings(InMemoryClonedSecureSettings.cloneSecureSettings(settings, getSettings()))
+                .build();
         } catch (GeneralSecurityException e) {
             throw new ElasticsearchException("failed to clone project encryption key secure settings", e);
         }

@@ -266,8 +266,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         if (clusterString == null && selectorString == null) {
             try {
                 var split = splitIndexName(indexName);
-                clusterString = split[0];
-                indexName = split[1];
+                clusterString = split.clusterAlias();
+                indexName = split.indexExpression();
             } catch (IllegalArgumentException e) {
                 throw new ParsingException(e, source(ctx), e.getMessage());
             }

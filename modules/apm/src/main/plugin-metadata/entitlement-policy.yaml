@@ -102,8 +102,18 @@ io.opentelemetry.sdk.metrics:
 io.opentelemetry.sdk.trace:
   - manage_threads
 
-io.opentelemetry.exporter.sender.jdk.internal:
+io.opentelemetry.sdk.logs:
+  - manage_threads
+
+io.opentelemetry.exporter.sender.okhttp.internal:
+  - manage_threads
+
+okhttp3:
+  - manage_threads
   - outbound_network
+
+okio:
+  - manage_threads
 
 io.opentelemetry.instrumentation.runtime_telemetry:
   - manage_threads

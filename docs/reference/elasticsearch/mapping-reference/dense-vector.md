@@ -102,10 +102,10 @@ In many cases, a brute-force kNN search is not efficient enough. For this reason
 
 Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similarity of `cosine`. You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
 
-Indexing is enabled by default for dense vector fields. When indexing `float` vectors, {{es}} uses a [default index type](#default-quantization-types).
+Indexing is enabled by default for dense vector fields. When indexing `float` vectors, {{es}} uses a [default index type](#default-quantization-types). For other element types, such as `byte` and `bit`, the default index type is `hnsw` with no quantization.
 
 :::{note}
-In {{stack}} 9.0, dense vector fields are always indexed as `int8_hnsw`.
+In {{stack}} 9.0, `float` dense vector fields are always indexed as `int8_hnsw`.
 :::
 
 
@@ -392,10 +392,12 @@ When indexing `float` vectors, the default index type is:
 :::
 
 :::{applies-item} { "stack": "ga 9.4", "serverless": "ga" }
-When indexing `float` vectors, the default index type is `bbq_disk`
+When indexing `float` or `bfloat16` vectors, the default index type is `bbq_disk`
 when available under the current license.
 :::
 ::::
+
+For `byte` and `bit` element types, automatic quantization does not apply. These element types always default to `hnsw` with no quantization across all versions.
 
 ### int8 [dense-vector-quantization-int8]
 
@@ -556,7 +558,7 @@ $$$dense-vector-index-options$$$
 :::::{dropdown} Properties of index_options
 `type`
 :   (Required, string) The type of kNN algorithm to use. Can be either any of:
-    * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values.
+    * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values. This is the default index type for `byte` and `bit` element types.
     * `int8_hnsw` - The default index type for some float vectors:
       * {applies_to}`stack: ga 9.1` Default for float vectors with less than 384 dimensions.
       * {applies_to}`stack: ga 9.0` Default for float all vectors.
@@ -720,6 +722,47 @@ stack: preview 9.3
 
 {{es}} can leverage  [GPU acceleration](gpu-vector-indexing.md)  to speed up the indexing of dense vectors.
 
+
+## Index modes for vector search [dense-vector-index-modes]
+
+### `vectordb_document` [dense-vector-vectordb-document-mode]
+
+{applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
+
+The `vectordb_document` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) optimizes an index for vector search workloads.
+
+In {{serverless-short}}, this mode is automatically applied to indices in Vector DB projects. On {{ech}}, you must set it explicitly at index creation time:
+
+```console
+PUT my-vector-index
+{
+  "settings": {
+    "index": {
+      "mode": "vectordb_document"
+    }
+  }
+}
+```
+
+When `vectordb_document` mode is active, the following settings are applied automatically unless you explicitly configure them:
+
+`element_type` (dense_vector)
+:   Defaults to `bfloat16` instead of `float`, halving the storage cost of raw vectors while preserving most recall quality.
+
+Dynamic float array mapping
+:   Float arrays with at least 32 elements are automatically mapped to `dense_vector` during dynamic mapping, compared to the 128-element threshold used in other index modes.
+
+`index.mapping.exclude_source_vectors`
+:   Set to `true`. Vector field values are excluded from the stored `_source`, reducing storage overhead. This setting is required and cannot be overridden to `false`.
+
+`index.store.preload`
+:   Set to `["vex", "veq", "veb", "cenivf"]`. These vector index file extensions (HNSW graph, scalar-quantized data, binary-quantized data, and IVF centroid data) are preloaded into the file system cache.
+
+`index.merge.intra_merge_parallelism_enabled`
+:   Set to `true`. Enables parallel execution within a single merge operation, which speeds up merging of segments.
+
+`index.merge.scheduler.auto_throttle`
+:   Set to `false`. Disables automatic throttling of merge I/O, allowing merges to proceed at full speed.
 
 ## Updatable field type [_updatable_field_type]
 

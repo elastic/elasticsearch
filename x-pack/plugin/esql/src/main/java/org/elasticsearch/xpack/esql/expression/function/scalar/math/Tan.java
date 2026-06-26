@@ -33,10 +33,12 @@ public class Tan extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Tan::new)
         .description("Calculates the tangent of all elements in the input vector.")
         .example("tan(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("tan");
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the tangent of an angle.",
         description = "Returns the {wikipedia}/Sine_and_cosine[tangent] of an angle.",
         examples = @Example(file = "floats", tag = "tan")
     )

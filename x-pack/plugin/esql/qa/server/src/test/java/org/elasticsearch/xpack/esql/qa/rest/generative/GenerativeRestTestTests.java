@@ -38,41 +38,6 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isLimitByMvExpandBug(error, query));
     }
 
-    public void testWildcardLongRangeTopNConnectionBugMatchesFromStar() {
-        String query = "SET unmapped_fields=\"nullify\";FROM * | CHANGE_POINT sv ON event_dates AS type, pvalue";
-        String error = "Connection is closed";
-
-        assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugMatchesWildcardPattern() {
-        String query = "FROM mv_* | SORT decade";
-        String error = "Connection reset";
-
-        assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugMatchesConnectionRefused() {
-        String query = "FROM flattened_many,languages_mi* | SORT decade";
-        String error = "Connection refused";
-
-        assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugRequiresWildcardSource() {
-        String query = "FROM mv_decades | SORT decade";
-        String error = "Connection is closed";
-
-        assertFalse(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugRequiresConnectionError() {
-        String query = "FROM mv_* | SORT decade";
-        String error = "verification_exception: line 1:1: unknown column [decade]";
-
-        assertFalse(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
-    }
-
     public void testFullTextAfterSubqueryMatchesLimitInsideSubquery() {
         String query = "FROM books, (FROM books | LIMIT 1) | WHERE match(title, \"quick\")";
         String error = "verification_exception: line 1:13: [MATCH] function cannot be used after LIMIT";
@@ -88,6 +53,27 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
+    public void testFullTextAfterSubqueryMatchesSubqueryFirstMultiSourceMessage() {
+        String query = "FROM (FROM message_types | KEEP type | DROP type),no_mapping_sample_data,service_owners "
+            + "| WHERE match_phrase(service_id, \"fox world\")";
+        String error = "verification_exception: line 1:91: [MatchPhrase] function cannot be used after "
+            + "(from message_types | keep type | drop type),no_mapping_sample_data,service_owners";
+
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testFullTextAfterSubqueryMatchesTruncatedUnionAllSourceMessage() {
+        String query = "from (from all_types_short_as_long | enrich languages_policy on wildcard "
+            + "| dissect language_name \"%{a} %{b}\"),countries_bbox,(from dense_vector_arithmetic | keep id) "
+            + "| where match_phrase(registered_domain, \"test data\")";
+        // The UnionAll source text in the verifier message is truncated to Node.TO_STRING_MAX_WIDTH chars + "...",
+        // so it can be cut off mid-branch, before the comma separating the union branches.
+        String error = "verification_exception: line 1:1800: [MatchPhrase] function cannot be used after "
+            + "(from all_types_short_as_long | enrich languages_policy on wildcard | dissect language_name \"%{HkOuTBPphONE} %...";
+
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
     public void testFullTextAfterSubqueryRequiresKnownErrorShape() {
         String query = "FROM all_types, (FROM colors | MV_EXPAND hex_code) | WHERE match_phrase(hex_code, \"world search\")";
         String error = "verification_exception: line 1:973: [MatchPhrase] function cannot be used after field "
@@ -99,6 +85,13 @@ public class GenerativeRestTestTests extends ESTestCase {
     public void testFullTextAfterSubqueryMatchesLookupMessage() {
         String query = "FROM logs, (FROM messages | LOOKUP JOIN message_types_lookup ON message) | WHERE qstr(\"text:hello\")";
         String error = "verification_exception: line 1:34: [QSTR] function cannot be used after LOOKUP";
+
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testFullTextAfterSubqueryMatchesDedupMessage() {
+        String query = "FROM employees, (FROM employees | DEDUP first_name) | WHERE first_name : \"world\"";
+        String error = "verification_exception: line 1:18: [:] operator cannot be used after DEDUP";
 
         assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }

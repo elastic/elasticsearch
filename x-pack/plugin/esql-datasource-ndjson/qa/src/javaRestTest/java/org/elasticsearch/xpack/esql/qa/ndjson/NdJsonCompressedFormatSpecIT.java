@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.ndjson;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -28,7 +29,11 @@ import java.util.Set;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
-    private static final List<String> COMPRESSED_FORMATS = List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd", "ndjson.bz2", "ndjson.bz");
+    // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
+    // builds, so .ndjson.bz2/.ndjson.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
+    private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
+        ? List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd", "ndjson.bz2", "ndjson.bz")
+        : List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
@@ -63,6 +68,13 @@ public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTest
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    // Migrated specs run via FROM <dataset> on S3 (the anonymous-capable fixture backs a dataset without
+    // a cluster encryption key) and via the rebuilt EXTERNAL query on the other backends, so none are skipped.
+    @Override
+    protected Set<StorageBackend> datasetModeBackends() {
+        return Set.of(StorageBackend.S3);
     }
 
     @Override

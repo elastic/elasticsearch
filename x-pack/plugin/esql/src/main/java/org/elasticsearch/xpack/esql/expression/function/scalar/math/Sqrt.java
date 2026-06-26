@@ -37,9 +37,13 @@ public class Sqrt extends UnaryScalarFunction {
         .unaryValueTransformation(Sqrt::new)
         .description("Calculates the square root of all elements in the input vector.")
         .example("sqrt(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "For a negative input, {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus returns."
+        )
         .name("sqrt");
 
-    @FunctionInfo(returnType = "double", description = """
+    @FunctionInfo(returnType = "double", briefSummary = "Returns the square root of a number.", description = """
         Returns the square root of a number. The input can be any numeric value, the return value is always a double.
         Square roots of negative numbers and infinities are null.""", examples = @Example(file = "math", tag = "sqrt"))
     public Sqrt(

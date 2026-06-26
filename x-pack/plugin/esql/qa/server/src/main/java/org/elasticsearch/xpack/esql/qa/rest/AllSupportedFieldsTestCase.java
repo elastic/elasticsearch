@@ -919,11 +919,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     // Field types with no native (doc-value-based) synthetic source: columnar index modes reject them because their
     // _source cannot be reconstructed from doc values. Tracked as follow-ups in the columnar contract issue.
-    private static final Set<DataType> COLUMNAR_UNSUPPORTED_TYPES = Set.of(
-        DataType.GEO_SHAPE,
-        DataType.CARTESIAN_SHAPE,
-        DataType.CARTESIAN_POINT
-    );
+    private static final Set<DataType> COLUMNAR_UNSUPPORTED_TYPES = Set.of(DataType.CARTESIAN_POINT);
 
     private static boolean excludedInColumnar(DataType type, IndexMode mode) {
         return mode.isStrictColumnar() && COLUMNAR_UNSUPPORTED_TYPES.contains(type);
@@ -1546,14 +1542,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")
                 : matchesList().item("column_at_a_time:BlockDocValuesReader.BytesRefsFromLong");
             case GEO_SHAPE -> {
-                String last;
-                if (syntheticSourceByDefault()) {
-                    last = "row_stride:FallbackToSource[Geometry]";
-                } else if (extractPreference == MappedFieldType.FieldExtractPreference.STORED) {
-                    last = "row_stride:BlockSourceReader.Geometries";
-                } else {
-                    last = "row_stride:BlockSourceReader.Geometries";
+                // In columnar, geo_shape is native and reads its WKB value straight from its own doc value; other
+                // synthetic-source modes fall back to loading the value from source.
+                if (indexMode.isStrictColumnar()) {
+                    yield matchesList().item("column_at_a_time:GeometrySource");
                 }
+                String last = syntheticSourceByDefault()
+                    ? "row_stride:FallbackToSource[Geometry]"
+                    : "row_stride:BlockSourceReader.Geometries";
                 yield matchesList().item("column_at_a_time:null").item(last);
             }
             case HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes");

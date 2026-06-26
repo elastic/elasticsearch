@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.Map;
 
@@ -32,4 +35,14 @@ public final class ElasticInferenceServiceSettingsUtils {
             validationException
         );
     }
+
+    public static void ensureEmptyTaskSettingsInRequestContext(
+        @Nullable Map<String, Object> taskSettings,
+        ConfigurationParseContext context
+    ) {
+        if (taskSettings != null && taskSettings.isEmpty() == false && context == ConfigurationParseContext.REQUEST) {
+            throw ServiceUtils.unknownSettingsError(taskSettings, ElasticInferenceService.NAME);
+        }
+    }
+
 }

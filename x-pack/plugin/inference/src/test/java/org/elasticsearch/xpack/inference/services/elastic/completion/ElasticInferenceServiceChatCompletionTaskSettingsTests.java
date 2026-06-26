@@ -38,8 +38,6 @@ import static org.hamcrest.Matchers.is;
 public class ElasticInferenceServiceChatCompletionTaskSettingsTests extends AbstractBWCSerializationTestCase<
     ElasticInferenceServiceChatCompletionTaskSettings> {
 
-    private final boolean supportsUnknownFields = randomBoolean();
-
     private static final String UNKNOWN_TOP_LEVEL_FIELD = "unknown_field";
     private static final Map<String, Object> REASONING_TOP_LEVEL_UNKNOWN_FIELD_MAP = Map.of(
         REASONING_FIELD,
@@ -251,13 +249,8 @@ public class ElasticInferenceServiceChatCompletionTaskSettingsTests extends Abst
 
     @Override
     protected ElasticInferenceServiceChatCompletionTaskSettings doParseInstance(XContentParser parser) throws IOException {
-        return ElasticInferenceServiceChatCompletionTaskSettings.createParser(supportsUnknownFields)
-            .apply(parser, supportsUnknownFields ? ConfigurationParseContext.PERSISTENT : ConfigurationParseContext.REQUEST)
+        return ElasticInferenceServiceChatCompletionTaskSettings.createParser(false)
+            .apply(parser, ConfigurationParseContext.REQUEST)
             .build(TaskType.CHAT_COMPLETION);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return supportsUnknownFields;
     }
 }

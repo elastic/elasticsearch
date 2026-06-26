@@ -20,6 +20,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,7 +44,12 @@ public record ImmutableEmptyTaskSettings() implements TaskSettings {
             return INSTANCE;
         }
 
-        throw new ElasticsearchStatusException("Configuration contains unknown settings [{}]", RestStatus.BAD_REQUEST, settings);
+        throw new ElasticsearchStatusException(
+            "[{}] Configuration contains unknown settings {}",
+            RestStatus.BAD_REQUEST,
+            ModelConfigurations.TASK_SETTINGS,
+            settings.keySet()
+        );
     }
 
     public ImmutableEmptyTaskSettings(StreamInput in) {

@@ -34,7 +34,15 @@ final class NativeD4Q4PackedScorer extends NativeMemorySegmentScorer {
     }
 
     @Override
-    void dotProductBulkWithOffsets(MemorySegment dataset, MemorySegment query, int dataLength, int dataStride, MemorySegment offsets, int offsetsCount, MemorySegment scores) {
+    void dotProductBulkWithOffsets(
+        MemorySegment dataset,
+        MemorySegment query,
+        int dataLength,
+        int dataStride,
+        MemorySegment offsets,
+        int offsetsCount,
+        MemorySegment scores
+    ) {
         Similarities.dotProductI4BulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
     }
 

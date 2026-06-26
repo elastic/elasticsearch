@@ -8,17 +8,10 @@
  */
 package org.elasticsearch.simdvec.internal.vectorization;
 
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.internal.IndexInputUtils;
-import org.elasticsearch.simdvec.internal.MemorySegmentES92NativeInt7VectorsScorer;
 import org.elasticsearch.simdvec.internal.Similarities;
 
-import java.io.IOException;
 import java.lang.foreign.MemorySegment;
-
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkWithOffsets;
 
 /** Vectorized scorer for 7-bit symmetric quantized vectors stored as a {@link MemorySegment}. */
 final class NativeD7Q7Scorer extends NativeMemorySegmentScorer {
@@ -38,7 +31,15 @@ final class NativeD7Q7Scorer extends NativeMemorySegmentScorer {
     }
 
     @Override
-    void dotProductBulkWithOffsets(MemorySegment dataset, MemorySegment query, int dataLength, int dataStride, MemorySegment offsets, int offsetsCount, MemorySegment scores) {
+    void dotProductBulkWithOffsets(
+        MemorySegment dataset,
+        MemorySegment query,
+        int dataLength,
+        int dataStride,
+        MemorySegment offsets,
+        int offsetsCount,
+        MemorySegment scores
+    ) {
         Similarities.dotProductI7uBulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
     }
 

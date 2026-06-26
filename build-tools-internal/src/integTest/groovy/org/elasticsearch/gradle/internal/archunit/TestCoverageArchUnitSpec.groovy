@@ -87,7 +87,6 @@ class TestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.packer.CacheTestFixtureResourcesPlugin",
         "org.elasticsearch.gradle.internal.precommit.DependencyLicensesPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin",
-        "org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin",

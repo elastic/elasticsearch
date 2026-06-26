@@ -7,14 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.foreign.LibraryProvider;
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
-module org.elasticsearch.foreign {
-    requires org.elasticsearch.base;
-    requires org.elasticsearch.logging;
-    requires transitive org.elasticsearch.foreign.adapter;
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.mrjar'
 
-    exports org.elasticsearch.foreign;
-
-    uses LibraryProvider;
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
 }

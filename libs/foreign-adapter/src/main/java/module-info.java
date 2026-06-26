@@ -7,14 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.foreign.LibraryProvider;
-
-module org.elasticsearch.foreign {
-    requires org.elasticsearch.base;
-    requires org.elasticsearch.logging;
-    requires transitive org.elasticsearch.foreign.adapter;
-
-    exports org.elasticsearch.foreign;
-
-    uses LibraryProvider;
+/**
+ * Adapts java.lang.foreign APIs that changed between JDK 21 and 22+.
+ */
+module org.elasticsearch.foreign.adapter {
+    exports org.elasticsearch.foreign.adapter;
 }

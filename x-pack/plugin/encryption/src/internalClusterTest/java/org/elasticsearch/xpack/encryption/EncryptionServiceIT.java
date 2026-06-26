@@ -14,7 +14,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;

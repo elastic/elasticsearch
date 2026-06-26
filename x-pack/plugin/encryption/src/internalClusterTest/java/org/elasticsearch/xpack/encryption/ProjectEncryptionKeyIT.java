@@ -19,7 +19,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;

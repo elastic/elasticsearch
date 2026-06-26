@@ -30,9 +30,10 @@ public class Clusters {
      * when a data source is registered via {@code PUT /_query/data_source}. Mirrors the single-node esql
      * qa datasource-CRUD cluster config. Applied only by {@link #testClusterWithEncryption}.
      */
-    private static final LocalClusterConfigProvider DATASET_ENCRYPTION_CONFIG = builder -> builder
-        .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
-        .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID);
+    private static final LocalClusterConfigProvider DATASET_ENCRYPTION_CONFIG = builder -> builder.keystore(
+        "cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID,
+        ENCRYPTION_PASSWORD
+    ).keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID);
 
     /**
      * Cluster for tests that only need HTTP access (e.g. downloading from public URLs).

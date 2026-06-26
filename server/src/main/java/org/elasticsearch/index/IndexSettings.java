@@ -776,6 +776,41 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    /**
+     * Whether each field's per-field Lucene formats (postings, doc values, vectors) are written to their own files and
+     * compound files are disabled, so a segment holds at most one file per field per format. Defaults to {@code true}
+     * for strict columnar index modes, which require it; other indices may set it freely.
+     */
+    public static final Setting<Boolean> INDEX_PER_FIELD_FILES_SETTING = Setting.boolSetting(
+        "index.codec.per_field_files",
+        settings -> Boolean.toString(MODE.get(settings).isStrictColumnar()),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                if (value == false && ((IndexMode) settings.get(MODE)).isStrictColumnar()) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + INDEX_PER_FIELD_FILES_SETTING.getKey()
+                            + "] can not be disabled in index using ["
+                            + settings.get(MODE)
+                            + "] index mode"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> list = List.of(MODE);
+                return list.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", settings -> {
         IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
         boolean isTimeSeries = IndexMode.TIME_SERIES.equals(MODE.get(settings));
@@ -1373,6 +1408,7 @@ public final class IndexSettings {
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
+    private final boolean perFieldFiles;
     private final boolean useColumnarIdByDefault;
 
     /**
@@ -1594,6 +1630,7 @@ public final class IndexSettings {
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
         indexDisabledByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
+        perFieldFiles = scopedSettings.get(INDEX_PER_FIELD_FILES_SETTING);
         useColumnarIdByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
@@ -2431,6 +2468,16 @@ public final class IndexSettings {
 
     public boolean isIndexDisabledByDefault() {
         return indexDisabledByDefault;
+    }
+
+    /**
+     * Whether each field's per-field Lucene formats are written to their own files and compound files are disabled, so a
+     * segment holds at most one file per field per format. Defaults to {@code true} for strict columnar index modes.
+     *
+     * @see #INDEX_PER_FIELD_FILES_SETTING
+     */
+    public boolean perFieldFiles() {
+        return perFieldFiles;
     }
 
     public boolean isUseColumnarIdByDefault() {

@@ -243,8 +243,9 @@ public final class EngineConfig {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
         this.promotableToPrimary = promotableToPrimary;
-        // always use compound on flush - reduces # of file-handles on refresh
-        this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
+        // Normally use compound on flush - reduces # of file-handles on refresh. When per-field files are enabled
+        // (e.g. columnar), default to no compound files so the per-field files are not bundled back into a single .cfs.
+        this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, indexSettings.perFieldFiles() == false);
         this.engineResetLock = engineResetLock;
         this.mergeMetrics = mergeMetrics;
         this.indexDeletionPolicyWrapper = indexDeletionPolicyWrapper;

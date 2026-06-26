@@ -204,21 +204,35 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
 
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            // Columnar modes isolate field formats by default, so the postings format is returned wrapped; unwrap to assert
+            // the underlying format selection.
             // Columnar index mode
             // by default, columnar uses the ES 8.12 postings format
             perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.COLUMNAR, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+            assertThat(
+                IsolatedFieldFormats.unwrap(perFieldMapperCodec.getPostingsFormatForField("message")),
+                instanceOf(ES812PostingsFormat.class)
+            );
 
             perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.COLUMNAR, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+            assertThat(
+                IsolatedFieldFormats.unwrap(perFieldMapperCodec.getPostingsFormatForField("message")),
+                instanceOf(ES812PostingsFormat.class)
+            );
 
             // Columnar LogsDB index mode
             // by default, logsdb_columnar uses the ES 8.12 postings format
             perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+            assertThat(
+                IsolatedFieldFormats.unwrap(perFieldMapperCodec.getPostingsFormatForField("message")),
+                instanceOf(ES812PostingsFormat.class)
+            );
 
             perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+            assertThat(
+                IsolatedFieldFormats.unwrap(perFieldMapperCodec.getPostingsFormatForField("message")),
+                instanceOf(ES812PostingsFormat.class)
+            );
         }
     }
 
@@ -625,6 +639,57 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         final FieldContext context = supplier.resolveFieldContext("cpu_usage", 512);
         final PipelineConfig config = StaticPipelineConfigResolver.INSTANCE.resolve(context);
         assertEquals("alpDouble>delta>offset>gcd>bitPack", config.describeStages());
+    }
+
+    public void testPerFieldFilesDefaultsOffForStandard() {
+        assertFalse(
+            IndexSettings.INDEX_PER_FIELD_FILES_SETTING.get(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD).build())
+        );
+    }
+
+    public void testPerFieldFilesDefaultsOnForColumnar() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            assertTrue(
+                "mode=" + mode,
+                IndexSettings.INDEX_PER_FIELD_FILES_SETTING.get(Settings.builder().put(IndexSettings.MODE.getKey(), mode).build())
+            );
+        }
+    }
+
+    public void testIsolatedFormatsAreDistinctPerFieldButStablePerField() throws IOException {
+        PerFieldFormatSupplier supplier = createIsolatedFormatSupplier(LOGS_MAPPING);
+
+        // Distinct fields get distinct (isolated) format instances, so each lands in its own files.
+        assertNotSame(supplier.getDocValuesFormatForField("hostname"), supplier.getDocValuesFormatForField("response_size"));
+        assertNotSame(supplier.getPostingsFormatForField("hostname"), supplier.getPostingsFormatForField("message"));
+
+        // The same field always resolves to the same instance: the per-field writers dedupe consumers by format
+        // identity within a segment, so a stable instance is required for correctness.
+        assertSame(supplier.getDocValuesFormatForField("hostname"), supplier.getDocValuesFormatForField("hostname"));
+        assertSame(supplier.getPostingsFormatForField("message"), supplier.getPostingsFormatForField("message"));
+
+        // The wrapper preserves the delegate's registered format name so the read path resolves it via SPI.
+        PerFieldFormatSupplier plain = createFormatSupplier(IndexMode.STANDARD, LOGS_MAPPING);
+        assertEquals(plain.getDocValuesFormatForField("hostname").getName(), supplier.getDocValuesFormatForField("hostname").getName());
+        assertEquals(plain.getPostingsFormatForField("message").getName(), supplier.getPostingsFormatForField("message").getName());
+    }
+
+    public void testFormatsAreSharedAcrossFieldsWhenIsolationDisabled() throws IOException {
+        PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.STANDARD, LOGS_MAPPING);
+        // Without isolation the default formats are shared singletons, so multiple fields co-mingle in the same files.
+        assertSame(supplier.getDocValuesFormatForField("hostname"), supplier.getDocValuesFormatForField("response_size"));
+        assertSame(supplier.getPostingsFormatForField("hostname"), supplier.getPostingsFormatForField("message"));
+    }
+
+    private PerFieldFormatSupplier createIsolatedFormatSupplier(String mapping) throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true)
+            .build();
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
     public void testGetDocValuesFormatForFieldReturnsSameInstanceAcrossCalls() throws IOException {

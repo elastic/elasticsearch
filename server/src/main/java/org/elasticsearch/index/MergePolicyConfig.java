@@ -112,6 +112,7 @@ public final class MergePolicyConfig {
     private final LogByteSizeMergePolicy timeBasedMergePolicy = new LogByteSizeMergePolicy();
     private final Logger logger;
     private final boolean mergesEnabled;
+    private final boolean perFieldFiles;
     private volatile Type mergePolicyType;
     private final ByteSizeValue defaultMaxMergedSegment;
     private final ByteSizeValue defaultMaxTimeBasedMergedSegment;
@@ -274,8 +275,12 @@ public final class MergePolicyConfig {
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     public static final String INDEX_MERGE_ENABLED = "index.merge.enabled";
 
+    // A noCFSRatio of 0.0 means compound files are never used for merged segments. Used when per-field files are enabled.
+    private static final CompoundFileThreshold NO_COMPOUND_FILE = new CompoundFileThreshold(0.0d);
+
     MergePolicyConfig(Logger logger, IndexSettings indexSettings) {
         this.logger = logger;
+        this.perFieldFiles = indexSettings.getValue(IndexSettings.INDEX_PER_FIELD_FILES_SETTING);
         Type mergePolicyType = indexSettings.getValue(INDEX_MERGE_POLICY_TYPE_SETTING);
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
@@ -356,6 +361,11 @@ public final class MergePolicyConfig {
     }
 
     void setCompoundFormatThreshold(CompoundFileThreshold compoundFileThreshold) {
+        // When per-field files are enabled, merged segments must not be bundled into a compound file either, otherwise the
+        // per-field files would be collapsed back into a single .cfs. This wins over any (dynamic) index.compound_format value.
+        if (perFieldFiles) {
+            compoundFileThreshold = NO_COMPOUND_FILE;
+        }
         compoundFileThreshold.configure(tieredMergePolicy);
         compoundFileThreshold.configure(timeBasedMergePolicy);
     }

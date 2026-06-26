@@ -64,7 +64,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final boolean isMetadataField;
     private final boolean isSearchable;
     private final boolean isAggregatable;
-    private final boolean isInference;
+    private final Boolean isInference;
     private final boolean isDimension;
     private final TimeSeriesParams.MetricType metricType;
 
@@ -110,7 +110,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         boolean isMetadataField,
         boolean isSearchable,
         boolean isAggregatable,
-        boolean isInference,
+        Boolean isInference,
         boolean isDimension,
         TimeSeriesParams.MetricType metricType,
         String[] indices,
@@ -237,7 +237,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isMetadataField == null ? false : isMetadataField,
             isSearchable,
             isAggregatable,
-            isInference == null ? false : isInference,
+            isInference,
             isDimension == null ? false : isDimension,
             metricType != null ? TimeSeriesParams.MetricType.fromString(metricType) : null,
             indices != null ? indices.toArray(new String[0]) : null,
@@ -265,10 +265,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.metricConflictsIndices = in.readOptionalStringArray();
         meta = in.readMap(i -> i.readCollectionAsSet(StreamInput::readString));
         if (in.getTransportVersion().supports(FIELD_CAPS_INFERENCE_FIELD)) {
-            this.isInference = in.readBoolean();
+            this.isInference = in.readOptionalBoolean();
             this.nonInferenceIndices = in.readOptionalStringArray();
         } else {
-            this.isInference = false;
+            this.isInference = null;
             this.nonInferenceIndices = null;
         }
     }
@@ -289,7 +289,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeOptionalStringArray(metricConflictsIndices);
         out.writeMap(meta, StreamOutput::writeStringCollection);
         if (out.getTransportVersion().supports(FIELD_CAPS_INFERENCE_FIELD)) {
-            out.writeBoolean(isInference);
+            out.writeOptionalBoolean(isInference);
             out.writeOptionalStringArray(nonInferenceIndices);
         }
     }
@@ -301,7 +301,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.field(IS_METADATA_FIELD.getPreferredName(), isMetadataField);
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
-        builder.field(INFERENCE_FIELD.getPreferredName(), isInference);
+        if (isInference != null) {
+            builder.field(INFERENCE_FIELD.getPreferredName(), isInference);
+        }
         if (isDimension) {
             builder.field(TIME_SERIES_DIMENSION_FIELD.getPreferredName(), true);
         }
@@ -363,9 +365,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     /**
-     * Whether this field is an inference field in all indices.
+     * Whether this field is an inference field in all indices, or null if the minimum
+     * transport version is too old to reliably report inference field status.
      */
-    public boolean isInference() {
+    public Boolean isInference() {
         return isInference;
     }
 
@@ -458,7 +461,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return isMetadataField == that.isMetadataField
             && isSearchable == that.isSearchable
             && isAggregatable == that.isAggregatable
-            && isInference == that.isInference
+            && Objects.equals(isInference, that.isInference)
             && isDimension == that.isDimension
             && Objects.equals(metricType, that.metricType)
             && Objects.equals(name, that.name)
@@ -618,14 +621,19 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 nonAggregatableIndices = filterIndices(totalIndices - aggregatableIndices, ic -> ic.isAggregatable == false);
             }
 
-            // Iff this field is an inference field in some indices AND not in others
-            // we keep the list of non-inference indices
-            final boolean isInference = inferenceIndices == totalIndices;
+            // Iff the min transport version supports inference field reporting, compute
+            // the inference flag and non-inference indices list. Otherwise, suppress both so that a
+            // mixed-version cluster does not emit misleading inference: false output.
+            final Boolean isInference;
             final String[] nonInferenceIndices;
-            if (isInference || inferenceIndices == 0) {
-                nonInferenceIndices = null;
+            if (minTransportVersion != null && minTransportVersion.supports(FIELD_CAPS_INFERENCE_FIELD)) {
+                isInference = inferenceIndices == totalIndices;
+                nonInferenceIndices = (isInference || inferenceIndices == 0)
+                    ? null
+                    : filterIndices(totalIndices - inferenceIndices, ic -> ic.isInference == false);
             } else {
-                nonInferenceIndices = filterIndices(totalIndices - inferenceIndices, ic -> ic.isInference == false);
+                isInference = null;
+                nonInferenceIndices = null;
             }
 
             // Collect all indices that have dimension == false if this field is marked as a dimension in at least one index

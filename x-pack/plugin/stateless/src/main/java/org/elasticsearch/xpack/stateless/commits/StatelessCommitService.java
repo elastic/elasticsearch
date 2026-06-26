@@ -363,34 +363,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return useInternalFilesReplicatedContent;
     }
 
-    /**
-     * Builds a once-only {@link Runnable} that releases {@code afterNotification} when invoked. When {@code timeout} is greater than zero,
-     * a task is also scheduled on {@code threadPool}'s generic executor so the releasable still fires if the notification response is
-     * delayed; the first of (returned runnable invoked, timeout firing) wins and the other becomes a no-op. When {@code timeout} is zero
-     * the releasable runs synchronously before this method returns, restoring the pre-existing behavior of releasing local files
-     * immediately after dispatching the notification.
-     */
-    static Runnable createAfterNotificationHook(ThreadPool threadPool, TimeValue timeout, ShardId shardId, Releasable afterNotification) {
-        final AtomicBoolean fired = new AtomicBoolean(false);
-        final Runnable fireOnce = () -> {
-            if (fired.compareAndSet(false, true)) {
-                try {
-                    afterNotification.close();
-                } catch (Exception e) {
-                    assert false : e;
-                    logger.warn(() -> format("%s after-notification cleanup failed", shardId), e);
-                }
-            }
-        };
-        if (timeout.equals(TimeValue.ZERO)) {
-            // Timeout disabled: fire immediately, do not wait for the search tier response.
-            fireOnce.run();
-            return () -> {};
-        }
-        threadPool.schedule(fireOnce, timeout, threadPool.generic());
-        return fireOnce;
-    }
-
     private static Optional<IndexShardRoutingTable> shardRoutingTableFunction(ClusterService clusterService, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
         final ProjectId projectId = clusterState.metadata().lookupProject(shardId.getIndex()).map(ProjectMetadata::id).orElse(null);
@@ -2320,8 +2292,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ) {
             assert uploadedBcc != null;
 
-            final Runnable runAfterNotification = createAfterNotificationHook(afterNotification);
-
             var notificationCommitGeneration = uploadedBcc.lastCompoundCommit().generation();
             var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(notificationCommitGeneration);
             Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(uploadedBcc.shardId());
@@ -2358,7 +2328,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     Set.of()
                 );
                 // No search tier to wait for; release immediately.
-                runAfterNotification.run();
+                afterNotification.close();
                 return;
             }
 
@@ -2387,7 +2357,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 clusterService.localNode().getId(),
                 clusterService,
                 ActionListener.wrap(searchNodesAndCommitsResult -> {
-                    runAfterNotification.run();
+                    afterNotification.close();
                     onNewUploadedCommitNotificationResponse(
                         // Open PITs might be transferred between search nodes during relocations, for that reason we are conservative,
                         // and we just consider responses from started or old nodes retaining commits, that way we won't delete any
@@ -2400,7 +2370,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     );
                 }, e -> {
                     // Treat failures the same as a successful response: the indexing node cannot meaningfully wait any longer.
-                    runAfterNotification.run();
+                    afterNotification.close();
                     logNotificationException(
                         notificationCommitGeneration,
                         uploadedBcc.primaryTermAndGeneration().generation(),
@@ -2408,15 +2378,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         e
                     );
                 })
-            );
-        }
-
-        private Runnable createAfterNotificationHook(Releasable afterNotification) {
-            return StatelessCommitService.createAfterNotificationHook(
-                threadPool,
-                releaseFilesAfterNotificationTimeout,
-                shardId,
-                afterNotification
             );
         }
 
@@ -2532,26 +2493,37 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
-         * Registers a once-guarded cleanup in {@link #recentlyUploadedCleanups} and returns it. When first invoked, the cleanup removes
-         * {@code virtualBcc} from both {@link #recentlyUploadedVbccs} and {@link #recentlyUploadedCleanups}, closes the VBCC, and
-         * dec-refs {@code blobReference}. Subsequent invocations are no-ops. {@link #close()} drains {@link #recentlyUploadedCleanups}
-         * and calls each cleanup, so it is always safe to call this cleanup more than once.
+         * Registers a once-guarded cleanup in {@link #recentlyUploadedCleanups}, schedules a timeout to fire it, and returns it. When
+         * first invoked (either by the caller or by the timeout), the cleanup removes {@code virtualBcc} from both
+         * {@link #recentlyUploadedVbccs} and {@link #recentlyUploadedCleanups}, closes the VBCC, and dec-refs {@code blobReference}.
+         * Subsequent invocations are no-ops. {@link #close()} drains {@link #recentlyUploadedCleanups} and calls each cleanup, so it is
+         * always safe to call this cleanup more than once.
+         * <p>
+         * When {@link #releaseFilesAfterNotificationTimeout} is zero the cleanup fires synchronously before this method returns, so the
+         * caller's subsequent {@link Releasable#close()} call becomes a no-op.
          * <p>
          * {@link #handleUploadedBcc} adds the VBCC to {@link #recentlyUploadedVbccs} just before this method is called (in the same
          * thread), ensuring there is no gap where the VBCC is findable in neither map.
          */
         Releasable createAfterNotificationCleanup(VirtualBatchedCompoundCommit virtualBcc, BlobReference blobReference) {
             final long gen = virtualBcc.getPrimaryTermAndGeneration().generation();
-            final AtomicBoolean done = new AtomicBoolean();
-            final Releasable cleanup = () -> {
-                if (done.compareAndSet(false, true)) {
-                    recentlyUploadedVbccs.remove(gen);
-                    recentlyUploadedCleanups.remove(gen);
-                    IOUtils.closeWhileHandlingException(virtualBcc);
-                    blobReference.decRef();
-                }
-            };
+            assert recentlyUploadedVbccs.get(gen) == virtualBcc;
+            final Releasable cleanup = Releasables.releaseOnce(() -> {
+                VirtualBatchedCompoundCommit removedVBCC = recentlyUploadedVbccs.remove(gen);
+                assert removedVBCC != null;
+                assert removedVBCC == virtualBcc;
+                Releasable removedCleanup = recentlyUploadedCleanups.remove(gen);
+                assert removedCleanup != null;
+                IOUtils.closeWhileHandlingException(virtualBcc);
+                blobReference.decRef();
+            });
             recentlyUploadedCleanups.put(gen, cleanup);
+            if (releaseFilesAfterNotificationTimeout.equals(TimeValue.ZERO)) {
+                // Timeout disabled: fire immediately, do not wait for the search tier response.
+                Releasables.close(cleanup);
+            } else {
+                threadPool.schedule(cleanup::close, releaseFilesAfterNotificationTimeout, threadPool.generic());
+            }
             return cleanup;
         }
 
@@ -2597,8 +2569,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // TODO: maybe upload before releasing in some cases as a future optimization?
                 IOUtils.closeWhileHandlingException(virtualBcc);
             }
-            // Close any VBCCs that are still waiting for their after-notification cleanup to fire. Go through the once-guarded cleanups
-            // to avoid double-closing a VBCC if the scheduled timeout also fires.
             recentlyUploadedCleanups.values().forEach(Releasables::close);
             recentlyUploadedCleanups.clear();
             recentlyUploadedVbccs.clear();

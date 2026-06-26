@@ -1028,60 +1028,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testAfterNotificationHookFiresWhenInvoked() {
-        AtomicBoolean closed = new AtomicBoolean();
-        Runnable hook = StatelessCommitService.createAfterNotificationHook(
-            threadPool,
-            TimeValue.timeValueSeconds(30),
-            new ShardId("idx", "uuid", 0),
-            () -> assertTrue("expected close to be called exactly once", closed.compareAndSet(false, true))
-        );
-        assertFalse("hook must not fire before being invoked", closed.get());
-        hook.run();
-        assertTrue("hook must invoke the releasable when run", closed.get());
-        // Subsequent invocations are no-ops.
-        hook.run();
-    }
-
-    public void testAfterNotificationHookFiresAfterTimeoutWhenNeverInvoked() throws Exception {
-        AtomicBoolean closed = new AtomicBoolean();
-        StatelessCommitService.createAfterNotificationHook(
-            threadPool,
-            TimeValue.timeValueMillis(50),
-            new ShardId("idx", "uuid", 0),
-            () -> assertTrue("expected close to be called exactly once", closed.compareAndSet(false, true))
-        );
-        assertBusy(() -> assertTrue("hook must fire via the timeout when nothing else triggers it", closed.get()));
-    }
-
-    public void testAfterNotificationHookFiresExactlyOnceWhenBothInvokedAndTimedOut() throws Exception {
-        AtomicBoolean closed = new AtomicBoolean();
-        Runnable hook = StatelessCommitService.createAfterNotificationHook(
-            threadPool,
-            TimeValue.timeValueMillis(50),
-            new ShardId("idx", "uuid", 0),
-            () -> assertTrue("expected close to be called exactly once", closed.compareAndSet(false, true))
-        );
-        hook.run();
-        assertTrue(closed.get());
-        // Wait past the timeout to confirm the scheduled task no-ops because the AtomicBoolean is already set; the releasable's
-        // single-invocation assertion above is the actual safety net.
-        Thread.sleep(100);
-    }
-
-    public void testAfterNotificationHookFiresImmediatelyWhenTimeoutIsZero() {
-        AtomicBoolean closed = new AtomicBoolean();
-        Runnable hook = StatelessCommitService.createAfterNotificationHook(
-            threadPool,
-            TimeValue.ZERO,
-            new ShardId("idx", "uuid", 0),
-            () -> assertTrue("expected close to be called exactly once", closed.compareAndSet(false, true))
-        );
-        assertTrue("zero timeout must fire releasable synchronously before returning", closed.get());
-        // The returned runnable must be a no-op since the releasable already fired.
-        hook.run();
-    }
-
     public void testOldCommitsAreRetainedIfIndexShardUseThem() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {

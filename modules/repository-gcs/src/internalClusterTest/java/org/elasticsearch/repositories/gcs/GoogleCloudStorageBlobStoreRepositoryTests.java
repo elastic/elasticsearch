@@ -27,7 +27,9 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -53,6 +56,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.threeten.bp.Duration;
@@ -82,8 +86,10 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BASE_PATH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.STATELESS_DEFAULT_RESUMABLE_WRITE_BUFFER_SIZE_IN_BYTES;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.when;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -303,6 +309,69 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
     }
 
+    public void testResumableWriteBufferStatelessDefaultInAction() throws Exception {
+        final int numFullChunks = between(4, 8);
+        // lastChunkSize < bufferSize to guarantee exactly numFullChunks non-final chunks
+        final int lastChunkSize = randomIntBetween(1, STATELESS_DEFAULT_RESUMABLE_WRITE_BUFFER_SIZE_IN_BYTES - 1);
+        final int blobSize = STATELESS_DEFAULT_RESUMABLE_WRITE_BUFFER_SIZE_IN_BYTES * numFullChunks + lastChunkSize;
+
+        final var statelessNodeSettings = Settings.builder()
+            .put(nodeSettings(0, Settings.EMPTY))
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .build();
+
+        final var clusterService = BlobStoreTestUtil.mockClusterService();
+        when(clusterService.getSettings()).thenReturn(statelessNodeSettings);
+
+        try (var plugin = new TestGoogleCloudStoragePlugin(statelessNodeSettings)) {
+            plugin.storageService.set(plugin.createStorageService(clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY));
+            plugin.reload(statelessNodeSettings);
+
+            final String repoName = "stateless-test-repo";
+            final var repository = (GoogleCloudStorageRepository) plugin.getRepositories(
+                null,
+                NamedXContentRegistry.EMPTY,
+                clusterService,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                new RecoverySettings(
+                    statelessNodeSettings,
+                    new ClusterSettings(statelessNodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ),
+                RepositoriesMetrics.NOOP,
+                SnapshotMetrics.NOOP
+            )
+                .get(GoogleCloudStorageRepository.TYPE)
+                .create(
+                    ProjectId.DEFAULT,
+                    new RepositoryMetadata(repoName, GoogleCloudStorageRepository.TYPE, repositorySettings(repoName))
+                );
+
+            try (var blobStore = repository.createBlobStore()) {
+                chunkRecordingHandler.recordedNonFinalChunkSizes.clear();
+                chunkRecordingHandler.recording = true;
+                final BlobContainer container = blobStore.blobContainer(BlobPath.EMPTY);
+                container.writeBlob(
+                    randomPurpose(),
+                    "test-stateless-default-buffer",
+                    new BytesArray(randomByteArrayOfLength(blobSize)),
+                    true
+                );
+                final List<Integer> sizes = new ArrayList<>(chunkRecordingHandler.recordedNonFinalChunkSizes);
+                assertTrue("expected at least " + numFullChunks + " non-final chunks, got " + sizes, sizes.size() >= numFullChunks);
+                for (final int size : sizes) {
+                    assertEquals(
+                        "each non-final chunk must be exactly " + STATELESS_DEFAULT_RESUMABLE_WRITE_BUFFER_SIZE_IN_BYTES + " bytes",
+                        STATELESS_DEFAULT_RESUMABLE_WRITE_BUFFER_SIZE_IN_BYTES,
+                        size
+                    );
+                }
+                container.delete(randomPurpose());
+            } finally {
+                chunkRecordingHandler.recording = false;
+            }
+        }
+    }
+
     public void testWriteReadLarge() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
@@ -441,6 +510,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             assertThat(
                                 getResumableWriteBufferSize().getAsInt(),
                                 equalTo((int) GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.get(metadata.settings()).getBytes())
+                            );
+                        } else if (DiscoveryNode.isStateless(clusterService.getSettings())) {
+                            assertThat(
+                                getResumableWriteBufferSize().getAsInt(),
+                                equalTo(STATELESS_DEFAULT_RESUMABLE_WRITE_BUFFER_SIZE_IN_BYTES)
                             );
                         } else {
                             assertTrue(getResumableWriteBufferSize().isEmpty());

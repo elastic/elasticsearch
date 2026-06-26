@@ -29,18 +29,13 @@ import java.util.Objects;
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-// TODO: create abstract class for binary doc values based automaton queries in follow up, in order to support regex and fuzzy queries.
-public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinaryDocValuesQuery {
+public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinaryDocValuesAutomatonQuery {
 
     private final String pattern;
     private final boolean caseInsensitive;
 
     public SlowCustomBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive) {
-        this(fieldName, pattern, caseInsensitive, buildByteRunAutomaton(fieldName, pattern, caseInsensitive));
-    }
-
-    private SlowCustomBinaryDocValuesWildcardQuery(String fieldName, String pattern, boolean caseInsensitive, ByteRunAutomaton automaton) {
-        super(fieldName, value -> automaton.run(value.bytes, value.offset, value.length));
+        super(fieldName, buildByteRunAutomaton(fieldName, pattern, caseInsensitive));
         this.pattern = Objects.requireNonNull(pattern);
         this.caseInsensitive = caseInsensitive;
     }
@@ -88,14 +83,9 @@ public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinary
     }
 
     @Override
-    protected float matchCost() {
-        return 1000f; // This is just expensive, not sure what the actual cost is.
-    }
-
-    @Override
     public String toString(String field) {
         return "SlowCustomBinaryDocValuesWildcardQuery(fieldName="
-            + field
+            + fieldName
             + ",pattern="
             + pattern
             + ",caseInsensitive="

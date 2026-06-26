@@ -97,6 +97,9 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
+import org.elasticsearch.xpack.core.security.audit.AuditEntry;
+import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -152,6 +155,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
@@ -171,12 +175,16 @@ import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccount
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -2628,6 +2636,156 @@ public class LoggingAuditTrailTests extends ESTestCase {
         updateLoggerSettings(Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "run_as_denied").build());
         auditTrail.runAsDenied(requestId, authentication, "_action", request, authorizationInfo);
         assertEmptyLog(logger);
+    }
+
+    public void testCustomizerSuppressesEvent() throws Exception {
+        final RecordingAuditLogCustomizer customizer = new RecordingAuditLogCustomizer();
+        customizer.suppress = true;
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext, customizer);
+
+        final TransportRequest request = new org.elasticsearch.action.MockIndicesRequest(
+            IndicesOptions.strictExpandOpenAndForbidClosed(),
+            "index-1",
+            "index-2"
+        );
+        final RealmRef realmRef = AuthenticationTestHelper.randomRealmRef();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("_username", "r1"))
+            .realmRef(realmRef)
+            .build();
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { "role" });
+
+        auditTrail.accessGranted(randomRequestId(), authentication, "_action", request, authorizationInfo);
+
+        // the event was suppressed: nothing is logged and enrich is never invoked
+        assertEmptyLog(logger);
+        assertThat(customizer.suppressContexts, hasSize(1));
+        assertThat(customizer.enrichContexts, hasSize(0));
+        // the suppress decision was handed the event's indices and realm
+        final AuditEventContext ctx = customizer.suppressContexts.get(0);
+        assertThat(ctx.indices(), arrayContaining("index-1", "index-2"));
+        assertThat(ctx.realm(), equalTo(realmRef.getName()));
+    }
+
+    public void testCustomizerEnrichesEvent() throws Exception {
+        final RecordingAuditLogCustomizer customizer = new RecordingAuditLogCustomizer();
+        // Note: the field set by enrich() must be one of the keys enumerated in the audit PatternLayout (log4j2.properties),
+        // otherwise it is stored on the message but dropped when the entry is rendered. "realm" is such a field and is not
+        // otherwise populated for an access_granted event, so it is a faithful end-to-end check that enrich() reaches the output.
+        customizer.enrichField = LoggingAuditTrail.REALM_FIELD_NAME;
+        customizer.enrichValue = "enriched_realm";
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext, customizer);
+
+        final TransportRequest request = new org.elasticsearch.action.MockIndicesRequest(
+            IndicesOptions.strictExpandOpenAndForbidClosed(),
+            "index-1"
+        );
+        final RealmRef realmRef = AuthenticationTestHelper.randomRealmRef();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("_username", "r1"))
+            .realmRef(realmRef)
+            .build();
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { "role" });
+
+        auditTrail.accessGranted(randomRequestId(), authentication, "_action", request, authorizationInfo);
+
+        // the event is still logged and carries the field added by the customizer
+        final String logLine = singleLogLine(logger);
+        assertThat(logLine, containsString("\"event.action\":\"access_granted\""));
+        assertThat(logLine, containsString("\"realm\":\"enriched_realm\""));
+        assertThat(customizer.enrichContexts, hasSize(1));
+        assertThat(customizer.enrichContexts.get(0).realm(), equalTo(realmRef.getName()));
+    }
+
+    /**
+     * Guards against the customizer receiving a {@code null} realm for {@code run_as_granted} events even though the realm is known.
+     */
+    public void testRunAsGrantedProvidesRealmToCustomizer() throws Exception {
+        final RecordingAuditLogCustomizer customizer = new RecordingAuditLogCustomizer();
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext, customizer);
+
+        final TransportRequest request = new org.elasticsearch.action.MockIndicesRequest(
+            IndicesOptions.strictExpandOpenAndForbidClosed(),
+            "index-1",
+            "index-2"
+        );
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { "role" });
+        final RealmRef authRealmRef = AuthenticationTestHelper.randomRealmRef();
+        final RealmRef lookupRealmRef = AuthenticationTestHelper.randomRealmRef();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("_username", "r1"))
+            .realmRef(authRealmRef)
+            .runAs()
+            .user(new User("running as", "r2"))
+            .realmRef(lookupRealmRef)
+            .build();
+
+        auditTrail.runAsGranted(randomRequestId(), authentication, "_action", request, authorizationInfo);
+
+        // both suppress() and enrich() must see the same fully populated context
+        assertThat(customizer.suppressContexts, hasSize(1));
+        assertThat(customizer.enrichContexts, hasSize(1));
+        for (AuditEventContext ctx : List.of(customizer.suppressContexts.get(0), customizer.enrichContexts.get(0))) {
+            assertThat(ctx.indices(), arrayContaining("index-1", "index-2"));
+            assertThat(ctx.realm(), notNullValue());
+            assertThat(ctx.realm(), equalTo(ApiKeyService.getCreatorRealmName(authentication)));
+        }
+    }
+
+    /**
+     * The REST {@code authentication_success} event has no indices but does know the realm; both the suppress and the enrich context
+     * must carry it (the enrich context regressed to EMPTY before {@code withContext} was threaded through).
+     */
+    public void testAuthenticationSuccessRestProvidesContextToCustomizer() throws Exception {
+        final RecordingAuditLogCustomizer customizer = new RecordingAuditLogCustomizer();
+        final Settings enabled = Settings.builder()
+            .put(settings)
+            .put("xpack.security.audit.logfile.events.include", "authentication_success")
+            .build();
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(enabled, clusterService, logger, threadContext, customizer);
+
+        final RealmRef realmRef = AuthenticationTestHelper.randomRealmRef();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("_username", "r1"))
+            .realmRef(realmRef)
+            .build();
+        final Tuple<Channel, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(forge("_hostname", "127.0.0.1"), 9200));
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        authentication.writeToContext(threadContext);
+
+        auditTrail.authenticationSuccess(tuple.v2());
+
+        assertThat(customizer.suppressContexts, hasSize(1));
+        assertThat(customizer.enrichContexts, hasSize(1));
+        for (AuditEventContext ctx : List.of(customizer.suppressContexts.get(0), customizer.enrichContexts.get(0))) {
+            assertThat(ctx.indices(), nullValue());
+            assertThat(ctx.realm(), equalTo(ApiKeyService.getCreatorRealmName(authentication)));
+        }
+    }
+
+    /**
+     * Records the contexts and entries handed to the customizer and can optionally suppress events or enrich them with a single field.
+     */
+    private static class RecordingAuditLogCustomizer implements AuditLogCustomizer {
+        final List<AuditEventContext> suppressContexts = new ArrayList<>();
+        final List<AuditEventContext> enrichContexts = new ArrayList<>();
+        boolean suppress = false;
+        String enrichField = null;
+        String enrichValue = null;
+
+        @Override
+        public boolean suppress(AuditEventContext ctx) {
+            suppressContexts.add(ctx);
+            return suppress;
+        }
+
+        @Override
+        public void enrich(AuditEventContext ctx, AuditEntry entry) {
+            enrichContexts.add(ctx);
+            if (enrichField != null) {
+                entry.set(enrichField, enrichValue);
+            }
+        }
     }
 
     public void testAuthenticationSuccessRest() throws Exception {

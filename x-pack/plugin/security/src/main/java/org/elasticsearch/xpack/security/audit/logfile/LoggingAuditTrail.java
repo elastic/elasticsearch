@@ -488,6 +488,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withAuthentication(authentication)
                 .withRestOrigin(threadContext)
                 .withRequestBody(request)
+                .withContext(ctx)
                 .build();
         }
     }
@@ -1020,7 +1021,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             final String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), null);
+            final var ctx = new AuditEventContext(indices.orElse(null), realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1111,6 +1112,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRunAsSubject(authentication)
                 .withRestOrigin(threadContext)
                 .withRequestId(requestId)
+                .withContext(ctx)
                 .build();
         }
     }

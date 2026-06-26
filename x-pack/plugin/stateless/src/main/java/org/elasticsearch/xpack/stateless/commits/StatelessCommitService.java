@@ -886,6 +886,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // is open, search nodes can still fetch chunks of the just-uploaded files directly from the indexing node. On the success path,
         // after markBccUploaded moves the VBCC into recentlyUploadedVbccs, createAfterNotificationCleanup registers a once-guarded
         // cleanup in recentlyUploadedCleanups so the VBCC stays reachable until the notification completes or the timeout fires.
+        // The blob reference is released as soon as the upload completes, regardless of notification outcome.
         // On the failure path the cleanup is a simple immediate close with no deferral.
         return copyToTargets(new ActionListener<>() {
             @Override
@@ -901,7 +902,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         uploadedBcc,
                         virtualBcc.getLastPendingCompoundCommit().getCommitReference().getTranslogReleaseEndFile()
                     );
-                    cleanup = commitState.createAfterNotificationCleanup(virtualBcc, blobReference);
+                    cleanup = commitState.createAfterNotificationCleanup(virtualBcc);
                     commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc, cleanup);
                     cleanup = null;
                 } catch (Exception e) {
@@ -919,10 +920,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         // markBccUploaded may have added the VBCC to recentlyUploadedVbccs before throwing; remove it.
                         commitState.recentlyUploadedVbccs.remove(uploadedBcc.primaryTermAndGeneration().generation());
                         IOUtils.closeWhileHandlingException(virtualBcc);
-                        blobReference.decRef();
                     }
                 } finally {
                     Releasables.close(cleanup);
+                    blobReference.decRef();
                 }
             }
 
@@ -2493,7 +2494,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /**
          * Registers a once-guarded cleanup in {@link #recentlyUploadedCleanups}, schedules a timeout to fire it, and returns it. When
          * first invoked (either by the caller or by the timeout), the cleanup removes {@code virtualBcc} from both
-         * {@link #recentlyUploadedVbccs} and {@link #recentlyUploadedCleanups}, closes the VBCC, and dec-refs {@code blobReference}.
+         * {@link #recentlyUploadedVbccs} and {@link #recentlyUploadedCleanups} and closes the VBCC.
          * Subsequent invocations are no-ops. {@link #close()} drains {@link #recentlyUploadedCleanups} and calls each cleanup, so it is
          * always safe to call this cleanup more than once.
          * <p>
@@ -2503,7 +2504,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * {@link #handleUploadedBcc} adds the VBCC to {@link #recentlyUploadedVbccs} just before this method is called (in the same
          * thread), ensuring there is no gap where the VBCC is findable in neither map.
          */
-        Releasable createAfterNotificationCleanup(VirtualBatchedCompoundCommit virtualBcc, BlobReference blobReference) {
+        Releasable createAfterNotificationCleanup(VirtualBatchedCompoundCommit virtualBcc) {
             final long gen = virtualBcc.getPrimaryTermAndGeneration().generation();
             assert recentlyUploadedVbccs.get(gen) == virtualBcc;
             final Releasable cleanup = Releasables.releaseOnce(() -> {
@@ -2513,7 +2514,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 Releasable removedCleanup = recentlyUploadedCleanups.remove(gen);
                 assert removedCleanup != null;
                 IOUtils.closeWhileHandlingException(virtualBcc);
-                blobReference.decRef();
             });
             recentlyUploadedCleanups.put(gen, cleanup);
             if (releaseFilesAfterNotificationTimeout.equals(TimeValue.ZERO)) {

@@ -179,6 +179,9 @@ final class RemoteFetchHandleDecodeOperator implements Operator {
             "remote_fetch_handle_decode",
             Status::new
         );
+        private static final TransportVersion REMOTE_FETCH_HANDLE_DECODE_STATUS = TransportVersion.fromName(
+            "remote_fetch_handle_decode_status"
+        );
 
         Status(StreamInput in) throws IOException {
             this(in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong());
@@ -199,7 +202,7 @@ final class RemoteFetchHandleDecodeOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.minimumCompatible();
+            return REMOTE_FETCH_HANDLE_DECODE_STATUS;
         }
 
         @Override

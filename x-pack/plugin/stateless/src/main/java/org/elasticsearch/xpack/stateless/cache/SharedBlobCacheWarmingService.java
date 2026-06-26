@@ -411,13 +411,7 @@ public class SharedBlobCacheWarmingService {
             value -> this.prefetchCommitsForSearchShardRecovery = value
         );
         clusterSettings.initializeAndWatch(SEARCH_OFFLINE_WARMING_ENABLED_SETTING, value -> {
-            if (value != this.searchOfflineWarmingEnabled) {
-                if (value) {
-                    logger.info("Search shards offline warming feature is now enabled");
-                } else {
-                    logger.info("Search shards offline warming feature is now disabled");
-                }
-            }
+            logger.info("Search shards offline warming feature is now {}", value ? "enabled" : "disabled");
             this.searchOfflineWarmingEnabled = value;
         });
         clusterSettings.initializeAndWatch(UPLOAD_PREWARM_MAX_SIZE_SETTING, value -> this.maxUploadPrewarmSize = value.getBytes());
@@ -1063,8 +1057,7 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
-                ShardWarmer.class.getName(),
+                "header/footer warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
                 warmingRun.shardId(),
                 warmingRun.type(),
                 duration,
@@ -1300,8 +1293,7 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
-                MergeWarmer.class.getName(),
+                "merge warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
                 warmingRun.shardId(),
                 warmingRun.type(),
                 duration,
@@ -1342,8 +1334,7 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
-                BlobByteRangeWarmer.class.getName(),
+                "offline warming {} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
                 warmingRun.shardId(),
                 warmingRun.type(),
                 blobFile.termAndGeneration(),

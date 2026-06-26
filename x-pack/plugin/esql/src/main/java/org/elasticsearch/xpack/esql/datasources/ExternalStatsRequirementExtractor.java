@@ -106,9 +106,12 @@ public final class ExternalStatsRequirementExtractor {
     /**
      * Path-key derivation kept in lockstep with {@code PreAnalyzer#icebergPaths} and
      * {@code EsqlSession#extractExternalConfigs}: a non-null {@link Literal} {@code tablePath}
-     * rendered via {@code BytesRefs.toString}. Returns {@code null} for the (post-parse unexpected)
-     * non-literal case so detection never throws — the resolver simply stays eager (legacy) for a
-     * path it cannot key.
+     * rendered via {@code BytesRefs.toString}. Returns {@code null} for a non-literal {@code tablePath}
+     * so detection never throws; that path is then absent from the set and, since the resolver
+     * receives a non-null set, would <em>defer</em> rather than aggregate eagerly. In practice this
+     * branch is unreachable: {@code EsqlSession#extractExternalConfigs} runs first on the same plan
+     * and throws on a non-literal {@code tablePath}, so resolution never reaches a path this method
+     * could fail to key.
      */
     private static String extractPath(UnresolvedExternalRelation relation) {
         Expression tablePath = relation.tablePath();

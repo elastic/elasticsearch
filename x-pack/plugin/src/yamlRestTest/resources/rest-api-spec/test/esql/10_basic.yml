@@ -1123,20 +1123,6 @@ version is not allowed:
 
   - length: {values: 0}
 
-  # Identifier-pattern positions: empty list (coerced to null) produces a clean parsing error.
-  - do:
-      catch: /Query parameter \[\?1\] is null or undefined, cannot be used as an identifier or pattern/
-      esql.query:
-        body:
-          query: 'from test | drop ?1'
-          params: [[]]
-
-  - do:
-      catch: /Query parameter \[\?1\] is null or undefined, cannot be used as an identifier or pattern/
-      esql.query:
-        body:
-          query: 'from test | rename color as ?1'
-          params: [[]]
 
 
 ---

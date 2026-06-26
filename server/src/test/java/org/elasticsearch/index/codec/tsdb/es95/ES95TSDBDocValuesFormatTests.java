@@ -875,8 +875,8 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
      * <p>The IP sequence is a fixed mix of IPv4 and IPv6 addresses that cycles with period 12.
      * Both block sizes satisfy {@code cycleLength <= maxCycleLength} (12 &lt;= 128 for 512,
      * 12 &lt;= 256 for 1024), so both codecs encode each block as a single cycle header plus
-     * 12 ordinal values. With {@code numDocs=4096}, ES819 needs 8 blocks and ES95 needs 4,
-     * so ES95 saves four blocks' worth of metadata overhead.
+     * 12 ordinal values. With {@code numDocs=65536}, ES819 needs 128 blocks and ES95 needs 64,
+     * so ES95 saves 64 blocks' worth of metadata overhead.
      */
     public void testIpDimensionRealIpSequenceStorageComparison() throws IOException {
         final String[] ipStrings = {
@@ -899,7 +899,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             ipValues[i] = new BytesRef(InetAddressPoint.encode(InetAddress.getByName(ipStrings[i])));
         }
 
-        final int numDocs = 4096;
+        final int numDocs = 65536;
         final int cyclePeriod = ipValues.length;
         final String fieldName = "client.ip";
 

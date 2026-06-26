@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
@@ -66,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -79,18 +82,17 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
@@ -144,6 +146,9 @@ public class ApproximationSupportTests extends ESTestCase {
         // substitutions phase, before any approximation logic runs.
         Dedup.class, // rewritten to LimitBy
 
+        // HIGHLIGHT is not supported;
+        Highlight.class,
+
         // PromQL plans are not supported yet.
         // They require chained stats commands.
         PromqlCommand.class,
@@ -155,6 +160,7 @@ public class ApproximationSupportTests extends ESTestCase {
         PromqlFunctionCall.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
+        HistogramQuantile.class,
         PlaceholderRelation.class,
         ScalarConversionFunction.class,
         ScalarFunction.class,
@@ -184,26 +190,27 @@ public class ApproximationSupportTests extends ESTestCase {
         BinaryPlan.class,
         InferencePlan.class,
         CompoundOutputEval.class,
+        AbstractSubqueryJoin.class,
 
         // These plans don't occur in a correct analyzed query.
         AntiJoin.class,
         Drop.class,
         InlineStats.class,
         Keep.class,
-        LeftSemiJoin.class,
+        MarkJoin.class,
         Lookup.class,
         LookupJoin.class,
         ParameterizedQuery.class,
         Rename.class,
         ResolvingProject.class,
         SemiJoin.class,
-        SparklineGenerateEmptyBuckets.class,
-        UnresolvedExternalRelation.class,
-        UnresolvedRelation.class,
-        ViewShadowRelation.class
+        SparklineGenerateEmptyBuckets.class
     );
 
     private static final Set<Class<? extends AggregateFunction>> UNSUPPORTED_AGGS = Set.of(
+        // A quantile interpolated across cumulative histogram buckets is not amenable to sampling-based approximation.
+        PromqlHistogramQuantile.class,
+
         // Counting distinct values is hard to approximate.
         // For more details, see:
         // - https://arxiv.org/pdf/2202.02800
@@ -334,6 +341,9 @@ public class ApproximationSupportTests extends ESTestCase {
         }
         Set<Class<? extends T>> classesOnClassPath = getClassesInPackage(clazz.getPackageName()).stream()
             .filter(clazz::isAssignableFrom)
+            // Unresolvable nodes are transient: they never survive analysis/verification and so can never reach the
+            // execution-time approximation logic. They are out of scope here, rather than classified as (un)supported.
+            .filter(c -> Unresolvable.class.isAssignableFrom(c) == false)
             .map(c -> (Class<? extends T>) c.asSubclass(clazz))
             .collect(Collectors.toSet());
         assertThat(

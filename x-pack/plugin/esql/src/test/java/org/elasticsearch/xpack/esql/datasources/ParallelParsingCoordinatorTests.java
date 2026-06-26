@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -30,9 +32,12 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -673,6 +678,53 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Pins the production wiring for elastic/esql-planning#836 on the parallel coordinator: a worker
+     * IOException surfaces as a typed {@link ExternalClientException} at the iterator's {@code hasNext()}
+     * boundary (mirroring {@code CsvFormatReader} / {@code NdJsonPageIterator}), the coordinator stores it
+     * in {@code firstError}, and {@code checkError()}'s {@code surface()} passes it through unchanged so the
+     * 400 status survives end-to-end instead of being downgraded to a generic 500 wrapper.
+     */
+    public void testParallelReadSurfacesIoFailureAsExternalClientException() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            sb.append("line-").append(i).append("\n");
+        }
+        StorageObject obj = new InMemoryStorageObject(sb.toString().getBytes(StandardCharsets.UTF_8));
+        FailingFormatReader reader = new FailingFormatReader(blockFactory(), 5);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 10, 4, exec);
+
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+                try (iter) {
+                    while (iter.hasNext()) {
+                        iter.next().releaseBlocks();
+                    }
+                }
+            });
+            assertThat(
+                "iterator-boundary IOException must surface as a typed ExternalClientException, not a generic RuntimeException",
+                ex,
+                Matchers.instanceOf(ExternalClientException.class)
+            );
+            assertEquals(
+                "ExternalClientException must classify as HTTP 400 so the read failure stops being labeled as a server fault",
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(ex)
+            );
+            assertThat(
+                "the original IOException must remain reachable as the cause",
+                ex.getCause(),
+                Matchers.instanceOf(IOException.class)
+            );
+            assertThat("the injected detail must survive end-to-end", ex.getMessage(), Matchers.containsString("injected"));
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
      * Verifies the per-segment context flags set by {@link ParallelParsingCoordinator}:
      * <ul>
      *   <li>Exactly one segment owns the file's leading bytes ({@code firstSplit=true}).</li>
@@ -860,7 +912,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         CsvFormatReader base = new CsvFormatReader(blockFactory());
         SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+        CsvFormatReader withSchema = base.withSchema(meta.schema());
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
@@ -910,7 +962,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         CsvFormatReader base = new CsvFormatReader(blockFactory());
         SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+        CsvFormatReader withSchema = base.withSchema(meta.schema());
 
         long rowsWithRecordAligned = countCsvRows(withSchema, nonLeadingRange, List.of("a", "b", "c"), false, true);
         long rowsWithoutRecordAligned = countCsvRows(withSchema, nonLeadingRange, List.of("a", "b", "c"), false, false);
@@ -941,7 +993,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         CsvFormatReader base = new CsvFormatReader(blockFactory());
         SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+        CsvFormatReader withSchema = base.withSchema(meta.schema());
 
         long rowsAligned = countCsvRows(withSchema, nonLeadingRange, List.of("x", "y"), false, true);
         assertEquals("all data rows must be read with recordAligned=true", dataRows, rowsAligned);
@@ -990,7 +1042,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         CsvFormatReader base = new CsvFormatReader(blockFactory());
         SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+        CsvFormatReader withSchema = base.withSchema(meta.schema());
 
         FormatReadContext ctx = FormatReadContext.builder()
             .projectedColumns(List.of("b"))
@@ -1198,6 +1250,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * Minimal SegmentableFormatReader that scans for newlines.
      */
     private static class NewlineSegmentableReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegmentSize;
 
@@ -1244,6 +1300,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * single-column pages with keyword blocks. Used for testing parallel parsing.
      */
     private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final BlockFactory blockFactory;
 
@@ -1365,6 +1425,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * observe whether parallel-parsing worker threads can reach a bound sink.
      */
     private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final LineFormatReader delegate;
         private final String path;
@@ -1453,6 +1517,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * parsing.
      */
     private static class ContextRecordingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final BlockFactory blockFactory;
         private final long minSegmentSize;
@@ -1528,6 +1596,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * A line-oriented reader that throws after producing a configurable number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final BlockFactory blockFactory;
         private final int failAfterLines;
@@ -1576,7 +1648,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                     try {
                         nextPage = readBatch();
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        // Mirror the production iterators (CsvFormatReader, NdJsonPageIterator), which surface
+                        // a raw IOException as a typed ExternalClientException at the hasNext() boundary so the
+                        // 400 status survives into the coordinator's firstError.
+                        throw ExternalFailures.surface(e, "Failed to read injected test page");
                     }
                     return nextPage != null;
                 }

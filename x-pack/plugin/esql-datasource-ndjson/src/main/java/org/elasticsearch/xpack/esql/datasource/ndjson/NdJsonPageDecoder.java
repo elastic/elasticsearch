@@ -17,6 +17,7 @@ import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -36,6 +37,8 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
@@ -89,6 +92,25 @@ public class NdJsonPageDecoder implements Closeable {
     private final BlockFactory blockFactory;
     private JsonParser parser;
     private final List<Attribute> projectedAttributes;
+    /**
+     * Index of the synthetic {@code _rowPosition} attribute in {@link #projectedAttributes}, or
+     * {@code -1} when not projected. When non-negative, each decoded record's file-global start
+     * byte is emitted into this slot (see {@link #recordFileOffset()}).
+     */
+    private final int rowPositionSlot;
+    /**
+     * Logical start offset of the parser's initial slice (the {@code sourceOffset} the first parser
+     * was created over). Used to relativize {@link #parserSliceStart}, which is updated to absolute
+     * positions within {@link #sourceBytes} on recovery.
+     */
+    private final int initialSliceStart;
+    /**
+     * File-global byte offset of the first byte this decoder reads (i.e. the split's start byte plus
+     * any leading partial record skipped before the decoder was handed the stream). Base for the
+     * {@code _rowPosition} / {@code _file.record_ref} emit; {@code 0} when not relevant. Set by the
+     * caller via {@link #setRecordOffsetBase(long)} before the first {@link #decodePage()}.
+     */
+    private long recordOffsetBase = 0L;
 
     /** Page block layout: index {@code i} corresponds to {@code projectedAttributes().get(i)}. */
     List<Attribute> projectedAttributes() {
@@ -103,6 +125,7 @@ public class NdJsonPageDecoder implements Closeable {
     private final NdJsonReaderCounters counters;
     private long totalRowCount;
     private long errorCount;
+    private final DateFormatter datetimeFormatter;
 
     /** Number of malformed records observed during decoding (lenient policies swallow these). */
     long errorCount() {
@@ -129,6 +152,7 @@ public class NdJsonPageDecoder implements Closeable {
 
     NdJsonPageDecoder(
         InputStream input,
+        DateFormatter datetimeFormatter,
         List<Attribute> attributes,
         List<String> projectedColumns,
         int batchSize,
@@ -148,6 +172,7 @@ public class NdJsonPageDecoder implements Closeable {
             blockFactory,
             errorPolicy,
             sourceLocation,
+            datetimeFormatter,
             counters,
             NdJsonUtils.JSON_FACTORY
         );
@@ -163,6 +188,7 @@ public class NdJsonPageDecoder implements Closeable {
         byte[] data,
         int offset,
         int length,
+        DateFormatter datetimeFormatter,
         List<Attribute> attributes,
         List<String> projectedColumns,
         int batchSize,
@@ -182,6 +208,7 @@ public class NdJsonPageDecoder implements Closeable {
             blockFactory,
             errorPolicy,
             sourceLocation,
+            datetimeFormatter,
             counters,
             NdJsonUtils.JSON_FACTORY
         );
@@ -213,6 +240,7 @@ public class NdJsonPageDecoder implements Closeable {
             blockFactory,
             errorPolicy,
             sourceLocation,
+            null,
             new NdJsonReaderCounters(),
             factory
         );
@@ -229,6 +257,7 @@ public class NdJsonPageDecoder implements Closeable {
         BlockFactory blockFactory,
         ErrorPolicy errorPolicy,
         String sourceLocation,
+        DateFormatter datetimeFormatter,
         NdJsonReaderCounters counters,
         JsonFactory factory
     ) throws IOException {
@@ -254,6 +283,7 @@ public class NdJsonPageDecoder implements Closeable {
         Check.isTrue(counters != null, "counters must not be null");
         this.errorPolicy = errorPolicy;
         this.counters = counters;
+        this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             "NDJSON read from ["
@@ -286,6 +316,13 @@ public class NdJsonPageDecoder implements Closeable {
             }
             var resolved = new ArrayList<Attribute>(projectedColumns.size());
             for (String col : projectedColumns) {
+                if (ColumnExtractor.ROW_POSITION_COLUMN.equals(col)) {
+                    // Synthetic file-global record offset, not a JSON field. Typed LONG (not NULL) so
+                    // setupBuilders allocates a Long builder; the decode loop fills it from the
+                    // parser's byte offset rather than from JSON.
+                    resolved.add(NdJsonSchemaInferrer.attribute(col, DataType.LONG, false));
+                    continue;
+                }
                 Attribute match = byName.get(col);
                 resolved.add(match != null ? match : NdJsonSchemaInferrer.attribute(col, DataType.NULL, false));
             }
@@ -297,6 +334,8 @@ public class NdJsonPageDecoder implements Closeable {
         this.blockFactory = blockFactory;
         this.projectedAttributes = projectedAttributes;
         this.blockTracker = new BitSet(projectedAttributes.size());
+        this.initialSliceStart = sourceOffset;
+        this.rowPositionSlot = SyntheticColumns.rowPositionIndexInAttributes(projectedAttributes);
 
         if (sourceBytes != null) {
             this.parser = factory.createParser(sourceBytes, sourceOffset, sourceLength);
@@ -399,6 +438,25 @@ public class NdJsonPageDecoder implements Closeable {
         );
     }
 
+    /**
+     * Sets the file-global byte offset of this decoder's first input byte (split start + any leading
+     * partial record skipped upstream). Must be called before the first {@link #decodePage()} when
+     * {@code _rowPosition} is projected; harmless otherwise.
+     */
+    void setRecordOffsetBase(long recordOffsetBase) {
+        this.recordOffsetBase = recordOffsetBase;
+    }
+
+    /**
+     * File-global byte offset of the parser's current logical position. {@link #parserSliceStart} is
+     * the parser slice's absolute start within {@link #sourceBytes} (updated on recovery);
+     * {@link #initialSliceStart} relativizes it so the result stays anchored to {@link #recordOffsetBase}.
+     * Stable across split layouts because it is the record's intrinsic position in the file.
+     */
+    private long recordFileOffset() {
+        return recordOffsetBase + (parserSliceStart - initialSliceStart) + parser.getCurrentLocation().getByteOffset();
+    }
+
     Page decodePage() throws IOException {
         long startNanos = System.nanoTime();
         long startTotalRowCount = totalRowCount;
@@ -436,11 +494,18 @@ public class NdJsonPageDecoder implements Closeable {
 
             totalRowCount++;
             this.blockTracker.clear();
+            // Capture the record's file-global start offset before decodeObject advances the parser.
+            long recordOffset = rowPositionSlot >= 0 ? recordFileOffset() : 0L;
 
             try {
                 decoder.decodeObject(parser, false);
             } catch (JsonParseException e) {
                 onNdjsonLineParseError(e, totalRowCount, "decodeObject");
+            }
+
+            if (rowPositionSlot >= 0) {
+                ((LongBlock.Builder) blockBuilders[rowPositionSlot]).appendLong(recordOffset);
+                blockTracker.set(rowPositionSlot);
             }
 
             lineCount++;
@@ -479,6 +544,8 @@ public class NdJsonPageDecoder implements Closeable {
 
             totalRowCount++;
             this.blockTracker.clear();
+            // Capture before decodeObject / recovery advance the parser.
+            long recordOffset = rowPositionSlot >= 0 ? recordFileOffset() : 0L;
 
             try {
                 decoder.setupBuilders(rowScratch);
@@ -488,6 +555,10 @@ public class NdJsonPageDecoder implements Closeable {
                     onNdjsonLineParseError(e, totalRowCount, "decodeObject");
                     recoverFromParseException(parser);
                     continue;
+                }
+                if (rowPositionSlot >= 0) {
+                    ((LongBlock.Builder) rowScratch[rowPositionSlot]).appendLong(recordOffset);
+                    blockTracker.set(rowPositionSlot);
                 }
                 for (int i = 0; i < rowScratch.length; i++) {
                     if (blockTracker.get(i) == false) {
@@ -839,7 +910,7 @@ public class NdJsonPageDecoder implements Closeable {
                 }
                 case DATETIME -> {
                     try {
-                        var millis = NdJsonSchemaInferrer.DATE_FORMATTER.parseMillis(parser.getValueAsString());
+                        var millis = datetimeFormatter.parseMillis(parser.getValueAsString());
                         ((LongBlock.Builder) blockBuilder).appendLong(millis);
                     } catch (Exception e) {
                         unexpectedValue(blockBuilder, parser, inArray);

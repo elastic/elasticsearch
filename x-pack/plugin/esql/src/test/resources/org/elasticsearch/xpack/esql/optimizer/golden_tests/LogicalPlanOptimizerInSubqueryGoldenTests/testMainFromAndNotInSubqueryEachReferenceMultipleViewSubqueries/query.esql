@@ -1,0 +1,2 @@
+FROM (FROM main_view_a | KEEP emp_no), (FROM main_view_b | KEEP emp_no)
+| WHERE emp_no NOT IN (FROM (FROM in_view_a | KEEP emp_no), (FROM in_view_b | KEEP emp_no) | KEEP emp_no)

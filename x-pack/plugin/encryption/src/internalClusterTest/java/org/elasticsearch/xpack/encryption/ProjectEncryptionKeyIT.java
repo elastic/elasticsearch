@@ -19,7 +19,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -85,17 +84,9 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
             assertThat("Project encryption key should be generated", pek, notNullValue());
             assertNotNull(pek.getActiveKeyId());
             assertEquals(PASSWORD_ID, pek.getPasswordId());
-            EncryptedData encryptedActive = pek.getEncryptedKey(pek.getActiveKeyId());
-            assertThat(encryptedActive, notNullValue());
-            // Canonical wrap layout: [kdf_version(1) | salt(16) | AesGcm output(version+iv+ciphertext+tag)] over a 32-byte PEK.
-            assertThat(
-                encryptedActive.payload().length,
-                equalTo(
-                    PasswordBasedEncryption.SALT_OFFSET + PasswordBasedEncryption.SALT_LENGTH_BYTES + AesGcm.OVERHEAD_BYTES
-                        + PasswordBasedEncryption.PEK_LENGTH_BYTES
-                )
-            );
-            assertThat(encryptedActive.keyId(), equalTo(PASSWORD_ID));
+            byte[] keyBytes = pek.getKeys().get(pek.getActiveKeyId()).bytes();
+            assertThat(keyBytes, notNullValue());
+            assertThat(keyBytes.length, equalTo(PasswordBasedEncryption.PEK_LENGTH_BYTES));
         });
     }
 
@@ -166,7 +157,7 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
                 response.evaluate(typePath + ".keys." + keyId + ".generated_at")
             );
             assertNull(
-                "wrapped key bytes must not be exposed via the cluster state API for key " + keyId,
+                "key bytes must not be exposed via the cluster state API for key " + keyId,
                 response.evaluate(typePath + ".keys." + keyId + ".bytes")
             );
         }

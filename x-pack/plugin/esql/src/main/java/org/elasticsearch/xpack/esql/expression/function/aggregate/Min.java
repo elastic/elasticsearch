@@ -53,6 +53,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         .acrossSeries(Min::new)
         .description("Returns the minimum value across the input vector.")
         .example("min(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("min");
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
@@ -71,6 +72,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
+        briefSummary = "Returns the minimum value of a field.",
         description = "The minimum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {

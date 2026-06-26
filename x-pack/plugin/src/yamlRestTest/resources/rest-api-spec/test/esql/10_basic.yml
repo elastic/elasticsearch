@@ -1124,6 +1124,8 @@ version is not allowed:
   - length: {values: 0}
 
   # Identifier-pattern positions with null positional params.
+  # This is actually a bug, but can't be fixed without breaking queries like the ones below.
+  #
   # DROP: the empty column name is not found → verification error.
   - do:
       catch: /Unknown column \[\]/

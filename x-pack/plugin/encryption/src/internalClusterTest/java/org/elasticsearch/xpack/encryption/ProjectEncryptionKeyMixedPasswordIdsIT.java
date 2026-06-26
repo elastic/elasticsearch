@@ -57,7 +57,7 @@ public class ProjectEncryptionKeyMixedPasswordIdsIT extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
             MockSecureSettings secure = new MockSecureSettings();
-            secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "id-" + nodeOrdinal);
+            secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "id-" + (nodeOrdinal % NUM_NODES));
             for (int j = 0; j < NUM_NODES; j++) {
                 secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "id-" + j, BASE_PASSWORD + "-id-" + j);
             }

@@ -50,7 +50,7 @@ public final class EnrichStore {
      * @param maxPolicies     The maximum number of policies that may exist; storing the new policy is rejected once this many already
      *                        exist. Only enforced when creating a new policy, so existing policies above the limit are left untouched.
      * @param maxTotalSize    The maximum combined serialized size of all policies; storing the new policy is rejected when adding it would
-     *                        exceed this. Only enforced when creating a new policy, so existing policies above the limit are left untouched.
+     *                        exceed this. Only enforced when creating a new policy, so existing policies above the limit are left untouched
      * @param handler         The handler that gets invoked if policy has been stored or a failure has occurred.
      */
     public static void putPolicy(

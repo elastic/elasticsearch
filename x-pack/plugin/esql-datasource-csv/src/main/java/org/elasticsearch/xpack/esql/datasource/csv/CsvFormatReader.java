@@ -405,10 +405,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final String canonicalConfig;
 
     /**
-     * When {@code true} (default), eligible plain (unquoted, unescaped, non-bracket) reads use the
-     * direct-to-block path that parses logical records straight into typed {@code Block} builders.
-     * Controlled by the node setting {@code esql.csv.direct_block.enabled} via
-     * {@link #withDirectBlockEnabled(boolean)}; turning it off forces the byte-equivalent Jackson
+     * When {@code true} (default), eligible non-bracket reads use the direct-to-block path that parses
+     * logical records straight into typed {@code Block} builders: plain (unquoted) reads take the
+     * simplest walk, and RFC 4180 quoted reads (with or without backslash escapes) take the
+     * quote/escape-aware walk. Controlled by the node setting {@code esql.csv.direct_block.enabled}
+     * via {@link #withDirectBlockEnabled(boolean)}; turning it off forces the byte-equivalent Jackson
      * bulk path everywhere.
      */
     private final boolean directBlockEnabled;
@@ -1645,34 +1646,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@link #isBlankOrComment} the prefix match is bounded to the region before the first delimiter:
      * a leading delimiter (for example a TAB in TSV) yields an empty first cell, which is not a comment.
      *
-     * <p>One rare case is intentionally not matched: a quoted or escaped first cell whose decoded
-     * content begins with the prefix (for example {@code "//x",a}). Detecting that needs full field
-     * decoding, so it is left as a known follow-up; it is only reachable with a quoted or escaped
-     * leading field whose value starts with the comment prefix.
-     */
-    static boolean isBlankOrCommentFirstCell(String line, String commentPrefix, char delim) {
-        int len = line.length();
-        int firstNonWs = 0;
-        while (firstNonWs < len && line.charAt(firstNonWs) <= ' ') {
-            firstNonWs++;
-        }
-        if (firstNonWs == len) {
-            return true;
-        }
-        if (commentPrefix == null || commentPrefix.isEmpty()) {
-            return false;
-        }
-        int firstDelim = line.indexOf(delim);
-        int cellEnd = firstDelim < 0 ? len : firstDelim;
-        return firstNonWs < cellEnd
-            && firstNonWs + commentPrefix.length() <= cellEnd
-            && line.regionMatches(firstNonWs, commentPrefix, 0, commentPrefix.length());
-    }
-
-    /**
-     * Zero-{@link String} variant of {@link #isBlankOrCommentFirstCell(String, String, char)} for the
-     * direct-to-block path, operating on the record range {@code buf[from, to)} so blank/comment lines
-     * are filtered without materializing a row String. Semantics are identical to the String overload.
+     * <p>One rare case is not matched here: a quoted or escaped first cell whose decoded content
+     * begins with the prefix (for example {@code "//x",a}). Detecting that needs field decoding, so
+     * the quoted direct path handles it separately via {@code decodedFirstCellIsComment} (guarded by
+     * {@code firstCellMayDecodeToComment} so the common, decode-insensitive first cell stays on this
+     * cheap raw check).
      */
     static boolean isBlankOrCommentFirstCell(char[] buf, int from, int to, String commentPrefix, char delim) {
         int firstNonWs = from;
@@ -2135,8 +2113,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private BytesRef[] keywordScratch;
         /** Reusable accumulator for quoted/escaped field content on the direct quoted path. */
         private StringBuilder quotedBuf;
-        /** Reusable char buffer for parsing doubles straight from a line range without a substring. */
-        private char[] doubleScratch;
         /**
          * Effective per-field value-length cap for the direct-to-block path, in characters. Mirrors
          * Jackson's {@code StreamReadConstraints.maxStringLength} (which {@link #read} wires from
@@ -2149,15 +2125,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // and only flushed to the block builders once it is accepted in full (all-or-nothing), so a
         // mid-row rejection never leaves a partial row in the builders. Using primitive arrays instead
         // of an Object[] keeps longs/ints/doubles/booleans off the heap: no per-cell boxing. Each
-        // column writes only the slot matching its element type ({@link #directElements}); the cold
-        // {@code stageObj} slot backs any non-primitive element type (e.g. an all-null column).
+        // column writes only the slot matching its element type ({@link #directElements}).
         private ElementType[] directElements;
         private long[] stageLong;
         private int[] stageInt;
         private double[] stageDouble;
         private boolean[] stageBool;
         private BytesRef[] stageRef;
-        private Object[] stageObj;
         private boolean[] stageNull;
 
         // Current direct-path record view (a range into the record reader's reusable char[]), captured so
@@ -2733,7 +2707,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 stageDouble = new double[columnCount];
                 stageBool = new boolean[columnCount];
                 stageRef = new BytesRef[columnCount];
-                stageObj = new Object[columnCount];
                 stageNull = new boolean[columnCount];
                 // For cacheable reads, fold the cache's per-column null/min/max stats into the parse
                 // loop (see appendStagedRow) instead of re-walking every built block. Build the
@@ -2922,16 +2895,133 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 onRowError(e.getMessage(), e, EMPTY_ROW, true);
                 return DIRECT_SKIP;
             }
-            if (isBlankOrCommentFirstCell(
-                recordReader.recordBuffer(),
-                0,
-                recordReader.recordLength(),
-                options.commentPrefix(),
-                options.delimiter()
-            )) {
+            char[] recBuf = recordReader.recordBuffer();
+            int recLen = recordReader.recordLength();
+            if (isBlankOrCommentFirstCell(recBuf, 0, recLen, options.commentPrefix(), options.delimiter())) {
+                return DIRECT_SKIP;
+            }
+            // The raw first-cell comment check above is exact unless decoding could move the first
+            // cell's leading bytes: a field-leading quote (the quote is stripped) or, with escapes
+            // active, an escape that rewrites the prefix region. On the quoted path those records are
+            // re-checked against the decoded, trimmed first cell so a quoted/escaped comment (for
+            // example {@code "//x",a}) is skipped exactly as the Jackson bulk filter skips it.
+            if (directBlockQuoted
+                && hasCommentFilter
+                && firstCellMayDecodeToComment(recBuf, recLen)
+                && decodedFirstCellIsComment(recBuf, recLen)) {
                 return DIRECT_SKIP;
             }
             return DIRECT_DATA;
+        }
+
+        /**
+         * Cheap guard for {@link #decodedFirstCellIsComment}: returns {@code true} only when decoding
+         * the first cell could change whether it starts with the comment prefix, i.e. the first
+         * non-whitespace char is the quote (a field-leading quote is stripped on decode) or, when
+         * escapes are active, an escape occurs in the first cell (it can rewrite the leading bytes).
+         * For the common first cell (a plain id/keyword with no leading quote or escape) the raw check
+         * in {@link #advanceDirectRecord} is exact and the decode is skipped.
+         */
+        private boolean firstCellMayDecodeToComment(char[] buf, int to) {
+            final char delim = options.delimiter();
+            int p = 0;
+            while (p < to && buf[p] <= ' ' && buf[p] != delim) {
+                p++;
+            }
+            if (p >= to) {
+                return false;
+            }
+            if (buf[p] == options.quoteChar()) {
+                return true;
+            }
+            if (options.escaping()) {
+                final char esc = options.escapeChar();
+                for (int k = p; k < to && buf[k] != delim; k++) {
+                    if (buf[k] == esc) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Whether the record's first cell, decoded and trimmed as Jackson parses it, starts with the
+         * comment prefix. Mirrors the Jackson bulk filter ({@code row[0].trim().startsWith(prefix)}) by
+         * decoding the first cell with the same quoted/escaped rules as {@link #splitAndConvertQuoted}
+         * into the reusable {@link #quotedBuf}, then trimming (chars {@code <= ' '}) before the prefix
+         * test. Only invoked on the quoted path for first cells {@link #firstCellMayDecodeToComment}
+         * flags, so it is off the common hot path.
+         */
+        private boolean decodedFirstCellIsComment(char[] buf, int to) {
+            final String prefix = options.commentPrefix();
+            final char delim = options.delimiter();
+            final char quote = options.quoteChar();
+            final char esc = options.escapeChar();
+            final boolean escapeAware = options.escaping();
+            StringBuilder cell = resetQuotedBuf();
+            int p = 0;
+            while (p < to && buf[p] <= ' ' && buf[p] != delim) {
+                p++;
+            }
+            if (p < to && buf[p] == quote) {
+                int q = p + 1;
+                while (q < to) {
+                    char c = buf[q];
+                    if (c == quote) {
+                        if (q + 1 < to && buf[q + 1] == quote) {
+                            cell.append(quote);
+                            q += 2;
+                            continue;
+                        }
+                        break;
+                    }
+                    if (escapeAware && c == esc) {
+                        if (q + 1 < to) {
+                            cell.append(decodeEscapeChar(buf[q + 1]));
+                            q += 2;
+                        } else {
+                            q++;
+                        }
+                        continue;
+                    }
+                    cell.append(c);
+                    q++;
+                }
+            } else {
+                int j = p;
+                while (j < to && buf[j] != delim) {
+                    char c = buf[j];
+                    if (escapeAware && c == esc) {
+                        if (j + 1 < to) {
+                            cell.append(decodeEscapeChar(buf[j + 1]));
+                            j += 2;
+                        } else {
+                            j++;
+                        }
+                        continue;
+                    }
+                    cell.append(c);
+                    j++;
+                }
+            }
+            int s = 0;
+            int e = cell.length();
+            while (s < e && cell.charAt(s) <= ' ') {
+                s++;
+            }
+            while (e > s && cell.charAt(e - 1) <= ' ') {
+                e--;
+            }
+            if (e - s < prefix.length()) {
+                return false;
+            }
+            for (int k = 0; k < prefix.length(); k++) {
+                if (cell.charAt(s + k) != prefix.charAt(k)) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /**
@@ -3006,9 +3096,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Flushes the typed staging slots of one accepted row into the block builders. Primitive
-         * element types append straight from the typed arrays (no boxing); the rare non-primitive
-         * element type (e.g. an all-null column) falls back to the generic boxed {@code stageObj} slot.
+         * Flushes the typed staging slots of one accepted row into the block builders. Each primitive
+         * element type appends straight from its typed array (no boxing).
          */
         private void appendStagedRow(BlockUtils.BuilderWrapper[] builders) {
             final boolean stats = accumulateDirectStats;
@@ -3052,7 +3141,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             columnStats.acceptBytesRefAt(i, stageRef[i]);
                         }
                     }
-                    default -> builders[i].append().accept(stageObj[i]);
+                    default -> throw new IllegalStateException("Unexpected element type in direct-block staging: " + directElements[i]);
                 }
             }
         }
@@ -3123,10 +3212,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     stageNull[bufIdx] = false;
                 }
                 case BYTES_REF -> stageRefValue(bufIdx, (BytesRef) result);
-                default -> {
-                    stageObj[bufIdx] = result;
-                    stageNull[bufIdx] = false;
-                }
+                default -> throw new IllegalStateException("Unexpected element type in direct-block staging: " + directElements[bufIdx]);
             }
         }
 
@@ -3600,16 +3686,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Converts an unquoted field that contains the escape character: trims outer whitespace, applies
-         * C-style escape decoding into the reused buffer, then routes through the shared string
-         * conversion path. A trailing lone escape (no following char) is dropped, matching Jackson.
+         * Converts an unquoted field that contains the escape character: trims leading raw whitespace
+         * (matching Jackson's skip-leading-whitespace pass before the decode loop), applies C-style
+         * escape decoding into the reused buffer, then trims trailing whitespace from the <em>decoded</em>
+         * result (matching Jackson's {@code TRIM_SPACES} pass over the collected decoded chars). A
+         * trailing lone escape (no following char) is dropped, matching Jackson.
+         *
+         * <p>The trim order — raw-leading, decode, decoded-trailing — matches Jackson exactly: Jackson
+         * skips raw leading whitespace before entering its escape decode loop, then trims trailing
+         * whitespace from the collected (already-decoded) value. Trimming raw trailing whitespace before
+         * decoding (the naive order) would differ when the raw span ends with {@code \ }+whitespace,
+         * because Jackson decodes that pair to whitespace and then removes it, while a raw trim stops at
+         * {@code \} and leaves it as a lone escape (dropped), producing a different boundary value.
          */
         private boolean emitUnquotedEscapedField(char[] buf, int start, int end, int bufIdx, DataType dt) {
+            // Trim raw leading whitespace (matches Jackson's skip-leading-ws before the decode loop).
             while (start < end && buf[start] <= ' ') {
                 start++;
-            }
-            while (end > start && buf[end - 1] <= ' ') {
-                end--;
             }
             if (start == end) {
                 stageNullValue(bufIdx);
@@ -3628,21 +3721,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     value.append(c);
                 }
             }
-            if (value.length() > maxFieldChars) {
-                return rejectFieldTooLarge(value.length());
+            // Trim trailing whitespace from the decoded value (matches Jackson's TRIM_SPACES: trim the
+            // collected decoded chars, not the raw input).
+            int trimEnd = value.length();
+            while (trimEnd > 0 && value.charAt(trimEnd - 1) <= ' ') {
+                trimEnd--;
             }
-            if (value.length() == 0) {
+            if (trimEnd == 0) {
                 stageNullValue(bufIdx);
                 return true;
             }
-            return emitConvertedStageField(value.toString(), bufIdx, dt);
+            if (trimEnd > maxFieldChars) {
+                return rejectFieldTooLarge(trimEnd);
+            }
+            return emitConvertedStageField(trimEnd == value.length() ? value.toString() : value.substring(0, trimEnd), bufIdx, dt);
         }
 
         /**
          * Enforces the field-size cap for a non-projected unquoted field that contains escapes. Escapes
-         * only shrink the value, so the raw span bounds the decoded length and the decode walk is paid
-         * only when that span already exceeds the cap. Mirrors {@link #emitUnquotedEscapedField}'s
-         * trim-then-decode order so the counted length matches the value Jackson would have produced.
+         * only shrink the value, so the raw span is an upper bound on the trimmed decoded length; the
+         * decode walk is only paid when the raw span already exceeds the cap. Mirrors
+         * {@link #emitUnquotedEscapedField}'s trim order (raw-leading trim, decode, decoded-trailing trim)
+         * so the counted length matches the value Jackson would have produced.
          *
          * @return {@code true} if within the cap, {@code false} if it was rejected (and the row dropped)
          */
@@ -3650,27 +3750,39 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (end - start <= maxFieldChars) {
                 return true;
             }
+            // Trim raw leading whitespace (matches Jackson's skip-leading-ws before the decode loop).
             while (start < end && buf[start] <= ' ') {
                 start++;
             }
-            while (end > start && buf[end - 1] <= ' ') {
-                end--;
+            if (start == end) {
+                return true;
             }
             final char esc = options.escapeChar();
+            // Count decoded chars, tracking the trailing whitespace run so we can trim after decoding
+            // (matching Jackson's TRIM_SPACES order: trim the decoded value, not the raw input).
             int decodedLen = 0;
+            int trailingWs = 0;
             for (int k = start; k < end; k++) {
+                char decoded;
                 if (buf[k] == esc) {
                     if (k + 1 < end) {
-                        k++; // escape consumes the next char, yielding one decoded char
-                        decodedLen++;
+                        decoded = decodeEscapeChar(buf[++k]);
+                    } else {
+                        continue; // trailing lone escape, dropped
                     }
-                    // trailing lone escape: dropped, contributes nothing
                 } else {
-                    decodedLen++;
+                    decoded = buf[k];
+                }
+                decodedLen++;
+                if (decoded <= ' ') {
+                    trailingWs++;
+                } else {
+                    trailingWs = 0;
                 }
             }
-            if (decodedLen > maxFieldChars) {
-                return rejectFieldTooLarge(decodedLen);
+            int trimmedLen = decodedLen - trailingWs;
+            if (trimmedLen > maxFieldChars) {
+                return rejectFieldTooLarge(trimmedLen);
             }
             return true;
         }

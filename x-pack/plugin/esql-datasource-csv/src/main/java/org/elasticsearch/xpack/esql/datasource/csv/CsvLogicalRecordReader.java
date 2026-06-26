@@ -264,6 +264,13 @@ final class CsvLogicalRecordReader {
      * the next call. Bracket multi-value syntax is never eligible for the direct path, so (unlike
      * {@link #readRecord(boolean)}) there is no bracket-depth tracking here.
      *
+     * <p>Unlike {@link #readRecord(boolean)}, the success path does not commit {@link #bytesRead} or
+     * {@link #lastRecordBytes}: the direct-to-block path that drives {@code nextRecord()} never
+     * projects {@code _rowPosition}/{@code _id}/{@code _file.record_ref} (those reads are routed to
+     * the {@code readRecord}-backed offset path instead), so no caller consults this reader's byte
+     * accounting after a {@code nextRecord()}. Only the over-cap drain updates {@code bytesRead}, to
+     * keep the underlying stream's position and the cumulative count consistent for the skip.
+     *
      * @return {@code true} if a record was read, {@code false} at end of stream
      * @throws CsvRecordTooLargeException if the record exceeds the configured byte cap
      */
@@ -469,15 +476,18 @@ final class CsvLogicalRecordReader {
         if (next > maxRecordBytes) {
             // Oversized record. Drain to the end of the physical line so the reader is left at the
             // next record's first byte and bytesRead counts the whole line. The lenient error policy
-            // skips this record and resumes from the next readRecord; without draining it would
-            // resume mid-line and every later _rowPosition/_id offset would be short by the undrained
-            // tail (and could collide with an earlier record's offset). lastRecordBytes is left
-            // untouched — the caller's exception handler treats this as "no record produced".
+            // skips this record and resumes from the next read; without draining it would resume
+            // mid-line and every later _rowPosition/_id offset would be short by the undrained tail
+            // (and could collide with an earlier record's offset). lastRecordBytes is left untouched:
+            // the caller's exception handler treats this as "no record produced". The drain reads
+            // through readChar()/pushBack(), not the underlying reader directly, so in bulk mode it
+            // consumes any chars already pulled into inBuf/pending rather than skipping past them and
+            // desyncing the stream (which would leave the next nextRecord() resuming mid-line).
             if (ch == '\r') {
                 next = drainCarriageReturn(next);
             } else if (ch != '\n') {
                 int c;
-                while ((c = reader.read()) != -1) {
+                while ((c = readChar()) != -1) {
                     next += encodedLength(c);
                     if (c == '\n') {
                         break;
@@ -500,13 +510,12 @@ final class CsvLogicalRecordReader {
      * record's first byte on return.
      */
     private int drainCarriageReturn(int byteCount) throws IOException {
-        reader.mark(1);
-        int peek = reader.read();
+        int peek = readChar();
         if (peek == '\n') {
             return byteCount + encodedLength(peek);
         }
         if (peek != -1) {
-            reader.reset();
+            pushBack(peek);
         }
         return byteCount;
     }

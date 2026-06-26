@@ -569,6 +569,28 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("x"), br("y")), row((Object) null, br("// c"))), rows);
     }
 
+    public void testQuotedFirstCellThatDecodesToCommentIsSkipped() throws IOException {
+        // The first cell is quoted, so its raw bytes start with a quote, but its DECODED value is
+        // "//x", which Jackson classifies as a comment (it decides on the decoded, trimmed first cell)
+        // and drops the whole row. The direct quoted path must decode the first cell and skip it too.
+        List<List<Object>> rows = read(false, Map.of("comment", "//"), "a:keyword,b:keyword\n\"//x\",1\nkeep,2\n");
+        assertEquals(List.of(row(br("keep"), br("2"))), rows);
+    }
+
+    public void testQuotedFirstCellWithInnerLeadingWhitespaceDecodesToComment() throws IOException {
+        // Jackson trims the decoded first cell before the prefix test, so quoted inner leading
+        // whitespace (" //x") still classifies as a comment. The direct path mirrors that trim.
+        List<List<Object>> rows = read(false, Map.of("comment", "//"), "a:keyword,b:keyword\n\"  //x\",1\nkeep,2\n");
+        assertEquals(List.of(row(br("keep"), br("2"))), rows);
+    }
+
+    public void testQuotedFirstCellThatIsNotACommentIsKept() throws IOException {
+        // A field-leading quote whose decoded value is not a comment must NOT be dropped: the decode
+        // re-check only skips genuine comments, so this row survives on both paths.
+        List<List<Object>> rows = read(false, Map.of("comment", "//"), "a:keyword,b:keyword\n\"hello\",1\nkeep,2\n");
+        assertEquals(List.of(row(br("hello"), br("1")), row(br("keep"), br("2"))), rows);
+    }
+
     public void testNonAsciiWhitespaceNotTrimmed() throws IOException {
         // Only ASCII whitespace is trimmed; a leading/trailing NBSP (U+00A0) is data and survives.
         List<List<Object>> rows = read(false, Map.of(), "k:keyword\n\u00a0x\u00a0\n");
@@ -713,6 +735,31 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testTrailingLoneEscapeDropped() throws IOException {
         List<List<Object>> rows = read(false, Map.of(), "k:keyword\nab\\\n");
         assertEquals(List.of(row(br("ab"))), rows);
+    }
+
+    /**
+     * Regression for the escaped-unquoted trim-order fix: an unquoted field whose raw bytes end with
+     * {@code \ } (backslash + space) must be trimmed AFTER escape-decode — Jackson decodes {@code \ }
+     * to a literal space and then trims trailing decoded whitespace, yielding {@code x}, not {@code x }.
+     * The direct path must match that order.
+     */
+    public void testUnquotedEscapedTrailingSpaceTrimmedAfterDecode() throws IOException {
+        // Raw field: x\ (x + backslash + space). Jackson: skip-leading-ws, then decode \ → ' ',
+        // giving "x ", then trim trailing decoded ws → "x".
+        List<List<Object>> rows = read(false, Map.of(), "k:keyword\nx\\ \n");
+        assertEquals(List.of(row(br("x"))), rows);
+    }
+
+    /**
+     * Companion to {@link #testUnquotedEscapedTrailingSpaceTrimmedAfterDecode}: leading raw whitespace
+     * before the value is also stripped before the escape loop, and trailing decoded whitespace is
+     * stripped after it — both paths must agree on the trim order for this composite case.
+     */
+    public void testUnquotedEscapedLeadingAndTrailingWhitespaceTrimOrder() throws IOException {
+        // Raw field: " x\ " (two spaces + x + backslash + space).
+        // Jackson: skip-leading-raw-ws → "x\ ", decode → "x ", trim-trailing-decoded → "x".
+        List<List<Object>> rows = read(false, Map.of(), "k:keyword\n  x\\ \n");
+        assertEquals(List.of(row(br("x"))), rows);
     }
 
     public void testEscapeNValueIsLiteralN() throws IOException {

@@ -54,19 +54,6 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * {@code RECOGNIZED_KEYS}. At CRUD time, the base-field validation path handles it
      * (with range checking); it is not passed through as a raw format option.
      */
-    /**
-     * Node-level toggle for the direct-to-block CSV/TSV read path. When enabled (default), eligible
-     * plain (unquoted, unescaped) reads parse logical records straight into typed {@code Block}
-     * builders, skipping the Jackson tokenizer and its per-cell {@code String} allocation. Disabling
-     * it forces every read back onto the Jackson bulk path, which is byte-for-byte equivalent: a
-     * safety valve if the direct path is ever suspected of a parity regression.
-     */
-    public static final Setting<Boolean> CSV_DIRECT_BLOCK_ENABLED = Setting.boolSetting(
-        "esql.csv.direct_block.enabled",
-        true,
-        Setting.Property.NodeScope
-    );
-
     static final Set<String> FORMAT_CONFIG_KEYS = Set.of(
         "delimiter",
         "mode",
@@ -81,6 +68,20 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
         "header_row",
         "column_prefix",
         "schema_sample_size"
+    );
+
+    /**
+     * Node-level toggle for the direct-to-block CSV/TSV read path. When enabled (default), eligible
+     * reads (plain unquoted, or RFC 4180 quoted with or without backslash escapes) parse logical
+     * records straight into typed {@code Block} builders, skipping the Jackson tokenizer and its
+     * per-cell {@code String} allocation. Disabling it forces every read back onto the Jackson bulk
+     * path, which is byte-for-byte equivalent: a safety valve if the direct path is ever suspected of
+     * a parity regression.
+     */
+    public static final Setting<Boolean> CSV_DIRECT_BLOCK_ENABLED = Setting.boolSetting(
+        "esql.csv.direct_block.enabled",
+        true,
+        Setting.Property.NodeScope
     );
 
     @Override

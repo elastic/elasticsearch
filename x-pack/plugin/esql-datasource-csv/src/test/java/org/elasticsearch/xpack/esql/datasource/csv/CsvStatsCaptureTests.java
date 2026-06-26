@@ -128,6 +128,32 @@ public class CsvStatsCaptureTests extends ESTestCase {
         assertEquals(new BytesRef("gamma"), stats.columnMax("name"));
     }
 
+    /**
+     * The direct-to-block path folds per-column null/min/max stats into the parse loop, while the
+     * Jackson path re-walks the built blocks via {@code captureBlockStats}. For a cacheable read both
+     * must publish identical column stats. A small batch size forces multi-page accumulation on both
+     * arms, and the fixture mixes nulls, an empty keyword, signed integers, and negative doubles.
+     */
+    public void testDirectAndJacksonColumnStatsAgree() throws Exception {
+        String csv = """
+            id:long,n:integer,name:keyword,score:double
+            5,10,alpha,1.5
+            3,,bravo,
+            9,30,,2.5
+            1,20,charlie,-4.0
+            """;
+        List<String> cols = List.of("id", "n", "name", "score");
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(2).projectedColumns(cols).build();
+        SplitStats direct = SplitStats.of(captureWith(new CsvFormatReader(blockFactory).withDirectBlockEnabled(true), csv, ctx));
+        SplitStats jackson = SplitStats.of(captureWith(new CsvFormatReader(blockFactory).withDirectBlockEnabled(false), csv, ctx));
+        assertEquals("row count", jackson.rowCount(), direct.rowCount());
+        for (String col : cols) {
+            assertEquals("nullCount[" + col + "]", jackson.columnNullCount(col), direct.columnNullCount(col));
+            assertEquals("min[" + col + "]", jackson.columnMin(col), direct.columnMin(col));
+            assertEquals("max[" + col + "]", jackson.columnMax(col), direct.columnMax(col));
+        }
+    }
+
     public void testNullValuesCountTowardsColumnNullCount() throws Exception {
         // n column has one null encoded as empty field
         StorageObject o = obj("id:integer,n:integer\n1,10\n2,\n3,30\n");
@@ -178,6 +204,18 @@ public class CsvStatsCaptureTests extends ESTestCase {
     private Map<String, Object> capture(StorageObject o, FormatReadContext ctx) throws Exception {
         List<Map<String, Object>> all = captureAll(o, ctx);
         return all == null ? null : all.get(0);
+    }
+
+    /** Binds a capture sink, drains the given reader over a fresh cacheable object, returns its contribution. */
+    private Map<String, Object> captureWith(CsvFormatReader reader, String csv, FormatReadContext ctx) throws Exception {
+        StorageObject o = obj(csv);
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (var handle = ExternalStatsCapture.bind(sink); CloseableIterator<Page> it = reader.read(o, ctx)) {
+            drain(it);
+        }
+        List<Map<String, Object>> c = sink.get(o.path().toString());
+        assertNotNull("expected a published contribution", c);
+        return c.get(0);
     }
 
     private List<Map<String, Object>> captureAll(StorageObject o, FormatReadContext ctx) throws Exception {

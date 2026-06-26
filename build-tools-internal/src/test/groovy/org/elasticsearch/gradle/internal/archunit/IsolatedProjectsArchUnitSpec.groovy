@@ -61,7 +61,6 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.docker.DockerSupportPlugin",
         "org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin",
         "org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin",
-        "org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin",
         "org.elasticsearch.gradle.internal.snyk.SnykDependencyMonitoringGradlePlugin",

@@ -9,10 +9,10 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,7 +20,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /// Transport action for batch cancellation of now-undesired recoveries.
@@ -31,7 +30,7 @@ public class CancelRecoveriesAction {
     public static final ActionType<Response> TYPE = new ActionType<>("internal:index/shard/recovery/cancel_recoveries");
 
     /// Request to cancel multiple recoveries in a single batch.
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends ActionRequest {
         private final long clusterStateVersion;
         private final List<ShardRecoveryCancellation> shardRecoveryCancellations;
 
@@ -65,37 +64,13 @@ public class CancelRecoveriesAction {
         public List<ShardRecoveryCancellation> cancellations() {
             return shardRecoveryCancellations;
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return clusterStateVersion == request.clusterStateVersion
-                && Objects.equals(shardRecoveryCancellations, request.shardRecoveryCancellations);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(clusterStateVersion, shardRecoveryCancellations);
-        }
     }
 
     /// Details of a single shard recovery to be cancelled.
-    public static class ShardRecoveryCancellation implements Writeable {
-        private final ShardId shardId;
-        private final String allocationId;
-        private final boolean cancelIfStarted;
-
-        public ShardRecoveryCancellation(ShardId shardId, String allocationId, boolean cancelIfStarted) {
-            this.shardId = shardId;
-            this.allocationId = allocationId;
-            this.cancelIfStarted = cancelIfStarted;
-        }
+    public record ShardRecoveryCancellation(ShardId shardId, String allocationId, boolean cancelIfStarted) implements Writeable {
 
         public ShardRecoveryCancellation(StreamInput in) throws IOException {
-            this.shardId = new ShardId(in);
-            this.allocationId = in.readString();
-            this.cancelIfStarted = in.readBoolean();
+            this(new ShardId(in), in.readString(), in.readBoolean());
         }
 
         @Override
@@ -103,45 +78,6 @@ public class CancelRecoveriesAction {
             shardId.writeTo(out);
             out.writeString(allocationId);
             out.writeBoolean(cancelIfStarted);
-        }
-
-        public ShardId shardId() {
-            return shardId;
-        }
-
-        public String allocationId() {
-            return allocationId;
-        }
-
-        /// Whether to cancel the recovery if it has already started, or only if it is still enqueued.
-        public boolean cancelIfStarted() {
-            return cancelIfStarted;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-            ShardRecoveryCancellation that = (ShardRecoveryCancellation) o;
-            return cancelIfStarted == that.cancelIfStarted
-                && Objects.equals(shardId, that.shardId)
-                && Objects.equals(allocationId, that.allocationId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(shardId, allocationId, cancelIfStarted);
-        }
-
-        @Override
-        public String toString() {
-            return "ShardRecoveryCancellation{"
-                + "shardId="
-                + shardId
-                + ", allocationId='"
-                + allocationId
-                + "', cancelIfStarted="
-                + cancelIfStarted
-                + "}";
         }
     }
 

@@ -829,6 +829,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 );
                 return;
             }
+            if (cause instanceof RecoveryCancelledException) {
+                // Cancellation propagated back through the START_RECOVERY response before directCancelRecovery
+                // fired on this node. Delegate to directCancelRecovery.
+                directCancelRecovery(request.shardId(), request.targetAllocationId());
+                return;
+            }
             if (cause instanceof RecoveryEngineException) {
                 // unwrap an exception that was thrown as part of the recovery
                 cause = cause.getCause();

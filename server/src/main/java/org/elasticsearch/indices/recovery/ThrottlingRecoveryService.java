@@ -66,7 +66,10 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     private int runningRecoveries = 0;
     private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
 
-    /// Records recoveries which were `direct cancelled` by the master.
+    /// Records allocation IDs that have been directly cancelled by the master, including those for recoveries
+    /// that have already started (i.e. are not in [#pendingRecoveries]).
+    /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its
+    /// allocation ID changes.
     private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
     private boolean closed;

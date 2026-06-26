@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -86,6 +87,20 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         plugins.add(EncryptionPlugin.class);
         plugins.add(TestEncryptionCustomsPlugin.class);
         return plugins;
+    }
+
+    @After
+    public void stopCoordinators() {
+        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        // Close all coordinator instances so no new cluster-state publications are submitted after
+        // the test assertions complete. Without this the coordinator's 1-second tick can start a
+        // publish_state (including a PBKDF2 disk-wrap) that is still in-flight when the framework's
+        // assertRequestsFinished check runs, causing a spurious teardown failure.
+        for (String nodeName : internalCluster().getNodeNames()) {
+            internalCluster().getInstance(KeyRotationCoordinator.class, nodeName).close();
+        }
     }
 
     @Before

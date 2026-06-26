@@ -37,8 +37,9 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToA
         .name("variance_over_time", "stdvar_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeriesOverTime(VarianceOverTime::new)
-        .description("Returns the population standard variance of the values in the specified time range.")
+        .description("Returns the population variance of the values in the specified time range.")
         .example("stdvar_over_time(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("stdvar_over_time");
 
     @FunctionInfo(

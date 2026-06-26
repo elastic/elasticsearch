@@ -125,6 +125,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.columnar.inline_array_order_binary_doc_values"
     );
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
+    public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -209,7 +210,8 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
-            DOC_VALUES_MULTI_VALUE_FALSE_ALIAS
+            DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
+            TSDB_METRIC_TEMPORALITY_SUPPORT
         );
     }
 }

@@ -14,7 +14,8 @@ steps:
           setup:
             CHECK_TASK:
               - releaseTestCheckEsqlEngine
-              - releaseTestCheckEsqlQa
+              - releaseTestCheckEsqlQa1
+              - releaseTestCheckEsqlQa2
               - releaseTestCheckEsqlDatasourceCore
               - releaseTestCheckEsqlDatasourceQa
         agents:

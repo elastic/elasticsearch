@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
@@ -157,6 +158,37 @@ public class HighlightOptionsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Expected a numeric"));
     }
 
+    public void testDecimalIntegerOptionsAreRejected() {
+        for (String name : List.of(Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> HighlightOptions.from(map(name, doubleLiteral(0.9)), FoldContext.small())
+            );
+            assertThat(e.getMessage(), containsString("Expected an integer"));
+        }
+    }
+
+    public void testDecimalMaxAnalyzedOffsetIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightOptions.from(map(Highlight.MAX_ANALYZED_OFFSET, doubleLiteral(10.9)), FoldContext.small())
+        );
+        assertThat(e.getMessage(), containsString("Expected an integer"));
+    }
+
+    public void testWholeDoubleIsAcceptedForIntegerOptions() {
+        HighlightOptions options = HighlightOptions.from(map(Highlight.NUMBER_OF_FRAGMENTS, doubleLiteral(3.0)), FoldContext.small());
+        assertThat(options.numberOfFragments(), equalTo(3));
+    }
+
+    public void testNonStringTagIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightOptions.from(map(Highlight.PRE_TAGS, integer(123)), FoldContext.small())
+        );
+        assertThat(e.getMessage(), containsString("Expected a string"));
+    }
+
     private static MapExpression map(Object... keyValues) {
         List<Expression> entries = new ArrayList<>();
         for (int i = 0; i < keyValues.length; i += 2) {
@@ -176,5 +208,9 @@ public class HighlightOptionsTests extends ESTestCase {
 
     private static Literal integer(int value) {
         return new Literal(Source.EMPTY, value, INTEGER);
+    }
+
+    private static Literal doubleLiteral(double value) {
+        return new Literal(Source.EMPTY, value, DOUBLE);
     }
 }

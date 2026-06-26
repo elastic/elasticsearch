@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -22,6 +23,10 @@ import java.util.Locale;
  * <p>
  * {@code boundary_chars}, {@code boundary_max_scan} and {@code phrase_limit} are accepted for Query DSL parity but are
  * only honoured by the FastVectorHighlighter. HIGHLIGHT always uses the unified highlighter, so they are no-ops here.
+ * <p>
+ * The per-option type, range and enum rules enforced while building this record are the single source of truth for
+ * validation: {@link Highlight#postAnalysisVerification} reuses {@link #validate} so that invalid option values fail at
+ * analysis time on the same path as the enum checks, instead of only later during local planning.
  */
 public record HighlightOptions(
     String preTag,
@@ -61,6 +66,31 @@ public record HighlightOptions(
     public static final int DEFAULT_MAX_ANALYZED_OFFSET = -1;
     public static final int DEFAULT_PHRASE_LIMIT = 256;
 
+    /**
+     * Validation policy for a string-valued enum option: its allowed values and whether matching is case-insensitive.
+     * Shared by analyzer verification ({@link Highlight#postAnalysisVerification}) and parsing ({@link #from}) so the two
+     * paths cannot drift on either the allowed set or the case-sensitivity contract.
+     */
+    // TODO: this EnumOption descriptor (and the validate(...) bridge that catches IllegalArgumentException) is
+    // HIGHLIGHT-specific. It's fine as-is, but if we ever want tighter consistency with the rest of ES|QL the enum/type
+    // checks could move toward the shared Options-style descriptor that the full-text functions use.
+    public record EnumOption(String name, List<String> allowed, boolean caseInsensitive) {
+        /** Normalizes a raw value for comparison/storage: lower-cased when case-insensitive, otherwise unchanged. */
+        public String normalize(String raw) {
+            return caseInsensitive ? raw.toLowerCase(Locale.ROOT) : raw;
+        }
+
+        public boolean isValid(String raw) {
+            return allowed.contains(normalize(raw));
+        }
+    }
+
+    // encoder is case-sensitive to mirror Query DSL (default/html only); boundary_scanner and order are normalized
+    // case-insensitively.
+    public static final EnumOption ENCODER_OPTION = new EnumOption(Highlight.ENCODER, ALLOWED_ENCODERS, false);
+    public static final EnumOption BOUNDARY_SCANNER_OPTION = new EnumOption(Highlight.BOUNDARY_SCANNER, ALLOWED_BOUNDARY_SCANNERS, true);
+    public static final EnumOption ORDER_OPTION = new EnumOption(Highlight.ORDER, ALLOWED_ORDERS, true);
+
     public static HighlightOptions from(MapExpression options, FoldContext foldContext) {
         if (options == null) {
             return defaults();
@@ -68,13 +98,13 @@ public record HighlightOptions(
         return new HighlightOptions(
             string(options.get(Highlight.PRE_TAGS), foldContext, DEFAULT_PRE_TAG),
             string(options.get(Highlight.POST_TAGS), foldContext, DEFAULT_POST_TAG),
-            string(options.get(Highlight.ENCODER), foldContext, DEFAULT_ENCODER),
+            ENCODER_OPTION.normalize(string(options.get(Highlight.ENCODER), foldContext, DEFAULT_ENCODER)),
             integer(options.get(Highlight.NUMBER_OF_FRAGMENTS), foldContext, DEFAULT_NUMBER_OF_FRAGMENTS),
             integer(options.get(Highlight.FRAGMENT_SIZE), foldContext, DEFAULT_FRAGMENT_SIZE),
             integer(options.get(Highlight.NO_MATCH_SIZE), foldContext, DEFAULT_NO_MATCH_SIZE),
-            string(options.get(Highlight.BOUNDARY_SCANNER), foldContext, DEFAULT_BOUNDARY_SCANNER).toLowerCase(Locale.ROOT),
+            BOUNDARY_SCANNER_OPTION.normalize(string(options.get(Highlight.BOUNDARY_SCANNER), foldContext, DEFAULT_BOUNDARY_SCANNER)),
             locale(options.get(Highlight.BOUNDARY_SCANNER_LOCALE), foldContext),
-            string(options.get(Highlight.ORDER), foldContext, DEFAULT_ORDER).toLowerCase(Locale.ROOT),
+            ORDER_OPTION.normalize(string(options.get(Highlight.ORDER), foldContext, DEFAULT_ORDER)),
             maxAnalyzedOffset(options.get(Highlight.MAX_ANALYZED_OFFSET), foldContext),
             integer(options.get(Highlight.PHRASE_LIMIT), foldContext, DEFAULT_PHRASE_LIMIT)
         );
@@ -97,6 +127,33 @@ public record HighlightOptions(
     }
 
     /**
+     * Type/range-checks a single (non-null, foldable) option value by parsing it the same way {@link #from} would and
+     * discarding the result, throwing {@link IllegalArgumentException} on a bad value. Enum options are checked
+     * separately by the verifier against their {@link EnumOption} descriptor (so it keeps the established
+     * {@code Invalid [..] value [..]} message), so they - along with unknown names (validated in the parser) - are
+     * no-ops here.
+     * <p>
+     * {@code boundary_chars} and {@code boundary_max_scan} are FastVectorHighlighter-only no-ops at execution, but we
+     * still check their value types here for Query DSL parity.
+     */
+    public static void validate(String name, Expression value, FoldContext foldContext) {
+        switch (name) {
+            case Highlight.PRE_TAGS, Highlight.POST_TAGS -> string(value, foldContext, null);
+            case Highlight.BOUNDARY_CHARS -> requireString(value.fold(foldContext));
+            case Highlight.BOUNDARY_SCANNER_LOCALE -> locale(value, foldContext);
+            case Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE, Highlight.BOUNDARY_MAX_SCAN,
+                Highlight.PHRASE_LIMIT -> integer(value, foldContext, 0);
+            case Highlight.MAX_ANALYZED_OFFSET -> maxAnalyzedOffset(value, foldContext);
+            case Highlight.ENCODER, Highlight.BOUNDARY_SCANNER, Highlight.ORDER -> {
+                // Verified separately against the EnumOption descriptor.
+            }
+            default -> {
+                // Unknown name; the parser already rejected anything not in VALID_OPTION_NAMES.
+            }
+        }
+    }
+
+    /**
      * Reads a string option. Tags may be given as a single string ({@code "pre_tags": "<b>"}) or a list.
      */
     // TODO: support multiple pre_tags/post_tags (Query DSL rotates through the list per match) instead of rejecting them.
@@ -111,31 +168,38 @@ public record HighlightOptions(
                     "HIGHLIGHT does not support multiple tags yet, but got [" + list.size() + "]; provide a single tag"
                 );
             }
-            return list.isEmpty() ? defaultValue : BytesRefs.toString(list.getFirst());
+            return list.isEmpty() ? defaultValue : requireString(list.getFirst());
         }
-        return BytesRefs.toString(folded);
+        return requireString(folded);
+    }
+
+    /**
+     * Coerces a folded value to a string only when it actually is one. Numbers, booleans and other types are rejected
+     * rather than silently stringified via {@link BytesRefs#toString} (e.g. {@code pre_tags: 123}).
+     */
+    private static String requireString(Object folded) {
+        if (folded instanceof BytesRef || folded instanceof String) {
+            return BytesRefs.toString(folded);
+        }
+        throw new IllegalArgumentException("Expected a string HIGHLIGHT option but got [" + folded + "]");
     }
 
     private static Locale locale(Expression value, FoldContext foldContext) {
         if (value == null) {
             return DEFAULT_BOUNDARY_SCANNER_LOCALE;
         }
-        return Locale.forLanguageTag(BytesRefs.toString(value.fold(foldContext)));
+        return Locale.forLanguageTag(requireString(value.fold(foldContext)));
     }
 
     private static int integer(Expression value, FoldContext foldContext, int defaultValue) {
         if (value == null) {
             return defaultValue;
         }
-        Object folded = value.fold(foldContext);
-        if (folded instanceof Number number) {
-            int intValue = number.intValue();
-            if (intValue < 0) {
-                throw new IllegalArgumentException("HIGHLIGHT option must be >= 0 but got [" + folded + "]");
-            }
-            return intValue;
+        int intValue = integral(value.fold(foldContext));
+        if (intValue < 0) {
+            throw new IllegalArgumentException("HIGHLIGHT option must be >= 0 but got [" + intValue + "]");
         }
-        throw new IllegalArgumentException("Expected a numeric HIGHLIGHT option but got [" + folded + "]");
+        return intValue;
     }
 
     /**
@@ -146,13 +210,26 @@ public record HighlightOptions(
         if (value == null) {
             return DEFAULT_MAX_ANALYZED_OFFSET;
         }
-        Object folded = value.fold(foldContext);
+        int intValue = integral(value.fold(foldContext));
+        if (intValue < -1 || intValue == 0) {
+            throw new IllegalArgumentException("[max_analyzed_offset] must be a positive integer, or -1 but got [" + intValue + "]");
+        }
+        return intValue;
+    }
+
+    /**
+     * Extracts an integral value from a folded numeric option, rejecting non-numbers as well as numbers with a fractional
+     * part (e.g. {@code number_of_fragments: 0.9}) instead of silently truncating them via {@link Number#intValue()}.
+     */
+    private static int integral(Object folded) {
         if (folded instanceof Number number) {
-            int intValue = number.intValue();
-            if (intValue < -1 || intValue == 0) {
-                throw new IllegalArgumentException("[max_analyzed_offset] must be a positive integer, or -1 but got [" + folded + "]");
+            if (number instanceof Float || number instanceof Double) {
+                double doubleValue = number.doubleValue();
+                if (Double.isFinite(doubleValue) == false || doubleValue != Math.floor(doubleValue)) {
+                    throw new IllegalArgumentException("Expected an integer HIGHLIGHT option but got [" + folded + "]");
+                }
             }
-            return intValue;
+            return number.intValue();
         }
         throw new IllegalArgumentException("Expected a numeric HIGHLIGHT option but got [" + folded + "]");
     }

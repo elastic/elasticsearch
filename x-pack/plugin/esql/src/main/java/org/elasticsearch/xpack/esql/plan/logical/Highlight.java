@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -231,26 +230,52 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        verifyEnum(failures, ENCODER, HighlightOptions.ALLOWED_ENCODERS, false);
-        verifyEnum(failures, BOUNDARY_SCANNER, HighlightOptions.ALLOWED_BOUNDARY_SCANNERS, true);
-        verifyEnum(failures, ORDER, HighlightOptions.ALLOWED_ORDERS, true);
-    }
-
-    // Checks that a foldable string option is one of the allowed values.
-    private void verifyEnum(Failures failures, String name, List<String> allowed, boolean caseInsensitive) {
         if (options == null) {
             return;
         }
+        verifyEnum(failures, HighlightOptions.ENCODER_OPTION);
+        verifyEnum(failures, HighlightOptions.BOUNDARY_SCANNER_OPTION);
+        verifyEnum(failures, HighlightOptions.ORDER_OPTION);
+        // Type and range checks for the non-enum options, driven by the same schema as HighlightOptions.from, so invalid
+        // values fail here at analysis time instead of only later during local planning.
+        for (String name : VALID_OPTION_NAMES) {
+            verifyValue(failures, name);
+        }
+    }
+
+    // Returns the option's value only if it is foldable enough to check now. A non-foldable value (the grammar allows
+    // constants, nested maps and parameters in WITH { ... }) is skipped here and fails later at fold time; expanding
+    // non-foldable handling is out of scope.
+    private Expression foldableOption(String name) {
         Expression value = options.get(name);
-        if (value == null || value.foldable() == false) {
+        return value != null && value.foldable() ? value : null;
+    }
+
+    // Checks an enum option against its shared descriptor so the analyzer and HighlightOptions.from can never disagree on
+    // the allowed set or case-sensitivity.
+    private void verifyEnum(Failures failures, HighlightOptions.EnumOption option) {
+        Expression value = foldableOption(option.name());
+        if (value == null) {
             return;
         }
         String actual = BytesRefs.toString(value.fold(FoldContext.small()));
-        String valueToCheck = caseInsensitive ? actual.toLowerCase(Locale.ROOT) : actual;
-        if (allowed.contains(valueToCheck)) {
+        if (option.isValid(actual) == false) {
+            failures.add(fail(this, "Invalid [{}] value [{}] in HIGHLIGHT, expected one of {}", option.name(), actual, option.allowed()));
+        }
+    }
+
+    // Runs the shared HighlightOptions.validate type/range checks, turning the IllegalArgumentException it throws on a bad
+    // value into an analysis Failure.
+    private void verifyValue(Failures failures, String name) {
+        Expression value = foldableOption(name);
+        if (value == null) {
             return;
         }
-        failures.add(fail(this, "Invalid [{}] value [{}] in HIGHLIGHT, expected one of {}", name, actual, allowed));
+        try {
+            HighlightOptions.validate(name, value, FoldContext.small());
+        } catch (IllegalArgumentException e) {
+            failures.add(fail(this, "Invalid [{}] value in HIGHLIGHT: {}", name, e.getMessage()));
+        }
     }
 
     @Override

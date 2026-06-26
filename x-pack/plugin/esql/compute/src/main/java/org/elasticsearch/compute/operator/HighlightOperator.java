@@ -119,7 +119,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.query = parsedQuery != null ? parsedQuery : new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
         Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
         this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
-        // A negative value means "use the index setting", matching Query DSL.
+        // A negative value means "use the default index setting".
         this.maxAnalyzedOffset = config.maxAnalyzedOffset() < 0
             ? IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY)
             : config.maxAnalyzedOffset();

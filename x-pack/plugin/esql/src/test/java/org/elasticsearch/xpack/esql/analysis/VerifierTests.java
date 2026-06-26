@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.hamcrest.Matcher;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -4502,10 +4503,51 @@ public class VerifierTests extends ESTestCase {
         assertInvalidHighlightOption("order", "doc");
     }
 
+    public void testHighlightEncoderIsCaseSensitive() {
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        // boundary_scanner and order are case-insensitive, but encoder mirrors Query DSL and is case-sensitive.
+        assertInvalidHighlightOption("encoder", "HTML");
+    }
+
+    public void testHighlightRejectsWrongValueTypesAtAnalysis() {
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Expected a string HIGHLIGHT option"));
+        assertInvalidHighlightOptionValue("post_tags", "true", containsString("Expected a string HIGHLIGHT option"));
+        assertInvalidHighlightOptionValue("boundary_scanner_locale", "123", containsString("Expected a string HIGHLIGHT option"));
+        assertInvalidHighlightOptionValue("boundary_chars", "10", containsString("Expected a string HIGHLIGHT option"));
+        assertInvalidHighlightOptionValue("boundary_max_scan", "\"far\"", containsString("Expected a numeric HIGHLIGHT option"));
+    }
+
+    public void testHighlightRejectsDecimalNumericsAtAnalysis() {
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assertInvalidHighlightOptionValue("number_of_fragments", "0.9", containsString("Expected an integer HIGHLIGHT option"));
+        assertInvalidHighlightOptionValue("fragment_size", "10.5", containsString("Expected an integer HIGHLIGHT option"));
+        assertInvalidHighlightOptionValue("max_analyzed_offset", "10.9", containsString("Expected an integer HIGHLIGHT option"));
+    }
+
+    public void testHighlightRejectsOutOfRangeNumericsAtAnalysis() {
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assertInvalidHighlightOptionValue("number_of_fragments", "-1", containsString("must be >= 0"));
+        assertInvalidHighlightOptionValue("fragment_size", "-1", containsString("must be >= 0"));
+        assertInvalidHighlightOptionValue("no_match_size", "-1", containsString("must be >= 0"));
+        assertInvalidHighlightOptionValue("boundary_max_scan", "-1", containsString("must be >= 0"));
+        assertInvalidHighlightOptionValue("max_analyzed_offset", "0", containsString("must be a positive integer, or -1"));
+        assertInvalidHighlightOptionValue("max_analyzed_offset", "-2", containsString("must be a positive integer, or -1"));
+    }
+
     private void assertInvalidHighlightOption(String optionName, String optionValue) {
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"" + optionName + "\": \"" + optionValue + "\" }",
             containsString("Invalid [" + optionName + "] value [" + optionValue + "] in HIGHLIGHT")
+        );
+    }
+
+    // optionValue is inlined verbatim into the query, so numbers are bare (e.g. "0.9") and strings include quotes
+    // (e.g. "\"far\"").
+    private void assertInvalidHighlightOptionValue(String optionName, String optionValue, Matcher<String> messageMatcher) {
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"" + optionName + "\": " + optionValue + " }",
+            allOf(containsString("Invalid [" + optionName + "] value in HIGHLIGHT"), messageMatcher)
         );
     }
 

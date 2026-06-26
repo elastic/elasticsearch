@@ -1528,6 +1528,7 @@ public class StatelessPlugin extends Plugin
                 public void onStoreClosed(ShardId shardId) {
                     getClosedShardService().onStoreClose(shardId);
                     final var cacheService = sharedBlobCacheService.get();
+                    // TODO consider removing the flag guard once performance is verified
                     if (cacheService.isCacheBoostPreferenceEnabled()) {
                         final Predicate<ShardId> hasShard = indicesService.get().hasShardPredicate();
                         cacheService.demoteAllAsync(shardId, id -> hasShard.test(id) == false);

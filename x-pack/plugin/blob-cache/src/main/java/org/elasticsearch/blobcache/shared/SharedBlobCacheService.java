@@ -965,6 +965,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * The predicate is evaluated when the task runs; demotion is skipped when it returns {@code false}.
      */
     public void demoteAllAsync(ShardId shard, Predicate<ShardId> shouldDemote) {
+        // TODO do not submit task if shutting down
         asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
             @Override
             public void onResponse(Releasable releasable) {
@@ -2386,7 +2387,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         unlink(entry);
                         entry.freq = 0;
                         entry.lastAccessedEpoch = -1;
-                        pushEntry(entry, true);
+                        pushEntryToFront(entry);
                         demotedCount++;
                     }
                 }
@@ -2492,17 +2493,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             }
             level.count++;
-            if (toFront) {
-                assert freqs[entry.freq].head == entry;
-            } else {
-                assert freqs[entry.freq].head.prev == entry;
-            }
+            assert toFront == false || freqs[entry.freq].head == entry;
+            assert toFront || freqs[entry.freq].head.prev == entry;
             assert freqs[entry.freq].head.prev != null;
             assert entry.prev != null;
             assert entry.prev.next == null || entry.prev.next == entry;
-            if (toFront == false) {
-                assert entry.next == null;
-            }
+            assert toFront || entry.next == null;
             assert invariant(entry, true);
         }
 

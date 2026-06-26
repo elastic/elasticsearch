@@ -282,7 +282,7 @@ class ImplClassWriter {
                 if (paramType == NativeType.STRING) {
                     tryBlock.aload(arenaSlot);
                     tryBlock.aload(slot);
-                    tryBlock.invokestatic(CD_MemorySegmentUtil, "allocateString", MTD_MemorySegmentUtil_allocateString);
+                    tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString);
                     tryBlock.astore(marshaledSlot);
                     marshaledSlot++;
                 }

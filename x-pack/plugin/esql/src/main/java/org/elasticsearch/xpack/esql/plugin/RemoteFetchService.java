@@ -100,7 +100,12 @@ public final class RemoteFetchService {
     private final ExchangeServerFactory exchangeServerFactory;
 
     RemoteFetchService(TransportActionServices transportActionServices, BigArrays bigArrays, BlockFactory blockFactory) {
-        this(transportActionServices, bigArrays, blockFactory, new RetainedSearchContextsRegistry());
+        this(
+            transportActionServices,
+            bigArrays,
+            blockFactory,
+            new RetainedSearchContextsRegistry(transportActionServices.transportService().getThreadPool()::relativeTimeInMillis)
+        );
     }
 
     RemoteFetchService(
@@ -302,11 +307,11 @@ public final class RemoteFetchService {
             PhysicalPlan pushdownPlan,
             Configuration configuration
         ) {
-            if (closed) {
-                throw new IllegalStateException("remote fetch exchange client is closed");
-            }
             TargetSession target = new TargetSession(nodeId, retainedSessionId);
             synchronized (this) {
+                if (closed) {
+                    throw new IllegalStateException("remote fetch exchange client is closed");
+                }
                 TargetExchangeChannel existing = targetExchanges.get(target);
                 if (existing != null) {
                     existing.validate(fields, pushdownPlan, configuration);
@@ -442,11 +447,18 @@ public final class RemoteFetchService {
                     throw new IllegalStateException("remote fetch target exchange is closed");
                 }
                 validateHandlesForTarget(handles);
+                Page page = buildHandlesPage(handles, batchId);
+                boolean accepted = false;
                 try {
-                    client.sendPage(buildHandlesPage(handles, batchId));
+                    client.sendPage(page);
+                    accepted = true;
                 } catch (Exception e) {
                     client.markBatchCompleted(batchId);
                     throw e;
+                } finally {
+                    if (accepted == false) {
+                        page.releaseBlocks();
+                    }
                 }
             }
         }

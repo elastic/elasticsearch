@@ -52,6 +52,10 @@ final class RetainedSearchContextsRegistry {
         this(System::currentTimeMillis, DEFAULT_KEEP_ALIVE);
     }
 
+    RetainedSearchContextsRegistry(LongSupplier relativeTimeInMillis) {
+        this(relativeTimeInMillis, DEFAULT_KEEP_ALIVE);
+    }
+
     RetainedSearchContextsRegistry(LongSupplier relativeTimeInMillis, TimeValue keepAlive) {
         this.relativeTimeInMillis = relativeTimeInMillis;
         this.keepAliveInMillis = keepAlive.millis();

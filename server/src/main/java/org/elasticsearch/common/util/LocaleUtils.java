@@ -10,6 +10,7 @@
 package org.elasticsearch.common.util;
 
 import java.util.Arrays;
+import java.util.IllformedLocaleException;
 import java.util.Locale;
 import java.util.MissingResourceException;
 
@@ -17,6 +18,27 @@ import java.util.MissingResourceException;
  * Utilities for dealing with {@link Locale} objects
  */
 public class LocaleUtils {
+
+    /**
+     * Strictly parse the given string as a well-formed language tag (for example {@code en}, {@code en-US} or
+     * {@code zh-Hant-TW}), as defined by {@link Locale.Builder#setLanguageTag(String)}.
+     * <p>
+     * Unlike {@link #parse(String)}, this does not accept underscores as separators and does not silently degrade a
+     * malformed tag to {@link Locale#ROOT}; the {@link IllformedLocaleException} thrown by the JDK builder is normalized
+     * into a stable {@link IllegalArgumentException} whose message includes the offending tag. Prefer this method for
+     * newly accepted, user-facing locale options so failures are reported up front rather than producing surprising
+     * fragmentation/formatting later.
+     * @throws IllegalArgumentException if the tag is not a well-formed language tag
+     */
+    public static Locale parseLanguageTag(String languageTag) {
+        try {
+            return new Locale.Builder().setLanguageTag(languageTag).build();
+        } catch (IllformedLocaleException e) {
+            // Keep the message stable (independent of the JDK-controlled IllformedLocaleException wording) but preserve
+            // that exception as the cause for debugging.
+            throw new IllegalArgumentException("[" + languageTag + "] is not a valid language tag", e);
+        }
+    }
 
     /**
      * Parse the given locale as {@code language}, {@code language-country} or

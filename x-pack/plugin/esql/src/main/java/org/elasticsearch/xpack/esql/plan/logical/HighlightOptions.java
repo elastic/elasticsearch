@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -188,15 +189,16 @@ public record HighlightOptions(
     }
 
     /**
-     * Parses {@code boundary_scanner_locale} as a BCP 47 language tag (for example {@code en-US}). Malformed tags are
-     * rejected early instead of silently degrading to {@link Locale#ROOT}; invalid tags propagate the
-     * {@link java.util.IllformedLocaleException} thrown by {@link Locale.Builder#setLanguageTag(String)}.
+     * Parses {@code boundary_scanner_locale} as a language tag (for example {@code en-US}). Malformed tags are rejected
+     * early instead of silently degrading to {@link Locale#ROOT} via {@link LocaleUtils#parseLanguageTag(String)}, which
+     * normalizes the JDK {@link java.util.IllformedLocaleException} into a stable {@link IllegalArgumentException} so the
+     * failure surfaces on the same {@code HIGHLIGHT} validation path as the other options.
      */
     private static Locale locale(Expression value, FoldContext foldContext) {
         if (value == null) {
             return DEFAULT_BOUNDARY_SCANNER_LOCALE;
         }
-        return new Locale.Builder().setLanguageTag(requireString(value.fold(foldContext))).build();
+        return LocaleUtils.parseLanguageTag(requireString(value.fold(foldContext)));
     }
 
     private static int integer(Expression value, FoldContext foldContext, int defaultValue) {

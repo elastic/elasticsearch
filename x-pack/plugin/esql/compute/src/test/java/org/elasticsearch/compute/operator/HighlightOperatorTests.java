@@ -16,12 +16,15 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
+import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.hamcrest.Matcher;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
@@ -197,6 +200,29 @@ public class HighlightOperatorTests extends OperatorTestCase {
         } finally {
             result.close();
         }
+    }
+
+    // The no-match fallback passage carries a NaN score (see CustomFieldHighlighter#getSummaryPassagesNoHighlight). A
+    // plain descending comparingDouble sort would float NaN to the front under order=score; the comparator must instead
+    // treat NaN as the lowest score so a real, lower-but-finite-scoring snippet still sorts ahead of it.
+    public void testScoreDescendingTreatsNaNAsLowest() {
+        Snippet best = new Snippet("best", 5.0f, true);
+        Snippet worst = new Snippet("worst", 1.0f, true);
+        Snippet noMatch = new Snippet("no-match-fallback", Float.NaN, false);
+        Snippet[] snippets = { noMatch, worst, best };
+        Arrays.sort(snippets, HighlightOperator.SCORE_DESCENDING);
+        assertThat(Arrays.stream(snippets).map(Snippet::getText).toList(), contains("best", "worst", "no-match-fallback"));
+    }
+
+    // Equal scores keep their input (document) order: Arrays.sort is stable and the comparator returns 0 on ties, so
+    // this locks the deliberate document-order tie-break that diverges from Query DSL's non-stable introSort.
+    public void testScoreDescendingKeepsDocumentOrderOnTies() {
+        Snippet first = new Snippet("first", 2.0f, true);
+        Snippet second = new Snippet("second", 2.0f, true);
+        Snippet third = new Snippet("third", 2.0f, true);
+        Snippet[] snippets = { first, second, third };
+        Arrays.sort(snippets, HighlightOperator.SCORE_DESCENDING);
+        assertThat(Arrays.stream(snippets).map(Snippet::getText).toList(), contains("first", "second", "third"));
     }
 
     public void testNonBytesRefFieldThrows() {

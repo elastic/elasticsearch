@@ -26,6 +26,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class HighlightOptionsTests extends ESTestCase {
 
@@ -59,11 +60,14 @@ public class HighlightOptionsTests extends ESTestCase {
     }
 
     public void testBoundaryScannerLocaleRejectsMalformedTag() {
-        IllformedLocaleException e = expectThrows(
-            IllformedLocaleException.class,
+        // The malformed tag is normalized into a stable HIGHLIGHT IllegalArgumentException rather than leaking the
+        // JDK-controlled IllformedLocaleException (whose message wording is not stable across runtimes).
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> HighlightOptions.from(map(Highlight.BOUNDARY_SCANNER_LOCALE, keyword("en_US")), FoldContext.small())
         );
-        assertThat(e.getMessage(), containsString("Invalid subtag: en_US"));
+        assertThat(e.getMessage(), containsString("[en_US] is not a valid language tag"));
+        assertThat(e.getCause(), instanceOf(IllformedLocaleException.class));
     }
 
     public void testBoundaryAndOrderOptionsAreNormalizedToLowerCase() {

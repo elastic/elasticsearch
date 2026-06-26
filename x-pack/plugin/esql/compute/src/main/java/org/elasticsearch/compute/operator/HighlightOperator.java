@@ -280,7 +280,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             return new Snippet[0];
         }
         if (config.orderByScore() && snippets.length > 1) {
-            Arrays.sort(snippets, Comparator.comparingDouble(Snippet::getScore).reversed());
+            // Stable sort by descending score: TimSort keeps equal-score fragments in document order, which is a
+            // deliberate (more deterministic) divergence from Query DSL's non-stable introSort. NaN scores are forced
+            // to the bottom rather than the top: the no-match fallback passage carries a NaN score, and the default
+            // comparingDouble ordering would otherwise float such a snippet to the front under order=score.
+            Arrays.sort(snippets, SCORE_DESCENDING);
         }
         int numberOfFragments = config.numberOfFragments();
         if (numberOfFragments > 0 && snippets.length > numberOfFragments) {
@@ -288,6 +292,14 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
         return snippets;
     }
+
+    // Highest score first, with NaN treated as the lowest possible score so a NaN-scored snippet never sorts ahead of a
+    // real one. Equal scores keep their input (document) order because Arrays.sort is stable. Package-private so the
+    // NaN/tie-break behavior can be asserted directly in tests.
+    static final Comparator<Snippet> SCORE_DESCENDING = Comparator.comparingDouble((Snippet s) -> {
+        float score = s.getScore();
+        return Float.isNaN(score) ? Double.NEGATIVE_INFINITY : score;
+    }).reversed();
 
     private static void appendSelectedSnippets(BytesRefBlock.Builder builder, Snippet[] selectedSnippets) {
         if (selectedSnippets.length == 0) {

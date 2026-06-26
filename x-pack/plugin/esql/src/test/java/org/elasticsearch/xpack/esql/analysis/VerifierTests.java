@@ -4520,7 +4520,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testHighlightRejectsMalformedBoundaryScannerLocaleAtAnalysis() {
         assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
-        assertInvalidHighlightOptionValue("boundary_scanner_locale", "\"en_US\"", containsString("Invalid subtag: en_US"));
+        assertInvalidHighlightOptionValue("boundary_scanner_locale", "\"en_US\"", containsString("[en_US] is not a valid language tag"));
     }
 
     public void testHighlightRejectsDecimalNumericsAtAnalysis() {

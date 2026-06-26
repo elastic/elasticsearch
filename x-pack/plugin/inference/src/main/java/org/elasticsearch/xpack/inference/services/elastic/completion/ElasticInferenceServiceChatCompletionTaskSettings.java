@@ -56,6 +56,10 @@ public class ElasticInferenceServiceChatCompletionTaskSettings implements TaskSe
         "inference_api_eis_reasoning_task_settings"
     );
 
+    public static final ElasticInferenceServiceChatCompletionTaskSettings EMPTY = new ElasticInferenceServiceChatCompletionTaskSettings(
+        (Reasoning) null
+    );
+
     private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
     private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
 

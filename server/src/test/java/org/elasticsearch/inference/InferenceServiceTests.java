@@ -41,7 +41,7 @@ public class InferenceServiceTests extends ESTestCase {
         // for a default method that ignores all of its parameters, so we use a mock with
         // CALLS_REAL_METHODS to dispatch the default implementation directly.
         var service = mock(InferenceService.class, CALLS_REAL_METHODS);
-        var compatibility = service.checkClusterCompatibility(null, null, randomFrom(TaskType.values()), null);
+        var compatibility = service.checkClusterCompatibility(null, null, null);
         assertTrue(compatibility.isSupported());
         assertNull(compatibility.errorMessage());
     }

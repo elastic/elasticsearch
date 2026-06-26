@@ -248,12 +248,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
-    public ClusterCompatibility checkClusterCompatibility(
-        FeatureService featureService,
-        ClusterState state,
-        TaskType taskType,
-        Model model
-    ) {
+    public ClusterCompatibility checkClusterCompatibility(FeatureService featureService, ClusterState state, Model model) {
         if (model instanceof ElasticInferenceServiceModel == false) {
             return ClusterCompatibility.unsupported(
                 Strings.format("Invalid model type [%s] for service [%s]", model.getClass().getSimpleName(), NAME)
@@ -263,7 +258,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         var elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
 
         for (var compatibilityCheck : FEATURE_COMPATIBILITY_CHECKS) {
-            var compatibility = compatibilityCheck.clusterCompatibility(featureService, state, taskType, elasticInferenceServiceModel);
+            var compatibility = compatibilityCheck.clusterCompatibility(featureService, state, elasticInferenceServiceModel);
             if (compatibility.isSupported() == false) {
                 return compatibility;
             }

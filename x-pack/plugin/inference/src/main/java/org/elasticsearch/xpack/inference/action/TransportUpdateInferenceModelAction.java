@@ -155,13 +155,6 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
                 Model existingParsedModel = service.get().parsePersistedConfig(existingUnparsedModel);
 
-                var compatibility = service.get()
-                    .checkClusterCompatibility(featureService, state, existingParsedModel.getTaskType(), existingParsedModel);
-                if (compatibility.isSupported() == false) {
-                    listener.onFailure(new ElasticsearchStatusException(compatibility.errorMessage(), RestStatus.BAD_REQUEST));
-                    return;
-                }
-
                 validateResolvedTaskType(existingParsedModel, resolvedTaskType);
 
                 var serviceName = service.get().name();
@@ -185,6 +178,12 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                 if (mergedParsedModel.equals(existingParsedModel)) {
                     // if there are no changes to the model, return early without updating
                     listener.onResponse(true);
+                    return;
+                }
+
+                var compatibility = service.get().checkClusterCompatibility(featureService, state, mergedParsedModel);
+                if (compatibility.isSupported() == false) {
+                    listener.onFailure(new ElasticsearchStatusException(compatibility.errorMessage(), RestStatus.BAD_REQUEST));
                     return;
                 }
 

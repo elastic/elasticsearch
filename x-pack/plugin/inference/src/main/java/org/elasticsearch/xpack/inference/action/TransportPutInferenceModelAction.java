@@ -252,7 +252,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         });
 
         ActionListener<Model> modelValidatingListener = existingUsesListener.delegateFailureAndWrap((delegate, model) -> {
-            var compatibility = service.checkClusterCompatibility(featureService, state, taskType, model);
+            var compatibility = service.checkClusterCompatibility(featureService, state, model);
             if (compatibility.isSupported() == false) {
                 listener.onFailure(new ElasticsearchStatusException(compatibility.errorMessage(), RestStatus.BAD_REQUEST));
                 return;

@@ -5,10 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql;
+package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -16,38 +17,31 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Builder to modify configurations on tests.
- * <p>
- *     The {@link Configuration#now()} field is actually modified, so built configurations will also differ there.
- * </p>
+ * Builder for {@link Configuration}. Use {@link #ConfigurationBuilder(Configuration)} to copy an
+ * existing configuration and override individual fields before calling {@link #build()}.
  */
 public class ConfigurationBuilder {
 
     private Instant now;
-
     private String clusterName;
     private String username;
     private ZoneId zoneId;
-
     private QueryPragmas pragmas;
-
     private int resultTruncationMaxSizeRegular;
     private int resultTruncationDefaultSizeRegular;
     private int resultTruncationMaxSizeTimeseries;
     private int resultTruncationDefaultSizeTimeseries;
-
     private Locale locale;
-
     private String query;
-
     private boolean profile;
     private boolean allowPartialResults;
     private boolean explainOnly;
-
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
-
     private String projectRouting;
+    private ApproximationSettings approximationSettings;
+    private Map<String, String> viewQueries;
+    private long grokMatcherWatchdogMs;
 
     public ConfigurationBuilder(Configuration configuration) {
         now = configuration.now();
@@ -67,6 +61,9 @@ public class ConfigurationBuilder {
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
         projectRouting = configuration.projectRouting();
+        approximationSettings = configuration.approximationSettings();
+        viewQueries = configuration.viewQueries();
+        grokMatcherWatchdogMs = configuration.grokMatcherWatchdogMs();
     }
 
     public ConfigurationBuilder now(Instant now) {
@@ -134,6 +131,11 @@ public class ConfigurationBuilder {
         return this;
     }
 
+    public ConfigurationBuilder explainOnly(boolean explainOnly) {
+        this.explainOnly = explainOnly;
+        return this;
+    }
+
     public ConfigurationBuilder tables(Map<String, Map<String, Column>> tables) {
         this.tables = tables;
         return this;
@@ -149,13 +151,23 @@ public class ConfigurationBuilder {
         return this;
     }
 
-    public ConfigurationBuilder explainOnly(boolean explainOnly) {
-        this.explainOnly = explainOnly;
+    public ConfigurationBuilder approximationSettings(ApproximationSettings approximationSettings) {
+        this.approximationSettings = approximationSettings;
+        return this;
+    }
+
+    public ConfigurationBuilder viewQueries(Map<String, String> viewQueries) {
+        this.viewQueries = viewQueries;
+        return this;
+    }
+
+    public ConfigurationBuilder grokMatcherWatchdogMs(long grokMatcherWatchdogMs) {
+        this.grokMatcherWatchdogMs = grokMatcherWatchdogMs;
         return this;
     }
 
     public Configuration build() {
-        Configuration config = new Configuration(
+        return new Configuration(
             zoneId,
             now,
             locale,
@@ -172,9 +184,10 @@ public class ConfigurationBuilder {
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
             projectRouting,
-            null,
-            Map.of()
+            approximationSettings,
+            viewQueries,
+            explainOnly,
+            grokMatcherWatchdogMs
         );
-        return explainOnly ? config.withExplainOnly() : config;
     }
 }

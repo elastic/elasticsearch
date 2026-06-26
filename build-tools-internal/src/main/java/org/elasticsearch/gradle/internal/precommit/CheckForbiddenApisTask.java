@@ -189,7 +189,9 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getSignaturesFiles() {
         if (foreignSignatureName != null) {
-            return objectFactory.fileCollection().from(signaturesFiles).from(new File(resourcesDir, "forbidden/" + foreignSignatureName + ".txt"));
+            return objectFactory.fileCollection()
+                .from(signaturesFiles)
+                .from(new File(resourcesDir, "forbidden/" + foreignSignatureName + ".txt"));
         }
         return signaturesFiles;
     }

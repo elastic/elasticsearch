@@ -23,8 +23,10 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.TargetProjects;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -168,6 +170,7 @@ public class IndexAbstractionResolver {
 
         if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
             final HashSet<String> resolvedIndices = new HashSet<>();
+            final HashMap<String, IndexAbstraction> resolvedAbstractions = new HashMap<>();
             for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                 if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                     && isIndexVisibleUnderWildcardAccess(
@@ -179,7 +182,14 @@ public class IndexAbstractionResolver {
                         indexNameExpressionResolver,
                         includeDataStreams
                     )) {
-                    resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
+                    resolveSelectorsAndCollect(
+                        authorizedIndex,
+                        selectorString,
+                        indicesOptions,
+                        resolvedIndices,
+                        resolvedAbstractions,
+                        projectMetadata
+                    );
                 }
             }
             if (resolvedIndices.isEmpty()) {
@@ -189,7 +199,13 @@ public class IndexAbstractionResolver {
                     if (indicesOptions.allowNoIndices() == false) {
                         throw new IndexNotFoundException(indexAbstraction);
                     }
-                    resolvedExpressionsBuilder.addExpressions(originalIndexExpression, new HashSet<>(), SUCCESS, remoteExpressions);
+                    resolvedExpressionsBuilder.addExpressions(
+                        originalIndexExpression,
+                        new HashSet<>(),
+                        new HashMap<>(),
+                        SUCCESS,
+                        remoteExpressions
+                    );
                 } else {
                     maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
                 }
@@ -200,12 +216,26 @@ public class IndexAbstractionResolver {
                     // No need to add itself unless it has remote expressions.
                     maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
                 } else {
-                    resolvedExpressionsBuilder.addExpressions(originalIndexExpression, resolvedIndices, SUCCESS, remoteExpressions);
+                    resolvedExpressionsBuilder.addExpressions(
+                        originalIndexExpression,
+                        resolvedIndices,
+                        resolvedAbstractions,
+                        SUCCESS,
+                        remoteExpressions
+                    );
                 }
             }
         } else {
             final HashSet<String> resolvedIndices = new HashSet<>();
-            resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
+            final HashMap<String, IndexAbstraction> resolvedAbstractions = new HashMap<>();
+            resolveSelectorsAndCollect(
+                indexAbstraction,
+                selectorString,
+                indicesOptions,
+                resolvedIndices,
+                resolvedAbstractions,
+                projectMetadata
+            );
             if (minus) {
                 resolvedExpressionsBuilder.excludeFromExpressions(resolvedIndices, remoteExpressions.isEmpty());
                 maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
@@ -222,13 +252,20 @@ public class IndexAbstractionResolver {
                             includeDataStreams
                         );
                     final LocalIndexResolutionResult result = visible ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE;
-                    resolvedExpressionsBuilder.addExpressions(originalIndexExpression, resolvedIndices, result, remoteExpressions);
+                    resolvedExpressionsBuilder.addExpressions(
+                        originalIndexExpression,
+                        resolvedIndices,
+                        resolvedAbstractions,
+                        result,
+                        remoteExpressions
+                    );
                 } else if (indicesOptions.ignoreUnavailable()) {
                     // ignoreUnavailable implies that the request should not fail if an index is not authorized
                     // so we map this expression to an empty list,
                     resolvedExpressionsBuilder.addExpressions(
                         originalIndexExpression,
                         new HashSet<>(),
+                        new HashMap<>(),
                         CONCRETE_RESOURCE_UNAUTHORIZED,
                         remoteExpressions
                     );
@@ -237,6 +274,7 @@ public class IndexAbstractionResolver {
                     resolvedExpressionsBuilder.addExpressions(
                         originalIndexExpression,
                         resolvedIndices,
+                        resolvedAbstractions,
                         CONCRETE_RESOURCE_UNAUTHORIZED,
                         remoteExpressions
                     );
@@ -260,10 +298,11 @@ public class IndexAbstractionResolver {
         String selectorString,
         IndicesOptions indicesOptions,
         Set<String> collect,
+        Map<String, IndexAbstraction> resolutions,
         ProjectMetadata projectMetadata
     ) {
+        IndexAbstraction abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
         if (indicesOptions.allowSelectors()) {
-            IndexAbstraction abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
             // We can't determine which selectors are valid for a nonexistent abstraction, so simply propagate them as if they supported
             // all of them so we don't drop anything.
             boolean acceptsAllSelectors = abstraction == null || abstraction.isDataStreamRelated();
@@ -274,11 +313,18 @@ public class IndexAbstractionResolver {
             }
 
             // A selector is always passed along as-is, it's validity for this kind of abstraction is tested later
-            collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString));
+            String key = IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString);
+            collect.add(key);
+            if (abstraction != null) {
+                resolutions.put(key, abstraction);
+            }
         } else {
             assert selectorString == null
                 : "A selector string [" + selectorString + "] is present but selectors are disabled in this context";
             collect.add(indexAbstraction);
+            if (abstraction != null) {
+                resolutions.put(indexAbstraction, abstraction);
+            }
         }
     }
 

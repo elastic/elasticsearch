@@ -188,6 +188,17 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testOrderByScoreWithSingleFragmentReturnsOnlyBest() {
+        String text = "Search is fast. Indexing is fast. Fast search powers fast results. Queries are fast.";
+        BytesRefBlock result = highlight(config("fast", 1, 0, 0, false, true), bytesRefs(List.of(List.of(text))));
+        try {
+            assertThat(result.getValueCount(0), equalTo(1));
+            assertThat(value(result, 0), equalTo("<em>Fast</em> search powers <em>fast</em> results."));
+        } finally {
+            result.close();
+        }
+    }
+
     public void testNonBytesRefFieldThrows() {
         try (
             HighlightOperator operator = new HighlightOperator(

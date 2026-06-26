@@ -131,9 +131,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             indexMaxAnalyzedOffset
         );
         this.memoryIndexAnalyzer = new LimitTokenOffsetAnalyzer(analyzer, queryMaxAnalyzedOffset.getNotNull());
-        // Ask Lucene for every passage and trim to number_of_fragments ourselves. Lucene would otherwise keep the
-        // top passages by score, which loses document order when several sentences tie. We want document order.
-        this.highlighterNumberOfFragments = Integer.MAX_VALUE - 1;
+        // For order=score, let Lucene apply a positive fragment cap directly; otherwise keep the
+        // current path that collects all passages so we can preserve document order before trimming.
+        this.highlighterNumberOfFragments = config.orderByScore() && config.numberOfFragments() > 0
+            ? config.numberOfFragments()
+            : Integer.MAX_VALUE - 1;
         this.breakIteratorSupplier = breakIterator(
             config.numberOfFragments(),
             config.fragmentSize(),

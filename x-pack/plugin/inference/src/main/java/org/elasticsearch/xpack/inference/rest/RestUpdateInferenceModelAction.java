@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -56,7 +57,9 @@ public class RestUpdateInferenceModelAction extends BaseRestHandler {
             content,
             restRequest.getXContentType(),
             taskType,
-            parseTimeout(restRequest)
+            parseTimeout(restRequest),
+            RestUtils.getMasterNodeTimeout(restRequest),
+            RestUtils.getAckTimeout(restRequest)
         );
         return channel -> client.execute(
             UpdateInferenceModelAction.INSTANCE,

@@ -67,9 +67,11 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             BytesReference content,
             XContentType contentType,
             TaskType taskType,
-            @Nullable TimeValue timeout
+            @Nullable TimeValue timeout,
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout
         ) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+            super(masterNodeTimeout, ackTimeout);
             this.inferenceEntityId = inferenceEntityId;
             this.content = content;
             this.contentType = contentType;

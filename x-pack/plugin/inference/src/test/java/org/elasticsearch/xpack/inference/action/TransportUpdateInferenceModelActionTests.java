@@ -781,7 +781,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
                 new BytesArray(requestBody),
                 XContentType.JSON,
                 TaskType.TEXT_EMBEDDING,
-                timeout
+                timeout,
+                TimeValue.timeValueSeconds(30),
+                TimeValue.timeValueSeconds(30)
             ),
             ClusterState.EMPTY_STATE,
             listener

@@ -62,7 +62,9 @@ public class UpdateInferenceModelActionRequestTests extends AbstractBWCWireSeria
             randomBytesReference(50),
             randomFrom(XContentType.values()),
             randomFrom(TaskType.values()),
-            randomFrom(randomTimeValue(), null)
+            randomFrom(randomTimeValue(), null),
+            randomTimeValue(),
+            randomTimeValue()
         );
     }
 
@@ -89,7 +91,15 @@ public class UpdateInferenceModelActionRequestTests extends AbstractBWCWireSeria
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new UpdateInferenceModelAction.Request(inferenceId, content, contentType, taskType, timeout);
+        return new UpdateInferenceModelAction.Request(
+            inferenceId,
+            content,
+            contentType,
+            taskType,
+            timeout,
+            instance.masterNodeTimeout(),
+            instance.ackTimeout()
+        );
     }
 
     @Override
@@ -107,7 +117,9 @@ public class UpdateInferenceModelActionRequestTests extends AbstractBWCWireSeria
             instance.getContent(),
             instance.getContentType(),
             instance.getTaskType(),
-            timeout
+            timeout,
+            instance.masterNodeTimeout(),
+            instance.ackTimeout()
         );
     }
 
@@ -117,7 +129,9 @@ public class UpdateInferenceModelActionRequestTests extends AbstractBWCWireSeria
             randomBytesReference(50),
             randomFrom(XContentType.values()),
             randomFrom(TaskType.values()),
-            null
+            null,
+            randomTimeValue(),
+            randomTimeValue()
         );
         assertThat(request.getTimeout(), is(TIMEOUT_NOT_DETERMINED));
     }
@@ -129,7 +143,9 @@ public class UpdateInferenceModelActionRequestTests extends AbstractBWCWireSeria
             randomBytesReference(50),
             randomFrom(XContentType.values()),
             randomFrom(TaskType.values()),
-            timeout
+            timeout,
+            randomTimeValue(),
+            randomTimeValue()
         );
         assertThat(request.getTimeout(), is(timeout));
     }
@@ -353,7 +369,9 @@ public class UpdateInferenceModelActionRequestTests extends AbstractBWCWireSeria
             new BytesArray(body),
             XContentType.JSON,
             TaskType.TEXT_EMBEDDING,
-            TimeValue.timeValueSeconds(1)
+            TimeValue.timeValueSeconds(1),
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30)
         );
     }
 }

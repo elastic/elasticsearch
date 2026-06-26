@@ -24,11 +24,12 @@ base {
   archivesName = 'esql-datasource-csv'
 }
 
-// Pin a newer Jackson than the repo-wide versions.jackson (2.15.0) for this module only, mirroring
-// libs/x-content/impl. The direct-to-block reader parses doubles straight from char ranges via
+// The direct-to-block reader parses doubles straight from char ranges via
 // NumberInput.parseDouble(char[], off, len, fastParser), an overload that only exists in jackson-core
-// 2.18+; staying on 2.15.0 would force a String allocation per double. Scoped to this module to avoid
-// a repo-wide upgrade.
+// 2.18+; the repo-wide versions.jackson (2.15.0) would force a String allocation per double. The
+// matching jackson-core/databind/annotations are supplied at runtime by the extended x-pack-esql
+// plugin (which bundles this same Jackson via libs:arrow), so only jackson-dataformat-csv is bundled
+// here; the rest is de-duplicated against the parent. This version must stay aligned with libs:arrow.
 String jacksonVersion = "2.21.2"
 
 dependencies {

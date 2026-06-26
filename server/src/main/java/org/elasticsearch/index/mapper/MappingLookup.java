@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,6 +57,8 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final Set<String> syntheticVectorFields;
+    private final Set<FieldMapper> indexDimensionFieldMappers;
+    private final Set<FieldMapper> indexMetricFieldMappers;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
@@ -186,6 +189,8 @@ public final class MappingLookup {
 
         final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
         final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
+        final Set<FieldMapper> dimensionMappers = new LinkedHashSet<>();
+        final Set<FieldMapper> metricMappers = new LinkedHashSet<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.fullPath())) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
@@ -196,6 +201,13 @@ public final class MappingLookup {
             indexAnalyzers.putAll(mapper.indexAnalyzers());
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
+            }
+            MappedFieldType fieldType = mapper.fieldType();
+            if (fieldType.isDimension()) {
+                dimensionMappers.add(mapper);
+            }
+            if (fieldType.getMetricType() != null) {
+                metricMappers.add(mapper);
             }
         }
 
@@ -240,6 +252,8 @@ public final class MappingLookup {
         }
         // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);
+        this.indexDimensionFieldMappers = Collections.unmodifiableSet(dimensionMappers);
+        this.indexMetricFieldMappers = Collections.unmodifiableSet(metricMappers);
         this.objectMappers = Map.copyOf(objects);
         this.runtimeFieldMappersCount = runtimeFields.size();
         this.indexAnalyzers = Map.copyOf(indexAnalyzers);
@@ -324,6 +338,43 @@ public final class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
+    }
+
+    /**
+     * Returns the full path of the first field whose {@code _source} cannot be reconstructed from doc-value columns —
+     * i.e. whose {@link FieldMapper.SyntheticSourceMode} is {@link FieldMapper.SyntheticSourceMode#FALLBACK} — or
+     * {@code null} if every field is reconstructable. Columnar index modes rebuild {@code _source} purely from
+     * doc-value columns and never keep a generic source fallback, so a fallback field (no doc values, or a type whose
+     * doc-value encoding cannot rebuild its own source) has no columnar representation. The check covers every field
+     * mapper, including those nested inside object and nested fields, since {@link #fieldMappers()} is the flattened set
+     * of all field mappers by full path. Metadata fields are exempt (reconstructed by their own machinery) and so are
+     * multi-fields (alternate indexings of their parent that never appear in {@code _source}).
+     */
+    @Nullable
+    public String firstFieldNotReconstructableFromDocValues() {
+        for (Mapper mapper : fieldMappers()) {
+            if (mapper instanceof FieldMapper fieldMapper
+                && mapper instanceof MetadataFieldMapper == false
+                && isMultiField(fieldMapper.fullPath()) == false
+                && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
+                return fieldMapper.fullPath();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the set of field mappers marked as time-series dimensions, in insertion order.
+     */
+    public Set<FieldMapper> indexDimensionFieldMappers() {
+        return indexDimensionFieldMappers;
+    }
+
+    /**
+     * Returns the set of field mappers that carry a time-series metric type, in insertion order.
+     */
+    public Set<FieldMapper> indexMetricFieldMappers() {
+        return indexMetricFieldMappers;
     }
 
     void checkLimits(IndexSettings settings) {

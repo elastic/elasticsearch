@@ -656,6 +656,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             metadataContainsReplicatedRanges.set(blobStoreCacheDirectory.metadataContainsReplicatedRanges());
         });
 
+        // Block until warming completes so that the recovery thread's engine.refresh("unhollowing") cannot race
+        // a concurrent cache fill against the warming tasks, which would leave the prewarmed bytes metric at zero.
+        getSharedBlobCacheWarmingService(indexNodeB).setAwaitWarmingForIndexingRecovery(true);
+
         // Trigger unhollowing
         final int moreDocs = randomIntBetween(6, 10);
         logger.info("--> ingesting {} more docs to unhollow the shard", moreDocs);
@@ -1416,7 +1420,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             Settings settings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
-            ClusterService clusterService
+            ClusterService clusterService,
+            IndicesService indicesService
         ) {
             MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService maybeNoFreeRegionForWarmingBlobCacheService =
                 new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(
@@ -1424,7 +1429,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     settings,
                     threadPool,
                     blobCacheMetrics,
-                    clusterService
+                    clusterService,
+                    indicesService
                 );
             maybeNoFreeRegionForWarmingBlobCacheService.assertInvariants();
             return maybeNoFreeRegionForWarmingBlobCacheService;
@@ -1439,7 +1445,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             Settings settings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
-            ClusterService clusterService
+            ClusterService clusterService,
+            IndicesService indicesService
         ) {
             super(
                 environment,
@@ -1447,6 +1454,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 threadPool,
                 blobCacheMetrics,
                 clusterService,
+                indicesService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
         }

@@ -123,11 +123,13 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -460,6 +462,8 @@ public class SnapshotResiliencyTestHelper {
 
             protected IndicesService indicesService;
 
+            protected ThrottlingRecoveryService throttlingRecoveryService;
+
             protected PeerRecoveryTargetService peerRecoveryTargetService;
 
             private IndicesClusterStateService indicesClusterStateService;
@@ -646,6 +650,12 @@ public class SnapshotResiliencyTestHelper {
                 );
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
 
+                throttlingRecoveryService = new ThrottlingRecoveryService(
+                    threadPool,
+                    clusterService,
+                    new CompositeRecoverySchedulingListener()
+                );
+
                 indicesService = new IndicesServiceBuilder().settings(settings)
                     .pluginsService(pluginsService)
                     .nodeEnvironment(nodeEnv)
@@ -678,6 +688,7 @@ public class SnapshotResiliencyTestHelper {
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .mergeMetrics(MergeMetrics.NOOP)
+                    .throttlingRecoveryService(throttlingRecoveryService)
                     .build();
 
                 this.searchService = new SearchService(
@@ -764,7 +775,7 @@ public class SnapshotResiliencyTestHelper {
                     clusterService,
                     recoverySettings,
                     PeerOnlyRecoveryPlannerService.INSTANCE,
-                    RecoveryMetricsCollector.NOOP
+                    new CompositeRecoverySchedulingListener()
                 );
 
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -1258,6 +1269,7 @@ public class SnapshotResiliencyTestHelper {
                 indicesService.close();
                 clusterService.close();
                 nodeConnectionsService.stop();
+                throttlingRecoveryService.close();
                 indicesClusterStateService.close();
                 peerRecoverySourceService.stop();
                 if (coordinator != null) {

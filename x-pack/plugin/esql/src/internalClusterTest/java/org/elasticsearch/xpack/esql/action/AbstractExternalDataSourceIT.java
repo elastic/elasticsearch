@@ -1,0 +1,356 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.apache.parquet.conf.PlainParquetConfiguration;
+import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.MessageTypeParser;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.junit.After;
+import org.junit.Before;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.function.ObjIntConsumer;
+import java.util.zip.GZIPOutputStream;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+
+/**
+ * Shared base for {@code FROM <dataset>} external-datasource integration tests.
+ *
+ * <p>Each subclass registers a {@code test}-type data source plus one or more datasets (each pointing at a
+ * local or remote resource), then queries them with {@code FROM <name>}. The dataset's format reader is
+ * selected by the resource's file extension — the dataset model exposes no {@code reader}/{@code format}
+ * selector — so registering with no {@code format} setting keeps the same extension-driven reader and
+ * compression-codec resolution the legacy {@code EXTERNAL} command used.
+ *
+ * <p>Centralizes the boilerplate that every such test used to copy by hand:
+ * <ul>
+ *   <li>the {@link EsqlEnterpriseWithDatasourceExtensions} plugin that re-enables SPI extension
+ *       loading (so the data-source plugins added in {@link #formatPlugins()} are discovered);</li>
+ *   <li>a pass-through {@link TestDataSourcePlugin} (type {@code test}) so dataset/data-source
+ *       registration accepts arbitrary resource schemes (e.g. {@code file://}) in tests;</li>
+ *   <li>{@link #registerDataSource}/{@link #registerDataset} helpers that record what they create
+ *       and tear it down in {@link #cleanupRegistry()} (best-effort), so tests do not hand-roll the
+ *       PUT/DELETE request plumbing or the {@code @After} cleanup;</li>
+ *   <li>shared fixture writers ({@link #createOutputFile}, {@link #writeParquet}, {@link #writeGzipped}).</li>
+ * </ul>
+ *
+ * <p>The wiring mirrors the known-good configuration of {@code FromDatasetIT} /
+ * {@code AbstractExternalMetadataMatrixIT}: extensions are re-enabled and {@code TestDataSourcePlugin} is
+ * supplied as a node plugin (a single discovery path), so {@code EsqlPlugin}'s duplicate-validator guard
+ * never trips.
+ *
+ * <p>A single {@link #requireFeatureFlag()} {@code @Before} gates every subclass on the external-datasources
+ * feature flag (which also gates {@code FROM <dataset>} resolution), so subclasses do not repeat the assume.
+ *
+ * <p>Pinned to a single node ({@code numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false}),
+ * matching {@code FromDatasetIT} / {@code AbstractExternalMetadataMatrixIT}. This is a <em>temporary</em>
+ * workaround for a bug on {@code main}: {@code ProjectMetadataDiff.apply} reuses the previous indices lookup
+ * when indices/data streams/views are unchanged but ignores {@code DatasetMetadata}, so a cluster-state diff
+ * that only registers/removes a dataset — which is exactly what a {@code FROM <dataset>} query does — leaves a
+ * stale lookup and trips {@code assertIndicesLookupDoesNotNeedToBeRebuilt} ("expected not to have to rebuild the
+ * indices lookup ... added keys: [&lt;dataset&gt;]") on the non-master nodes applying the diff. With a single
+ * node there is no separate diff-applying node, so the assertion never fires. Subclasses that pin their query to
+ * a coordinator (via a {@code run()} override on {@code internalCluster().getMasterName()}) are unaffected — the
+ * single node is both master and data node. This annotation is inherited by subclasses that do not declare their
+ * own {@code @ClusterScope}.
+ *
+ * <p>Does not override {@code getPragmas()} — that varies per concrete test, so subclasses keep their own.
+ */
+// TODO: revert this single-node pinning (here and on the subclasses that redeclare @ClusterScope) once
+// elastic/elasticsearch#152144 (rebuild indices lookup when a cluster-state diff changes datasets) is merged,
+// so the suite regains multi-node coverage of the FROM <dataset> path.
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTestCase {
+
+    protected static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    /** Default data-source name used by the {@link #registerDataset(String, String, Map)} convenience. */
+    private static final String SHARED_TEST_DATA_SOURCE = "test_ds";
+
+    private final Set<String> registeredDatasets = new LinkedHashSet<>();
+    private final Set<String> registeredDataSources = new LinkedHashSet<>();
+
+    /**
+     * {@link EsqlPluginWithEnterpriseOrTrialLicense} overrides {@link ExtensiblePlugin#loadExtensions}
+     * with a no-op to avoid clashing with {@code EsqlPlugin}'s SPI discoverer; re-delegating to
+     * {@code super} lets {@code MockPluginsService} aggregate the data-source SPI implementations so
+     * the format readers / storage providers added via {@link #formatPlugins()} are discovered.
+     */
+    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
+        @Override
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            super.loadExtensions(loader);
+        }
+    }
+
+    /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
+    public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
+        @Override
+        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+            return Map.of("test", new TestValidator());
+        }
+    }
+
+    private static final class TestValidator implements DataSourceValidator {
+        @Override
+        public String type() {
+            return "test";
+        }
+
+        @Override
+        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+            Map<String, DataSourceSetting> out = new HashMap<>();
+            for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
+                out.put(e.getKey(), new DataSourceSetting(e.getValue(), e.getKey().startsWith("secret_")));
+            }
+            return out;
+        }
+
+        @Override
+        public Map<String, Object> validateDataset(
+            Map<String, DataSourceSetting> datasourceSettings,
+            String resource,
+            Map<String, Object> datasetSettings
+        ) {
+            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
+        }
+    }
+
+    /** Reader plugin(s) backing the format(s) under test, registered as node plugins for SPI discovery. */
+    protected abstract Collection<Class<? extends Plugin>> formatPlugins();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
+        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
+        plugins.add(HttpDataSourcePlugin.class);
+        plugins.add(TestDataSourcePlugin.class);
+        plugins.addAll(formatPlugins());
+        return plugins;
+    }
+
+    /**
+     * Gates every subclass on the external-datasources feature flag, which also gates {@code FROM <dataset>}
+     * resolution. Mirrors {@code FromDatasetIT.requireFeatureFlag}, so subclasses no longer repeat the assume.
+     */
+    @Before
+    public void requireFeatureFlag() {
+        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Data-source / dataset registration helpers (auto-cleaned in cleanupRegistry()).
+    // ---------------------------------------------------------------------------------------------
+
+    /** Registers a {@code test}-type data source and records it for teardown. */
+    protected void registerDataSource(String name, Map<String, Object> settings) {
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings))
+            )
+        );
+        registeredDataSources.add(name);
+    }
+
+    /** Registers a dataset against an existing data source and records it for teardown. */
+    protected void registerDataset(String name, String dataSource, String resourceUri, Map<String, Object> settings) {
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resourceUri, null, new HashMap<>(settings))
+            )
+        );
+        registeredDatasets.add(name);
+    }
+
+    /**
+     * Convenience: lazily ensure a shared {@code test} data source ({@value #SHARED_TEST_DATA_SOURCE})
+     * exists, then register {@code name} against it. Returns the dataset name for chaining.
+     */
+    protected String registerDataset(String name, String resourceUri, Map<String, Object> settings) {
+        if (registeredDataSources.contains(SHARED_TEST_DATA_SOURCE) == false) {
+            registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
+        }
+        registerDataset(name, SHARED_TEST_DATA_SOURCE, resourceUri, settings);
+        return name;
+    }
+
+    @After
+    public void cleanupRegistry() {
+        for (String dataset : registeredDatasets) {
+            try {
+                client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { dataset }))
+                    .get(30, TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted
+            } catch (Exception e) {
+                logger.warn("dataset cleanup [{}] failed", dataset, e);
+            }
+        }
+        for (String dataSource : registeredDataSources) {
+            try {
+                client().execute(
+                    DeleteDataSourceAction.INSTANCE,
+                    new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { dataSource })
+                ).get(30, TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted
+            } catch (Exception e) {
+                logger.warn("data source cleanup [{}] failed", dataSource, e);
+            }
+        }
+        registeredDatasets.clear();
+        registeredDataSources.clear();
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Shared fixture writers.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Writes a Parquet fixture for the given Parquet schema, filling each of {@code rowCount} rows via
+     * {@code filler} (which receives the {@link Group} to populate and the 0-based row index). Uses an
+     * in-memory {@link #createOutputFile} and the uncompressed codec.
+     */
+    protected static Path writeParquet(Path target, String schemaText, int rowCount, int rowGroupSize, ObjIntConsumer<Group> filler)
+        throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType(schemaText);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(baos);
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(rowGroupSize)
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                Group g = factory.newGroup();
+                filler.accept(g, i);
+                writer.write(g);
+            }
+        }
+
+        Files.write(target, baos.toByteArray());
+        return target;
+    }
+
+    /**
+     * Convenience overload for the canonical {@code {id:int64, name:binary(UTF8), value:int32}} fixture:
+     * row {@code i} carries {@code id=i}, {@code name="row_"+i}, {@code value=i*10}.
+     */
+    protected static Path writeParquet(Path target, int rowCount, int rowGroupSize) throws IOException {
+        return writeParquet(
+            target,
+            "message test { required int64 id; required binary name (UTF8); required int32 value; }",
+            rowCount,
+            rowGroupSize,
+            (g, i) -> {
+                g.add("id", (long) i);
+                g.add("name", "row_" + i);
+                g.add("value", i * 10);
+            }
+        );
+    }
+
+    /** Writes {@code content} to {@code target} through a {@link GZIPOutputStream}. */
+    protected static Path writeGzipped(Path target, String content) throws IOException {
+        try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /**
+     * An in-memory Parquet {@link OutputFile} backed by {@code baos}. Parquet needs random-access-ish
+     * position tracking on write; this minimal implementation reports the running byte position.
+     */
+    protected static OutputFile createOutputFile(ByteArrayOutputStream baos) {
+        return new OutputFile() {
+            @Override
+            public PositionOutputStream create(long blockSizeHint) {
+                return new PositionOutputStream() {
+                    private long position = 0;
+
+                    @Override
+                    public long getPos() {
+                        return position;
+                    }
+
+                    @Override
+                    public void write(int b) throws IOException {
+                        baos.write(b);
+                        position++;
+                    }
+
+                    @Override
+                    public void write(byte[] b, int off, int len) throws IOException {
+                        baos.write(b, off, len);
+                        position += len;
+                    }
+                };
+            }
+
+            @Override
+            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
+                return create(blockSizeHint);
+            }
+
+            @Override
+            public boolean supportsBlockSize() {
+                return false;
+            }
+
+            @Override
+            public long defaultBlockSize() {
+                return 0;
+            }
+        };
+    }
+}

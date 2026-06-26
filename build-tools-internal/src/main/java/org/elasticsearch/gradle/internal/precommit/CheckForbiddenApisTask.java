@@ -106,7 +106,7 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     private boolean ignoreFailures = false;
     private boolean ignoreMissingClasses = false;
     private Provider<RegularFile> foreignApiJar;
-    private File foreignSignatureFile;
+    private String foreignSignatureName;
 
     @Input
     @Optional
@@ -188,8 +188,8 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getSignaturesFiles() {
-        if (foreignSignatureFile != null) {
-            return objectFactory.fileCollection().from(signaturesFiles).from(foreignSignatureFile);
+        if (foreignSignatureName != null) {
+            return objectFactory.fileCollection().from(signaturesFiles).from(new File(resourcesDir, "forbidden/" + foreignSignatureName + ".txt"));
         }
         return signaturesFiles;
     }
@@ -244,10 +244,10 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
      */
     public void checkForeignApiUsage(Provider<RegularFile> jarFile, int targetVersion) {
         if (targetVersion == 21) {
-            this.foreignSignatureFile = new File(resourcesDir, "forbidden/jdk-foreign-signatures.txt");
+            this.foreignSignatureName = "jdk-foreign-signatures";
             this.foreignApiJar = jarFile;
         } else {
-            this.foreignSignatureFile = new File(resourcesDir, "forbidden/jdk-foreign-signatures22.txt");
+            this.foreignSignatureName = "jdk-foreign-signatures22";
         }
     }
 

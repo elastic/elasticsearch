@@ -14,8 +14,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
@@ -34,8 +35,10 @@ import static org.elasticsearch.xpack.inference.services.elastic.completion.Elas
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class ElasticInferenceServiceChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<
+public class ElasticInferenceServiceChatCompletionTaskSettingsTests extends AbstractBWCSerializationTestCase<
     ElasticInferenceServiceChatCompletionTaskSettings> {
+
+    private final boolean supportsUnknownFields = randomBoolean();
 
     private static final String UNKNOWN_TOP_LEVEL_FIELD = "unknown_field";
     private static final Map<String, Object> REASONING_TOP_LEVEL_UNKNOWN_FIELD_MAP = Map.of(
@@ -244,5 +247,17 @@ public class ElasticInferenceServiceChatCompletionTaskSettingsTests extends Abst
             return new ElasticInferenceServiceChatCompletionTaskSettings((Reasoning) null);
         }
         return new ElasticInferenceServiceChatCompletionTaskSettings(randomReasoning());
+    }
+
+    @Override
+    protected ElasticInferenceServiceChatCompletionTaskSettings doParseInstance(XContentParser parser) throws IOException {
+        return ElasticInferenceServiceChatCompletionTaskSettings.createParser(supportsUnknownFields)
+            .apply(parser, supportsUnknownFields ? ConfigurationParseContext.PERSISTENT : ConfigurationParseContext.REQUEST)
+            .build(TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return supportsUnknownFields;
     }
 }

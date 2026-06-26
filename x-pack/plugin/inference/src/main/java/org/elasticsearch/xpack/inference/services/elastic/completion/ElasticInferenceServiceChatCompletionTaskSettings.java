@@ -223,14 +223,14 @@ public class ElasticInferenceServiceChatCompletionTaskSettings implements TaskSe
         }
     }
 
-    private static class Builder {
+    static class Builder {
         private Reasoning reasoning;
 
         private void setReasoning(Reasoning reasoning) {
             this.reasoning = reasoning;
         }
 
-        private ElasticInferenceServiceChatCompletionTaskSettings build(TaskType taskType) {
+        ElasticInferenceServiceChatCompletionTaskSettings build(TaskType taskType) {
             validateReasoning(taskType);
             return new ElasticInferenceServiceChatCompletionTaskSettings(reasoning);
         }

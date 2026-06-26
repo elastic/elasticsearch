@@ -86,8 +86,6 @@ public class KnnIndexer {
     private final MergePolicy mergePolicy;
     private final double writerBufferSizeInMb;
     private final int writerMaxBufferedDocs;
-    private final int numDeletedDocs;
-    private final long deleteSeed;
 
     KnnIndexer(
         List<Path> docsPath,
@@ -101,9 +99,7 @@ public class KnnIndexer {
         int numDocs,
         MergePolicy mergePolicy,
         double writerBufferSizeInMb,
-        int writerMaxBufferedDocs,
-        int numDeletedDocs,
-        long deleteSeed
+        int writerMaxBufferedDocs
     ) {
         this.docsPath = docsPath;
         this.indexPath = indexPath;
@@ -117,8 +113,6 @@ public class KnnIndexer {
         this.mergePolicy = mergePolicy;
         this.writerBufferSizeInMb = writerBufferSizeInMb;
         this.writerMaxBufferedDocs = writerMaxBufferedDocs;
-        this.numDeletedDocs = numDeletedDocs;
-        this.deleteSeed = deleteSeed;
     }
 
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
@@ -205,10 +199,10 @@ public class KnnIndexer {
         logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), totalDocs);
         result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
         result.numDocs = totalDocs;
-        result.numDeletedDocs = numDeletedDocs;
     }
 
-    void deleteDocuments(Directory dir, int totalDocs, int numDeletedDocs, long deleteSeed) throws IOException {
+    void deleteDocuments(Directory dir, KnnIndexTester.Results result, int totalDocs, int numDeletedDocs, long deleteSeed)
+        throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig();
         iwc.setCodec(codec);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -228,12 +222,13 @@ public class KnnIndexer {
                 iw.deleteDocuments(new Term(ID_FIELD, Integer.toString(docIds[i])));
             }
             logger.info("KnnIndexer: deleted {} of {} documents (delete_seed={})", numDeletedDocs, totalDocs, deleteSeed);
+            result.numDeletedDocs = numDeletedDocs;
         }
     }
 
-    void deleteDocuments(int totalDocs, int numDeletedDocs, long deleteSeed) throws IOException {
+    void deleteDocuments(KnnIndexTester.Results result, int totalDocs, int numDeletedDocs, long deleteSeed) throws IOException {
         try (Directory dir = getDirectory(indexPath)) {
-            deleteDocuments(dir, totalDocs, numDeletedDocs, deleteSeed);
+            deleteDocuments(dir, result, totalDocs, numDeletedDocs, deleteSeed);
         }
     }
 

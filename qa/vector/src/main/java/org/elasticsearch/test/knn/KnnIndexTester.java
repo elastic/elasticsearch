@@ -499,9 +499,7 @@ public class KnnIndexTester {
                     testConfiguration.numDocs(),
                     mergePolicy,
                     testConfiguration.writerBufferSizeInMb(),
-                    testConfiguration.writerMaxBufferedDocs(),
-                    testConfiguration.numDeletedDocs(),
-                    testConfiguration.deleteSeed()
+                    testConfiguration.writerMaxBufferedDocs()
                 );
                 if (testConfiguration.reindex()) {
                     Directory writeDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
@@ -526,7 +524,7 @@ public class KnnIndexTester {
                     forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration, dataGenerator.getIndexSort());
                 }
                 if (testConfiguration.numDeletedDocs() > 0) {
-                    deleteDocuments(knnIndexer, sharedDir, testConfiguration);
+                    deleteDocuments(knnIndexer, indexResults, sharedDir, testConfiguration);
                 }
             }
             numSegments(indexPath, indexResults, sharedDir);
@@ -569,16 +567,23 @@ public class KnnIndexTester {
         }
     }
 
-    static void deleteDocuments(KnnIndexer knnIndexer, Directory sharedDir, TestConfiguration testConfiguration) throws Exception {
+    static void deleteDocuments(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir, TestConfiguration testConfiguration)
+        throws Exception {
         if (sharedDir != null) {
             knnIndexer.deleteDocuments(
                 sharedDir,
+                indexResults,
                 testConfiguration.numDocs(),
                 testConfiguration.numDeletedDocs(),
                 testConfiguration.deleteSeed()
             );
         } else {
-            knnIndexer.deleteDocuments(testConfiguration.numDocs(), testConfiguration.numDeletedDocs(), testConfiguration.deleteSeed());
+            knnIndexer.deleteDocuments(
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
         }
     }
 

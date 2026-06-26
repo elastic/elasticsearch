@@ -502,6 +502,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private final List<IndexCaps> indicesList;
         private final Map<String, Set<String>> meta;
         private int totalIndices;
+        private TransportVersion minTransportVersion;
 
         Builder(String name, String type) {
             this.name = name;
@@ -510,6 +511,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.hasConflictMetricType = false;
             this.indicesList = new ArrayList<>();
             this.meta = new HashMap<>();
+            this.minTransportVersion = TransportVersion.current();
         }
 
         private boolean assertIndicesSorted(String[] indices) {
@@ -523,6 +525,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                     : "indices aren't sorted; previous [" + lastIndex + "], current [" + indices[0] + "]";
             }
             return true;
+        }
+
+        void setMinTransportVersion(TransportVersion minTransportVersion) {
+            this.minTransportVersion = minTransportVersion;
         }
 
         /**

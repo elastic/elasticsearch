@@ -1445,11 +1445,7 @@ public class EsqlSession {
         Set<String> scope = new LinkedHashSet<>();
         plan.forEachUp(LookupJoin.class, lj -> {
             if (lj.right() instanceof UnresolvedRelation ur && ur.indexPattern().indexPattern().equals(lookupPattern)) {
-                LogicalPlan current = lj.left();
-                while (current instanceof LookupJoin nested) {
-                    current = nested.left();
-                }
-                current.forEachDown(UnresolvedRelation.class, source -> {
+                lj.left().forEachDown(UnresolvedRelation.class, source -> {
                     IndexResolution resolution = indexResolution.get(source.indexPattern());
                     if (resolution != null && resolution.isValid()) {
                         scope.addAll(resolution.get().originalIndices().keySet());

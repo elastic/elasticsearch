@@ -12,6 +12,8 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -181,6 +183,39 @@ public class EsqlSessionTests extends ESTestCase {
                 """);
             var resolution = createIndexResolution("remote-1:data", "remote-2:data");
             assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote-1", "remote-2")));
+        }
+    }
+
+    public void testComputeLookupJoinIndexScopeWhereInSubquery() {
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        {
+            // LOOKUP JOIN inside IN subquery on a local index
+            var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("FROM main | WHERE x IN (FROM sub | LOOKUP JOIN lookup ON x)"));
+            var resolution = createIndexResolution("main", "sub");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            // LOOKUP JOIN inside IN subquery on a remote index
+            var plan = InSubqueryResolver.resolve(
+                TEST_PARSER.parseQuery("FROM main | WHERE x IN (FROM remote:sub | LOOKUP JOIN lookup ON x)")
+            );
+            var resolution = createIndexResolution("main", "remote:sub");
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote")));
+        }
+        {
+            // LOOKUP JOIN at top level AND inside IN subquery — scope is the union of both sources
+            var plan = InSubqueryResolver.resolve(
+                TEST_PARSER.parseQuery("FROM main | LOOKUP JOIN lookup ON x | WHERE x IN (FROM remote:sub | LOOKUP JOIN lookup ON x)")
+            );
+            var resolution = createIndexResolution("main", "remote:sub");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote"))
+            );
         }
     }
 

@@ -60,7 +60,7 @@ public final class SlowCustomBinaryDocValuesPrefixQuery extends AbstractBinaryDo
     @Override
     public String toString(String field) {
         return "SlowCustomBinaryDocValuesPrefixQuery(fieldName="
-            + field
+            + fieldName
             + ",prefix="
             + prefix
             + ",caseInsensitive="

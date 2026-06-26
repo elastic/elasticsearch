@@ -17,7 +17,7 @@ import org.junit.rules.TestRule;
  * Runs the shared {@link AbstractTracesIT} test suite against the OTel SDK export path.
  *
  * Activated by setting the JVM system property {@code telemetry.otel.traces.enabled=true}.
- * Spans are exported via {@code SdkTracerProvider} + OTLP HTTP, bypassing the Elastic APM
+ * Spans are exported via {@code SdkTracerProvider} + OTLP/gRPC, bypassing the Elastic APM
  * Java agent. Child-span filtering is enforced by ES code in {@code APMTracer} when
  * {@code telemetry.tracing.max_depth=0} (the default). Exception-stack suppression
  * is enforced by the same code when {@code telemetry.tracing.record_exception_stacks=false}
@@ -32,7 +32,7 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     public static ElasticsearchCluster cluster = baseTracesClusterBuilder().systemProperty("telemetry.otel.traces.enabled", "true")
-        .setting("telemetry.export.endpoint", () -> "http://" + recordingApmServer.getHttpAddress())
+        .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .setting("telemetry.tracing.sample_rate", "1.0")
         // Mirrors the three labels ServerlessServerCli writes via telemetry.agent.global_labels.* on the APM-agent path,
         // bridged here to the OTel resource via the telemetry.resource.* affix.

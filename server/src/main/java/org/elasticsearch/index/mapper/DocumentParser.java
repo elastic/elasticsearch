@@ -52,6 +52,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB;
 
 /**
  * A parser for documents
@@ -243,7 +244,7 @@ public final class DocumentParser {
     }
 
     private static Mapper.SourceKeepMode getSourceKeepMode(DocumentParserContext context, Optional<Mapper.SourceKeepMode> mapperMode) {
-        return mapperMode.orElseGet(context::sourceKeepModeFromIndexSettings);
+        return mapperMode.isPresent() ? mapperMode.get() : context.sourceKeepModeFromIndexSettings();
     }
 
     private static void throwNotAtEnd(XContentParser.Token token) {
@@ -295,6 +296,14 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
+        parseObjectOrNested(context, null);
+    }
+
+    /**
+     * Parse an object from the current token, prepending {@code flatParentName + "."} to every
+     * immediate child field name. Pass {@code null} when no prefix is needed.
+     */
+    private static void parseObjectOrNested(DocumentParserContext context, String flatParentName) throws IOException {
         XContentParser parser = context.parser();
         String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
@@ -353,7 +362,7 @@ public final class DocumentParser {
             parser.nextToken();
         }
 
-        innerParseObject(context);
+        innerParseObject(context, flatParentName == null ? null : flatParentName.concat("."));
         // restore the enable path flag
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());
@@ -371,8 +380,8 @@ public final class DocumentParser {
         );
     }
 
-    private static void innerParseObject(DocumentParserContext context) throws IOException {
-
+    private static void innerParseObject(DocumentParserContext context, String flatPrefix) throws IOException {
+        assert flatPrefix == null || flatPrefix.length() > 1 && flatPrefix.endsWith(".");
         final XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
@@ -383,7 +392,7 @@ public final class DocumentParser {
             }
             switch (token) {
                 case FIELD_NAME:
-                    currentFieldName = parser.currentName();
+                    currentFieldName = flatPrefix != null ? flatPrefix.concat(parser.currentName()) : parser.currentName();
                     if (currentFieldName.isEmpty()) {
                         throw new IllegalArgumentException("Field name cannot be an empty string");
                     }
@@ -473,10 +482,9 @@ public final class DocumentParser {
             parseObjectOrNested(context.createChildContext(objectMapper));
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (shouldFlattenObject(context, fieldMapper)) {
-                // we pass the mapper's simpleName as parentName to the new DocumentParserContext
                 String currentFieldName = fieldMapper.leafName();
                 context.path().remove();
-                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                parseObjectOrNested(context, currentFieldName);
                 context.path().add(currentFieldName);
             } else {
                 var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
@@ -552,7 +560,7 @@ public final class DocumentParser {
             final ObjectMapper parent = context.parent();
             boolean subobjectsDisabled = parent.subobjects() == ObjectMapper.Subobjects.DISABLED;
             if (subobjectsDisabled && parent.hasMappedFieldsWithPrefix(currentFieldName)) {
-                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                parseObjectOrNested(context, currentFieldName);
             } else {
                 parseObjectDynamic(context, currentFieldName);
             }
@@ -622,10 +630,9 @@ public final class DocumentParser {
                     );
                 }
                 if (dynamicObjectBuilder == null || dynamicObjectBuilder instanceof ObjectMapper.Builder) {
-                    // We have an ObjectMapper builder (or a RUNTIME no-op) but subobjects are disallowed
-                    // therefore we create a new DocumentParserContext that
-                    // prepends currentFieldName to any immediate children.
-                    parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                    // We have an ObjectMapper builder (or a RUNTIME no-op) but subobjects are disallowed;
+                    // parse children with currentFieldName prepended to their field names.
+                    parseObjectOrNested(context, currentFieldName);
                     return;
                 }
 
@@ -846,7 +853,10 @@ public final class DocumentParser {
      */
     private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName, int arraySize) {
         // cheap/free early return checks
-        if (arraySize < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+        final int minDims = context.indexSettings().getMode() == IndexMode.VECTORDB_DOCUMENT
+            ? MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB
+            : MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+        if (arraySize < minDims
             || arraySize > MAX_DIMS_COUNT
             || context.indexSettings().getIndexVersionCreated().before(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
             return;
@@ -996,7 +1006,7 @@ public final class DocumentParser {
             }
             assert targetDoc != null;
             final DocumentParserContext copyToContext = context.createCopyToContext(field, targetDoc);
-            innerParseObject(copyToContext);
+            innerParseObject(copyToContext, null);
             context.markFieldAsCopyTo(field);
         }
     }

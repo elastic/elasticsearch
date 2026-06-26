@@ -929,7 +929,7 @@ class NodeConstruction {
 
         final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
-            threadPool.generic(),
+            threadPool,
             clusterService,
             recoverySchedulingListeners
         );
@@ -1080,7 +1080,8 @@ class NodeConstruction {
             remoteTransportClient,
             crossProjectModeDecider,
             taskLifecycleManager,
-            dlmErrorStore
+            dlmErrorStore,
+            ipLocationService
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1118,7 +1119,8 @@ class NodeConstruction {
             indexingLimits,
             telemetryProvider.getMeterRegistry(),
             taskManager,
-            threadPool
+            threadPool,
+            clusterService.getClusterSettings()
         );
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);

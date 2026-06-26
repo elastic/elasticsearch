@@ -16,8 +16,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -47,9 +47,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     public static final int DEFAULT_PRECISION = 14;
 
-    private final BitArray algorithm;
+    private final BigArrays bigArrays;
     private final CircuitBreaker breaker;
-    private final HyperLogLog hll;
+    private LongArray hllBuckets;
+    final HyperLogLog hll;
     private final LinearCounting lc;
 
     /**
@@ -87,24 +88,25 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     public HyperLogLogPlusPlus(int precision, BigArrays bigArrays, CircuitBreaker breaker, long initialBucketCount) {
         super(precision);
         // TODO if initialBucketCount is > 0 we allocate dense arrays for each one.
+        this.bigArrays = bigArrays;
         this.breaker = breaker;
         HyperLogLog hll = null;
         LinearCounting lc = null;
-        BitArray algorithm = null;
+        LongArray hllBuckets = null;
         boolean success = false;
         try {
             hll = new HyperLogLog(bigArrays, initialBucketCount, precision);
             lc = new LinearCounting(bigArrays, breaker, initialBucketCount, precision);
-            algorithm = new BitArray(1, bigArrays);
+            hllBuckets = bigArrays.newLongArray(1);
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(hll, lc, algorithm);
+                Releasables.close(hll, lc, hllBuckets);
             }
         }
         this.hll = hll;
         this.lc = lc;
-        this.algorithm = algorithm;
+        this.hllBuckets = hllBuckets;
     }
 
     public long maxOrd() {
@@ -113,16 +115,17 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     public long cardinality(long bucketOrd) {
-        if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
-            return lc.cardinality(bucketOrd);
+        final long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) : 0;
+        if (hllBucket > 0) {
+            return hll.cardinality(hllBucket - 1);
         } else {
-            return hll.cardinality(bucketOrd);
+            return lc.cardinality(bucketOrd);
         }
     }
 
     @Override
     protected boolean getAlgorithm(long bucketOrd) {
-        return algorithm.get(bucketOrd);
+        return bucketOrd < hllBuckets.size() && hllBuckets.get(bucketOrd) > 0;
     }
 
     @Override
@@ -132,39 +135,45 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     protected AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
-        return hll.getRunLens(bucketOrd);
+        return hll.getRunLens(hllBuckets.get(bucketOrd) - 1);
     }
 
     @Override
     public void collect(long bucket, long hash) {
-        if (algorithm.get(bucket) == LINEAR_COUNTING) {
+        final long hllBucket = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0;
+        if (hllBucket > 0) {
+            hll.collect(hllBucket - 1, hash);
+        } else {
             final int newSize = lc.collect(bucket, hash);
             if (newSize > lc.threshold) {
                 upgradeToHll(bucket);
             }
-        } else {
-            hll.ensureCapacity(bucket + 1);
-            hll.collect(bucket, hash);
         }
     }
 
     @Override
     public void close() {
-        Releasables.close(algorithm, hll, lc);
+        Releasables.close(hllBuckets, hll, lc);
     }
 
-    protected void addRunLen(long bucketOrd, int register, int runLen) {
-        if (algorithm.get(bucketOrd) == LINEAR_COUNTING) {
-            upgradeToHll(bucketOrd);
+    void addRunLen(long bucketOrd, int register, int runLen) {
+        long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) - 1 : -1;
+        if (hllBucket < 0) {
+            hllBucket = upgradeToHll(bucketOrd);
         }
-        hll.addRunLen(0, register, runLen);
+        hll.addRunLen(hllBucket, register, runLen);
     }
 
-    void upgradeToHll(long bucketOrd) {
-        hll.ensureCapacity(bucketOrd + 1);
-        hll.reset(bucketOrd);
-        lc.copyToHll(bucketOrd, hll);
-        algorithm.set(bucketOrd);
+    long upgradeToHll(long bucketOrd) {
+        long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) : 0;
+        if (hllBucket > 0) {
+            return hllBucket - 1;
+        }
+        hllBucket = hll.newBucket();
+        lc.copyToHll(bucketOrd, hll, hllBucket);
+        hllBuckets = bigArrays.grow(hllBuckets, bucketOrd + 1);
+        hllBuckets.set(bucketOrd, hllBucket + 1);
+        return hllBucket;
     }
 
     public void combine(long bucket, BytesRef other) throws IOException {
@@ -182,16 +191,17 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                     values[i] = in.readInt();
                 }
                 int i = 0;
+                long hllBucket = -1;
                 while (i < length) {
                     // TODO: bulk
                     int size = lc.addEncoded(bucket, values[i++]);
                     if (size > lc.threshold) {
-                        upgradeToHll(bucket);
+                        hllBucket = upgradeToHll(bucket);
                         break;
                     }
                 }
                 while (i < length) {
-                    hll.collectEncoded(bucket, values[i++]);
+                    hll.collectEncoded(hllBucket, values[i++]);
                 }
             } finally {
                 breaker.addWithoutBreaking(-bytesUsed);
@@ -209,7 +219,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         if (precision() != other.precision()) {
             throw new IllegalArgumentException();
         }
-        hll.ensureCapacity(thisBucket + 1);
         if (other.getAlgorithm(otherBucket) == LINEAR_COUNTING) {
             merge(thisBucket, other.getLinearCounting(otherBucket));
         } else {
@@ -217,27 +226,35 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
-    private void merge(long thisBucket, AbstractLinearCounting.HashesIterator values) {
-        while (values.next()) {
-            final int encoded = values.value();
-            if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
-                final int newSize = lc.addEncoded(thisBucket, encoded);
+    private void merge(long bucketOrd, AbstractLinearCounting.HashesIterator values) {
+        long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) - 1 : -1;
+        if (hllBucket < 0) {
+            while (values.next()) {
+                final int encoded = values.value();
+                final int newSize = lc.addEncoded(bucketOrd, encoded);
                 if (newSize > lc.threshold) {
-                    upgradeToHll(thisBucket);
+                    hllBucket = upgradeToHll(bucketOrd);
+                    hll.collectEncoded(hllBucket, encoded);
+                    break;
                 }
-            } else {
-                hll.collectEncoded(thisBucket, encoded);
+            }
+        }
+        if (hllBucket >= 0) {
+            while (values.next()) {
+                final int encoded = values.value();
+                hll.collectEncoded(hllBucket, encoded);
             }
         }
     }
 
-    private void merge(long thisBucket, AbstractHyperLogLog.RunLenIterator runLens) {
-        if (algorithm.get(thisBucket) != HYPERLOGLOG) {
-            upgradeToHll(thisBucket);
+    private void merge(long bucketOrd, AbstractHyperLogLog.RunLenIterator runLens) {
+        long hllBucket = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) - 1 : -1;
+        if (hllBucket < 0) {
+            hllBucket = upgradeToHll(bucketOrd);
         }
         for (int i = 0; i < hll.m; ++i) {
             runLens.next();
-            hll.addRunLen(thisBucket, i, runLens.value());
+            hll.addRunLen(hllBucket, i, runLens.value());
         }
     }
 
@@ -245,6 +262,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         private final BigArrays bigArrays;
         // array for holding the runlens.
         private ByteArray runLens;
+        private long totalBuckets = 0;
 
         HyperLogLog(BigArrays bigArrays, long initialBucketCount, int precision) {
             super(precision);
@@ -267,12 +285,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             return new HyperLogLogIterator(this, bucketOrd);
         }
 
-        protected void reset(long bucketOrd) {
-            runLens.fill(bucketOrd << p, (bucketOrd << p) + m, (byte) 0);
-        }
-
-        protected void ensureCapacity(long numBuckets) {
-            runLens = bigArrays.grow(runLens, numBuckets << p);
+        protected long newBucket() {
+            long bucket = totalBuckets++;
+            runLens = bigArrays.grow(runLens, totalBuckets << p);
+            return bucket;
         }
 
         @Override
@@ -476,14 +492,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             }
         }
 
-        void copyToHll(long bucketOrd, HyperLogLog hll) {
+        void copyToHll(long bucketOrd, HyperLogLog hll, long hllBucket) {
             final LinearCountingCell cell = bucketOrd < cells.size() ? cells.get(bucketOrd) : null;
             if (cell == null) {
                 return;
             }
             for (int v : cell.values) {
                 if (v != 0) {
-                    hll.collectEncoded(bucketOrd, v);
+                    hll.collectEncoded(hllBucket, v);
                 }
             }
             closeCell(cell);

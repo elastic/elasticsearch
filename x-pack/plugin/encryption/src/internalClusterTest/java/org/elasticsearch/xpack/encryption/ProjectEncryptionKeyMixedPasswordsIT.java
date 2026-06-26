@@ -14,7 +14,6 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
-import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -39,14 +38,6 @@ public class ProjectEncryptionKeyMixedPasswordsIT extends ESIntegTestCase {
     private static final String PASSWORD_ID = "v1";
     private static final String BASE_PASSWORD = "encryption-test-password";
 
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
@@ -57,13 +48,11 @@ public class ProjectEncryptionKeyMixedPasswordsIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            MockSecureSettings secure = new MockSecureSettings();
-            // Each node has a unique password value, but they all share the same password ID.
-            secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, PASSWORD_ID);
-            secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, BASE_PASSWORD + "-node-" + nodeOrdinal);
-            builder.setSecureSettings(secure);
-        }
+        MockSecureSettings secure = new MockSecureSettings();
+        // Each node has a unique password value, but they all share the same password ID.
+        secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, PASSWORD_ID);
+        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, BASE_PASSWORD + "-node-" + nodeOrdinal);
+        builder.setSecureSettings(secure);
         return builder.build();
     }
 

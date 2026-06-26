@@ -648,6 +648,16 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Returns {@code true} when the value currently being parsed is part of an array: either its immediate XContent parent is an array (a
+     * leaf array such as {@code "f": ["a","b"]}), or it sits inside one or more object arrays higher up the path (such as
+     * {@code "obj": [{"f":"a"}, {"f":"b"}]}). In both cases the field can receive multiple values for the same document, so callers that
+     * store values in document order should treat it as a multi-valued column rather than a single scalar.
+     */
+    public boolean isPartOfArray() {
+        return isImmediateParentAnArray() || inArrayScope();
+    }
+
+    /**
      * Add a new mapper builder dynamically created while parsing.
      *
      * @param builder  the builder for the new dynamic mapper

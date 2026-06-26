@@ -1123,7 +1123,39 @@ version is not allowed:
 
   - length: {values: 0}
 
+  # Identifier-pattern positions with null positional params.
+  # DROP: the empty column name is not found → verification error.
+  - do:
+      catch: /Unknown column \[\]/
+      esql.query:
+        body:
+          query: 'from test | drop ?1'
+          params: [[]]
 
+  # RENAME: the target column is renamed to "" — the query succeeds and the output column carries an empty name.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | rename color as ?1 | limit 0'
+          params: [[]]
+
+  - length: {columns: 6}
+  - match: {columns.0.name: ""}
+  - match: {columns.0.type: "keyword"}
+
+  # RENAME then DROP the same null param: drops the renamed (empty-named) column — equivalent to DROP color.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | rename color as ?1 | drop ?1 | limit 0'
+          params: [[]]
+
+  - length: {columns: 5}
+  - match: {columns.0.name: "count"}
 
 ---
 "Empty list param executes correctly with real index data":

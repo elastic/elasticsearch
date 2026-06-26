@@ -11,10 +11,20 @@ package org.elasticsearch.gradle.internal
 
 import spock.lang.Unroll
 
+import com.github.tomakehurst.wiremock.WireMockServer
 import org.elasticsearch.gradle.fixtures.AbstractGitAwareGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import static com.github.tomakehurst.wiremock.client.WireMock.get
+import static com.github.tomakehurst.wiremock.client.WireMock.head
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
+
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
+
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin
+
+    WireMockServer wireMock
 
     def setup() {
         // Cannot serialize BwcSetupExtension containing project object

@@ -607,7 +607,9 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             assertThat(finalStats.getCurrentCoordinatingOps(), is(0L));
             assertThat(finalStats.getCurrentCoordinatingBytes(), is(0L));
 
-            expectThrows(TaskCancelledException.class, containsString("task cancelled [before-first-addItems()]"), future::actionGet);
+            ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, future::actionGet);
+            assertThat(ex.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            assertThat(ex.getMessage(), containsString("task cancelled [before-first-addItems()]"));
             // lastItems() should unregister BulkSessionTask.
             assertThat(taskManager.getCancellableTasks().isEmpty(), is(true));
 

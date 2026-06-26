@@ -4,11 +4,10 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function;
 
+import com.carrotsearch.hppc.LongLongHashMap;
 import java.lang.IllegalArgumentException;
-import java.lang.Long;
 import java.lang.Override;
 import java.lang.String;
-import java.util.Map;
 import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Rounding;
@@ -37,7 +36,7 @@ public final class WindowFilterEvaluator implements ExpressionEvaluator {
 
   private final Rounding.Prepared bucket;
 
-  private final Map<Long, Long> nextTimestamps;
+  private final LongLongHashMap nextTimestamps;
 
   private final ExpressionEvaluator timestamp;
 
@@ -46,7 +45,7 @@ public final class WindowFilterEvaluator implements ExpressionEvaluator {
   private Warnings warnings;
 
   public WindowFilterEvaluator(Source source, long window, Rounding.Prepared bucket,
-      Map<Long, Long> nextTimestamps, ExpressionEvaluator timestamp, DriverContext driverContext) {
+      LongLongHashMap nextTimestamps, ExpressionEvaluator timestamp, DriverContext driverContext) {
     this.source = source;
     this.window = window;
     this.bucket = bucket;
@@ -128,12 +127,12 @@ public final class WindowFilterEvaluator implements ExpressionEvaluator {
 
     private final Rounding.Prepared bucket;
 
-    private final Function<DriverContext, Map<Long, Long>> nextTimestamps;
+    private final Function<DriverContext, LongLongHashMap> nextTimestamps;
 
     private final ExpressionEvaluator.Factory timestamp;
 
     public Factory(Source source, long window, Rounding.Prepared bucket,
-        Function<DriverContext, Map<Long, Long>> nextTimestamps,
+        Function<DriverContext, LongLongHashMap> nextTimestamps,
         ExpressionEvaluator.Factory timestamp) {
       this.source = source;
       this.window = window;

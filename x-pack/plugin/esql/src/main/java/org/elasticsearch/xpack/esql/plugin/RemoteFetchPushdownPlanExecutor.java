@@ -79,6 +79,9 @@ final class RemoteFetchPushdownPlanExecutor {
         return operators;
     }
 
+    /**
+     * Test-only mini-driver execution. Production uses {@link #buildOperators} inside an exchange server pipeline.
+     */
     List<Page> execute(
         List<Page> pages,
         PhysicalPlan pushdownPlan,

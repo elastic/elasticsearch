@@ -31,6 +31,15 @@ import java.util.function.LongSupplier;
  * <b>Concurrency design:</b> This registry uses a {@link ConcurrentHashMap} for the session map and {@link AbstractRefCounted} for
  * per-entry lifecycle. Once the registration is closed, new fetch leases are rejected while already-acquired leases remain valid until
  * individually closed. Idle registrations also expire after a short keep-alive as a backstop for abandoned coordinator sessions.
+ * <p>
+ * <b>Lifecycle model:</b>
+ * <ul>
+ *     <li><b>REGISTERED_ACTIVE</b>: after {@link #register}, producer is still active and expiry is disabled.</li>
+ *     <li><b>REGISTERED_IDLE</b>: after {@link Handle#finishRegistration()}, producer is inactive and expiry is eligible when there are no
+ *     outstanding leases.</li>
+ *     <li><b>CLOSED_REGISTRATION</b>: after explicit close/release, new acquires are rejected but existing leases can continue.</li>
+ *     <li><b>DESTROYED</b>: when the final reference is released, contexts are closed and the map entry is removed.</li>
+ * </ul>
  */
 final class RetainedSearchContextsRegistry {
     private static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
@@ -139,6 +148,9 @@ final class RetainedSearchContextsRegistry {
         }
 
         boolean isExpired(long nowInMillis, long keepAliveInMillis) {
+            // Expiry is only a backstop for abandoned registrations:
+            // never expire while producer is still active, while registration is already closed,
+            // or while any lease remains outstanding.
             if (registrationClosed.get() || producerActive.get() || refs.refCount() > 1) {
                 return false;
             }
@@ -146,6 +158,7 @@ final class RetainedSearchContextsRegistry {
         }
 
         void finishRegistration(long nowInMillis) {
+            // Producer completion transitions this entry from active to idle, enabling reaper-based expiry.
             if (registrationClosed.get() == false) {
                 lastAccessTimeInMillis.accumulateAndGet(nowInMillis, Math::max);
                 producerActive.set(false);

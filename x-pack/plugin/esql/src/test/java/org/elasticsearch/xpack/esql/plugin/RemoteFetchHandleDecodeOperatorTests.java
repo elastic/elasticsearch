@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -78,6 +79,53 @@ public class RemoteFetchHandleDecodeOperatorTests extends ESTestCase {
             }
             if (output != null) {
                 output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testRejectsNullHandle() {
+        Page input = null;
+        try (
+            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)
+        ) {
+            try (BytesRefBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(2)) {
+                builder.appendBytesRef(new RemoteFetchHandle("node-1", "session-1", 3, 7, 11).toBytesRef());
+                builder.appendNull();
+                input = new Page(builder.build());
+            }
+            operator.addInput(input);
+            input = null;
+
+            IllegalStateException e = expectThrows(IllegalStateException.class, operator::getOutput);
+            assertThat(e.getMessage(), equalTo("remote fetch handle block cannot contain nulls"));
+        } finally {
+            if (input != null) {
+                input.releaseBlocks();
+            }
+        }
+    }
+
+    public void testRejectsMultiValueHandle() {
+        Page input = null;
+        try (
+            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)
+        ) {
+            BytesRef handleBytes = new RemoteFetchHandle("node-1", "session-1", 3, 7, 11).toBytesRef();
+            try (BytesRefBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(1)) {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(handleBytes);
+                builder.appendBytesRef(handleBytes);
+                builder.endPositionEntry();
+                input = new Page(builder.build());
+            }
+            operator.addInput(input);
+            input = null;
+
+            IllegalStateException e = expectThrows(IllegalStateException.class, operator::getOutput);
+            assertThat(e.getMessage(), equalTo("remote fetch handle block must have exactly one value per row"));
+        } finally {
+            if (input != null) {
+                input.releaseBlocks();
             }
         }
     }

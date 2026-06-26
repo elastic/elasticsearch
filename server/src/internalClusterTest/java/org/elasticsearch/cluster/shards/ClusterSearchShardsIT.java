@@ -164,23 +164,21 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         }
     }
 
-    public void testSliceRequiredWhenSliceEnabledIndex() {
+    public void testNoSliceDefaultsToAllWhenSliceEnabledIndex() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         indicesAdmin().prepareCreate("slice-enabled")
             .setSettings(indexSettings(1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), true))
             .get();
         ensureGreen("slice-enabled");
 
-        IllegalArgumentException e = safeAwaitAndUnwrapFailure(
-            IllegalArgumentException.class,
-            ClusterSearchShardsResponse.class,
+        ClusterSearchShardsResponse response = safeAwait(
             listener -> client().execute(
                 TransportClusterSearchShardsAction.TYPE,
                 new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-enabled"),
                 listener
             )
         );
-        assertThat(e.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+        assertThat(response.getGroups().length, equalTo(1));
     }
 
     public void testSliceRejectedWhenSliceDisabledIndex() {

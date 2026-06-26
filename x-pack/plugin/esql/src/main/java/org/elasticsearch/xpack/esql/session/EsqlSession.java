@@ -73,7 +73,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
@@ -105,8 +105,10 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -137,6 +139,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -185,6 +188,7 @@ public class EsqlSession {
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
+    private final DatasetResolver datasetResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
     private final EsqlParser parser;
@@ -250,6 +254,7 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
+        DatasetResolver datasetResolver,
         ExternalSourceResolver externalSourceResolver,
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
@@ -270,6 +275,7 @@ public class EsqlSession {
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
+        this.datasetResolver = datasetResolver;
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
@@ -373,27 +379,29 @@ public class EsqlSession {
             ? statement.setting(QuerySettings.TIME_ZONE)
             : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
 
-        Configuration configuration = new Configuration(
-            timeZone,
-            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
-            request.locale() != null ? request.locale() : Locale.US,
-            // TODO: plug-in security
-            null,
-            clusterName,
-            request.pragmas(),
-            analyzerSettings.resultTruncationMaxSize(),
-            analyzerSettings.resultTruncationDefaultSize(),
-            request.query(),
-            request.profile(),
-            request.tables(),
-            System.nanoTime(),
-            request.allowPartialResults(),
-            analyzerSettings.timeseriesResultTruncationMaxSize(),
-            analyzerSettings.timeseriesResultTruncationDefaultSize(),
-            projectRouting(request, statement),
-            approximationSettings(request, statement),
-            viewResolution.viewQueries()
-        );
+        Configuration configuration = new ConfigurationBuilder(
+            new Configuration(
+                timeZone,
+                Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
+                request.locale() != null ? request.locale() : Locale.US,
+                // TODO: plug-in security
+                null,
+                clusterName,
+                request.pragmas(),
+                analyzerSettings.resultTruncationMaxSize(),
+                analyzerSettings.resultTruncationDefaultSize(),
+                request.query(),
+                request.profile(),
+                request.tables(),
+                System.nanoTime(),
+                request.allowPartialResults(),
+                analyzerSettings.timeseriesResultTruncationMaxSize(),
+                analyzerSettings.timeseriesResultTruncationDefaultSize(),
+                projectRouting(request, statement),
+                approximationSettings(request, statement),
+                viewResolution.viewQueries()
+            )
+        ).grokMatcherWatchdogMs(parser.grokMatcherWatchdog().maxExecutionTimeInMillis()).build();
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into ViewUnionAll. ViewShadowRelation siblings and nested
@@ -817,7 +825,7 @@ public class EsqlSession {
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
-        boolean isSemiJoinSubPlan
+        boolean isSubqueryJoinSubPlan
     ) {};
 
     private SubPlanAndCallback firstSubPlan(
@@ -937,11 +945,11 @@ public class EsqlSession {
         // An IN subquery may not have a pipeline breaker inside it, and mapper does not receive the SemiJoin node because only the right
         // hand side plans are sent to mapper. Ensure there is an ExchangeExec on top of it, so that the intermediate results can be sent
         // back to the coordinator
-        if (subPlan.isSemiJoinSubPlan()) {
+        if (subPlan.isSubqueryJoinSubPlan()) {
             physicalSubPlan = Mapper.ensureExchangeForSubPlan(physicalSubPlan);
         }
 
-        executionInfo.startSubPlans();
+        executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
 
         runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
             completionInfoAccumulator.accumulate(result.completionInfo());
@@ -966,6 +974,7 @@ public class EsqlSession {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             DriverCompletionInfo merged = completionInfoAccumulator.finish();
                             reconcileCapturedSourceStats(merged);
+                            EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                             finalListener.onResponse(
                                 new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
                             );
@@ -1206,13 +1215,25 @@ public class EsqlSession {
 
         TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
         datasetResolutionProfile.start();
-        // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
-        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
-        // expansion (wildcards, exclusions, date math, etc.) flows through the same
-        // IndexNameExpressionResolver path indices use. The rewriter bails internally when there are
-        // no datasets registered (the feature flag gates the CRUD layer that puts datasets there).
-        parsed = DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
-        datasetResolutionProfile.stop();
+        // Rewrite FROM <dataset> targets into UnresolvedExternalRelation so analysis treats them like the inline
+        // EXTERNAL command. The resolver first read-authorizes the names through the security filter — they are
+        // stripped from the plan here and would otherwise never reach authorization. Completes synchronously when
+        // no FROM pattern can match a registered dataset.
+        datasetResolver.replaceDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
+            datasetResolutionProfile.stop();
+            analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+        }));
+    }
+
+    private void analyzedPlanAfterDatasetResolution(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
+    ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
@@ -1314,7 +1335,9 @@ public class EsqlSession {
             }
             return r;
         })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
+            .<PreAnalysisResult>andThen(
+                (l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), parsed, r, executionInfo, l)
+            )
             .andThenApply(r -> {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
                 return r;
@@ -1362,15 +1385,22 @@ public class EsqlSession {
      */
     private void preAnalyzeLookupIndices(
         Iterator<IndexPattern> lookupIndices,
+        LogicalPlan plan,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        forAll(lookupIndices, preAnalysisResult, (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, r, executionInfo, l), listener);
+        forAll(
+            lookupIndices,
+            preAnalysisResult,
+            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, r, executionInfo, l),
+            listener
+        );
     }
 
     private void preAnalyzeLookupIndex(
         IndexPattern lookupIndexPattern,
+        LogicalPlan plan,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -1386,16 +1416,46 @@ public class EsqlSession {
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
         executionInfo.queryProfile().incFieldCapsCalls();
+        var lookupIndexScope = EsqlCCSUtils.onlyRunning(
+            executionInfo,
+            computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
+        );
         indexResolver.resolveLookupIndices(
-            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
+            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
             // be reflected in result.minimumTransportVersion().
             result.minimumTransportVersion(),
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
+            listener.map(
+                indexResolution -> receiveLookupIndexResolution(result, lookupIndexScope, localPattern, executionInfo, indexResolution)
+            )
         );
+    }
+
+    /**
+     * Derives the scope (set of clusters) where the lookup join index needs to be found.
+     * For example for a query like `FROM (FROM cluster-1:index-1 | LOOKUP JOIN dictionary-1),(FROM cluster-2:index-2)`
+     * `dictionary-1` must be found only on `cluster-1` as joining is not performed on `cluster-2`.
+     */
+    static Set<String> computeLookupJoinIndexScope(
+        LogicalPlan plan,
+        String lookupPattern,
+        Map<IndexPattern, IndexResolution> indexResolution
+    ) {
+        Set<String> scope = new LinkedHashSet<>();
+        plan.forEachUp(LookupJoin.class, lj -> {
+            if (lj.right() instanceof UnresolvedRelation ur && ur.indexPattern().indexPattern().equals(lookupPattern)) {
+                lj.left().forEachDown(UnresolvedRelation.class, source -> {
+                    IndexResolution resolution = indexResolution.get(source.indexPattern());
+                    if (resolution != null && resolution.isValid()) {
+                        scope.addAll(resolution.get().originalIndices().keySet());
+                    }
+                });
+            }
+        });
+        return scope;
     }
 
     /**
@@ -1473,6 +1533,7 @@ public class EsqlSession {
      */
     private PreAnalysisResult receiveLookupIndexResolution(
         PreAnalysisResult result,
+        Set<String> lookupIndexScope,
         String index,
         EsqlExecutionInfo executionInfo,
         IndexResolution lookupIndexResolution
@@ -1554,7 +1615,7 @@ public class EsqlSession {
 
         // These are clusters that are still in the running, we need to have the index on all of them
         // Verify that all active clusters have the lookup index resolved
-        executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
+        lookupIndexScope.forEach(clusterAlias -> {
             if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
                 // Missing cluster resolution
                 skipClusterOrError(clusterAlias, executionInfo, findFailure(lookupIndexResolution.failures(), index, clusterAlias));

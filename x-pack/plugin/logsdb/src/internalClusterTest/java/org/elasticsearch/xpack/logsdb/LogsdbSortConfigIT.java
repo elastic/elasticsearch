@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Sort;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -113,10 +113,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "pattern_text"
                   },
                   "test_id": {
-                    "type": "keyword",
-                    "doc_values": {
-                      "cardinality": "low"
-                    }
+                    "type": "keyword"
                   }
                 }
               }
@@ -197,10 +194,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "keyword"
                   },
                   "test_id": {
-                    "type": "keyword",
-                    "doc_values": {
-                      "cardinality": "low"
-                    }
+                    "type": "keyword"
                   }
                 }
               }
@@ -259,10 +253,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "keyword"
                   },
                   "test_id": {
-                    "type": "keyword",
-                    "doc_values": {
-                      "cardinality": "low"
-                    }
+                    "type": "keyword"
                   }
                 }
               }
@@ -541,15 +532,22 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
             var segment = segments.getFirst();
             var reader = segment.reader();
-            SortedSetDocValues dvs = reader.getSortedSetDocValues("test_id");
-            assertNotNull(dvs);
+
+            // Read [test_id] through fielddata so the order check is independent of the keyword doc-values format: low-cardinality uses
+            // sorted-set doc values while high-cardinality (columnar default) uses binary doc values, and fielddata abstracts over both.
+            MappedFieldType testIdField = shard.mapperService().fieldType("test_id");
+            SortedBinaryDocValues dvs = testIdField.fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(segment)
+                .getBytesValues();
 
             int expectedDocIdx = 0;
 
             for (int docId = 0; docId < reader.maxDoc(); docId++) {
                 String expectedId = orderedDocs[expectedDocIdx++].id;
                 assertTrue(dvs.advanceExact(docId));
-                String actualId = dvs.lookupOrd(dvs.nextOrd()).utf8ToString();
+                assertThat(dvs.docValueCount(), equalTo(1));
+                String actualId = dvs.nextValue().utf8ToString();
                 assertEquals(expectedId, actualId);
             }
         }

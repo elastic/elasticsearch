@@ -29,7 +29,7 @@ base {
 // NumberInput.parseDouble(char[], off, len, fastParser), an overload that only exists in jackson-core
 // 2.18+; staying on 2.15.0 would force a String allocation per double. Scoped to this module to avoid
 // a repo-wide upgrade.
-String jacksonVersion = "2.19.2"
+String jacksonVersion = "2.21.2"
 
 dependencies {
   // SPI interfaces from ESQL core

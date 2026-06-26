@@ -49,8 +49,6 @@ public class Clusters {
             .setting("xpack.security.enabled", Boolean.toString(securityEnabled))
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
-            // Enable the PEK flag so the cluster.state.encryption.* settings below register.
-            .systemProperty("es.project_encryption_key_feature_flag_enabled", "true")
             .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
             .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
             .shared(true)

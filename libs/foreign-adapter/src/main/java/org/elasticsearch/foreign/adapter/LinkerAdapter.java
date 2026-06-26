@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.foreign;
+package org.elasticsearch.foreign.adapter;
 
 import java.lang.foreign.Linker;
 import java.lang.invoke.MethodHandle;
@@ -15,7 +15,10 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 
-public class LinkerHelperUtil {
+/**
+ * Adapts Linker APIs that changed between JDK 21 and 22+.
+ */
+public final class LinkerAdapter {
 
     static final Linker.Option[] NONE = new Linker.Option[0];
 
@@ -44,5 +47,5 @@ public class LinkerHelperUtil {
         }
     }
 
-    private LinkerHelperUtil() {}
+    private LinkerAdapter() {}
 }

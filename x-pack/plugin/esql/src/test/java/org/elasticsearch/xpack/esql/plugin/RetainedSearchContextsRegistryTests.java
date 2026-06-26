@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -14,6 +17,7 @@ import org.elasticsearch.test.TestSearchContext;
 import org.junit.After;
 import org.mockito.Mockito;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -171,6 +175,85 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         registry.closeRegistration("session-1");
 
         expectThrows(IllegalStateException.class, () -> registry.acquire("session-1"));
+        assertTrue(searchContext.isClosed());
+    }
+
+    public void testAcquireAfterRegistrationCloseRejectedWhileLeaseIsActive() {
+        SearchContext searchContext = createSearchContext();
+        AcquiredSearchContexts contexts = createContexts(searchContext);
+
+        RetainedSearchContextsRegistry.Handle lease;
+        try (RetainedSearchContextsRegistry.Handle ignored = registry.register("session-1", contexts)) {
+            lease = registry.acquire("session-1");
+        }
+
+        assertFalse(searchContext.isClosed());
+        expectThrows(IllegalStateException.class, () -> registry.acquire("session-1"));
+
+        lease.close();
+        assertTrue(searchContext.isClosed());
+    }
+
+    public void testExpireReleasesIdleRegistration() {
+        long[] now = new long[] { 0L };
+        RetainedSearchContextsRegistry expiringRegistry = new RetainedSearchContextsRegistry(() -> now[0], TimeValue.timeValueMillis(10));
+        SearchContext searchContext = createSearchContext();
+        AcquiredSearchContexts contexts = createContexts(searchContext);
+
+        expiringRegistry.register("session-1", contexts);
+        now[0] = 11L;
+
+        expiringRegistry.expire();
+
+        assertThat(expiringRegistry.retainedSessions(), equalTo(0));
+        assertTrue(searchContext.isClosed());
+    }
+
+    public void testExpireDoesNotReleaseActiveLease() {
+        long[] now = new long[] { 0L };
+        RetainedSearchContextsRegistry expiringRegistry = new RetainedSearchContextsRegistry(() -> now[0], TimeValue.timeValueMillis(10));
+        SearchContext searchContext = createSearchContext();
+        AcquiredSearchContexts contexts = createContexts(searchContext);
+
+        RetainedSearchContextsRegistry.Handle registration = expiringRegistry.register("session-1", contexts);
+        RetainedSearchContextsRegistry.Handle lease = expiringRegistry.acquire("session-1");
+        registration.close();
+        now[0] = 11L;
+
+        expiringRegistry.expire();
+
+        assertThat(expiringRegistry.retainedSessions(), equalTo(1));
+        assertFalse(searchContext.isClosed());
+
+        lease.close();
+
+        assertThat(expiringRegistry.retainedSessions(), equalTo(0));
+        assertTrue(searchContext.isClosed());
+    }
+
+    public void testQueryScopedReleaseKeepsActiveFetchLeaseAlive() {
+        SearchContext searchContext = createSearchContext();
+        AcquiredSearchContexts contexts = createContexts(searchContext);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node-1");
+        List<String> released = new ArrayList<>();
+        RemoteFetchService.RetainedSessionReleaser releaser = new RemoteFetchService.RetainedSessionReleaser((targetNode, sessionId) -> {
+            released.add(targetNode.getId() + "/" + sessionId);
+            registry.closeRegistration(sessionId);
+        });
+
+        registry.register("session-1", contexts);
+        RetainedSearchContextsRegistry.Handle fetchLease = registry.acquire("session-1");
+        releaser.track(node, "session-1");
+
+        releaser.close();
+
+        assertThat(released, equalTo(List.of("node-1/session-1")));
+        assertFalse(searchContext.isClosed());
+        expectThrows(IllegalStateException.class, () -> registry.acquire("session-1"));
+
+        fetchLease.close();
+
+        assertThat(registry.retainedSessions(), equalTo(0));
         assertTrue(searchContext.isClosed());
     }
 

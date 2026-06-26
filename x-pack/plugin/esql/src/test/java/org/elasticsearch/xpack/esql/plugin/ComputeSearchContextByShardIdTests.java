@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.junit.After;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -31,7 +35,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 // Creates a bunch of readers and writers to verify the thread-safety of ComputeSearchContextByShardId.
-public class ComputeSearchContextByShardIdTests extends ESTestCase {
+public class ComputeSearchContextByShardIdTests extends MapperServiceTestCase {
     private final int nThreads = Runtime.getRuntime().availableProcessors() * 2;
     private final ExecutorService executorService = Executors.newFixedThreadPool(nThreads);
 
@@ -71,6 +75,24 @@ public class ComputeSearchContextByShardIdTests extends ESTestCase {
         }
     }
 
+    public void testDetachedShardContextDoesNotReleaseSearchContext() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("k").field("type", "keyword").endObject()));
+
+        SearchContext normalSearchContext = newSearchContext(mapperService);
+        ShardContext normalShardContext = new ComputeSearchContext(0, normalSearchContext).shardContext();
+        normalShardContext.decRef();
+        assertTrue(normalSearchContext.isClosed());
+
+        SearchContext retainedSearchContext = newSearchContext(mapperService);
+        ComputeSearchContext retainedContext = new ComputeSearchContext(0, retainedSearchContext);
+        ShardContext detachedShardContext = retainedContext.newDetachedShardContext();
+        detachedShardContext.decRef();
+        assertFalse(retainedSearchContext.isClosed());
+
+        retainedContext.close();
+        assertTrue(retainedSearchContext.isClosed());
+    }
+
     private Runnable newWriter(ConcurrentHashMap<Integer, ComputeSearchContext> expected, CountDownLatch cdl) {
         return () -> {
             List<SearchContext> newContexts = IntStream.range(0, CHUNK_SIZE)
@@ -106,5 +128,9 @@ public class ComputeSearchContextByShardIdTests extends ESTestCase {
 
     // We explicitly use the non-shared Random to avoid synchronization.
     private static final Random READER_RANDOM = new Random(0);
+
+    private SearchContext newSearchContext(MapperService mapperService) {
+        return new TestSearchContext(createSearchExecutionContext(mapperService, null));
+    }
 
 }

@@ -40,7 +40,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SlowCustomBinaryDocValuesRegexpQueryTests extends ESTestCase {
+public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
 
     public void testBasics() throws Exception {
         String fieldName = "field";
@@ -78,18 +78,18 @@ public class SlowCustomBinaryDocValuesRegexpQueryTests extends ESTestCase {
 
                     // "a.*" matches apple, apricot, avocado
                     long aCount = expectedCounts.get("apple") + expectedCounts.get("apricot") + expectedCounts.get("avocado");
-                    assertEquals(aCount, searcher.count(new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "a.*", 0, 0, 1000)));
+                    assertEquals(aCount, searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, "a.*", 0, 0, 1000)));
 
                     // "b.*" matches banana
                     assertEquals(
                         expectedCounts.get("banana").longValue(),
-                        searcher.count(new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "b.*", 0, 0, 1000))
+                        searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, "b.*", 0, 0, 1000))
                     );
 
                     // "cherry" exact matches cherry
                     assertEquals(
                         expectedCounts.get("cherry").longValue(),
-                        searcher.count(new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "cherry", 0, 0, 1000))
+                        searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, "cherry", 0, 0, 1000))
                     );
                 }
             }
@@ -105,7 +105,7 @@ public class SlowCustomBinaryDocValuesRegexpQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "a.*", 0, 0, 1000);
+                    Query query = new ScanningBinaryDocValuesRegexpQuery(fieldName, "a.*", 0, 0, 1000);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -119,7 +119,7 @@ public class SlowCustomBinaryDocValuesRegexpQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "a.*", 0, 0, 1000);
+                    Query query = new ScanningBinaryDocValuesRegexpQuery(fieldName, "a.*", 0, 0, 1000);
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -168,7 +168,7 @@ public class SlowCustomBinaryDocValuesRegexpQueryTests extends ESTestCase {
                     );
                     TopDocs baselineResults = searcher.search(baselineQuery, 64);
 
-                    Query contenderQuery = new SlowCustomBinaryDocValuesRegexpQuery("contender_field", regexpPattern, RegExp.ALL, 0, 1000);
+                    Query contenderQuery = new ScanningBinaryDocValuesRegexpQuery("contender_field", regexpPattern, RegExp.ALL, 0, 1000);
                     TopDocs contenderResults = searcher.search(contenderQuery, 64);
 
                     assumeTrue("no baseline matches for pattern " + regexpPattern, baselineResults.scoreDocs.length >= 1);
@@ -195,28 +195,28 @@ public class SlowCustomBinaryDocValuesRegexpQueryTests extends ESTestCase {
                     IndexSearcher searcher = newSearcher(reader);
 
                     // Case-sensitive: only lowercase "foo" matches "foo"
-                    assertEquals(1, searcher.count(new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "foo", 0, 0, 1000)));
+                    assertEquals(1, searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, "foo", 0, 0, 1000)));
 
                     // Case-insensitive via RegExp.ASCII_CASE_INSENSITIVE matchFlag: matches "foo" and "FOO" (none here, so still 1)
                     assertEquals(
                         1,
-                        searcher.count(new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "foo", 0, RegExp.ASCII_CASE_INSENSITIVE, 1000))
+                        searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, "foo", 0, RegExp.ASCII_CASE_INSENSITIVE, 1000))
                     );
 
                     // Case-insensitive "hello" matches "Hello"
                     assertEquals(
                         1,
-                        searcher.count(new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "hello", 0, RegExp.ASCII_CASE_INSENSITIVE, 1000))
+                        searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, "hello", 0, RegExp.ASCII_CASE_INSENSITIVE, 1000))
                     );
 
                     // Case-insensitive "world" matches "WORLD"
                     assertEquals(
                         1,
-                        searcher.count(new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "world", 0, RegExp.ASCII_CASE_INSENSITIVE, 1000))
+                        searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, "world", 0, RegExp.ASCII_CASE_INSENSITIVE, 1000))
                     );
 
                     // Case-sensitive "hello" does NOT match "Hello"
-                    assertEquals(0, searcher.count(new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "hello", 0, 0, 1000)));
+                    assertEquals(0, searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, "hello", 0, 0, 1000)));
                 }
             }
         }
@@ -233,14 +233,14 @@ public class SlowCustomBinaryDocValuesRegexpQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     // ".*" matches all docs
-                    assertEquals(3, searcher.count(new SlowCustomBinaryDocValuesRegexpQuery(fieldName, ".*", 0, 0, 1000)));
+                    assertEquals(3, searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, ".*", 0, 0, 1000)));
                 }
             }
         }
     }
 
     public void testToString() {
-        SlowCustomBinaryDocValuesRegexpQuery query = new SlowCustomBinaryDocValuesRegexpQuery("my_field", "foo.*", 0, 0, 1000);
+        ScanningBinaryDocValuesRegexpQuery query = new ScanningBinaryDocValuesRegexpQuery("my_field", "foo.*", 0, 0, 1000);
         // toString must always use the stored field name, not the Lucene context parameter
         assertThat(query.toString("other_field"), containsString("my_field"));
         assertThat(query.toString(""), containsString("my_field"));
@@ -248,7 +248,7 @@ public class SlowCustomBinaryDocValuesRegexpQueryTests extends ESTestCase {
 
     public void testVisitor() {
         String fieldName = "my_field";
-        SlowCustomBinaryDocValuesRegexpQuery query = new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "hel.*", 0, 0, 1000);
+        ScanningBinaryDocValuesRegexpQuery query = new ScanningBinaryDocValuesRegexpQuery(fieldName, "hel.*", 0, 0, 1000);
 
         // consumeTermsMatching must be called with the correct field and a working automaton
         boolean[] called = { false };

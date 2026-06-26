@@ -940,7 +940,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             isColumnar == false && randomBoolean(),
             usually() ? null : randomAlphaOfLength(2),
             true,
-            KeywordFieldSyntheticSourceSupport.randomDocValuesParams(true),
+            KeywordFieldSyntheticSourceSupport.randomDocValuesParams(isColumnar == false),
             isColumnar
         );
     }

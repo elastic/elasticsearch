@@ -398,7 +398,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     protected class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
-        private final boolean docValues = randomBoolean();
+        private final boolean docValues;
         private final boolean isColumnar;
         private final boolean enforceSingleValue;
 
@@ -413,6 +413,8 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             this.round = round;
             this.ignoreMalformed = ignoreMalformed;
             this.isColumnar = isColumnar;
+            // Columnar mode requires doc values on every field; non-columnar may fall back to _ignored_source.
+            this.docValues = isColumnar || randomBoolean();
             this.enforceSingleValue = docValues && isColumnar && randomBoolean();
         }
 

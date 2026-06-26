@@ -147,7 +147,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(node), equalTo(1L));
+        awaitDirectCancellationMetric(node, 1L);
     }
 
     public void testDirectCancellationOfExistingStoreRecovery() throws Exception {
@@ -198,7 +198,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(node), equalTo(1L));
+        awaitDirectCancellationMetric(node, 1L);
     }
 
     public void testDirectCancellationOfLocalShardsRecovery() throws Exception {
@@ -251,7 +251,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(node), equalTo(1L));
+        awaitDirectCancellationMetric(node, 1L);
     }
 
     public void testDirectCancellationOfSnapshotRecoveryBeforeRestore() throws Exception {
@@ -309,7 +309,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(node), equalTo(1L));
+        awaitDirectCancellationMetric(node, 1L);
     }
 
     public void testDirectCancellationOfSnapshotRecoveryDuringRestore() throws Exception {
@@ -366,7 +366,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         BlockingFsRepositoryPlugin.proceedWithRestore.release();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(node), equalTo(1L));
+        awaitDirectCancellationMetric(node, 1L);
     }
 
     public void testDirectCancellationOfStartedReplicaPeerRecovery() throws Exception {
@@ -460,7 +460,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             );
             return true;
         });
-        assertThat(directCancellationMetric(replicaNode), equalTo(1L));
+        awaitDirectCancellationMetric(replicaNode, 1L);
     }
 
     public void testDirectCancellationOfPrimaryRelocationDuringFileTransfer() throws Exception {
@@ -489,7 +489,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             connection.sendRequest(requestId, action, request, options);
         });
 
-        final var targetNode = internalCluster().startNode();
+        final var targetNode = internalCluster().startDataOnlyNode();
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
         safeAwait(blockedRelocation);
         disableAllocation();
@@ -522,7 +522,6 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         proceedWithRelocation.countDown();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(targetNode), equalTo(1L));
 
         // The failed relocation leaves the primary on sourceNode
         waitNoPendingTasksOnAll();
@@ -535,6 +534,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             primaryShard.currentNodeId(),
             equalTo(finalState.nodes().resolveNode(sourceNode).getId())
         );
+        assertThat(directCancellationMetric(targetNode), equalTo(1L));
     }
 
     public void testDirectCancellationOfPrimaryRelocationAtHandoverBoundary() throws Exception {
@@ -549,7 +549,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         flush(indexName);
         ensureGreen(indexName);
 
-        final var targetNode = internalCluster().startNode();
+        final var targetNode = internalCluster().startDataOnlyNode();
 
         // Stall the primary context handoff on the target
         final var blockedHandoff = new CountDownLatch(1);
@@ -596,7 +596,6 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         proceedWithHandoff.countDown();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(targetNode), equalTo(1L));
 
         // The aborted handover leaves the primary on sourceNode
         waitNoPendingTasksOnAll();
@@ -609,6 +608,77 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             primaryShard.currentNodeId(),
             equalTo(finalState.nodes().resolveNode(sourceNode).getId())
         );
+        assertThat(directCancellationMetric(targetNode), equalTo(1L));
+    }
+
+    /// Tests the path in `RecoveryResponseHandler.handleException` where a `RecoveryCancelledException`
+    /// propagates back from the handoffPrimaryContext operation on the target through the source's START_RECOVERY
+    /// error response, and is caught by `handleException` which calls `directCancelRecovery`.
+    public void testCancellationPropagatedThroughStartRecoveryResponse() throws Exception {
+        final var sourceNode = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).build());
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+        }
+        flush(indexName);
+        ensureGreen(indexName);
+
+        final var targetNode = internalCluster().startDataOnlyNode();
+
+        // Block the handoff on the target before activateWithPrimaryContext is called
+        final var blockedHandoff = new CountDownLatch(1);
+        final var proceedWithHandoff = new CountDownLatch(1);
+        MockTransportService.getInstance(targetNode)
+            .addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT, (handler, request, channel, task) -> {
+                blockedHandoff.countDown();
+                safeAwait(proceedWithHandoff);
+                handler.messageReceived(request, channel, task);
+            });
+
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
+        safeAwait(blockedHandoff);
+        disableAllocation();
+
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, targetNode);
+        final var shard = indicesService.indexServiceSafe(index).getShard(0);
+        final var targetClusterService = internalCluster().getInstance(ClusterService.class, targetNode);
+        final var sourceClusterService = internalCluster().getInstance(ClusterService.class, sourceNode);
+
+        // Set the cancellation flag directly
+        shard.requestRecoveryCancellation(
+            new RecoveryCancelledException(shardId, sourceClusterService.localNode(), targetClusterService.localNode())
+        );
+
+        final var shardFailureReceived = new CountDownLatch(1);
+        MockTransportService.getInstance(sourceNode)
+            .addRequestHandlingBehavior("internal:cluster/shard/failure", (handler, request, channel, task) -> {
+                if (request instanceof ShardStateAction.FailedShardEntry failedShard) {
+                    if (failedShard.getShardId().equals(shardId)
+                        && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {
+                        shardFailureReceived.countDown();
+                    }
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        proceedWithHandoff.countDown();
+        safeAwait(shardFailureReceived);
+
+        // The failed relocation leaves the primary on sourceNode
+        waitNoPendingTasksOnAll();
+        ensureGreen(indexName);
+        final var finalState = sourceClusterService.state();
+        final var primaryShard = finalState.routingTable().shardRoutingTable(shardId).primaryShard();
+        assertTrue("primary shard is still started", primaryShard.started());
+        assertThat(
+            "primary shard is still located on source node",
+            primaryShard.currentNodeId(),
+            equalTo(finalState.nodes().resolveNode(sourceNode).getId())
+        );
+        assertThat(directCancellationMetric(targetNode), equalTo(1L));
     }
 
     @TestLogging(reason = "test asserts DEBUG log", value = "org.elasticsearch.indices.recovery.TransportCancelRecoveriesAction:DEBUG")
@@ -662,7 +732,6 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
             mockLog.assertAllExpectationsMatched();
         }
-        assertThat(directCancellationMetric(targetNode), equalTo(0L));
 
         // Let the relocation proceed
         TestRecoveryBlockerPlugin.afterRecoveryGate.release();
@@ -674,6 +743,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             final var primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
             return primaryShard.started() && primaryShard.currentNodeId().equals(state.nodes().resolveNode(targetNode).getId());
         });
+        assertThat(directCancellationMetric(targetNode), equalTo(0L));
     }
 
     public void testDirectCancellationIgnoredAfterRecoveryFinalize() throws Exception {
@@ -706,12 +776,12 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.afterRecoveryGate.release();
 
         ensureGreen(indexName);
-        assertThat(directCancellationMetric(node), equalTo(0L));
 
         // Confirm the flag was cleared by postRecovery() and the shard is now in STARTED state.
         final var indexShard = indicesService.indexServiceSafe(index).getShard(0);
         assertThat(indexShard.state(), equalTo(IndexShardState.STARTED));
         indexShard.ensureRecoveryNotCancelled();
+        assertThat(directCancellationMetric(node), equalTo(0L));
     }
 
     public void testCancellationArrivesBeforeShardLockIsAcquired() throws Exception {
@@ -726,14 +796,15 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         assertTrue(TestRecoveryBlockerPlugin.beforeShardCreatedEntered.tryAcquire(10, TimeUnit.SECONDS));
         TestRecoveryBlockerPlugin.beforeShardCreatedEntered.release();
 
-        final var index = resolveIndex(indexName);
+        final var latestShard = TestRecoveryBlockerPlugin.latestCreatedShard.get();
+        final var index = latestShard.shardId().getIndex();
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
         final var indexService = indicesService.indexServiceSafe(index);
         assertThat(indexService.numberOfShards(), equalTo(0));
 
-        final var shardId = new ShardId(index, 0);
+        final var shardId = latestShard.shardId();
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
-        final var allocationId = TestRecoveryBlockerPlugin.latestCreatedShard.get().allocationId();
+        final var allocationId = latestShard.allocationId();
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
@@ -756,6 +827,14 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
                             EnableAllocationDecider.Allocation.NONE
                         )
                 )
+        );
+    }
+
+    private void awaitDirectCancellationMetric(String node, long value) {
+        awaitRecoveryCountMetrics(
+            node,
+            internalCluster().getInstance(PluginsService.class, node).filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow(),
+            Map.of(RecoveryMetricsCollector.RECOVERY_DIRECT_CANCELLATIONS_METRIC, value)
         );
     }
 

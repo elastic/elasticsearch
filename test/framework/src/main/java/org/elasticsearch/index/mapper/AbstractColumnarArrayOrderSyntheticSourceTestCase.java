@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,11 +41,14 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
      */
     protected abstract String fieldTypeName();
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void assumeColumnarFeatureEnabled() {
         assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("in-order binary doc values require the columnar feature flag", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+    }
+
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     protected MapperService columnarMapperService() throws IOException {
@@ -100,8 +104,9 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
 
     public void testEmptyArray() throws IOException {
         var mapper = columnarMapper();
-        assertEquals("""
-            {"field":[]}""", syntheticSource(mapper, b -> b.startArray("field").endArray()));
+        // An empty array has no values to store in a doc-value column and isn't field-owned, so columnar drops it
+        // (lossy) rather than keeping a generic _ignored_source marker. The field is therefore absent from _source.
+        assertEquals("{}", syntheticSource(mapper, b -> b.startArray("field").endArray()));
     }
 
     public void testEmptyStringDistinctFromNull() throws IOException {

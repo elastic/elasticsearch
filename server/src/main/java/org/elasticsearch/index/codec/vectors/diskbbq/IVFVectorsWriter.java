@@ -152,7 +152,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         IndexOutput postingsOutput,
         long fileOffset,
         int[] assignments,
-        int[] overspillAssignments,
+        OverspillAssignments overspillAssignments,
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException;
 
@@ -164,7 +164,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         long fileOffset,
         MergeState mergeState,
         int[] assignments,
-        int[] overspillAssignments,
+        OverspillAssignments overspillAssignments,
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException;
 
@@ -366,7 +366,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         // For flat centroid assignments there is a single global centroid and no SOAR (secondary) centroid assignments,
         // so we pass an empty array for soarAssignments.
         int[] assignments = new int[count];
-        return new CentroidAssignments(dimension, new float[][] { centroid }, assignments, new int[0]);
+        return new CentroidAssignments(dimension, new float[][] { centroid }, assignments, new SoarAssignments(new int[0]));
     }
 
     @Override
@@ -510,7 +510,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final long postingListLength;
             final int numCentroids;
             final int[] assignments;
-            final int[] overspillAssignments;
+            final OverspillAssignments overspillAssignments;
             final float[] calculatedGlobalCentroid;
             final CentroidSlices centroidSlices;
             String centroidTempName = null;

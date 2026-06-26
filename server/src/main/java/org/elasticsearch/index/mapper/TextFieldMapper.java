@@ -85,19 +85,18 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomB
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -498,7 +497,6 @@ public final class TextFieldMapper extends FieldMapper {
                     usesBinaryDocValuesForFallbackFields,
                     usesBinaryDocValues(),
                     docValuesParameters.getValue(),
-                    offsetsFieldName != null,
                     arrayOrderBinaryDocValues
                 );
                 if (fieldData.getValue()) {
@@ -798,8 +796,6 @@ public final class TextFieldMapper extends FieldMapper {
         private final boolean usesBinaryDocValuesForFallbackFields;
         private final boolean usesBinaryDocValues;
         private final DocValuesParameter.Values docValuesParams;
-        // Whether the block loader must emit values in indexed array order (via the offsets sidecar) rather than sorted doc-values order.
-        private final boolean readInArrayOrder;
         // Whether the (high-cardinality) binary doc values store their values in document order with inline nulls (ArrayOrderInlineNull).
         private final boolean useArrayOrderBinaryDocValues;
 
@@ -826,7 +822,6 @@ public final class TextFieldMapper extends FieldMapper {
             boolean usesBinaryDocValuesForFallbackFields,
             boolean usesBinaryDocValues,
             DocValuesParameter.Values docValuesParams,
-            boolean readInArrayOrder,
             boolean useArrayOrderBinaryDocValues
         ) {
             super(name, IndexType.terms(indexed, hasDocValues), stored, tsi, meta, isSyntheticSource, isWithinMultiField);
@@ -839,7 +834,6 @@ public final class TextFieldMapper extends FieldMapper {
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.docValuesParams = docValuesParams;
-            this.readInArrayOrder = readInArrayOrder;
             this.useArrayOrderBinaryDocValues = useArrayOrderBinaryDocValues;
         }
 
@@ -871,7 +865,6 @@ public final class TextFieldMapper extends FieldMapper {
                 false,
                 false,
                 null,
-                false,
                 false
             );
         }
@@ -894,7 +887,6 @@ public final class TextFieldMapper extends FieldMapper {
             this.usesBinaryDocValuesForFallbackFields = false;
             this.usesBinaryDocValues = false;
             this.docValuesParams = null;
-            this.readInArrayOrder = false;
             this.useArrayOrderBinaryDocValues = false;
         }
 
@@ -1007,7 +999,7 @@ public final class TextFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
 
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
             } else {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -1023,7 +1015,7 @@ public final class TextFieldMapper extends FieldMapper {
 
             List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
+                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs);
             } else {
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
@@ -1051,7 +1043,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesPrefixQuery(name(), value, caseInsensitive);
+                return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive);
             }
             if (caseInsensitive == false) {
                 return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
@@ -1077,7 +1069,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesWildcardQuery(name(), value, caseInsensitive);
+                return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive);
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
@@ -1111,15 +1103,7 @@ public final class TextFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
             if (usesBinaryDocValues) {
-                return new StringScriptFieldRegexpQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexCreatedVersion),
-                    name(),
-                    value,
-                    syntaxFlags,
-                    matchFlags,
-                    maxDeterminizedStates
-                );
+                return new ScanningBinaryDocValuesRegexpQuery(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates);
             }
             if (context.getCircuitBreaker() != null) {
                 Term term = new Term(name(), value);
@@ -1399,7 +1383,13 @@ public final class TextFieldMapper extends FieldMapper {
                 };
             }
             BlockLoader fallbackLoader = nonDelegateBlockLoader(blContext);
-            if (syntheticSourceDelegate.isPresent() && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored()) {
+            // Use the keyword delegate only when ignore_above may drop values but null_value is not configured.
+            // A null_value substitution stores a synthetic value for null inputs, which would be incorrectly
+            // returned by the prefer loader for documents where the parent field is absent — the _ignore field
+            // only tracks values dropped by ignore_above, not null-value substitutions.
+            if (syntheticSourceDelegate.isPresent()
+                && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored()
+                && syntheticSourceDelegate.get().hasNullValue() == false) {
                 DelegatingBlockLoader preferLoader = new DelegatingBlockLoader(syntheticSourceDelegate.get().blockLoader(blContext)) {
                     @Override
                     public String delegatingTo() {
@@ -1420,9 +1410,7 @@ public final class TextFieldMapper extends FieldMapper {
                     }
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
                         name(),
-                        useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE
-                            : readInArrayOrder ? ArrayOrderSource.FROM_OFFSETS
-                            : ArrayOrderSource.NONE
+                        useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE
                     );
                 } else {
                     return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
@@ -1671,7 +1659,6 @@ public final class TextFieldMapper extends FieldMapper {
                 false,
                 false,
                 null,
-                false,
                 false
             );
         }
@@ -2213,9 +2200,6 @@ public final class TextFieldMapper extends FieldMapper {
             if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // Columnar mode (high cardinality): reconstruct array order, duplicates and null positions from the in-order binary blob.
                 layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
-            } else if (offsetsFieldName != null) {
-                // Columnar mode: reconstruct array order, duplicates and null positions from the offsets sidecar.
-                layers.add(new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
             } else {
                 layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }

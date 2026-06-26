@@ -29,6 +29,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -45,6 +46,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RestTermsEnumActionTests extends ESTestCase {
 
@@ -59,7 +61,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
         usageService,
         TelemetryProvider.NOOP
     );
-    private static RestTermsEnumAction action = new RestTermsEnumAction();
+    private static RestTermsEnumAction action = new RestTermsEnumAction(CrossProjectModeDecider.NOOP);
 
     /**
      * Configures {@link NodeClient} to stub {@link TermsEnumAction} transport action.

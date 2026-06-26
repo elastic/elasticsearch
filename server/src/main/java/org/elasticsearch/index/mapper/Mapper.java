@@ -343,7 +343,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     /**
      * @return whether this mapper stores its multi-valued leaf array elements in document order directly in its own binary doc-values
-     * field (the {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format), with no sidecar offsets field.
+     * field (the {@link MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated ArrayOrderDeduplicated} format), with no sidecar offsets field.
      * Like {@link #supportStoringArrayOffsets()}, this signals to the document parser that the field handles array storage natively and
      * must not be diverted to {@code _ignored_source}.
      */

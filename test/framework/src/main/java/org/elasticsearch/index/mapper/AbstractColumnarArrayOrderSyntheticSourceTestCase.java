@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Shared round-trip coverage for high-cardinality fields in strictly columnar mode that store their values in document order with inline
- * nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) instead of a sidecar {@code .offsets} field. Concrete subclasses
+ * nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated}) instead of a sidecar {@code .offsets} field. Concrete subclasses
  * supply the field type (keyword, text, match_only_text). Exercises order preservation, duplicates, interleaved nulls, lone/all nulls,
  * empty arrays, and the empty-string-vs-null distinction.
  */

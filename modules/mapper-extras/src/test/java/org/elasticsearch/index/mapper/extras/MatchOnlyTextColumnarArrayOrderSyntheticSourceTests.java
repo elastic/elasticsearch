@@ -17,7 +17,7 @@ import java.util.List;
 
 /**
  * Round-trips synthetic {@code _source} for high-cardinality match_only_text fields in strictly columnar mode, which store their values in
- * document order with inline nulls ({@code ArrayOrderInlineNull}) instead of a sidecar {@code .offsets} field.
+ * document order with inline nulls ({@code ArrayOrderDeduplicated}) instead of a sidecar {@code .offsets} field.
  */
 public class MatchOnlyTextColumnarArrayOrderSyntheticSourceTests extends AbstractColumnarArrayOrderSyntheticSourceTestCase {
 

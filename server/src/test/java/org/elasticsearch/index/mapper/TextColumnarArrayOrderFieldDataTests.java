@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper;
 
 /**
  * Fielddata round-trips for high-cardinality text fields in strictly columnar mode, which store their values in document order with inline
- * nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) instead of a sidecar {@code .offsets} field.
+ * nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated}) instead of a sidecar {@code .offsets} field.
  */
 public class TextColumnarArrayOrderFieldDataTests extends AbstractColumnarArrayOrderFieldDataTestCase {
 

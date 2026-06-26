@@ -524,7 +524,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 docValuesParameters().multiValue()
             );
             // High-cardinality (binary doc values) fields in strict columnar mode store their values in document order directly in the
-            // binary doc values (ArrayOrderInlineNull) instead of recording a sidecar .offsets field; low-cardinality (sorted-set) fields
+            // binary doc values (ArrayOrderDeduplicated) instead of recording a sidecar .offsets field; low-cardinality (sorted-set) fields
             // keep using offsets.
             if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
                 this.arrayOrderBinaryDocValues = true;
@@ -747,7 +747,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         /**
          * Whether this field stores its (high-cardinality) binary doc values in document order with inline nulls
-         * ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) rather than via a sidecar offsets field.
+         * ({@link MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated}) rather than via a sidecar offsets field.
          */
         public boolean usesArrayOrderBinaryDocValues() {
             return useArrayOrderBinaryDocValues;
@@ -1473,7 +1473,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             // In-order path: non-null values are recorded in indexValue (in document order); here we record null slots so their position
             // is preserved. Values that tripped ignore_above (indexed == false, value != null) record no slot, matching the offsets path.
             if (indexed == false && value == null) {
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+                MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated.recordNull(context.doc(), fieldType().name());
             }
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
@@ -1581,7 +1581,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             assert fieldType.docValuesType() == DocValuesType.NONE;
             if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
+                MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated.recordValue(context.doc(), fieldType().name(), binaryValue);
             } else {
                 dvFactory.addBinaryField(
                     context.doc(),

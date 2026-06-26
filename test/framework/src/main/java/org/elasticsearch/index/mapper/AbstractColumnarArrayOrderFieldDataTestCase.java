@@ -30,7 +30,7 @@ import java.util.List;
 
 /**
  * Shared fielddata coverage for high-cardinality fields in strictly columnar mode that store their values in document order with inline
- * nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) instead of a sidecar {@code .offsets} field. Loads values through
+ * nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated}) instead of a sidecar {@code .offsets} field. Loads values through
  * the mapper's fielddata builder (so the mapper-to-fielddata wiring is exercised), which sorts within a document, drops nulls and keeps
  * duplicates. Concrete subclasses supply the field type (keyword, text, match_only_text).
  */

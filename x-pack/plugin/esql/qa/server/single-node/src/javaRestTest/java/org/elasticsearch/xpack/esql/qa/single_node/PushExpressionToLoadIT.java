@@ -304,9 +304,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MIN(test)",
             matchesList().item(min),
-            // High-cardinality keyword now stores values as ArrayOrderInlineNull binary doc values; MV_MIN pushdown is disabled for
+            // High-cardinality keyword now stores values as ArrayOrderDeduplicated binary doc values; MV_MIN pushdown is disabled for
             // that encoding (see KeywordFieldType#supportsBlockLoaderConfig), so values are loaded with the generic reader instead.
-            matchesMap().entry("test:column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount", 1)
+            matchesMap().entry("test:column_at_a_time:BytesRefsFromArrayOrderDeduplicatedBinarySeparateCount", 1)
         );
     }
 
@@ -426,9 +426,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
-            // High-cardinality keyword now stores values as ArrayOrderInlineNull binary doc values; MV_MAX pushdown is disabled for
+            // High-cardinality keyword now stores values as ArrayOrderDeduplicated binary doc values; MV_MAX pushdown is disabled for
             // that encoding (see KeywordFieldType#supportsBlockLoaderConfig), so values are loaded with the generic reader instead.
-            matchesMap().entry("test:column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount", 1)
+            matchesMap().entry("test:column_at_a_time:BytesRefsFromArrayOrderDeduplicatedBinarySeparateCount", 1)
         );
     }
 

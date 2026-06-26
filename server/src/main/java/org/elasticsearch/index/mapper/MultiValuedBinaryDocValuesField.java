@@ -20,7 +20,9 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 /**
@@ -278,25 +280,32 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
      * The companion {@code .counts} numeric doc values field (suffix {@link SeparateCount#COUNT_FIELD_SUFFIX}) stores the total number of
      * slots, INCLUDING null slots. Encoding:
      * <ul>
-     *   <li>a single non-null value &rarr; {@code [val]} (raw bytes, no length prefix), exactly like {@link SeparateCount}</li>
-     *   <li>two or more slots &rarr; {@code [len1+1][val1][len2+1][val2]...}. A real value of length {@code L} is stored with a
-     *       {@code L+1} length prefix, so a stored length of {@code 0} is never produced by a real value and is reserved to mean
-     *       {@code null} (zero following bytes). This is what distinguishes an inline {@code null} (prefix {@code 0}) from an empty
-     *       string {@code ""} (prefix {@code 1}, zero bytes).</li>
+     *   <li>single non-null value &rarr; {@code [val]} (raw bytes, no length prefix)</li>
+     *   <li>two or more slots with no duplicates and no nulls ({@code slotCount == distinctCount}) &rarr;
+     *       {@code [D][len1][val1]...[lenD][valD]}: a vint {@code distinctCount} followed by {@code distinctCount}
+     *       plain-length-prefixed values in first-seen (document) order. No ordinal stream is written because it would be the trivial
+     *       sequence {@code 1,2,...,distinctCount}.</li>
+     *   <li>two or more slots with at least one duplicate or null ({@code slotCount > distinctCount}) &rarr;
+     *       {@code [D][len1][val1]...[lenD][valD][ord1][ord2]...}: a vint {@code distinctCount} (number of distinct non-null values),
+     *       followed by {@code distinctCount} plain-length-prefixed values in first-seen order, followed by {@code slotCount} vint
+     *       ordinals (one per slot):
+     *       {@code 0} means null, {@code k>=1} refers to distinct value {@code k-1}. Each distinct value is stored once; repeated values
+     *       within a document reference the same ordinal, keeping per-doc blobs small so binary doc-values blocks remain count-bound and
+     *       ZSTD can compress across many documents.</li>
      *   <li>zero non-null values (all-null array, lone {@code null}, or empty array) &rarr; no binary field is written at all; the
      *       {@code .counts} field alone carries the shape ({@code k>=1} null slots, or {@code 0} for an empty array)</li>
      * </ul>
      * Because a document with no non-null values writes no binary blob, the matching reader must advance on the {@code .counts} field
-     * (binary-absent-while-counts-present denotes an all-null / empty-array document).
+     * (binary-absent-while-counts-present denotes an all-null or empty-array document).
      */
-    public static class ArrayOrderInlineNull extends MultiValuedBinaryDocValuesField {
+    public static class ArrayOrderDeduplicated extends MultiValuedBinaryDocValuesField {
 
         private boolean hasNonNullValue;
 
         // Held so the record* helpers can update the count on each slot without re-deriving the companion field from the document.
         private NumericDocValuesField countField;
 
-        public ArrayOrderInlineNull(String name) {
+        public ArrayOrderDeduplicated(String name) {
             super(name, ValueOrdering.UNSORTED);
         }
 
@@ -307,7 +316,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         /**
          * Records a non-null value directly into the document's accumulator for {@code fieldName}, in document order. The binary blob is
          * added to the document lazily on the first non-null value, so an all-null or empty-array document writes the {@code .counts}
-         * field alone (see {@link ArrayOrderInlineNull}).
+         * field alone (see {@link ArrayOrderDeduplicated}).
          */
         public static void recordValue(LuceneDocument doc, String fieldName, BytesRef value) {
             var field = getOrCreate(doc, fieldName);
@@ -337,12 +346,20 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         /**
+         * Whether at least one non-null value has been accumulated. When {@code false} the binary field must NOT be added to the
+         * document; the {@code .counts} field alone represents the all-null / empty-array shape.
+         */
+        public boolean hasNonNullValue() {
+            return hasNonNullValue;
+        }
+
+        /**
          * Looks up the per-field accumulator on the document, creating it on first use. The accumulator is registered by key (without
          * being added to the field list yet) and its always-present {@code .counts} companion is added to the document immediately.
          */
-        private static ArrayOrderInlineNull getOrCreate(LuceneDocument doc, String fieldName) {
-            return (ArrayOrderInlineNull) doc.getOrAddWithKey(fieldName, key -> {
-                var field = new ArrayOrderInlineNull(fieldName);
+        private static ArrayOrderDeduplicated getOrCreate(LuceneDocument doc, String fieldName) {
+            return (ArrayOrderDeduplicated) doc.getOrAddWithKey(fieldName, key -> {
+                var field = new ArrayOrderDeduplicated(fieldName);
                 field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 0);
                 // Only the always-present .counts companion is added here; the binary blob is added lazily on the first non-null value.
                 doc.add(field.countField);
@@ -365,46 +382,58 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             values.add(null);
         }
 
-        /**
-         * Whether at least one non-null value has been accumulated. When {@code false} the binary field must NOT be added to the
-         * document; the {@code .counts} field alone represents the all-null / empty-array shape.
-         */
-        public boolean hasNonNullValue() {
-            return hasNonNullValue;
-        }
-
         @Override
         public BytesRef binaryValue() {
-            return encode(values);
+            return encode((List<BytesRef>) values);
         }
 
         /**
          * Encodes the given document-order slots (a {@code null} element denotes a {@code null} slot) into the format described on
-         * {@link ArrayOrderInlineNull}. Must only be called when at least one non-null value is present; the all-null and empty-array
+         * {@link ArrayOrderDeduplicated}. Must only be called when at least one non-null value is present; the all-null and empty-array
          * cases write no binary field.
          */
-        public static BytesRef encode(Collection<BytesRef> slots) {
+        public static BytesRef encode(List<BytesRef> slots) {
             int slotCount = slots.size();
             assert slotCount >= 1 : "in-order binary doc values must not be written for an empty document";
             if (slotCount == 1) {
-                BytesRef only = slots.iterator().next();
+                BytesRef only = slots.getFirst();
                 assert only != null : "a lone null slot must not write a binary value";
                 return only;
             }
-            int byteCount = 0;
+
+            // Assign first-seen ordinals to distinct non-null values (BytesRef.equals / hashCode are value-based).
+            // Size the map to hold up to slotCount entries without rehashing (distinct values <= slotCount).
+            Map<BytesRef, Integer> ordinals = new HashMap<>((int) (slotCount / 0.75f) + 1);
+            List<BytesRef> distinctInOrder = new ArrayList<>();
+            int distinctByteCount = 0;
             for (BytesRef slot : slots) {
-                if (slot != null) {
-                    byteCount += slot.length;
+                if (slot != null && ordinals.putIfAbsent(slot, ordinals.size() + 1) == null) {
+                    // putIfAbsent returns null iff the mapping was newly inserted (1-based; 0 reserved for null)
+                    distinctInOrder.add(slot);
+                    distinctByteCount += slot.length;
                 }
             }
-            int streamSize = byteCount + slotCount * VINT_MAX_BYTES;
+            int distinctCount = ordinals.size();
+            // Ordinals are only needed when there are duplicates or null slots (slotCount > distinctCount).
+            // When slotCount == distinctCount every slot is a distinct non-null value; the distinctCount distinct values in first-seen
+            // order ARE the array, so the trivial ordinal sequence 1,2,...,distinctCount is redundant and can be omitted.
+            boolean writeOrdinals = slotCount != distinctCount;
+            // Size estimate: vint for distinctCount + distinctCount*(VINT_MAX_BYTES + distinctBytes)
+            // [+ slotCount*VINT_MAX_BYTES when ordinals are written]
+            int streamSize = VINT_MAX_BYTES + distinctCount * VINT_MAX_BYTES + distinctByteCount + (writeOrdinals
+                ? slotCount * VINT_MAX_BYTES
+                : 0);
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
-                for (BytesRef slot : slots) {
-                    if (slot == null) {
-                        out.writeVInt(0);
-                    } else {
-                        out.writeVInt(slot.length + 1);
-                        out.writeBytes(slot.bytes, slot.offset, slot.length);
+                out.writeVInt(distinctCount);
+                // Write distinct values in first-seen (insertion) order (ordinals 1..distinctCount).
+                for (BytesRef val : distinctInOrder) {
+                    out.writeVInt(val.length);
+                    out.writeBytes(val.bytes, val.offset, val.length);
+                }
+                // Write one ordinal per slot (0 = null, 1..D = distinct value) only when there are duplicates or nulls.
+                if (writeOrdinals) {
+                    for (BytesRef slot : slots) {
+                        out.writeVInt(slot == null ? 0 : ordinals.get(slot));
                     }
                 }
                 return out.bytes().toBytesRef();

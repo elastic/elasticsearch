@@ -24,10 +24,15 @@ import java.util.function.Function;
 
 /**
  * Loads {@code _source} for high-cardinality fields in strictly columnar index mode that store their values in document order via the
- * {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format (no sidecar {@code .offsets} field). Unlike
+ * {@link MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated ArrayOrderDeduplicated} format (no sidecar {@code .offsets} field). Unlike
  * {@link BinaryDocValuesSyntheticFieldLoaderLayer}, this layer preserves array order, duplicates, and inline {@code null} positions, and
  * it reconstructs all-null and empty arrays — so it advances on the {@code .counts} field (a document with no binary blob but a present
  * count is an all-null or empty array).
+ * <p>
+ * For two or more slots, the blob starts with vint {@code distinctCount} (distinct non-null values) followed by {@code distinctCount}
+ * length-prefixed values. When {@code slotCount == distinctCount} (no duplicates, no nulls) no ordinal stream follows. When
+ * {@code slotCount > distinctCount} a per-slot ordinal stream follows where {@code 0} marks a null slot and {@code k>=1} refers to
+ * distinct value {@code k-1}.
  */
 public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
@@ -46,6 +51,8 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
     private byte[] blobBytes;
     private int[] offsets = new int[8];
     private int[] lengths = new int[8];
+    private int[] distinctOffsets = new int[8];
+    private int[] distinctLengths = new int[8];
 
     public ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(String name) {
         this(name, Function.identity());
@@ -101,24 +108,35 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
             offsets[0] = bytes.offset;
             lengths[0] = bytes.length;
         } else {
-            // point the stream reader at the blob, then walk the slotCount [len+1][bytes] slots (len+1 == 0 marks a null)
+            // decode [D][len1][val1]...[lenD][valD][opt: ord1...ordSlotCount] into per-slot offsets/lengths
             scratchInput.reset(bytes.bytes, bytes.offset, bytes.length);
-
-            for (int i = 0; i < slotCount; i++) {
-                int encodedLength = scratchInput.readVInt();
-                if (encodedLength == 0) {
-                    lengths[i] = -1; // null slot
-                } else {
-                    // lengths are always encoded as len+1 to distinguish between empty strings and nulls, so here we must subtract 1
-                    // to get back the actual length of the value
-                    int length = encodedLength - 1;
+            int distinctCount = scratchInput.readVInt();
+            if (slotCount == distinctCount) {
+                // no duplicates, no nulls, no ordinal stream: distinct values in order are the slots
+                for (int i = 0; i < distinctCount; i++) {
+                    int length = scratchInput.readVInt();
                     int offset = scratchInput.getPosition();
-
-                    // skip over the value bytes so the next readVInt lands on the following slot's length prefix
                     scratchInput.setPosition(offset + length);
-
                     offsets[i] = offset;
                     lengths[i] = length;
+                }
+            } else {
+                ensureDistinctCapacity(distinctCount);
+                for (int d = 0; d < distinctCount; d++) {
+                    int length = scratchInput.readVInt();
+                    int offset = scratchInput.getPosition();
+                    scratchInput.setPosition(offset + length);
+                    distinctOffsets[d] = offset;
+                    distinctLengths[d] = length;
+                }
+                for (int i = 0; i < slotCount; i++) {
+                    int ord = scratchInput.readVInt();
+                    if (ord == 0) {
+                        lengths[i] = -1; // null slot
+                    } else {
+                        offsets[i] = distinctOffsets[ord - 1];
+                        lengths[i] = distinctLengths[ord - 1];
+                    }
                 }
             }
         }
@@ -174,6 +192,13 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
         if (offsets.length < minSize) {
             offsets = ArrayUtil.grow(offsets, minSize);
             lengths = ArrayUtil.grow(lengths, minSize);
+        }
+    }
+
+    private void ensureDistinctCapacity(int minSize) {
+        if (distinctOffsets.length < minSize) {
+            distinctOffsets = ArrayUtil.grow(distinctOffsets, minSize);
+            distinctLengths = ArrayUtil.grow(distinctLengths, minSize);
         }
     }
 }

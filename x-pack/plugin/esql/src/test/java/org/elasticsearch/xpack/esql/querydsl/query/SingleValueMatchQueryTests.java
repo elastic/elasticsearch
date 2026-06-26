@@ -270,9 +270,9 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
     private static List<IndexableField> docFor(Iterable<Object> values, DocValuesMode docValuesMode) {
         long count = 0;
-        // High-cardinality keyword fields in strict-columnar mode write the ArrayOrderInlineNull format ([len+1][val] slots in document
+        // High-cardinality keyword fields in strict-columnar mode write the ArrayOrderDeduplicated format ([len+1][val] slots in document
         // order), which is what the SortingArrayOrderBinaryDocValues reader selected for this field expects.
-        var mvField = new MultiValuedBinaryDocValuesField.ArrayOrderInlineNull("foo");
+        var mvField = new MultiValuedBinaryDocValuesField.ArrayOrderDeduplicated("foo");
         List<IndexableField> fields = new ArrayList<>();
 
         for (Object v : values) {

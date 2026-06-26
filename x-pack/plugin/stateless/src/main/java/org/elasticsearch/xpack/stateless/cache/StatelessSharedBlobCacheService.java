@@ -24,6 +24,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -108,6 +109,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         ClusterService clusterService,
+        IndicesService indicesService,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         super(
@@ -116,7 +118,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             threadPool,
             IO_EXECUTOR,
             blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool)
         );
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
@@ -131,6 +133,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         ClusterService clusterService,
+        IndicesService indicesService,
         LongSupplier relativeTimeInNanosSupplier,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
@@ -139,7 +142,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             settings,
             threadPool,
             blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService),
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
             relativeTimeInNanosSupplier,
             metricsHolder
         );

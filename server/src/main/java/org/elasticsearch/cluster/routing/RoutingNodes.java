@@ -308,15 +308,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.get(nodeId);
     }
 
-    /**
-     * Returns {@code true} if the given shard is assigned to the node identified by {@code nodeId},
-     * including as a relocation target.
-     */
-    public boolean hasShardOnNode(String nodeId, ShardId shardId) {
-        final RoutingNode routingNode = node(nodeId);
-        return routingNode != null && routingNode.getByShardId(shardId) != null;
-    }
-
     public Set<String> getAttributeValues(String attributeName) {
         return attributeValuesByAttribute.computeIfAbsent(
             attributeName,

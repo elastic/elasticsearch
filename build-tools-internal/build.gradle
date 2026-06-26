@@ -375,8 +375,8 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
-  integTestImplementation(buildLibs.archunit) {
-    because 'architecture rules enforcing test coverage of plugins and tasks'
+  testImplementation(buildLibs.archunit) {
+    because 'architecture rules enforcing Gradle best practices on build logic'
   }
 
 }

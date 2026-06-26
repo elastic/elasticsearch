@@ -7,14 +7,25 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -28,6 +39,32 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompactInvalidMappedFieldTests extends ESTestCase {
+    public void testParentWithCompactInvalidMappedFieldCanBeTransported() throws IOException {
+        Map<DataType, Set<String>> input = new TreeMap<>(
+            Map.of(DataType.KEYWORD, new LinkedHashSet<>(Set.of("idx_a")), DataType.TEXT, new LinkedHashSet<>(Set.of("idx_b")))
+        );
+        CompactInvalidMappedField child = CompactInvalidMappedField.mappedEverywhere("analyzed", input, new HashMap<>());
+
+        EsField copiedChild = copyField(parentWithChild(child)).getProperties().get("analyzed");
+
+        assertThat(copiedChild.getClass(), equalTo(EsField.class));
+        assertThat(copiedChild.getName(), equalTo("analyzed"));
+        assertThat(copiedChild.getDataType(), equalTo(DataType.UNSUPPORTED));
+    }
+
+    public void testParentWithInvalidMappedFieldCanBeTransported() throws IOException {
+        InvalidMappedField child = new InvalidMappedField(
+            "analyzed",
+            new TreeMap<>(Map.of(DataType.KEYWORD.typeName(), Set.of("idx_a"), DataType.TEXT.typeName(), Set.of("idx_b")))
+        );
+
+        EsField copiedChild = copyField(parentWithChild(child)).getProperties().get("analyzed");
+
+        assertThat(copiedChild.getClass(), equalTo(EsField.class));
+        assertThat(copiedChild.getName(), equalTo("analyzed"));
+        assertThat(copiedChild.getDataType(), equalTo(DataType.UNSUPPORTED));
+    }
+
     public void testKeepsAllIndicesWhenAtOrBelowLimit() {
         Map<DataType, Set<String>> input = Map.of(
             DataType.KEYWORD,
@@ -110,5 +147,26 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
             CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>()).types(),
             containsInAnyOrder(DataType.KEYWORD, DataType.LONG)
         );
+    }
+
+    private static KeywordEsField parentWithChild(EsField child) {
+        return new KeywordEsField("my_field", Map.of("analyzed", child), true, 256, false, false, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static EsField copyField(EsField field) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput(); var pso = new PlanStreamOutput(output, EsqlTestUtils.TEST_CFG)) {
+            field.writeTo(pso);
+            try (
+                var input = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), new NamedWriteableRegistry(List.of()));
+                var psi = new PlanStreamInput(
+                    input,
+                    input.namedWriteableRegistry(),
+                    EsqlTestUtils.TEST_CFG,
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
+                return EsField.readFrom(psi);
+            }
+        }
     }
 }

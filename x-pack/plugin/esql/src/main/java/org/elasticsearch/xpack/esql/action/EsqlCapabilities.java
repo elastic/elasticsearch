@@ -286,6 +286,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED,
 
         /**
+         * Bugfix: {@code IndexResolver.mergedMappings} crashed with {@code UnsupportedOperationException} when a keyword
+         * field with multi-fields (e.g. {@code my_field.analyzed}) was partially unmapped across the queried indices and
+         * {@code SET unmapped_fields="load"} was active. {@code PotentiallyUnmappedKeywordEsField} was constructed with
+         * an immutable empty properties map, preventing child fields from being inserted.
+         */
+        OPTIONAL_FIELDS_FIX_LOAD_KEYWORD_WITH_MULTIFIELDS,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

@@ -107,15 +107,11 @@ public class ForeignApiPlugin implements Plugin<Project> {
                 });
             });
 
-            project.afterEvaluate(
-                p -> p.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(jarFile, 21))
-            );
+            project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(jarFile, 21));
         } else {
             // JDK 22+: foreign API is standard. No stub JAR is needed; pass null for the jar
             // parameter — checkForeignApiUsage only uses it when targetVersion == 21.
-            project.afterEvaluate(
-                p -> p.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(null, minRuntime))
-            );
+            project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(null, minRuntime));
         }
     }
 

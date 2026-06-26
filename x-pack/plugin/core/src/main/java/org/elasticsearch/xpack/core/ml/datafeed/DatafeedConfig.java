@@ -738,13 +738,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (forInternalStorage) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
-            if (headers.isEmpty() == false) {
-                if (forInternalStorage) {
+            if (forInternalStorage) {
+                if (headers.isEmpty() == false) {
                     assertNoAuthorizationHeader(headers);
                     builder.field(HEADERS.getPreferredName(), headers);
-                } else {
-                    XContentUtils.addAuthorizationInfo(builder, headers);
                 }
+            } else if (cloudInternalCredential != null) {
+                XContentUtils.addCloudApiKeyAuthorization(builder, cloudInternalCredential.id());
+            } else if (headers.isEmpty() == false) {
+                XContentUtils.addAuthorizationInfo(builder, headers);
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
             if (chunkingConfig != null) {

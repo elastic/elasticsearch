@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -39,6 +40,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
+import org.elasticsearch.compute.operator.HighlightConfig;
+import org.elasticsearch.compute.operator.HighlightOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -71,6 +74,7 @@ import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
@@ -86,6 +90,9 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.iplocation.api.IpDataLookup;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
@@ -132,6 +139,7 @@ import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -140,6 +148,7 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
@@ -161,6 +170,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -237,6 +247,8 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
+    private final IpLocationService ipLocationService;
+    private final ProjectResolver projectResolver;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
 
@@ -254,6 +266,8 @@ public class LocalExecutionPlanner {
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
         UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
+        ProjectResolver projectResolver,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry
     ) {
@@ -271,6 +285,8 @@ public class LocalExecutionPlanner {
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
         this.userAgentParserRegistry = userAgentParserRegistry;
+        this.ipLocationService = ipLocationService;
+        this.projectResolver = projectResolver;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
     }
@@ -360,8 +376,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
-        } else if (node instanceof HighlightExec) {
-            throw new UnsupportedOperationException("HIGHLIGHT is not implemented yet");
+        } else if (node instanceof HighlightExec highlight) {
+            return planHighlight(highlight, context);
         } else if (node instanceof RerankExec rerank) {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
@@ -370,6 +386,8 @@ public class LocalExecutionPlanner {
             return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
+        } else if (node instanceof IpLocationExec ipLoc) {
+            return planIpLocation(ipLoc, context);
         } else if (node instanceof UserAgentExec userAgent) {
             return planUserAgent(userAgent, context);
         } else if (node instanceof UriPartsExec uriParts) {
@@ -435,6 +453,28 @@ public class LocalExecutionPlanner {
         return source.with(new MMROperator.Factory(diversifyField, diversifyFieldChannel, limit, queryVector, lambdaValue), source.layout);
     }
 
+    private PhysicalOperation planIpLocation(IpLocationExec exec, LocalExecutionPlannerContext context) {
+        String projectId = projectResolver.getProjectId().id();
+        ipLocationService.requestDownloads(projectId, IpLocationConsumer.ESQL);
+
+        IpDataLookup lookup = ipLocationService.createIpDataLookup(projectId, exec.databaseFile(), exec.outputFieldNames());
+        CompoundOutputEvaluator.OutputFieldsCollectorProvider provider = new CompoundOutputEvaluator.OutputFieldsCollectorProvider() {
+            @Override
+            public CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector() {
+                return new IpLocationFunctionBridge.IpLocationCollectorImpl(exec.outputFieldNames(), lookup, exec.databaseFile());
+            }
+
+            @Override
+            public String collectorSimpleName() {
+                return IpLocationFunctionBridge.IpLocationCollectorImpl.class.getSimpleName();
+            }
+        };
+        CompoundOutputEvaluator.MultiValueStrategy strategy = exec.firstOnly()
+            ? CompoundOutputEvaluator.MultiValueStrategy.TAKE_FIRST
+            : CompoundOutputEvaluator.MultiValueStrategy.REJECT;
+        return planCompoundOutputEval(exec, provider, strategy, context);
+    }
+
     private PhysicalOperation planUserAgent(UserAgentExec exec, LocalExecutionPlannerContext context) {
         UserAgentParser parser = userAgentParserRegistry.getParser(exec.regexFile());
         if (parser == null) {
@@ -451,20 +491,21 @@ public class LocalExecutionPlanner {
                 return UserAgentFunctionBridge.UserAgentCollectorImpl.class.getSimpleName();
             }
         };
-        return planCompoundOutputEval(exec, provider, context);
+        return planCompoundOutputEval(exec, provider, CompoundOutputEvaluator.MultiValueStrategy.REJECT, context);
     }
 
     private PhysicalOperation planUriParts(UriPartsExec uriParts, LocalExecutionPlannerContext context) {
-        return planCompoundOutputEval(uriParts, uriParts, context);
+        return planCompoundOutputEval(uriParts, uriParts, CompoundOutputEvaluator.MultiValueStrategy.REJECT, context);
     }
 
     private PhysicalOperation planRegisteredDomain(RegisteredDomainExec rd, LocalExecutionPlannerContext context) {
-        return planCompoundOutputEval(rd, rd, context);
+        return planCompoundOutputEval(rd, rd, CompoundOutputEvaluator.MultiValueStrategy.REJECT, context);
     }
 
     private PhysicalOperation planCompoundOutputEval(
         final CompoundOutputEvalExec coe,
         CompoundOutputEvaluator.OutputFieldsCollectorProvider provider,
+        CompoundOutputEvaluator.MultiValueStrategy multiValueStrategy,
         LocalExecutionPlannerContext context
     ) {
         PhysicalOperation source = plan(coe.child(), context);
@@ -482,7 +523,7 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout, context.analysisRegistry()),
-                new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), provider)
+                new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), provider, multiValueStrategy)
             ),
             layout
         );
@@ -721,6 +762,13 @@ public class LocalExecutionPlanner {
             return source.with(numericFactory, source.layout);
         }
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
+        // For a single keyword/text sort key directly over an external source, publish the generic
+        // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
+        // can skip row groups/stripes that cannot contain a globally competitive row. This is the
+        // BYTES_REF counterpart to the numeric NumericTopNOperator + SharedNumericThreshold path.
+        // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
+        // the TopNExec can never reach the operator without the readers also being wired to it.
+        SharedMinCompetitive.Supplier minCompetitive = tryBuildExternalMinCompetitive(topNExec, source, topNExec.minCompetitive());
         return source.with(
             new TopNOperatorFactory(
                 common.limit,
@@ -730,10 +778,93 @@ public class LocalExecutionPlanner {
                 context.pageSize(topNExec, rowSize),
                 context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
-                topNExec.minCompetitive()
+                minCompetitive
             ),
             source.layout
         );
+    }
+
+    /**
+     * Builds and wires a {@link SharedMinCompetitive} side-channel so the generic
+     * {@code TopNOperator} can publish a competitive {@code BYTES_REF} bound to the external source's
+     * {@code DynamicThresholdAware} format readers, or returns {@code null} when the plan shape does
+     * not qualify. The same supplier is handed back to the caller so the operator and the readers
+     * share one channel.
+     *
+     * <p>Preconditions, all checked here:
+     * <ul>
+     *     <li>Exactly one sort {@link Order} (the channel exposes a single comparable bound).</li>
+     *     <li>The sort attribute is a plain keyword/text {@link Attribute} that is a real column of
+     *         the external source (same id in {@link ExternalSourceExec#output()}). A computed sort
+     *         key would publish a bound that does not line up with the file column statistics the
+     *         reader compares against, so it is rejected.</li>
+     *     <li>The source operator factory is an {@link AsyncExternalSourceOperatorFactory}.</li>
+     *     <li>The source carries no {@code pushedTopN} hint (the source already prunes; layering a
+     *         threshold on top would be redundant).</li>
+     * </ul>
+     *
+     * <p>When {@code preexisting} is non-null it is reused (e.g. a supplier already carried on the
+     * {@link TopNExec}) instead of building a fresh one, but the readers are always wired to whichever
+     * supplier is returned. Wiring and supplier creation are intentionally kept together so a supplier
+     * can never reach the operator without the format readers being wired to the same channel.
+     *
+     * @param preexisting a supplier already attached to the plan node, or {@code null} to build one
+     */
+    @Nullable
+    private SharedMinCompetitive.Supplier tryBuildExternalMinCompetitive(
+        TopNExec topNExec,
+        PhysicalOperation source,
+        @Nullable SharedMinCompetitive.Supplier preexisting
+    ) {
+        List<Order> orders = topNExec.order();
+        if (orders.size() != 1) {
+            return null;
+        }
+        Order order = orders.get(0);
+        Attribute sortAttribute = Expressions.attribute(order.child());
+        if (sortAttribute == null) {
+            return null;
+        }
+        if (isBytesRefThresholdSupportedSortType(sortAttribute.dataType()) == false) {
+            return null;
+        }
+        if (source.sourceOperatorFactory instanceof AsyncExternalSourceOperatorFactory == false) {
+            return null;
+        }
+        AsyncExternalSourceOperatorFactory externalSourceFactory = (AsyncExternalSourceOperatorFactory) source.sourceOperatorFactory;
+        ExternalSourceExec externalSource = findExternalSourceBelow(topNExec.child());
+        if (externalSource == null || externalSource.pushedTopN() != null) {
+            return null;
+        }
+        // The sort key must be a column the source reads straight from the file (matched by id), so
+        // the published bound and the reader's column statistics speak about the same values.
+        boolean sortIsSourceColumn = false;
+        for (Attribute attribute : externalSource.output()) {
+            if (attribute.id().equals(sortAttribute.id())) {
+                sortIsSourceColumn = true;
+                break;
+            }
+        }
+        if (sortIsSourceColumn == false) {
+            return null;
+        }
+        boolean asc = order.direction() == Order.OrderDirection.ASC;
+        boolean nullsFirst = order.nullsPosition() == Order.NullsPosition.FIRST;
+        SharedMinCompetitive.Supplier supplier = preexisting != null
+            ? preexisting
+            : new SharedMinCompetitive.Supplier(blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
+        externalSourceFactory.setMinCompetitiveSupplier(supplier, sortAttribute.name(), asc, nullsFirst);
+        return supplier;
+    }
+
+    /**
+     * Sort-key data types eligible for the {@code BYTES_REF} external threshold. Scoped to
+     * keyword/text, whose {@code UTF8} TopN encoding decodes back to the same raw UTF-8 bytes that
+     * Parquet/ORC publish as string min/max statistics, so the reader's lexicographic comparison is
+     * exact. IP and VERSION encode to a different byte form than the file stats and are deferred.
+     */
+    private static boolean isBytesRefThresholdSupportedSortType(DataType dataType) {
+        return dataType == DataType.KEYWORD || dataType == DataType.TEXT;
     }
 
     /**
@@ -1126,6 +1257,42 @@ public class LocalExecutionPlanner {
             ),
             outputLayout
         );
+    }
+
+    // TODO: when highlighting can run directly against shard data, use real index offsets and per-field analyzers
+    // instead of re-analyzing each row in a MemoryIndex.
+    private PhysicalOperation planHighlight(HighlightExec highlight, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(highlight.child(), context);
+
+        Expression queryExpr = highlight.query();
+        if (queryExpr == null) {
+            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
+        }
+        String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
+        // TODO: honour boundary_scanner*, order, max_analyzed_offset, and phrase_limit once HighlightOptions exposes them.
+        HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
+        HighlightConfig config = new HighlightConfig(
+            queryText,
+            options.preTag(),
+            options.postTag(),
+            options.encoder(),
+            options.numberOfFragments(),
+            options.fragmentSize(),
+            options.noMatchSize()
+        );
+
+        List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
+            .stream()
+            .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
+            .toList();
+
+        // Append one keyword column per highlighted field.
+        // The generated attributes are appended in the same order as the ON fields,
+        // so the operator's appended blocks line up with these layout channels.
+        Layout.Builder layoutBuilder = source.layout.builder();
+        layoutBuilder.append(highlight.generatedFields());
+
+        return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());
     }
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {
@@ -1681,7 +1848,9 @@ public class LocalExecutionPlanner {
             }
         }
         // Carries every name VirtualColumnIterator should materialise: Hive-style partition columns
-        // plus always-on _file.* metadata. Passed through SourceOperatorContext.partitionColumnNames
+        // plus the _file.* metadata columns the user actually requested (these reach the relation
+        // output only via METADATA, or the temporary EXTERNAL shim — they are no longer auto-attached
+        // to every external schema). Passed through SourceOperatorContext.partitionColumnNames
         // (legacy method name kept to avoid an SPI rename on this PR).
         Set<String> virtualColumnNames = new LinkedHashSet<>();
         if (fileList != null) {
@@ -1718,6 +1887,8 @@ public class LocalExecutionPlanner {
             .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
+            .datasetName(externalSource.datasetName())
+            .deferredExtraction(externalSource.deferredExtraction())
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);

@@ -222,6 +222,18 @@ public class OAuth2TokenCache extends DiagnosticsCache<CachedToken> implements T
         cache.invalidate(key);
     }
 
+    /**
+     * Removes the entry for the given inference endpoint from this node's local cache.
+     * Resolves the current project with {@link #projectResolver} the same way
+     * {@link #getToken} does, then delegates to {@link #invalidateLocal(InferenceIdAndProject)}.
+     *
+     * <p>Node-local only — does not broadcast to other nodes.
+     */
+    @Override
+    public void invalidateOnlLocalNode(String inferenceId) {
+        invalidateLocal(new InferenceIdAndProject(inferenceId, projectResolver.getProjectId()));
+    }
+
     @Override
     public boolean cacheEnabled() {
         return cacheEnabledViaSetting && cacheEnabledViaFeature();

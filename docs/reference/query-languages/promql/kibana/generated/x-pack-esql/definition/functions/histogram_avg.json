@@ -1,0 +1,24 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "histogram",
+  "name" : "histogram_avg",
+  "description" : "Returns the arithmetic average of observations stored in a native histogram.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "histogram_avg(increase(http_request_duration_seconds[5m]))"
+  ],
+  "snapshot_only" : false
+}

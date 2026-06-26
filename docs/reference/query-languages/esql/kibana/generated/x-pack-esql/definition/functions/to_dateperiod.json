@@ -10,7 +10,10 @@
           "name" : "field",
           "type" : "date_period",
           "optional" : false,
-          "description" : "Input value. The input is a valid constant date period expression."
+          "description" : "Input value. The input is a valid constant date period expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -22,7 +25,10 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Input value. The input is a valid constant date period expression."
+          "description" : "Input value. The input is a valid constant date period expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -34,7 +40,10 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "Input value. The input is a valid constant date period expression."
+          "description" : "Input value. The input is a valid constant date period expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,

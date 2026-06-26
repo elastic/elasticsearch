@@ -141,10 +141,10 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             type = { "geo_point" },
             description = "Expression of type `geo_point`. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(name = "precision", type = { "integer" }, description = """
+        @Param(name = "precision", type = { "integer" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
             Expression of type `integer`. If `null`, the function returns `null`.
             Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash).""") Expression precision,
-        @Param(name = "bounds", type = { "geo_shape" }, description = """
+        @Param(name = "bounds", type = { "geo_shape" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
             Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use
             [`ST_ENVELOPE`](/reference/query-languages/esql/functions-operators/spatial-functions/st_envelope.md)
             if the `geo_shape` is of any other type.""", optional = true) Expression bounds

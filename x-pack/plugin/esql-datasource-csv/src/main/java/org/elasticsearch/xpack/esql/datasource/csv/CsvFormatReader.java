@@ -2406,9 +2406,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // Capture per-row offsets when _rowPosition is projected (record-reader path), when the bulk
             // path is tracking byte offsets for stripe capture, or when ALL scope needs each row's stripe
             // ordinal to attribute its all-column harvest; otherwise it is dead work.
+            // The ALL-scope disjunct is also gated on stripeCaptureDisabled == false: on the plain Jackson
+            // bulk path (no byte tracker, no record-reader) recordReader is never advanced, so the only
+            // offset we could compute (splitStartByte + recordReader.bytesRead() - lastRecordBytes) is
+            // frozen and would collapse every row onto one stripe. That path already sets
+            // stripeCaptureDisabled = true during schema setup; mirroring the flag here keeps the offset
+            // capture (and the downstream harvest) from doing fabricated work once capture is off.
             final boolean trackOffsets = rowPositionSlot >= 0
                 || bulkByteTracker != null
-                || (statsColumnScope == StripeColumnScope.ALL && statsStripeSize > 0 && cacheableObject != null);
+                || (statsColumnScope == StripeColumnScope.ALL
+                    && statsStripeSize > 0
+                    && cacheableObject != null
+                    && stripeCaptureDisabled == false);
             while (true) {
                 if (useFusedBracketPath && prefetchedRows == null && columnCount > 0) {
                     List<String> lines = new ArrayList<>();

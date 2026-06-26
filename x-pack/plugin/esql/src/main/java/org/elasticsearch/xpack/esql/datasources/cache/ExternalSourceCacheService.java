@@ -235,6 +235,12 @@ public class ExternalSourceCacheService implements Closeable {
                 fingerprint = f.configFingerprint();
             } else if (stripeSize != f.stripeSize()) {
                 return null; // mixed grids (mid-upgrade settings skew) — bail rather than guess
+            } else if (mtime != f.mtimeMillis() || Objects.equals(fingerprint, f.configFingerprint()) == false) {
+                // Fragments for the same path observed at different mtimes (the file was modified between
+                // sibling scans) or under different configs describe different file versions. Folding them
+                // would mix versions and commit the result under the first fragment's freshness key — a
+                // wrong stat. Bail rather than guess; the next query re-harvests against the live version.
+                return null;
             }
             byStripe.computeIfAbsent(f.ordinal(), k -> new HashMap<>()).computeIfAbsent(f.start(), s -> new ArrayList<>()).add(f);
         }
@@ -537,43 +543,51 @@ public class ExternalSourceCacheService implements Closeable {
             // derive it from SchemaCacheKey.buildFormatConfig of the same logical config, so the guard
             // holds across JVMs (coordinator != data node) — the warm short-circuit's whole point.
             Object contributionFingerprint = mergedStats.get(ExternalStats.CONFIG_FINGERPRINT_KEY);
-            // Cache.forEach iterates each segment's HashMap under the segment's readLock,
-            // making it safe against concurrent LRU mutations: promote() (called by get(),
-            // computeIfAbsent, etc. on any thread) acquires only lruLock, not the segment
-            // readLock, so it cannot corrupt the forEach traversal. Cache.keys() and
-            // Cache.values() walk the LRU doubly-linked list with no locks and are therefore
-            // unsafe here. Do NOT call get() or put() inside the forEach consumer — the
-            // segment readLock is not reentrant and put() acquires the segment writeLock.
-            List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = new ArrayList<>();
-            schemaCache.forEach((key, existing) -> {
-                if (path.equals(key.canonicalPath()) == false || key.lastModifiedEpochMillis() != mtimeMillis) {
-                    return;
+            // Serialize the read-modify-write per file path with the same lock commitStripeDelta uses:
+            // this method and applyStripeDelta both collect matching entries under forEach, then enrich
+            // and re-put each. A reconcile racing a stripe commit (or another reconcile) for the same
+            // path would otherwise each snapshot the same entry and the later put would drop the
+            // earlier's enrichment (lost update). The lock keyspace (canonical path) is shared, so the
+            // two writers serialize against each other.
+            try (Releasable ignored = stripeCommitLocks.acquire(path)) {
+                // Cache.forEach iterates each segment's HashMap under the segment's readLock,
+                // making it safe against concurrent LRU mutations: promote() (called by get(),
+                // computeIfAbsent, etc. on any thread) acquires only lruLock, not the segment
+                // readLock, so it cannot corrupt the forEach traversal. Cache.keys() and
+                // Cache.values() walk the LRU doubly-linked list with no locks and are therefore
+                // unsafe here. Do NOT call get() or put() inside the forEach consumer — the
+                // segment readLock is not reentrant and put() acquires the segment writeLock.
+                List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = new ArrayList<>();
+                schemaCache.forEach((key, existing) -> {
+                    if (path.equals(key.canonicalPath()) == false || key.lastModifiedEpochMillis() != mtimeMillis) {
+                        return;
+                    }
+                    Object existingFingerprint = existing.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+                    if (Objects.equals(existingFingerprint, contributionFingerprint) == false) {
+                        return;
+                    }
+                    matchingEntries.add(Map.entry(key, existing));
+                });
+                for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
+                    SchemaCacheKey key = match.getKey();
+                    SchemaCacheEntry existing = match.getValue();
+                    Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
+                    enriched.putAll(mergedStats);
+                    schemaCache.put(
+                        key,
+                        new SchemaCacheEntry(
+                            existing.columnNames(),
+                            existing.columnTypes(),
+                            existing.columnNullabilities(),
+                            existing.columnSynthetics(),
+                            existing.sourceType(),
+                            existing.location(),
+                            enriched,
+                            existing.connectorConfig(),
+                            existing.cachedAtMillis()
+                        )
+                    );
                 }
-                Object existingFingerprint = existing.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
-                if (Objects.equals(existingFingerprint, contributionFingerprint) == false) {
-                    return;
-                }
-                matchingEntries.add(Map.entry(key, existing));
-            });
-            for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
-                SchemaCacheKey key = match.getKey();
-                SchemaCacheEntry existing = match.getValue();
-                Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
-                enriched.putAll(mergedStats);
-                schemaCache.put(
-                    key,
-                    new SchemaCacheEntry(
-                        existing.columnNames(),
-                        existing.columnTypes(),
-                        existing.columnNullabilities(),
-                        existing.columnSynthetics(),
-                        existing.sourceType(),
-                        existing.location(),
-                        enriched,
-                        existing.connectorConfig(),
-                        existing.cachedAtMillis()
-                    )
-                );
             }
         }
     }

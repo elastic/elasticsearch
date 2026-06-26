@@ -166,6 +166,11 @@ public final class StreamingParallelParsingCoordinator {
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
 
         if (parallelism <= 1) {
+            // Single-pass fallback reads the whole decompressed stream in one shot starting at
+            // baseFileOffset, so per-stripe stats attribution applies exactly as in the parallel branch and
+            // its trailing stripe is always file-final. Thread .stats(...) here too — mirrors the sibling
+            // ParallelParsingCoordinator's single-segment fallback — so a streaming read at parallelism 1
+            // still harvests per-stripe stats instead of silently dropping the capture.
             FormatReadContext ctx = FormatReadContext.builder()
                 .projectedColumns(projectedColumns)
                 .batchSize(batchSize)
@@ -173,6 +178,7 @@ public final class StreamingParallelParsingCoordinator {
                 .readSchema(readSchema)
                 .splitStartByte(baseFileOffset)
                 .maxRecordBytes(maxRecordBytes)
+                .stats(baseFileOffset, statsStripeSize, true)
                 .statsColumnScope(statsColumnScope)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);

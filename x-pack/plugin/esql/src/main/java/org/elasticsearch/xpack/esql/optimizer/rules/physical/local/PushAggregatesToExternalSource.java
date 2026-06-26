@@ -197,12 +197,18 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
      * {@code columnNullCount} returns {@code -1} and we bail out so the engine falls back to a
      * regular scan.
      * <p>
-     * For {@code MIN}/{@code MAX} we read {@code columnMin}/{@code columnMax} verbatim. Under the
-     * SPI's "implicit nulls" contract, {@link org.elasticsearch.xpack.esql.datasources.MergedSplitStats}
+     * For {@code MIN}/{@code MAX} we read {@code columnMin}/{@code columnMax}. Under the SPI's
+     * "implicit nulls" contract, {@link org.elasticsearch.xpack.esql.datasources.MergedSplitStats}
      * skips children whose null count equals their row count (absent column or all rows null) and
-     * only poisons on a genuine unknown ({@code columnNullCount &lt; 0}). Result of {@code null} therefore
-     * means either "no child contributed a candidate value" or "incompatible/unknown stats" — both are
-     * correct fall-back signals, the rule does not pushdown.
+     * only poisons on a genuine unknown ({@code columnNullCount &lt; 0}). That skip is correct for
+     * footer formats, where an absent column is genuinely all-null. For text formats under partial
+     * harvest it is not: a contributing split that did not harvest the column is invisible, and
+     * skipping it would serve a subset extremum. So, exactly as for {@code COUNT(col)}, when the
+     * format does not apply implicit nulls ({@code implicitNullsForAbsentColumn == false}) and the
+     * column was not observed by every contributing split ({@code stats.hasColumn(name) == false}),
+     * we safe-miss. Otherwise a {@code null} result means either "no child contributed a candidate
+     * value" or "incompatible/unknown stats" — both correct fall-back signals; the rule does not
+     * pushdown.
      */
     private Object resolveFromStats(
         Expression aggFunction,
@@ -237,6 +243,15 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (min.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
+                // For formats that do not apply implicit nulls to absent columns (text formats under
+                // partial harvest), a column that some contributing split did not observe is "not
+                // harvested," not "absent/all-null." A merged extremum that silently skips the
+                // unharvested split would serve a subset MIN/MAX (e.g. one file's value range while a
+                // sibling file's range is invisible). Safe-miss so the engine re-scans. MergedSplitStats
+                // already requires every child to have observed the column for hasColumn to be true.
+                if (implicitNullsForAbsentColumn == false && stats.hasColumn(ref.name()) == false) {
+                    return null;
+                }
                 return stats.columnMin(ref.name());
             }
             return null;
@@ -245,6 +260,9 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
+                if (implicitNullsForAbsentColumn == false && stats.hasColumn(ref.name()) == false) {
+                    return null;
+                }
                 return stats.columnMax(ref.name());
             }
             return null;

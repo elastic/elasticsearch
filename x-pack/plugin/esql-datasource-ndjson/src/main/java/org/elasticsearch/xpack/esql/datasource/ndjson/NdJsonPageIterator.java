@@ -104,6 +104,14 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     /** This chunk's absolute first-byte offset in file/decompressed coordinates; the byte-range cover anchors on it. */
     private final long statsBaseOffset;
     /**
+     * The file-global offset of the FIRST byte the decoder actually reads, i.e. {@code statsBaseOffset}
+     * plus any leading partial record dropped by {@code skipFirstLine}. Both the per-record offset
+     * tracking and the close-hook byte-range cover anchor on this so that, on a split that started
+     * mid-record, records are attributed to the correct canonical stripe rather than {@code skipped}
+     * bytes too early. Equals {@code statsBaseOffset} on record-aligned chunks (the common parallel path).
+     */
+    private final long statsStripeBaseOffset;
+    /**
      * True iff this chunk reaches the file's true end. Only then may the chunk's last stripe be marked
      * complete-on-the-right ({@code atStripeEnd}) and terminal ({@code eof}); a non-final chunk ends
      * mid-stripe at a chunk boundary, so its trailing stripe is a partial right fragment the next chunk
@@ -233,6 +241,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // _rowPosition / _file.record_ref file-global-correct and split-invariant.
         long skipped = skipFirstLine ? Math.max(0L, skipToNextLine(inputStream, recordSplitter)) : 0L;
         long recordOffsetBase = splitStartByte + skipped;
+        // Decoder reads from statsBaseOffset + skipped; both stripe-attribution anchors derive from here.
+        this.statsStripeBaseOffset = statsBaseOffset + skipped;
         if (trimLastPartialLine) {
             inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter);
         }
@@ -322,8 +332,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             // Tell the decoder to record each record's own file-global start offset into a per-page array,
             // so the iterator can attribute the page's rows to canonical stripes by the byte-range cover
             // model. statsBaseOffset is this chunk's absolute file offset; the decoder adds the parser's
-            // within-chunk byte offset. No page-capping — a page may span stripes.
-            this.pageDecoder.enableRecordOffsetTracking(statsBaseOffset);
+            // within-chunk byte offset. When this split started mid-record the leading partial record was
+            // already dropped (skipped bytes), so the decoder reads from statsBaseOffset + skipped — fold
+            // the skip in exactly as the _rowPosition substrate above (recordOffsetBase) does, otherwise
+            // every record is attributed `skipped` bytes too early and lands in the wrong stripe. No
+            // page-capping — a page may span stripes.
+            this.pageDecoder.enableRecordOffsetTracking(statsStripeBaseOffset);
         }
     }
 
@@ -708,9 +722,13 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                     // overlaps, including empty edge stripes. Safe-miss if row/offset alignment was lost.
                     if (stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
                         long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : byteArrayBytesRead;
+                        // Anchor the byte-range cover at the first byte actually decoded (statsBaseOffset +
+                        // skipped); chunkBytes counts only the post-skip bytes, so [statsStripeBaseOffset,
+                        // statsStripeBaseOffset + chunkBytes) is the true covered range. Using statsBaseOffset
+                        // would under-shoot by `skipped` on a mid-record split and mis-attribute the edge stripes.
                         stripeHarvester.emit(
                             sourceLocation,
-                            statsBaseOffset,
+                            statsStripeBaseOffset,
                             chunkBytes,
                             pinnedMtimeMillis,
                             fingerprinter.apply(fullSchema),

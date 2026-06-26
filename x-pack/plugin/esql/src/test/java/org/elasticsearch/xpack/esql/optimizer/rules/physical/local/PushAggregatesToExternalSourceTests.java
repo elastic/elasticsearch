@@ -577,6 +577,57 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         assertEquals(99, as(maxLocal.supplier().get().getBlock(0), IntBlock.class).getInt(0));
     }
 
+    /**
+     * Cross-file-merge WRONG-DATA safe-miss for MIN/MAX under a text format (Julian's repro). One file
+     * (a.csv) was warmed for the "value" column with stats [1000000, 1020000); a sibling (b.csv) was
+     * warmed count-only and never harvested "value", so its split stats carry no "value" entry. For a
+     * footer format an absent column is genuinely all-null and would be skipped, but for a text format
+     * b.csv's "value" is physically present yet unobserved — its true range [0, 20000) is invisible.
+     * Serving the merged extremum from a.csv alone would return MIN=1000000 (wrong; true MIN is 0). The
+     * rule must safe-miss instead, exactly as it does for COUNT(col) over an unharvested column.
+     * <p>
+     * The companion footer-format test ({@link #testPushdownAcrossSplitsWithMissingColumnInOneSplit})
+     * proves the implicit-nulls skip is preserved where it is sound.
+     */
+    public void testMultiSplitMinMaxOfUnharvestedColumnSafeMissesForTextFormat() {
+        ReferenceAttribute value = referenceAttribute("value", DataType.INTEGER);
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE, SCORE, value);
+
+        // a.csv: "value" harvested, range [1000000, 1020000).
+        Map<String, Object> withValue = new HashMap<>();
+        withValue.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        withValue.put(SourceStatisticsSerializer.columnNullCountKey("value"), 0L);
+        withValue.put(SourceStatisticsSerializer.columnMinKey("value"), 1000000);
+        withValue.put(SourceStatisticsSerializer.columnMaxKey("value"), 1019999);
+
+        // b.csv: count-only warm-up; "value" physically present but never harvested (no per-column key).
+        Map<String, Object> countOnly = new HashMap<>();
+        countOnly.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+
+        // Text format: an unobserved column in a contributing split means "not harvested," so the merged
+        // MIN/MAX is unknowable -> safe-miss (fall back to a scan), never serve the a.csv-only extremum.
+        ExternalSourceExec extMin = externalSourceWithSplitsAndAttrs(attrs, Map.of(), withValue, countOnly);
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, extMin, alias("mn", new Min(Source.EMPTY, value)));
+        as(applyRuleText(minAgg), AggregateExec.class);
+
+        ExternalSourceExec extMax = externalSourceWithSplitsAndAttrs(attrs, Map.of(), withValue, countOnly);
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, extMax, alias("mx", new Max(Source.EMPTY, value)));
+        as(applyRuleText(maxAgg), AggregateExec.class);
+
+        // Sanity: when BOTH files harvested "value", the merge is sound and the warm MIN/MAX serves. This
+        // proves the safe-miss is triggered by the unharvested sibling, not a blanket refusal for text.
+        Map<String, Object> withValue2 = new HashMap<>();
+        withValue2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        withValue2.put(SourceStatisticsSerializer.columnNullCountKey("value"), 0L);
+        withValue2.put(SourceStatisticsSerializer.columnMinKey("value"), 0);
+        withValue2.put(SourceStatisticsSerializer.columnMaxKey("value"), 19999);
+
+        ExternalSourceExec extBoth = externalSourceWithSplitsAndAttrs(attrs, Map.of(), withValue, withValue2);
+        var minBoth = aggregateExec(AggregatorMode.SINGLE, extBoth, alias("mn", new Min(Source.EMPTY, value)));
+        LocalSourceExec minLocal = as(applyRuleText(minBoth), LocalSourceExec.class);
+        assertEquals(0, as(minLocal.supplier().get().getBlock(0), IntBlock.class).getInt(0));
+    }
+
     public void testCountFieldNotPushedWhenMergedNullCountPoisoned() {
         // Defensive end-to-end check for the present-but-stats-less poison path:
         // mergeStatistics drops null_count for `bonus` when any present file lacks it, so the

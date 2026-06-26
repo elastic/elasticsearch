@@ -416,7 +416,8 @@ public class VerifierTests extends ESTestCase {
         // Testing the combo of FORK w/ an unsupported and multi-typed field
         analyzer.error(
             "from test* | FORK (where true) | eval x = multi_typed",
-            equalTo("1:43: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+            equalTo(
+                "1:43: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
                     + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
             )
         );

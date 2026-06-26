@@ -8,13 +8,25 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
@@ -31,18 +43,29 @@ import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.Before;
 
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigurationBuilder;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.hamcrest.Matchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlanOptimizerTests {
@@ -54,6 +77,14 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             "Requires subquery in FROM command support",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
+    }
+
+    private static void checkSubqueryWithTSCommand() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+    }
+
+    private static void checkExternalDatasetSupport() {
+        assumeTrue("Requires external dataset in FROM command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
     }
 
     /*
@@ -1157,5 +1188,948 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(0, right.value());
         relation = as(filter.child(), EsRelation.class);
         assertEquals("languages", relation.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
+     *             languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
+     *   |_Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
+     *              languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     *   | \_Filter[emp_no{f}#8 > 10[INTEGER]]
+     *   |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *   \_Project[[_meta_field{r}#19, emp_no{r}#4, first_name{r}#20, gender{r}#21, hire_date{r}#22, job{r}#23, job.raw{r}#24,
+     *              languages{r}#25, last_name{r}#26, long_noidx{r}#27, salary{r}#6]]
+     *     \_Eval[[null[KEYWORD] AS _meta_field#19, null[KEYWORD] AS first_name#20, null[TEXT] AS gender#21,
+     *             null[DATETIME] AS hire_date#22, null[TEXT] AS job#23, null[KEYWORD] AS job.raw#24, null[INTEGER] AS languages#25,
+     *             null[KEYWORD] AS last_name#26, null[LONG] AS long_noidx#27]]
+     *       \_Subquery[]
+     *         \_LocalRelation[[emp_no{r}#4, salary{r}#6],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=100]],
+     *                          IntVectorBlock[vector=ConstantIntVector[positions=1, value=50000]]]}]
+     */
+    public void testPushDownSimpleFilterPastUnionAllWithRowSubquery() {
+        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (ROW emp_no = 100, salary = 50000)
+            | WHERE emp_no > 10
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // index leg: Project → Filter[emp_no > 10] → EsRelation[test]
+        Project child1 = as(unionAll.children().get(0), Project.class);
+        Filter indexFilter = as(child1.child(), Filter.class);
+        GreaterThan indexGt = as(indexFilter.condition(), GreaterThan.class);
+        FieldAttribute indexEmpNo = as(indexGt.left(), FieldAttribute.class);
+        assertEquals("emp_no", indexEmpNo.name());
+        Literal indexThreshold = as(indexGt.right(), Literal.class);
+        assertEquals(10, indexThreshold.value());
+        EsRelation indexRelation = as(indexFilter.child(), EsRelation.class);
+        assertEquals("test", indexRelation.indexPattern());
+
+        // ROW leg: Project → Eval[null evals for missing test fields] → Subquery → LocalRelation.
+        // The pushed-down `emp_no > 10` filter is constant-folded against the ROW values
+        // (`100 > 10 == true`) so the Filter node is removed and the LocalRelation is preserved.
+        Project child2 = as(unionAll.children().get(1), Project.class);
+        Eval rowMissingEval = as(child2.child(), Eval.class);
+        assertEquals(9, rowMissingEval.fields().size()); // 11 test fields - emp_no - salary
+        Subquery subquery = as(rowMissingEval.child(), Subquery.class);
+        as(subquery.child(), LocalRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
+     *             languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
+     *   \_Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
+     *              languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     *     \_Filter[emp_no{f}#8 > 10[INTEGER]]
+     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testPushDownSimpleFilterPrunesRowBranch() {
+        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (ROW emp_no = 1, salary = 100)
+            | WHERE emp_no > 10
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(1, unionAll.children().size());
+
+        Project child1 = as(unionAll.children().get(0), Project.class);
+        Filter indexFilter = as(child1.child(), Filter.class);
+        GreaterThan indexGt = as(indexFilter.condition(), GreaterThan.class);
+        FieldAttribute indexEmpNo = as(indexGt.left(), FieldAttribute.class);
+        assertEquals("emp_no", indexEmpNo.name());
+        EsRelation indexRelation = as(indexFilter.child(), EsRelation.class);
+        assertEquals("test", indexRelation.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[emp_no{r}#16, salary{r}#17]]
+     *   |_Project[[emp_no{r}#4, salary{r}#6]]
+     *   | \_Subquery[]
+     *   |   \_LocalRelation[[emp_no{r}#4, salary{r}#6],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=100]],
+     *                        IntVectorBlock[vector=ConstantIntVector[positions=1, value=50000]]]}]
+     *   \_Project[[emp_no{r}#8, salary{r}#10]]
+     *     \_Subquery[]
+     *       \_LocalRelation[[emp_no{r}#8, salary{r}#10],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=200]],
+     *                        IntVectorBlock[vector=ConstantIntVector[positions=1, value=80000]]]}]
+     */
+    public void testPushDownFilterPastUnionAllWithRowOnlySubqueries() {
+        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var plan = planSubquery("""
+            FROM (ROW emp_no = 100, salary = 50000)
+               , (ROW emp_no = 200, salary = 80000)
+               , (ROW emp_no = 10,  salary = 5000)
+            | WHERE emp_no > 50
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        // First two legs (emp_no=100, emp_no=200) survive; the third (emp_no=10) is pruned.
+        assertEquals(2, unionAll.children().size());
+
+        for (int i = 0; i < 2; i++) {
+            Project childProject = as(unionAll.children().get(i), Project.class);
+            Subquery subquery = as(childProject.child(), Subquery.class);
+            // The ROW values (100, 200) both satisfy emp_no > 50, so the pushed-down filter
+            // constant-folds away and only the bare LocalRelation remains.
+            as(subquery.child(), LocalRelation.class);
+        }
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#27, emp_no{r}#28, first_name{r}#29, gender{r}#30, hire_date{r}#31, job{r}#32, job.raw{r}#33,
+     *             languages{r}#34, last_name{r}#35, long_noidx{r}#36, salary{r}#37]]
+     *   \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
+     *              languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
+     *     \_Filter[first_name{f}#7 == Bob[KEYWORD]]
+     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testPushDownFilterPrunesRowBranchWithoutTheField() {
+        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (ROW emp_no = 1)
+            | WHERE first_name == "Bob"
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        // The ROW leg is pruned because its first_name is null and `null == "Bob"` is false.
+        assertEquals(1, unionAll.children().size());
+
+        Project child1 = as(unionAll.children().get(0), Project.class);
+        Filter filter = as(child1.child(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
+     *             languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
+     *   \_Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
+     *              languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     *     \_Filter[:(first_name{f}#9,Bob[KEYWORD])]
+     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testPushDownFullTextMatchOperatorPastUnionAllWithRowSubquery() {
+        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (ROW emp_no = 1, salary = 50000)
+            | WHERE first_name:"Bob"
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        // ROW leg is pruned — first_name is null in the ROW so the pushed-down match folds to false.
+        assertEquals(1, unionAll.children().size());
+
+        Project child1 = as(unionAll.children().get(0), Project.class);
+        Filter indexFilter = as(child1.child(), Filter.class);
+        MatchOperator indexMatch = as(indexFilter.condition(), MatchOperator.class);
+        FieldAttribute indexFirstName = as(indexMatch.field(), FieldAttribute.class);
+        assertEquals("first_name", indexFirstName.name());
+        Literal indexQuery = as(indexMatch.query(), Literal.class);
+        assertEquals(new BytesRef("Bob"), indexQuery.value());
+        as(indexFilter.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#41, emp_no{r}#42, first_name{r}#43, gender{r}#44, hire_date{r}#45, job{r}#46, job.raw{r}#47,
+     *             languages{r}#48, last_name{r}#49, long_noidx{r}#50, salary{r}#51]]
+     *   |_Project[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19,
+     *              languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15]]
+     *   | \_Filter[:(first_name{f}#11,first[KEYWORD]) AND MATCH(last_name{f}#14,last[KEYWORD]) AND
+     *              QSTR(gender:female[KEYWORD]) AND KQL(first_name:bob[KEYWORD])]
+     *   |   \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *   \_Project[[_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, gender{f}#23, hire_date{f}#28, job{f}#29, job.raw{f}#30,
+     *              languages{f}#24, last_name{f}#25, long_noidx{f}#31, salary{f}#26]]
+     *     \_Subquery[]
+     *       \_Filter[languages{f}#24 > 0[INTEGER] AND :(first_name{f}#22,first[KEYWORD]) AND
+     *                MATCH(last_name{f}#25,last[KEYWORD]) AND QSTR(gender:female[KEYWORD]) AND KQL(first_name:bob[KEYWORD])]
+     *         \_EsRelation[test][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     */
+    public void testPushDownConjunctiveFullTextFunctionsPastUnionAllWithRowSubquery() {
+        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (FROM test | WHERE languages > 0), (ROW emp_no = 1, salary = 50000)
+            | WHERE first_name:"first" AND match(last_name, "last") AND qstr("gender:female") AND kql("first_name:bob")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        // The ROW leg is pruned, only the two FROM legs remain.
+        assertEquals(2, unionAll.children().size());
+
+        // index leg 1: Project → Filter[<full text conjunction>] → EsRelation
+        Project child1 = as(unionAll.children().get(0), Project.class);
+        Filter indexFilter1 = as(child1.child(), Filter.class);
+        assertFullTextConjunction(indexFilter1.condition());
+        as(indexFilter1.child(), EsRelation.class);
+
+        // index leg 2: Project → Subquery → Filter[<conjunction> AND languages > 0] → EsRelation
+        Project child2 = as(unionAll.children().get(1), Project.class);
+        Subquery subquery = as(child2.child(), Subquery.class);
+        Filter indexFilter2 = as(subquery.child(), Filter.class);
+        And outer = as(indexFilter2.condition(), And.class);
+        // The pre-existing `languages > 0` from the subquery sits on the left, the pushed-down
+        // full-text conjunction sits on the right.
+        GreaterThan languagesGt = as(outer.left(), GreaterThan.class);
+        assertEquals("languages", as(languagesGt.left(), FieldAttribute.class).name());
+        assertEquals(0, as(languagesGt.right(), Literal.class).value());
+        assertFullTextConjunction(outer.right());
+        as(indexFilter2.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
+     *             languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
+     *   \_Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *              languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *     \_Filter[:(first_name{f}#8,first[KEYWORD]) OR MatchPhrase(last_name{f}#11,last[KEYWORD])]
+     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testPushDownDisjunctiveFullTextFunctionPastUnionAllWithRowSubquery() {
+        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (ROW emp_no = 1)
+            | WHERE first_name:"first" OR match_phrase(last_name, "last")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        // ROW leg is pruned — every disjunct matches against a null and folds to false.
+        assertEquals(1, unionAll.children().size());
+
+        Project child1 = as(unionAll.children().get(0), Project.class);
+        Filter indexFilter = as(child1.child(), Filter.class);
+        Or or = as(indexFilter.condition(), Or.class);
+        MatchOperator matchOperator = as(or.left(), MatchOperator.class);
+        assertEquals("first_name", as(matchOperator.field(), FieldAttribute.class).name());
+        assertEquals(new BytesRef("first"), as(matchOperator.query(), Literal.class).value());
+        MatchPhrase matchPhrase = as(or.right(), MatchPhrase.class);
+        assertEquals("last_name", as(matchPhrase.field(), FieldAttribute.class).name());
+        assertEquals(new BytesRef("last"), as(matchPhrase.query(), Literal.class).value());
+        as(indexFilter.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#29, emp_no{r}#30, first_name{r}#31, gender{r}#32, hire_date{r}#33, job{r}#34, job.raw{r}#35,
+     *             languages{r}#36, last_name{r}#37, long_noidx{r}#38, salary{r}#39]]
+     *   \_Project[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18,
+     *              languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14]]
+     *     \_Filter[:(first_name{f}#10,Bob[KEYWORD]) AND emp_no{f}#9 > 10[INTEGER]]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testPushDownMixedFullTextAndComparisonPastUnionAllWithRowSubquery() {
+        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (ROW emp_no = 100, salary = 50000)
+            | WHERE first_name:"Bob" AND emp_no > 10
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        // ROW leg pruned — `first_name:"Bob"` evaluates to false on the null-filled first_name.
+        assertEquals(1, unionAll.children().size());
+
+        Project child1 = as(unionAll.children().get(0), Project.class);
+        Filter indexFilter = as(child1.child(), Filter.class);
+        And and = as(indexFilter.condition(), And.class);
+        MatchOperator matchOperator = as(and.left(), MatchOperator.class);
+        assertEquals("first_name", as(matchOperator.field(), FieldAttribute.class).name());
+        assertEquals(new BytesRef("Bob"), as(matchOperator.query(), Literal.class).value());
+        GreaterThan gt = as(and.right(), GreaterThan.class);
+        assertEquals("emp_no", as(gt.left(), FieldAttribute.class).name());
+        assertEquals(10, as(gt.right(), Literal.class).value());
+        as(indexFilter.child(), EsRelation.class);
+    }
+
+    private static void assertFullTextConjunction(Expression condition) {
+        And outer = as(condition, And.class);
+        And leftAnd = as(outer.left(), And.class);
+        MatchOperator matchOperator = as(leftAnd.left(), MatchOperator.class);
+        assertEquals("first_name", as(matchOperator.field(), FieldAttribute.class).name());
+        assertEquals(new BytesRef("first"), as(matchOperator.query(), Literal.class).value());
+        Match matchFunction = as(leftAnd.right(), Match.class);
+        assertEquals("last_name", as(matchFunction.field(), FieldAttribute.class).name());
+        assertEquals(new BytesRef("last"), as(matchFunction.query(), Literal.class).value());
+
+        And rightAnd = as(outer.right(), And.class);
+        QueryString queryString = as(rightAnd.left(), QueryString.class);
+        assertEquals(new BytesRef("gender:female"), as(queryString.query(), Literal.class).value());
+        Kql kql = as(rightAnd.right(), Kql.class);
+        assertEquals(new BytesRef("first_name:bob"), as(kql.query(), Literal.class).value());
+    }
+
+    // ============================================================================================
+    // The following tests mirror the FROM-subquery push-down tests above but exercise subqueries
+    // sourced from the TS command. The TS branch is wrapped in a Subquery node and resolves over
+    // an EsRelation in TIME_SERIES mode.
+    // ============================================================================================
+
+    /*
+     * The outer "@timestamp > 2024-01-01" predicate is pushed past the UnionAll into both branches.
+     * - sample_data branch: the predicate lands directly above the EsRelation (under the Eval that
+     *   widens the schema to match the UnionAll's combined attributes).
+     * - TS k8s branch: the outer predicate is combined with the subquery's existing
+     *   "WHERE @timestamp > 2025-10-07"; constant folding collapses the AND into the stricter
+     *   "@timestamp > 2025-10-07".
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[@timestamp{r}#135, client_ip{r}#136, event_duration{r}#137, message{r}#138, client.ip{r}#139,
+     *                    cluster{r}#140, event{r}#141, ..., network.total_bytes_in{r}#156, network.total_cost{r}#157, pod{r}#158]]
+     *   |_Project[[@timestamp{f}#84, client_ip{f}#85, event_duration{f}#86, message{f}#87, client.ip{r}#112,
+     *                            cluster{r}#113, event{r}#114, ..., network.total_bytes_in{r}#129, network.total_cost{r}#130, pod{r}#131]]
+     *   | \_Eval[[null[IP] AS client.ip#112, null[KEYWORD] AS cluster#113, null[KEYWORD] AS event#114, ...,
+     *                  null[LONG] AS network.total_bytes_in#129, null[DOUBLE] AS network.total_cost#130, null[KEYWORD] AS pod#131]]
+     *   |   \_Filter[@timestamp{f}#84 > 1704067200000[DATETIME]]
+     *   |     \_EsRelation[sample_data][@timestamp{f}#84, client_ip{f}#85, event_duration{f..]
+     *   \_Project[[@timestamp{f}#88, client_ip{r}#132, event_duration{r}#133, message{r}#134, client.ip{f}#92, cluster{f}#89,
+     *                           event{f}#93, ..., network.total_bytes_in{r}#159, network.total_cost{r}#160, pod{f}#90]]
+     *     \_Eval[[null[IP] AS client_ip#132, null[LONG] AS event_duration#133, null[KEYWORD] AS message#134,
+     *                  TOLONG(network.total_bytes_in{f}#102) AS network.total_bytes_in#159,
+     *                  TODOUBLE(network.total_cost{f}#104) AS network.total_cost#160]]
+     *       \_Subquery[]
+     *         \_Filter[@timestamp{f}#88 > 1759795200000[DATETIME]]
+     *           \_EsRelation[k8s][@timestamp{f}#88, client.ip{f}#92, cluster{f}#89, e..]
+     */
+    public void testPushDownSimpleFilterPastUnionAllWithTsSubquery() {
+        checkSubqueryWithTSCommand();
+        var plan = planSubquery("""
+            FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
+            | WHERE @timestamp > "2024-01-01"
+            """);
+
+        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // branch 1 — sample_data: outer @timestamp filter pushed past Eval directly above EsRelation.
+        Project sampleProject = as(unionAll.children().get(0), Project.class);
+        Eval sampleEval = as(sampleProject.child(), Eval.class);
+        Filter sampleFilter = as(sampleEval.child(), Filter.class);
+        GreaterThan sampleGt = as(sampleFilter.condition(), GreaterThan.class);
+        FieldAttribute sampleTimestamp = as(sampleGt.left(), FieldAttribute.class);
+        assertEquals("@timestamp", sampleTimestamp.name());
+        Literal sampleValue = as(sampleGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2024-01-01", DataType.DATETIME, configuration), sampleValue.value());
+        EsRelation sampleRelation = as(sampleFilter.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+
+        // branch 2 — TS k8s: outer predicate is combined with the subquery's WHERE @timestamp.
+        // After constant folding, "@timestamp > 2024-01-01 AND @timestamp > 2025-10-07" collapses
+        // to a single predicate "@timestamp > 2025-10-07".
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsEval = as(tsProject.child(), Eval.class);
+        Subquery tsSubquery = as(tsEval.child(), Subquery.class);
+        Filter tsFilter = as(tsSubquery.child(), Filter.class);
+        GreaterThan tsGt = as(tsFilter.condition(), GreaterThan.class);
+        FieldAttribute tsTimestamp = as(tsGt.left(), FieldAttribute.class);
+        assertEquals("@timestamp", tsTimestamp.name());
+        Literal tsValue = as(tsGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2025-10-07", DataType.DATETIME, configuration), tsValue.value());
+        EsRelation tsRelation = as(tsFilter.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+    }
+
+    /*
+     * Conjunctive outer predicate "@timestamp > X AND @timestamp < Y" is pushed past
+     * the UnionAll into each branch; the TS branch combines it with its existing WHERE filter.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[@timestamp{r}#373, client_ip{r}#374, event_duration{r}#375, message{r}#376, client.ip{r}#377,
+     *                    cluster{r}#378, event{r}#379, ..., network.total_bytes_in{r}#394, network.total_cost{r}#395, pod{r}#396]]
+     *   |_Project[[@timestamp{f}#322, client_ip{f}#323, event_duration{f}#324, message{f}#325, client.ip{r}#350,
+     *                            cluster{r}#351, event{r}#352, ..., network.total_bytes_in{r}#367, network.total_cost{r}#368, pod{r}#369]]
+     *   | \_Eval[[null[IP] AS client.ip#350, null[KEYWORD] AS cluster#351, null[KEYWORD] AS event#352, ...,
+     *                  null[LONG] AS network.total_bytes_in#367, null[DOUBLE] AS network.total_cost#368, null[KEYWORD] AS pod#369]]
+     *   |   \_Filter[@timestamp{f}#322 > 1704067200000[DATETIME] AND @timestamp{f}#322 < 1767139200000[DATETIME]]
+     *   |     \_EsRelation[sample_data][@timestamp{f}#322, client_ip{f}#323, event_duration..]
+     *   \_Project[[@timestamp{f}#326, client_ip{r}#370, event_duration{r}#371, message{r}#372, client.ip{f}#330, cluster{f}#327,
+     *                           event{f}#331, ..., network.total_bytes_in{r}#397, network.total_cost{r}#398, pod{f}#328]]
+     *     \_Eval[[null[IP] AS client_ip#370, null[LONG] AS event_duration#371, null[KEYWORD] AS message#372,
+     *                  TOLONG(network.total_bytes_in{f}#340) AS network.total_bytes_in#397,
+     *                  TODOUBLE(network.total_cost{f}#342) AS network.total_cost#398]]
+     *       \_Subquery[]
+     *         \_Filter[@timestamp{f}#326 > 1759795200000[DATETIME] AND @timestamp{f}#326 < 1767139200000[DATETIME]]
+     *           \_EsRelation[k8s][@timestamp{f}#326, client.ip{f}#330, cluster{f}#327, ..]
+     */
+    public void testPushDownConjunctiveFilterPastUnionAllWithTsSubquery() {
+        checkSubqueryWithTSCommand();
+        var plan = planSubquery("""
+            FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
+            | WHERE @timestamp > "2024-01-01" AND @timestamp < "2025-12-31"
+            """);
+
+        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+        // branch 1 — sample_data: Filter[@timestamp > "2024-01-01" AND @timestamp < "2025-12-31"]
+        Project sampleProject = as(unionAll.children().get(0), Project.class);
+        Eval sampleEval = as(sampleProject.child(), Eval.class);
+        Filter sampleFilter = as(sampleEval.child(), Filter.class);
+        And sampleAnd = as(sampleFilter.condition(), And.class);
+        GreaterThan sampleGt = as(sampleAnd.left(), GreaterThan.class);
+        assertEquals("@timestamp", as(sampleGt.left(), FieldAttribute.class).name());
+        Literal sampleValue = as(sampleGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2024-01-01", DataType.DATETIME, configuration), sampleValue.value());
+        LessThan sampleLt = as(sampleAnd.right(), LessThan.class);
+        assertEquals("@timestamp", as(sampleLt.left(), FieldAttribute.class).name());
+        sampleValue = as(sampleLt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2025-12-31", DataType.DATETIME, configuration), sampleValue.value());
+        EsRelation sampleRelation = as(sampleFilter.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+
+        // branch 2 — TS k8s: original "@timestamp > 2025-10-07" combined with outer conjunction.
+        // The "@timestamp > 2024-01-01" branch is absorbed because of the stricter inner predicate,
+        // leaving Filter[@timestamp > 2025-10-07 AND @timestamp < 2025-12-31].
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsEval = as(tsProject.child(), Eval.class);
+        Subquery tsSubquery = as(tsEval.child(), Subquery.class);
+        Filter tsFilter = as(tsSubquery.child(), Filter.class);
+        And tsAnd = as(tsFilter.condition(), And.class);
+        GreaterThan tsGt = as(tsAnd.left(), GreaterThan.class);
+        assertEquals("@timestamp", as(tsGt.left(), FieldAttribute.class).name());
+        Literal tsValue = as(tsGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2025-10-07", DataType.DATETIME, configuration), tsValue.value());
+        LessThan tsLt = as(tsAnd.right(), LessThan.class);
+        assertEquals("@timestamp", as(tsLt.left(), FieldAttribute.class).name());
+        tsValue = as(tsLt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2025-12-31", DataType.DATETIME, configuration), tsValue.value());
+        EsRelation tsRelation = as(tsFilter.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+    }
+
+    /*
+     * Disjunctive outer predicate "@timestamp > X OR @timestamp < Y" is pushed past the UnionAll
+     * into both branches.
+     * - sample_data branch: the Or sits unchanged above the EsRelation.
+     * - TS k8s branch: the inner WHERE "@timestamp > 2025-10-07" is combined with the outer Or as
+     *   And(inner_gt, Or(outer_gt, outer_lt)).
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[@timestamp{r}#453, client_ip{r}#454, event_duration{r}#455, message{r}#456, client.ip{r}#457,
+     *                    cluster{r}#458, event{r}#459, ..., network.total_bytes_in{r}#474, network.total_cost{r}#475, pod{r}#476]]
+     *   |_Project[[@timestamp{f}#402, client_ip{f}#403, event_duration{f}#404, message{f}#405, client.ip{r}#430,
+     *                            cluster{r}#431, event{r}#432, ..., network.total_bytes_in{r}#447, network.total_cost{r}#448, pod{r}#449]]
+     *   | \_Eval[[null[IP] AS client.ip#430, null[KEYWORD] AS cluster#431, null[KEYWORD] AS event#432, ...,
+     *                  null[LONG] AS network.total_bytes_in#447, null[DOUBLE] AS network.total_cost#448, null[KEYWORD] AS pod#449]]
+     *   |   \_Filter[@timestamp{f}#402 > 1704067200000[DATETIME] OR @timestamp{f}#402 < 1577836800000[DATETIME]]
+     *   |     \_EsRelation[sample_data][@timestamp{f}#402, client_ip{f}#403, event_duration..]
+     *   \_Project[[@timestamp{f}#406, client_ip{r}#450, event_duration{r}#451, message{r}#452, client.ip{f}#410, cluster{f}#407,
+     *                           event{f}#411, ..., network.total_bytes_in{r}#477, network.total_cost{r}#478, pod{f}#408]]
+     *     \_Eval[[null[IP] AS client_ip#450, null[LONG] AS event_duration#451, null[KEYWORD] AS message#452,
+     *                  TOLONG(network.total_bytes_in{f}#420) AS network.total_bytes_in#477,
+     *                  TODOUBLE(network.total_cost{f}#422) AS network.total_cost#478]]
+     *       \_Subquery[]
+     *         \_Filter[@timestamp{f}#406 > 1759795200000[DATETIME] AND
+     *                       @timestamp{f}#406 > 1704067200000[DATETIME] OR @timestamp{f}#406 < 1577836800000[DATETIME]]
+     *           \_EsRelation[k8s][@timestamp{f}#406, client.ip{f}#410, cluster{f}#407, ..]
+     */
+    public void testPushDownDisjunctiveFilterPastUnionAllWithTsSubquery() {
+        checkSubqueryWithTSCommand();
+        var plan = planSubquery("""
+            FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
+            | WHERE @timestamp > "2024-01-01" OR @timestamp < "2020-01-01"
+            """);
+
+        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // branch 1 — sample_data: a single Or sits above EsRelation.
+        Project sampleProject = as(unionAll.children().get(0), Project.class);
+        Eval sampleEval = as(sampleProject.child(), Eval.class);
+        Filter sampleFilter = as(sampleEval.child(), Filter.class);
+        Or sampleOr = as(sampleFilter.condition(), Or.class);
+        GreaterThan sampleGt = as(sampleOr.left(), GreaterThan.class);
+        assertEquals("@timestamp", as(sampleGt.left(), FieldAttribute.class).name());
+        Literal sampleValue = as(sampleGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2024-01-01", DataType.DATETIME, configuration), sampleValue.value());
+        LessThan sampleLt = as(sampleOr.right(), LessThan.class);
+        assertEquals("@timestamp", as(sampleLt.left(), FieldAttribute.class).name());
+        sampleValue = as(sampleLt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2020-01-01", DataType.DATETIME, configuration), sampleValue.value());
+        EsRelation sampleRelation = as(sampleFilter.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+
+        // branch 2 — TS k8s: the in-subquery WHERE is combined with the outer OR via
+        // And(inner_gt, Or(outer_gt, outer_lt)). The optimizer keeps the inner @timestamp gt
+        // on the left of the And because it is the tightest bound.
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsEval = as(tsProject.child(), Eval.class);
+        Subquery tsSubquery = as(tsEval.child(), Subquery.class);
+        Filter tsFilter = as(tsSubquery.child(), Filter.class);
+        And tsAnd = as(tsFilter.condition(), And.class);
+        GreaterThan innerGt = as(tsAnd.left(), GreaterThan.class);
+        assertEquals("@timestamp", as(innerGt.left(), FieldAttribute.class).name());
+        Literal tsValue = as(innerGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2025-10-07", DataType.DATETIME, configuration), tsValue.value());
+        Or tsOr = as(tsAnd.right(), Or.class);
+        GreaterThan outerGt = as(tsOr.left(), GreaterThan.class);
+        assertEquals("@timestamp", as(outerGt.left(), FieldAttribute.class).name());
+        tsValue = as(outerGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2024-01-01", DataType.DATETIME, configuration), tsValue.value());
+        LessThan outerLt = as(tsOr.right(), LessThan.class);
+        assertEquals("@timestamp", as(outerLt.left(), FieldAttribute.class).name());
+        tsValue = as(outerLt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2020-01-01", DataType.DATETIME, configuration), tsValue.value());
+        EsRelation tsRelation = as(tsFilter.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+    }
+
+    /*
+     * A full-text predicate outside the UnionAll on a field that exists only in one branch
+     * (`message` is present in `sample_data` but not in the TS branch).
+     * The TS branch is pruned (its `message` reference is null and cannot be matched),
+     * leaving the single sample_data leg with the MatchOperator pushed onto the EsRelation.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[@timestamp{r}#56, client_ip{r}#57, event_duration{r}#58, message{r}#59, client.ip{r}#60,
+     *                    cluster{r}#61, event{r}#62, ..., network.total_bytes_in{r}#77, network.total_cost{r}#78, pod{r}#79]]
+     *   \_Project[[@timestamp{f}#5, client_ip{f}#6, event_duration{f}#7, message{f}#8, client.ip{r}#33, cluster{r}#34,
+     *                            event{r}#35, ..., network.total_bytes_in{r}#50, network.total_cost{r}#51, pod{r}#52]]
+     *     \_Eval[[null[IP] AS client.ip#33, null[KEYWORD] AS cluster#34, null[KEYWORD] AS event#35, ...,
+     *                  null[LONG] AS network.total_bytes_in#50, null[DOUBLE] AS network.total_cost#51, null[KEYWORD] AS pod#52]]
+     *       \_Filter[:(message{f}#8,connect[KEYWORD])]
+     *         \_EsRelation[sample_data][@timestamp{f}#5, client_ip{f}#6, event_duration{f}#..]
+     */
+    public void testPushDownFullTextFunctionPastUnionAllWithTsSubqueryPrunesTsBranch() {
+        checkSubqueryWithTSCommand();
+        var plan = planSubquery("""
+            FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
+            | WHERE message:"connect"
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(1, unionAll.children().size());
+
+        Project sampleProject = as(unionAll.children().get(0), Project.class);
+        Eval sampleEval = as(sampleProject.child(), Eval.class);
+        Filter sampleFilter = as(sampleEval.child(), Filter.class);
+        MatchOperator match = as(sampleFilter.condition(), MatchOperator.class);
+        FieldAttribute messageField = as(match.field(), FieldAttribute.class);
+        assertEquals("message", messageField.name());
+        Literal queryLiteral = as(match.query(), Literal.class);
+        assertEquals(new BytesRef("connect"), queryLiteral.value());
+        EsRelation sampleRelation = as(sampleFilter.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+        // ts branch is pruned as there is no message field
+    }
+
+    /*
+     * Conjunctive full-text predicate "message:'connect' AND qstr('message:disconnect')" is pushed past the
+     * UnionAll. The TS k8s branch has no `message` field, so it cannot satisfy either match function and is
+     * pruned, leaving only the sample_data leg with the combined filter above the EsRelation.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[@timestamp{r}#214, client_ip{r}#215, event_duration{r}#216, message{r}#217, client.ip{r}#218,
+     *                    cluster{r}#219, event{r}#220, ..., network.total_bytes_in{r}#235, network.total_cost{r}#236, pod{r}#237]]
+     *   \_Project[[@timestamp{f}#163, client_ip{f}#164, event_duration{f}#165, message{f}#166, client.ip{r}#191,
+     *                            cluster{r}#192, event{r}#193, ..., network.total_bytes_in{r}#208, network.total_cost{r}#209, pod{r}#210]]
+     *     \_Eval[[null[IP] AS client.ip#191, null[KEYWORD] AS cluster#192, null[KEYWORD] AS event#193, ...,
+     *                  null[LONG] AS network.total_bytes_in#208, null[DOUBLE] AS network.total_cost#209, null[KEYWORD] AS pod#210]]
+     *       \_Filter[:(message{f}#166,connect[KEYWORD]) AND QSTR(message:disconnect[KEYWORD])]
+     *         \_EsRelation[sample_data][@timestamp{f}#163, client_ip{f}#164, event_duration..]
+     */
+    public void testPushDownConjunctiveFullTextFunctionPastUnionAllWithTsSubquery() {
+        checkSubqueryWithTSCommand();
+        var plan = planSubquery("""
+            FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
+            | WHERE message:"connect" AND qstr("message:disconnect")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(1, unionAll.children().size());
+
+        Project sampleProject = as(unionAll.children().get(0), Project.class);
+        Eval sampleEval = as(sampleProject.child(), Eval.class);
+        Filter sampleFilter = as(sampleEval.child(), Filter.class);
+        And and = as(sampleFilter.condition(), And.class);
+        MatchOperator match = as(and.left(), MatchOperator.class);
+        FieldAttribute messageField = as(match.field(), FieldAttribute.class);
+        assertEquals("message", messageField.name());
+        QueryString qstr = as(and.right(), QueryString.class);
+        Literal qstrQuery = as(qstr.query(), Literal.class);
+        assertEquals(new BytesRef("message:disconnect"), qstrQuery.value());
+        EsRelation sampleRelation = as(sampleFilter.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+    }
+
+    /*
+     * Mixed conjunctive predicate combining a range filter on @timestamp with a full-text qstr
+     * function. Both halves can be evaluated against the TS k8s branch (qstr does not require an
+     * Elasticsearch field reference), so the predicate is pushed past the UnionAll into both legs.
+     * - sample_data branch: Filter[@timestamp > 2024-01-01 AND QSTR(message:disconnect)].
+     * - TS k8s branch: combined with the inner WHERE; constant folding collapses
+     *   "@timestamp > 2024-01-01 AND @timestamp > 2025-10-07" into the stricter
+     *   "@timestamp > 2025-10-07", leaving Filter[QSTR(...) AND @timestamp > 2025-10-07].
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[@timestamp{r}#293, client_ip{r}#294, event_duration{r}#295, message{r}#296, client.ip{r}#297,
+     *                    cluster{r}#298, event{r}#299, ..., network.total_bytes_in{r}#314, network.total_cost{r}#315, pod{r}#316]]
+     *   |_Project[[@timestamp{f}#242, client_ip{f}#243, event_duration{f}#244, message{f}#245, client.ip{r}#270,
+     *                            cluster{r}#271, event{r}#272, ..., network.total_bytes_in{r}#287, network.total_cost{r}#288, pod{r}#289]]
+     *   | \_Eval[[null[IP] AS client.ip#270, null[KEYWORD] AS cluster#271, null[KEYWORD] AS event#272, ...,
+     *                  null[LONG] AS network.total_bytes_in#287, null[DOUBLE] AS network.total_cost#288, null[KEYWORD] AS pod#289]]
+     *   |   \_Filter[@timestamp{f}#242 > 1704067200000[DATETIME] AND QSTR(message:disconnect[KEYWORD])]
+     *   |     \_EsRelation[sample_data][@timestamp{f}#242, client_ip{f}#243, event_duration..]
+     *   \_Project[[@timestamp{f}#246, client_ip{r}#290, event_duration{r}#291, message{r}#292, client.ip{f}#250, cluster{f}#247,
+     *                           event{f}#251, ..., network.total_bytes_in{r}#317, network.total_cost{r}#318, pod{f}#248]]
+     *     \_Eval[[null[IP] AS client_ip#290, null[LONG] AS event_duration#291, null[KEYWORD] AS message#292,
+     *                  TOLONG(network.total_bytes_in{f}#260) AS network.total_bytes_in#317,
+     *                  TODOUBLE(network.total_cost{f}#262) AS network.total_cost#318]]
+     *       \_Subquery[]
+     *         \_Filter[QSTR(message:disconnect[KEYWORD]) AND @timestamp{f}#246 > 1759795200000[DATETIME]]
+     *           \_EsRelation[k8s][@timestamp{f}#246, client.ip{f}#250, cluster{f}#247, ..]
+     */
+    public void testPushDownMixedFilterAndFullTextFunctionPastUnionAllWithTsSubquery() {
+        checkSubqueryWithTSCommand();
+        var plan = planSubquery("""
+            FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
+            | WHERE @timestamp > "2024-01-01" AND qstr("message:disconnect")
+            """);
+
+        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Project sampleProject = as(unionAll.children().get(0), Project.class);
+        Eval sampleEval = as(sampleProject.child(), Eval.class);
+        Filter sampleFilter = as(sampleEval.child(), Filter.class);
+        And and = as(sampleFilter.condition(), And.class);
+        GreaterThan sampleGT = as(and.left(), GreaterThan.class);
+        assertEquals("@timestamp", as(sampleGT.left(), FieldAttribute.class).name());
+        Literal sampleValue = as(sampleGT.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2024-01-01", DataType.DATETIME, configuration), sampleValue.value());
+        QueryString qstr = as(and.right(), QueryString.class);
+        Literal qstrQuery = as(qstr.query(), Literal.class);
+        assertEquals(new BytesRef("message:disconnect"), qstrQuery.value());
+        EsRelation sampleRelation = as(sampleFilter.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsEval = as(tsProject.child(), Eval.class);
+        Subquery tsSubquery = as(tsEval.child(), Subquery.class);
+        Filter tsFilter = as(tsSubquery.child(), Filter.class);
+        and = as(tsFilter.condition(), And.class);
+        GreaterThan gt = as(and.right(), GreaterThan.class);
+        assertEquals("@timestamp", as(gt.left(), FieldAttribute.class).name());
+        Literal tsValue = as(gt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2025-10-07", DataType.DATETIME, configuration), tsValue.value());
+        qstr = as(and.left(), QueryString.class);
+        qstrQuery = as(qstr.query(), Literal.class);
+        assertEquals(new BytesRef("message:disconnect"), qstrQuery.value());
+        EsRelation tsRelation = as(tsFilter.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+    }
+
+    /*
+     * Push-down test mixing all three subquery flavours in a single UnionAll: a main FROM
+     * index pattern (sample_data), a TS subquery, a FROM subquery and a ROW subquery. The outer
+     * "@timestamp > 2024-01-01" predicate is pushed past the UnionAll into every branch:
+     * - sample_data branch: the predicate lands directly above the EsRelation.
+     * - TS k8s branch: combined with the inner WHERE @timestamp > 2025-10-07; constant folding
+     *   collapses the AND to the stricter "@timestamp > 2025-10-07".
+     * - FROM sample_data subquery: combined with the inner WHERE client_ip == "172.21.0.5".
+     * - ROW branch: the pushed-down filter constant-folds against the literal
+     *   (2026-01-01 > 2024-01-01 == true), so the Filter is removed and the LocalRelation is
+     *   preserved under the Subquery wrapper.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[@timestamp{r}#..., client_ip{r}#..., ..., cluster{r}#..., ..., pod{r}#...]]
+     *   |_Project[[@timestamp{f}#..., client_ip{f}#..., event_duration{f}#..., message{f}#..., ...]]
+     *   | \_Eval[[null fills for missing k8s fields]]
+     *   |   \_Filter[@timestamp{f}#... > 1704067200000[DATETIME]]
+     *   |     \_EsRelation[sample_data][@timestamp{f}#..., client_ip{f}#..., event_duration{f}#..]
+     *   |_Project[[@timestamp{f}#..., client_ip{r}#..., ..., cluster{f}#..., ..., pod{f}#...]]
+     *   | \_Eval[[null fills for sample_data fields, TOLONG/TODOUBLE counter demotions]]
+     *   |   \_Subquery[]
+     *   |     \_Filter[@timestamp{f}#... > 1759795200000[DATETIME]]
+     *   |       \_EsRelation[k8s][@timestamp{f}#..., client.ip{f}#..., cluster{f}#..., ..]
+     *   |_Project[[@timestamp{f}#..., client_ip{f}#..., event_duration{f}#..., message{f}#..., ...]]
+     *   | \_Eval[[null fills for missing k8s fields]]
+     *   |   \_Subquery[]
+     *   |     \_Filter[client_ip{f}#... == 172.21.0.5[IP] AND @timestamp{f}#... > 1704067200000[DATETIME]]
+     *   |       \_EsRelation[sample_data][@timestamp{f}#..., client_ip{f}#..., event_duration{f}#..]
+     *   \_Project[[@timestamp{r}#..., client_ip{r}#..., ..., cluster{r}#..., ..., pod{r}#...]]
+     *     \_Eval[[null fills for every column except @timestamp]]
+     *       \_Subquery[]
+     *         \_LocalRelation[[@timestamp{r}#...], Page[...]]
+     */
+    public void testPushDownSimpleFilterPastUnionAllWithMixedTsRowAndFromSubqueries() {
+        checkSubqueryWithTSCommand();
+        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var plan = planSubquery("""
+            FROM sample_data,
+                 (TS k8s | WHERE @timestamp > "2025-10-07"),
+                 (FROM sample_data | WHERE client_ip == "172.21.0.5"),
+                 (ROW @timestamp = "2026-01-01T00:00:00.000Z"::datetime)
+            | WHERE @timestamp > "2024-01-01"
+            """);
+
+        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(4, unionAll.children().size());
+
+        // branch 0 — sample_data main: outer @timestamp filter pushed past Eval directly above EsRelation.
+        Project sampleProject = as(unionAll.children().get(0), Project.class);
+        Eval sampleEval = as(sampleProject.child(), Eval.class);
+        Filter sampleFilter = as(sampleEval.child(), Filter.class);
+        GreaterThan sampleGt = as(sampleFilter.condition(), GreaterThan.class);
+        assertEquals("@timestamp", as(sampleGt.left(), FieldAttribute.class).name());
+        Literal sampleValue = as(sampleGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2024-01-01", DataType.DATETIME, configuration), sampleValue.value());
+        EsRelation sampleRelation = as(sampleFilter.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+
+        // branch 1 — TS k8s: outer predicate combined with the inner WHERE; constant folding
+        // collapses "@timestamp > 2024-01-01 AND @timestamp > 2025-10-07" to the stricter
+        // "@timestamp > 2025-10-07".
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsEval = as(tsProject.child(), Eval.class);
+        Subquery tsSubquery = as(tsEval.child(), Subquery.class);
+        Filter tsFilter = as(tsSubquery.child(), Filter.class);
+        GreaterThan tsGt = as(tsFilter.condition(), GreaterThan.class);
+        assertEquals("@timestamp", as(tsGt.left(), FieldAttribute.class).name());
+        Literal tsValue = as(tsGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2025-10-07", DataType.DATETIME, configuration), tsValue.value());
+        EsRelation tsRelation = as(tsFilter.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+
+        // branch 2 — FROM sample_data subquery: outer @timestamp filter combined with the inner
+        // WHERE client_ip == "172.21.0.5". The And keeps the subquery's original filter on the
+        // left and the pushed-down predicate on the right.
+        Project fromProject = as(unionAll.children().get(2), Project.class);
+        Eval fromEval = as(fromProject.child(), Eval.class);
+        Subquery fromSubquery = as(fromEval.child(), Subquery.class);
+        Filter fromFilter = as(fromSubquery.child(), Filter.class);
+        And fromAnd = as(fromFilter.condition(), And.class);
+        // right side: pushed-down @timestamp predicate
+        GreaterThan fromOuterGt = as(fromAnd.right(), GreaterThan.class);
+        assertEquals("@timestamp", as(fromOuterGt.left(), FieldAttribute.class).name());
+        Literal fromOuterValue = as(fromOuterGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2024-01-01", DataType.DATETIME, configuration), fromOuterValue.value());
+        EsRelation fromRelation = as(fromFilter.child(), EsRelation.class);
+        assertEquals("sample_data", fromRelation.indexPattern());
+
+        // branch 3 — ROW @timestamp = 2026-01-01: pushed-down "@timestamp > 2024-01-01" folds to
+        // true against the literal, so the Filter node is removed and only the LocalRelation
+        // remains under the Subquery wrapper.
+        Project rowProject = as(unionAll.children().get(3), Project.class);
+        Eval rowEval = as(rowProject.child(), Eval.class);
+        Subquery rowSubquery = as(rowEval.child(), Subquery.class);
+        as(rowSubquery.child(), LocalRelation.class);
+    }
+
+    /*
+     * The external dataset exposes the _file.* metadata columns, so the UnionAll carries them and the
+     * final Project strips them back off; the test branch gains an Eval that nulls the _file.* columns
+     * while the dataset branch gains an Eval that nulls the test columns absent from the dataset schema.
+     *
+     *Project[[...test columns, no _file.*...]]
+     * \_Limit[1000[INTEGER]]
+     *   \_UnionAll[[...test columns + _file.* columns...]]
+     *     |_Project[[...]]
+     *     | \_Eval[[null AS _file.path, _file.name, _file.directory, _file.size, _file.modified]]
+     *     |   \_Filter[emp_no > 10000]
+     *     |     \_EsRelation[test][...]
+     *     |_EsqlProject[[...]]
+     *       \_Eval[[null AS <test columns absent from the dataset schema>...]]
+     *         \_Subquery[]
+     *           \_Filter[salary > 50000 AND emp_no > 10000]
+     *             \_ExternalRelation[s3://bucket/external_employees.parquet]
+     */
+    public void testPushDownFilterIntoExternalDatasetSubquery() {
+        checkExternalDatasetSupport();
+        var plan = planExternalDatasetSubquery("""
+            FROM test, (FROM external_employees | WHERE salary > 50000)
+            | WHERE emp_no > 10000
+            """);
+
+        // No top-level Project: the dataset is read via FROM with no METADATA, so it carries no
+        // _file.* columns and the union output has nothing to strip from default output.
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // branch 1 — FROM test: the outer emp_no filter is pushed down onto the EsRelation.
+        Project testProject = as(unionAll.children().get(0), Project.class);
+        // No Eval on this branch: the union carries no _file.* (the dataset is FROM with no
+        // METADATA), so the index branch already has every union column — nothing to null-fill.
+        Filter testFilter = as(testProject.child(), Filter.class);
+        GreaterThan testGt = as(testFilter.condition(), GreaterThan.class);
+        assertEquals("emp_no", as(testGt.left(), FieldAttribute.class).name());
+        assertEquals(10000, as(testGt.right(), Literal.class).value());
+        EsRelation esRelation = as(testFilter.child(), EsRelation.class);
+        assertEquals("test", esRelation.indexPattern());
+
+        // branch 2 — FROM external_employees subquery: the pushed-down emp_no predicate is combined with
+        // the subquery's own salary filter and lands directly above the ExternalRelation. The Eval fills
+        // the UnionAll columns that exist in test but not in the external dataset schema with nulls.
+        Project datasetProject = as(unionAll.children().get(1), Project.class);
+        Eval datasetEval = as(datasetProject.child(), Eval.class);
+        Subquery subquery = as(datasetEval.child(), Subquery.class);
+        Filter datasetFilter = as(subquery.child(), Filter.class);
+        And and = as(datasetFilter.condition(), And.class);
+        GreaterThan salaryGt = as(and.left(), GreaterThan.class);
+        assertEquals("salary", as(salaryGt.left(), Attribute.class).name());
+        assertEquals(50000, as(salaryGt.right(), Literal.class).value());
+        GreaterThan empGt = as(and.right(), GreaterThan.class);
+        assertEquals("emp_no", as(empGt.left(), Attribute.class).name());
+        assertEquals(10000, as(empGt.right(), Literal.class).value());
+        as(datasetFilter.child(), ExternalRelation.class);
+    }
+
+    /*
+     * Same _file.* handling as testPushDownFilterIntoExternalDatasetSubquery: the UnionAll carries the
+     * external _file.* columns and the final Project strips them off.
+     *
+     *Project[[...test columns, no _file.*...]]
+     * \_Limit[10000[INTEGER]]
+     *   \_UnionAll[[...test columns + _file.* columns...]]
+     *     |_Project[[...]]
+     *     | \_Eval[[null AS _file.path, _file.name, _file.directory, _file.size, _file.modified]]
+     *     |   \_Filter[emp_no > 10000]
+     *     |     \_EsRelation[test][...]
+     *     |_EsqlProject[[...]]
+     *       \_Eval[[null AS <test columns absent from the dataset schema>...]]
+     *         \_Subquery[]
+     *           \_TopN[[Order[emp_no,ASC,LAST]],10000[INTEGER]]
+     *             \_Filter[salary > 50000 AND emp_no > 10000]
+     *               \_ExternalRelation[s3://bucket/external_employees.parquet]
+     */
+    public void testPushDownFilterAndLimitIntoExternalDatasetSubqueryWithSort() {
+        checkExternalDatasetSupport();
+        var plan = planExternalDatasetSubquery("""
+            FROM test, (FROM external_employees | WHERE salary > 50000 | SORT emp_no)
+            | WHERE emp_no > 10000
+            """);
+
+        // No top-level Project: the dataset is read via FROM with no METADATA, so it carries no
+        // _file.* columns and the union output has nothing to strip from default output.
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // branch 1 — FROM test: the outer emp_no filter is pushed down onto the EsRelation.
+        Project testProject = as(unionAll.children().get(0), Project.class);
+        // No Eval on this branch: the union carries no _file.* (the dataset is FROM with no
+        // METADATA), so the index branch already has every union column — nothing to null-fill.
+        Filter testFilter = as(testProject.child(), Filter.class);
+        GreaterThan testGt = as(testFilter.condition(), GreaterThan.class);
+        assertEquals("emp_no", as(testGt.left(), FieldAttribute.class).name());
+        assertEquals(10000, as(testGt.right(), Literal.class).value());
+        as(testFilter.child(), EsRelation.class);
+
+        // branch 2 — FROM external_employees subquery
+        Project datasetProject = as(unionAll.children().get(1), Project.class);
+        Eval datasetEval = as(datasetProject.child(), Eval.class);
+        Subquery subquery = as(datasetEval.child(), Subquery.class);
+        TopN topN = as(subquery.child(), TopN.class);
+        Literal topNLimit = as(topN.limit(), Literal.class);
+        assertEquals(10000, topNLimit.value());
+        Filter datasetFilter = as(topN.child(), Filter.class);
+        And and = as(datasetFilter.condition(), And.class);
+        GreaterThan salaryGt = as(and.left(), GreaterThan.class);
+        assertEquals("salary", as(salaryGt.left(), Attribute.class).name());
+        assertEquals(50000, as(salaryGt.right(), Literal.class).value());
+        GreaterThan empGt = as(and.right(), GreaterThan.class);
+        assertEquals("emp_no", as(empGt.left(), Attribute.class).name());
+        assertEquals(10000, as(empGt.right(), Literal.class).value());
+        as(datasetFilter.child(), ExternalRelation.class);
+    }
+
+    public void testFullTextFunctionOnExternalDatasetFieldIsRejected() {
+        checkExternalDatasetSupport();
+        VerificationException e = expectThrows(VerificationException.class, () -> planExternalDatasetSubquery("""
+            FROM test, (FROM external_employees | WHERE salary > 50000)
+            | WHERE first_name:"first"
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("[:] operator cannot operate on [first_name], which is not a field from an index mapping")
+        );
+    }
+
+    private static final String EXTERNAL_DATASET = "external_employees";
+    private static final String EXTERNAL_DATASET_RESOURCE = "s3://bucket/external_employees.parquet";
+
+    /**
+     * Build the analyzed-then-optimized plan for a {@code FROM ..., (FROM <dataset> | ...)} query whose
+     * subquery source is a registered external dataset. Mirrors the production pipeline: {@code FROM
+     * <dataset>} is rewritten by {@link DatasetRewriter} into the same {@code UnresolvedExternalRelation}
+     * the {@code EXTERNAL} command produces, which the analyzer resolves against the configured external
+     * source schema, so the optimizer sees a {@code UnionAll} branch backed by an {@link ExternalRelation}
+     * (wrapped in a {@code Subquery}) exactly like a real dataset subquery would produce.
+     *
+     * <p>The dataset deliberately exposes a subset of the {@code test} index schema ({@code emp_no},
+     * {@code first_name}, {@code salary}); the analyzer fills the remaining {@code UnionAll} columns on the
+     * dataset branch with nulls via an {@code Eval}.
+     */
+    private LogicalPlan planExternalDatasetSubquery(String query) {
+        DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
+        Dataset dataset = new Dataset(EXTERNAL_DATASET, new DataSourceReference("external_ds"), EXTERNAL_DATASET_RESOURCE, null, Map.of());
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("external_ds", dataSource)))
+            .datasets(Map.of(EXTERNAL_DATASET, dataset))
+            .build();
+        // FROM <dataset> -> UnresolvedExternalRelation, the same shape the EXTERNAL command would parse to.
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+            TEST_PARSER.parseQuery(query),
+            projectMetadata,
+            TestIndexNameExpressionResolver.newInstance()
+        );
+        List<Attribute> externalSchema = List.of(
+            referenceAttribute("emp_no", DataType.INTEGER),
+            referenceAttribute("first_name", DataType.KEYWORD),
+            referenceAttribute("salary", DataType.INTEGER)
+        );
+        LogicalPlan analyzed = subqueryAnalyzer().externalSourceResolution(EXTERNAL_DATASET_RESOURCE, externalSchema, FileList.UNRESOLVED)
+            .buildAnalyzer()
+            .analyze(rewritten);
+        return optimize(analyzed);
     }
 }

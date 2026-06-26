@@ -103,7 +103,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
+                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
             }
         }
     }
@@ -113,7 +113,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new MMapDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
+                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
             }
         }
     }
@@ -124,7 +124,7 @@ public class IndexInputUtilsTests extends ESTestCase {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
                 IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
-                new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
+                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
             }
         }
     }
@@ -135,7 +135,7 @@ public class IndexInputUtilsTests extends ESTestCase {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
                 IndexInput wrapped = new FilterIndexInput("plain-wrapper", rawIn) {};
-                expectThrows(IllegalArgumentException.class, () -> new MemorySegmentES92Int7VectorsScorer(wrapped, 64, 16));
+                expectThrows(IllegalArgumentException.class, () -> new MemorySegmentES92NativeInt7VectorsScorer(wrapped, 64, 16));
             }
         }
     }
@@ -174,13 +174,9 @@ public class IndexInputUtilsTests extends ESTestCase {
                 assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
                 assertThat(in, not(instanceOf(DirectAccessInput.class)));
                 long[] offsets = { 0, 64, 128, 192 };
-                boolean result = IndexInputUtils.withSliceAddresses(
-                    in,
-                    offsets,
-                    64,
-                    4,
-                    a -> { fail("action should not be called for plain IndexInput"); }
-                );
+                boolean result = IndexInputUtils.withSliceAddresses(in, offsets, 64, 4, new AddressesScratch()::get, a -> {
+                    fail("action should not be called for plain IndexInput");
+                });
                 assertFalse(result);
             }
         }
@@ -192,7 +188,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             offsets[i] = (long) i * sliceLen * 2;
         }
-        boolean result = IndexInputUtils.withSliceAddresses(in, offsets, sliceLen, count, a -> {
+        boolean result = IndexInputUtils.withSliceAddresses(in, offsets, sliceLen, count, new AddressesScratch()::get, a -> {
             for (int i = 0; i < count; i++) {
                 MemorySegment addr = a.getAtIndex(ValueLayout.ADDRESS, i);
                 assertTrue("address should be non-null", addr != MemorySegment.NULL);

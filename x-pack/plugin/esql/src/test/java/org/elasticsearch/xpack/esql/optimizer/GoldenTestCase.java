@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Listeners;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
@@ -18,8 +19,10 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -27,7 +30,9 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -37,6 +42,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -44,6 +51,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -58,6 +66,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.internal.AssumptionViolatedException;
@@ -81,11 +90,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -128,8 +137,21 @@ public abstract class GoldenTestCase extends ESTestCase {
         builder(esqlQuery).stages(stages).nestedPath(nestedPath).run();
     }
 
+    /**
+     * Run a golden test where the query references views. {@code views} maps a view name to its definition query; the views are
+     * registered on the analyzer and expanded (together with IN subqueries) before pre-analysis, mirroring
+     * {@code EsqlSession#execute}.
+     */
+    protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, Map<String, String> views, String... nestedPath) {
+        builder(esqlQuery).stages(stages).views(views).nestedPath(nestedPath).run();
+    }
+
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, SearchStats searchStats, String... nestedPath) {
         builder(esqlQuery).stages(stages).searchStats(searchStats).nestedPath(nestedPath).run();
+    }
+
+    protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, TransportVersion transportVersion) {
+        builder(esqlQuery).stages(stages).transportVersion(transportVersion).run();
     }
 
     protected void runGoldenTest(
@@ -140,7 +162,20 @@ public abstract class GoldenTestCase extends ESTestCase {
         String... nestedPath
     ) {
         String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-        new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion).doTest();
+        new Test(
+            baseFile,
+            testName,
+            nestedPath,
+            esqlQuery,
+            stages,
+            searchStats,
+            transportVersion,
+            null,
+            null,
+            null,
+            ExternalSourceResolution.EMPTY,
+            Map.of()
+        ).doTest();
     }
 
     protected TestBuilder builder(String esqlQuery) {
@@ -153,23 +188,35 @@ public abstract class GoldenTestCase extends ESTestCase {
         private SearchStats searchStats;
         private String[] nestedPath;
         private TransportVersion transportVersion;
+        private Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory;
+        private AliasFilter aliasFilter;
+        private ProjectMetadata datasetMetadata;
+        private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
+        private Map<String, String> views = Map.of();
 
         private TestBuilder(
             String esqlQuery,
             EnumSet<Stage> stages,
             SearchStats searchStats,
             String[] nestedPath,
-            TransportVersion transportVersion
+            TransportVersion transportVersion,
+            AliasFilter aliasFilter
         ) {
             this.esqlQuery = esqlQuery;
             this.stages = stages;
             this.searchStats = searchStats;
             this.nestedPath = nestedPath;
             this.transportVersion = transportVersion;
+            this.aliasFilter = aliasFilter;
         }
 
         TestBuilder(String esqlQuery) {
-            this(esqlQuery, EnumSet.allOf(Stage.class), EsqlTestUtils.TEST_SEARCH_STATS, new String[0], randomMinimumVersion());
+            this(esqlQuery, EnumSet.allOf(Stage.class), EsqlTestUtils.TEST_SEARCH_STATS, new String[0], randomMinimumVersion(), null);
+        }
+
+        public TestBuilder optimizer(Function<LogicalOptimizerContext, LogicalPlanOptimizer> factory) {
+            this.optimizerFactory = factory;
+            return this;
         }
 
         public TestBuilder stages(EnumSet<Stage> stages) {
@@ -208,8 +255,56 @@ public abstract class GoldenTestCase extends ESTestCase {
             return this;
         }
 
+        public TestBuilder aliasFilter(AliasFilter aliasFilter) {
+            this.aliasFilter = aliasFilter;
+            return this;
+        }
+
+        public AliasFilter aliasFilter() {
+            return aliasFilter;
+        }
+
+        /**
+         * Registers external datasets (a {@link ProjectMetadata} carrying the data-source / dataset definitions) so that
+         * {@code FROM <dataset>} references in the query are rewritten into external relations by {@link DatasetRewriter}, mirroring
+         * {@code EsqlSession}. Must be paired with {@link #externalSourceResolution} so the analyzer can resolve those relations' schemas.
+         */
+        public TestBuilder datasetMetadata(ProjectMetadata datasetMetadata) {
+            this.datasetMetadata = datasetMetadata;
+            return this;
+        }
+
+        /** Pre-resolved schemas for the external datasets registered via {@link #datasetMetadata}. */
+        public TestBuilder externalSourceResolution(ExternalSourceResolution externalSourceResolution) {
+            this.externalSourceResolution = externalSourceResolution;
+            return this;
+        }
+
+        public ExternalSourceResolution externalSourceResolution() {
+            return externalSourceResolution;
+        }
+
+        public TestBuilder views(Map<String, String> views) {
+            this.views = views;
+            return this;
+        }
+
         public void run() {
-            runGoldenTest(esqlQuery, stages, searchStats, transportVersion, nestedPath);
+            String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
+            new Test(
+                baseFile,
+                testName,
+                nestedPath,
+                esqlQuery,
+                stages,
+                searchStats,
+                transportVersion,
+                optimizerFactory,
+                aliasFilter,
+                datasetMetadata,
+                externalSourceResolution,
+                views
+            ).doTest();
         }
 
         public Optional<Throwable> tryRun() {
@@ -229,7 +324,12 @@ public abstract class GoldenTestCase extends ESTestCase {
         String esqlQuery,
         EnumSet<Stage> stages,
         SearchStats searchStats,
-        TransportVersion transportVersion
+        TransportVersion transportVersion,
+        Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory,
+        AliasFilter aliasFilter,
+        ProjectMetadata datasetMetadata,
+        ExternalSourceResolution externalSourceResolution,
+        Map<String, String> views
     ) {
 
         private void doTest() {
@@ -246,7 +346,22 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
-            LogicalPlan parsedPlan = statement.plan();
+            // Mirror EsqlSession#execute: expand views and rewrite IN subqueries into SemiJoin/AntiJoin/MarkJoin before
+            // running pre-analysis and analysis, so inner subquery indices are discovered and verifier checks (e.g. unbounded
+            // SORT inside an IN subquery) fire. When the query references views, register them and run the iterative
+            // view/IN-subquery resolution; otherwise resolve IN subqueries only.
+            LogicalPlan parsedPlan;
+            if (views.isEmpty()) {
+                parsedPlan = InSubqueryResolver.resolve(statement.plan());
+            } else {
+                TestAnalyzer viewAnalyzer = analyzer();
+                views.forEach(viewAnalyzer::addView);
+                parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(statement.plan());
+            }
+            // Then turn FROM <dataset> targets into UnresolvedExternalRelation, exactly as EsqlSession does. A
+            // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
+            // test registers datasets, external relations are excluded from CSV index discovery below.
+            parsedPlan = DatasetRewriter.rewriteUnsecured(parsedPlan, datasetMetadata, TestIndexNameExpressionResolver.newInstance());
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
             System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);
@@ -254,13 +369,17 @@ public abstract class GoldenTestCase extends ESTestCase {
             Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
+            UnmappedResolution unmappedResolution = statement.setting(UNMAPPED_FIELDS);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
                 .addTestLookup()
                 .addAnalysisTestsEnrichResolution()
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
-                .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
-            loadIndexResolution(testDatasets(parsedPlan)).forEach(
+                .externalSourceResolution(externalSourceResolution)
+                .unmappedResolution(unmappedResolution);
+            boolean trackUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD
+                || parsedPlan.anyMatch(p -> p instanceof Insist);
+            loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
@@ -274,7 +393,10 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
             var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.EMPTY), esqlQuery, statement);
             var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
-            var logicallyOptimized = new LogicalPlanOptimizer(optimizerContext).optimize(analyzed);
+            var optimizer = optimizerFactory != null
+                ? optimizerFactory.apply(optimizerContext)
+                : new LogicalPlanOptimizer(optimizerContext);
+            var logicallyOptimized = optimizer.optimize(analyzed);
             if (stages.contains(Stage.LOGICAL_OPTIMIZATION)) {
                 result.add(Tuple.tuple(Stage.LOGICAL_OPTIMIZATION, verifyOrWrite(logicallyOptimized, Stage.LOGICAL_OPTIMIZATION)));
             }
@@ -318,43 +440,59 @@ public abstract class GoldenTestCase extends ESTestCase {
                             result.add(Tuple.tuple(Stage.LOOKUP_LOGICAL_OPTIMIZATION, r));
                         }
                         if (stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)) {
-                            PhysicalPlan lookupPhysical = optimizeLookupPhysicalPlan(lookupLogical, configuration, searchStats);
+                            PhysicalPlan lookupPhysical = optimizeLookupPhysicalPlan(
+                                lookupLogical,
+                                configuration,
+                                searchStats,
+                                aliasFilter
+                            );
                             TestResult r = verifyOrWrite(lookupPhysical, outputPath("lookup_physical_optimization" + suffix));
                             result.add(Tuple.tuple(Stage.LOOKUP_PHYSICAL_OPTIMIZATION, r));
                         }
                     }
                 }
                 if (stages.contains(Stage.NODE_REDUCE) || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                    ExchangeExec exec = EsqlTestUtils.singleValue(physicalPlan.collect(ExchangeExec.class));
-                    var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
-                    var reductionPlan = ComputeService.reductionPlan(
-                        PlannerSettings.DEFAULTS,
-                        new EsqlFlags(false),
-                        configuration,
-                        configuration.newFoldContext(),
-                        sink,
-                        true,
-                        true,
-                        new PlanTimeProfile()
+                    List<ExchangeExec> exchanges = physicalPlan.collect(ExchangeExec.class);
+                    // Skip plans that terminate at the
+                    // coordinator and produce no ExchangeExec;
+                    // e.g. query that optimized data scan entirely like `time()`
 
-                    );
-                    if (stages.contains(Stage.NODE_REDUCE)) {
-                        var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE.fileOutput;
-                        result.addAll(
-                            addNodeReduceDualPlanResult(reductionPlan, dualFileOutput.nodeReduceOutput(), dualFileOutput.dataNodeOutput())
+                    if (exchanges.isEmpty() == false) {
+                        ExchangeExec exec = EsqlTestUtils.singleValue(exchanges);
+                        var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
+                        var reductionPlan = ComputeService.reductionPlan(
+                            PlannerSettings.DEFAULTS,
+                            new EsqlFlags(false),
+                            configuration,
+                            configuration.newFoldContext(),
+                            sink,
+                            true,
+                            true,
+                            new PlanTimeProfile()
+
                         );
-                    }
-                    if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                        var singleFileOutput = (SingleFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
-                        result.add(
-                            Tuple.tuple(
-                                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                verifyOrWrite(
-                                    localOptimize(reductionPlan.dataNodePlan(), configuration),
-                                    outputPath(singleFileOutput.output())
+                        if (stages.contains(Stage.NODE_REDUCE)) {
+                            var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE.fileOutput;
+                            result.addAll(
+                                addNodeReduceDualPlanResult(
+                                    reductionPlan,
+                                    dualFileOutput.nodeReduceOutput(),
+                                    dualFileOutput.dataNodeOutput()
                                 )
-                            )
-                        );
+                            );
+                        }
+                        if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
+                            var singleFileOutput = (SingleFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
+                            result.add(
+                                Tuple.tuple(
+                                    Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
+                                    verifyOrWrite(
+                                        localOptimize(reductionPlan.dataNodePlan(), configuration),
+                                        outputPath(singleFileOutput.output())
+                                    )
+                                )
+                            );
+                        }
                     }
                 }
             }
@@ -462,10 +600,22 @@ public abstract class GoldenTestCase extends ESTestCase {
             return new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(conf, foldCtx, stats)).localOptimize(logicalPlan);
         }
 
-        private static PhysicalPlan optimizeLookupPhysicalPlan(LogicalPlan logicalPlan, Configuration conf, SearchStats stats) {
+        private static PhysicalPlan optimizeLookupPhysicalPlan(
+            LogicalPlan logicalPlan,
+            Configuration conf,
+            SearchStats stats,
+            AliasFilter aliasFilter
+        ) {
             FoldContext foldCtx = conf.newFoldContext();
             PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(logicalPlan);
-            var context = new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), conf, foldCtx, stats);
+            var context = new LookupPhysicalOptimizerContext(
+                PlannerSettings.DEFAULTS,
+                new EsqlFlags(true),
+                conf,
+                foldCtx,
+                stats,
+                aliasFilter
+            );
             return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
         }
     }
@@ -758,33 +908,38 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     public static Map<IndexPattern, IndexResolution> loadIndexResolution(
-        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
+        boolean trackUnmappedFieldIndices
     ) {
         Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
         for (var entry : datasets.entrySet()) {
-            indexResolutions.put(entry.getKey(), loadIndexResolution(entry.getValue()));
+            indexResolutions.put(entry.getKey(), loadIndexResolution(entry.getValue(), trackUnmappedFieldIndices));
         }
         return indexResolutions;
     }
 
+    public static Map<IndexPattern, IndexResolution> loadIndexResolution(
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
+    ) {
+        return loadIndexResolution(datasets, false);
+    }
+
     public static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+        return loadIndexResolution(datasets, false);
+    }
+
+    public static IndexResolution loadIndexResolution(
+        CsvTestsDataLoader.MultiIndexTestDataset datasets,
+        boolean trackUnmappedFieldIndices
+    ) {
         var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
         Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))
             .toList();
-        var mergedMappings = mergeMappings(mappings);
-        return IndexResolution.valid(
-            new EsIndex(
-                datasets.indexPattern(),
-                mergedMappings.mapping,
-                indexModes,
-                Map.of(),
-                Map.of(),
-                mergedMappings.fieldToUnmappedIndices
-            )
-        );
+        var mergedMappings = mergeMappings(mappings, trackUnmappedFieldIndices);
+        return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
     }
 
     // TODO should de-duplicate, strong overlap with CsvTestsDataLoader#readMappingFile
@@ -836,48 +991,102 @@ public abstract class GoldenTestCase extends ESTestCase {
         return mapping;
     }
 
-    record MappingPerIndex(String index, Map<String, EsField> mapping) {}
+    private record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
+    private record MergedResult(Map<String, EsField> mapping) {}
 
-    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
-        int numberOfIndices = mappingsPerIndex.size();
-        Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());
-        Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
+    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex, boolean trackUnmappedFieldIndices) {
+        Map<String, Map<String, EsField>> fieldNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
-                String columnName = entry.getKey();
-                EsField field = entry.getValue();
-                columnNamesToFieldByIndices.computeIfAbsent(columnName, k -> new HashMap<>()).put(mappingPerIndex.index(), field);
+                fieldNamesToFieldByIndices.computeIfAbsent(entry.getKey(), k -> new HashMap<>())
+                    .put(mappingPerIndex.index(), entry.getValue());
             }
         }
-
-        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
-        for (var e : columnNamesToFieldByIndices.entrySet()) {
-            if (e.getValue().size() < numberOfIndices) {
-                Set<String> unmappedIndices = allIndices.stream().filter(i -> e.getValue().containsKey(i) == false).collect(toSet());
-                if (unmappedIndices.isEmpty() == false) {
-                    fieldToUnmappedIndices.put(e.getKey(), unmappedIndices);
-                }
-            }
+        int numberOfIndices = mappingsPerIndex.size();
+        Map<String, EsField> mappings = new HashMap<>();
+        for (var entry : fieldNamesToFieldByIndices.entrySet()) {
+            String fieldName = entry.getKey();
+            mappings.put(fieldName, mergeFields(fieldName, fieldName, entry.getValue(), trackUnmappedFieldIndices, numberOfIndices));
         }
-        var mappings = columnNamesToFieldByIndices.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
-        return new MergedResult(mappings, fieldToUnmappedIndices);
+        return new MergedResult(mappings);
     }
 
-    private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
-        var indexFields = columnNameToField.values();
-        if (indexFields.stream().distinct().count() > 1) {
-            var typesToIndices = new HashMap<String, Set<String>>();
-            for (var typeToIndex : columnNameToField.entrySet()) {
-                typesToIndices.computeIfAbsent(typeToIndex.getValue().getDataType().typeName(), k -> new HashSet<>())
-                    .add(typeToIndex.getKey());
-            }
-            return new InvalidMappedField(index, typesToIndices);
+    private static EsField mergeFields(
+        String fieldName,
+        String fullName,
+        Map<String, EsField> fieldByIndex,
+        boolean trackUnmappedFieldIndices,
+        int numberOfIndices
+    ) {
+        EsField field;
+        if (fieldByIndex.values().stream().map(EsField::getDataType).distinct().count() > 1) {
+            field = new InvalidMappedField(fieldName, getTypesToIndices(fieldByIndex));
         } else {
-            return indexFields.iterator().next();
+            // We take scalar attributes (name, dataType, aggregatable, timeSeriesFieldType) from an arbitrary representative.
+            // This is safe because: dataType is already verified identical above, name is the map key, and the only fields
+            // that reach this path are OBJECT parents whose children differ; objects are never aggregatable and always have
+            // TimeSeriesFieldType.NONE (time series types are set on leaf fields, not parent objects).
+            List<EsField> fields = fieldByIndex.values().stream().distinct().limit(2).toList();
+            EsField representative = fields.getFirst();
+            if (fields.size() == 1) {
+                field = representative;
+            } else {
+                Map<String, EsField> mergedChildren = mergeSubFields(
+                    fullName,
+                    getSubNameToIndexToSubField(fieldByIndex),
+                    trackUnmappedFieldIndices,
+                    numberOfIndices
+                );
+                field = new EsField(
+                    representative.getName(),
+                    representative.getDataType(),
+                    mergedChildren,
+                    representative.isAggregatable(),
+                    representative.getTimeSeriesFieldType()
+                );
+            }
         }
+        return trackUnmappedFieldIndices
+            ? IndexResolver.wrapIfPartiallyUnmapped(field, fieldName, fullName, fieldByIndex.keySet(), numberOfIndices)
+            : field;
+    }
+
+    /** Returns {@code Map<SubName, Map<IndexName, EsField>>}; where are typedefs when you need them! */
+    private static Map<String, Map<String, EsField>> getSubNameToIndexToSubField(Map<String, EsField> fieldByIndex) {
+        Map<String, Map<String, EsField>> result = new HashMap<>();
+        for (var entry : fieldByIndex.entrySet()) {
+            String index = entry.getKey();
+            for (var property : entry.getValue().getProperties().entrySet()) {
+                result.computeIfAbsent(property.getKey(), k -> new HashMap<>()).put(index, property.getValue());
+            }
+        }
+        return result;
+    }
+
+    private static Map<String, EsField> mergeSubFields(
+        String parentFullName,
+        Map<String, Map<String, EsField>> subFieldsByIndexBySubName,
+        boolean trackUnmappedFieldIndices,
+        int numberOfIndices
+    ) {
+        Map<String, EsField> properties = new TreeMap<>();
+        for (var subEntry : subFieldsByIndexBySubName.entrySet()) {
+            String subName = subEntry.getKey();
+            properties.put(
+                subName,
+                mergeFields(subName, parentFullName + "." + subName, subEntry.getValue(), trackUnmappedFieldIndices, numberOfIndices)
+            );
+        }
+        return properties;
+    }
+
+    /** Returns {@code Map<TypeName, Set<IndexName>>}; where are typedefs when you need them! */
+    private static Map<String, Set<String>> getTypesToIndices(Map<String, EsField> fieldByIndex) {
+        var result = new HashMap<String, Set<String>>();
+        for (var entry : fieldByIndex.entrySet()) {
+            result.computeIfAbsent(entry.getValue().getDataType().typeName(), k -> new HashSet<>()).add(entry.getKey());
+        }
+        return result;
     }
 }

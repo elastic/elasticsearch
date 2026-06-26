@@ -19,8 +19,10 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -65,6 +67,40 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertTrue(result instanceof LimitExec);
         ExternalSourceExec child = (ExternalSourceExec) ((LimitExec) result).child();
         assertTrue(child.splits().isEmpty());
+    }
+
+    public void testScanStatsReportedForExternalSource() {
+        // createFileList sizes file i as 100*(i+1); three files => 100 + 200 + 300 bytes.
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FileSplitProvider()));
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        // Whole-file splits (no format registry), so one split per file and bytes == total file size.
+        assertEquals(3, result.filesScanned());
+        assertEquals(3, result.splitsScanned());
+        assertEquals(600L, result.bytesScanned());
+    }
+
+    public void testScanStatsZeroWhenNoSplitsDiscovered() {
+        ExternalSourceExec exec = createExternalSourceExec(FileList.UNRESOLVED, "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FileSplitProvider()));
+
+        SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertEquals(0, result.filesScanned());
+        assertEquals(0, result.splitsScanned());
+        assertEquals(0L, result.bytesScanned());
     }
 
     public void testFilterExecAboveExternalSourceCollectsFilters() {
@@ -206,6 +242,12 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
     private static ExternalSourceFactory testFactory(SplitProvider provider) {
         return new ExternalSourceFactory() {
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                throw new UnsupportedOperationException("test stub does not implement validation");
+            }
+
             @Override
             public String type() {
                 return "test";
@@ -232,9 +274,9 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         SplitDiscoveryContext lastContext;
 
         @Override
-        public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
+        public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
             this.lastContext = context;
-            return List.of();
+            return SplitDiscoveryResult.EMPTY;
         }
     }
 }

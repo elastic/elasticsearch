@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -54,10 +58,15 @@ import java.util.List;
  * Statistics come from {@code ExternalSourceExec.sourceMetadata()} for single-split queries, or
  * from merged per-split statistics in {@code FileSplit.splitStats()} for multi-split queries.
  * Falls back to normal execution when any split lacks statistics.
+ * <p>
+ * Substitution is skipped when the source has pushed scan-time predicates ({@code pushedExpressions}
+ * or {@code pushedFilter}), because statistics describe whole splits before those predicates.
  */
 public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     AggregateExec,
     LocalPhysicalOptimizerContext> {
+
+    private static final Logger logger = LogManager.getLogger(PushAggregatesToExternalSource.class);
 
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext ctx) {
@@ -65,6 +74,10 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
         ExternalSourceExec externalExec = (ExternalSourceExec) aggregateExec.child();
+
+        if (externalExec.pushedFilter() != null) {
+            return aggregateExec;
+        }
 
         AggregatorMode mode = aggregateExec.getMode();
         if (mode != AggregatorMode.SINGLE && mode != AggregatorMode.INITIAL) {
@@ -75,7 +88,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
 
-        FormatReaderRegistry formatReaderRegistry = ctx != null ? ctx.formatReaderRegistry() : null;
+        FormatReaderRegistry formatReaderRegistry = ctx == null || ctx.external() == null ? null : ctx.external().formatReaderRegistry();
         if (formatReaderRegistry == null) {
             return aggregateExec;
         }
@@ -90,6 +103,23 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         }
         if (formatReader.aggregatePushdownSupport()
             .canPushAggregates(aggFunctions, List.of()) != AggregatePushdownSupport.Pushability.YES) {
+            return aggregateExec;
+        }
+
+        // Row-group / footer statistics describe whole splits before any scan-time predicates. When a
+        // reader applies a predicate during read ({@link ExternalSourceExec#pushedExpressions()} /
+        // {@link ExternalSourceExec#pushedFilter()} after PushFiltersToSource removes FilterExec),
+        // answering COUNT(*) / MIN / MAX purely from statistics would ignore that predicate — wrong counts.
+        if (externalExec.pushedExpressions().isEmpty() == false || externalExec.pushedFilter() != null) {
+            logger.info(
+                () -> Strings.format(
+                    "PushAggregatesToExternalSource: skipping stats substitution (source has pushed scan predicates)"
+                        + " path=[{}] projections=[{}] type=[{}]",
+                    externalExec.sourcePath(),
+                    externalExec.pushedExpressions().size(),
+                    externalExec.sourceType()
+                )
+            );
             return aggregateExec;
         }
 
@@ -141,6 +171,28 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         return true;
     }
 
+    /**
+     * Resolves the value of an ungrouped aggregate purely from split-level statistics.
+     * <p>
+     * For {@code COUNT(col)} we use {@code rowCount - columnNullCount(col)}. This relies on the
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} "implicit nulls" contract:
+     * {@code columnNullCount} already includes both explicit nulls in files that contain the
+     * column and rows in files that do not contain the column at all (those count as nulls
+     * because every row would deserialize as {@code null}). When the column is fully absent
+     * from a scope, {@code columnNullCount == rowCount}, so {@code COUNT(col) == 0} for that
+     * scope — exactly the right answer for UNION_BY_NAME mixes.
+     * <p>
+     * The only short-circuit is the rare "column present but stats unknown" case, where
+     * {@code columnNullCount} returns {@code -1} and we bail out so the engine falls back to a
+     * regular scan.
+     * <p>
+     * For {@code MIN}/{@code MAX} we read {@code columnMin}/{@code columnMax} verbatim. Under the
+     * SPI's "implicit nulls" contract, {@link org.elasticsearch.xpack.esql.datasources.MergedSplitStats}
+     * skips children whose null count equals their row count (absent column or all rows null) and
+     * only poisons on a genuine unknown ({@code columnNullCount &lt; 0}). Result of {@code null} therefore
+     * means either "no child contributed a candidate value" or "incompatible/unknown stats" — both are
+     * correct fall-back signals, the rule does not pushdown.
+     */
     private Object resolveFromStats(Expression aggFunction, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (aggFunction instanceof Count count) {
             if (count.hasFilter()) {
@@ -150,7 +202,9 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             if (target.foldable()) {
                 return stats.rowCount();
             }
-            if (target instanceof Attribute ref) {
+            // Virtual columns are not present in the split's column stats; refuse the pushdown
+            // here even if a format-level gate happens to let one through (defense in depth).
+            if (target instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
                 long nc = stats.columnNullCount(ref.name());
                 if (nc >= 0) {
                     return stats.rowCount() - nc;
@@ -161,7 +215,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             if (min.hasFilter()) {
                 return null;
             }
-            if (min.field() instanceof Attribute ref) {
+            if (min.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
                 return stats.columnMin(ref.name());
             }
             return null;
@@ -169,7 +223,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             if (max.hasFilter()) {
                 return null;
             }
-            if (max.field() instanceof Attribute ref) {
+            if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
                 return stats.columnMax(ref.name());
             }
             return null;
@@ -213,7 +267,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 value instanceof Boolean b ? b : Booleans.parseBoolean(value.toString()),
                 1
             );
-            case KEYWORD, TEXT -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(value.toString()), 1);
+            case KEYWORD, TEXT -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(value), 1);
             default -> {
                 if (value instanceof Number n) {
                     yield blockFactory.newConstantLongBlockWith(n.longValue(), 1);
@@ -221,6 +275,24 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 yield blockFactory.newConstantNullBlock(1);
             }
         };
+    }
+
+    /**
+     * Coerces a stat value to a {@link BytesRef} suitable for a constant KEYWORD / TEXT block. The
+     * {@link Object#toString} fallback is reserved for stat values whose {@code toString} is
+     * documented to return the underlying UTF-8 string (e.g. Parquet's {@code Binary}). Direct
+     * {@link BytesRef} and raw {@code byte[]} stat values bypass {@code toString} entirely because
+     * {@link BytesRef#toString} returns a hex dump (e.g. {@code [61 6c 70 68 61]}) and a
+     * round-trip through it would corrupt the warm-path result.
+     */
+    private static BytesRef toBytesRef(Object value) {
+        if (value instanceof BytesRef br) {
+            return br;
+        }
+        if (value instanceof byte[] bytes) {
+            return new BytesRef(bytes);
+        }
+        return new BytesRef(value.toString());
     }
 
     private List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -31,8 +32,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -70,6 +69,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TStep.class)
         .quaternaryConfig(TStep::new)
+        .capabilities("implicit_timestamp")
         .name(NAME.toLowerCase(Locale.ROOT));
 
     private final Configuration configuration;
@@ -82,6 +82,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
+        briefSummary = "Creates fixed-width timestamp buckets anchored at the start of the query range.",
         description = """
             Creates groups of values - buckets - out of a `@timestamp` attribute using either a fixed step width
             or a target bucket count.
@@ -115,21 +116,28 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     )
     public TStep(
         Source source,
-        @Param(name = "step", type = { "time_duration", "integer", "long" }, description = """
-            Fixed bucket width on a UTC grid, or a target bucket count. When a bucket count is provided,
-            the actual step width is derived from `from` and `to` and rounded up so the target bucket count
-            is not exceeded.
-            TSTEP always needs a range to anchor the grid; when `from` and `to` are omitted,
-            the range is derived from the request `@timestamp` filter.""") Expression stepOrBuckets,
+        @Param(
+            name = "step",
+            type = { "time_duration", "integer", "long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = """
+                Fixed bucket width on a UTC grid, or a target bucket count. When a bucket count is provided,
+                the actual step width is derived from `from` and `to` and rounded up so the target bucket count
+                is not exceeded.
+                TSTEP always needs a range to anchor the grid; when `from` and `to` are omitted,
+                the range is derived from the request `@timestamp` filter."""
+        ) Expression stepOrBuckets,
         @Param(
             name = "from",
             type = { "date", "date_nanos", "keyword" },
             description = "Start of the time range that anchors the step grid. Required together with `to`.",
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true
         ) @Nullable Expression from,
         @Param(
             name = "to",
             type = { "date", "date_nanos", "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "End of the time range. Required together with `from`.",
             optional = true
         ) @Nullable Expression to,
@@ -195,17 +203,9 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     /**
-     * Replace {@link TStep} expression with {@link Bucket} expression.
+     * Replace {@link TStep} with a right-closed {@link Bucket}: interval {@code (label-step, label]}.
      * <p>
-     * Bucket uses truncation-style, left-labeled intervals on calendar-aligned grid:
-     * Bucket(t) = left, for t in [label:=left, right)
-     * e.g., step=1h: [12:00; 13:00) [13:00; 14:00)
-     * <p>
-     * TStep uses right-labeled intervals on a start-aligned grid:
-     * TStep(t) = right, for t in (left, label:=right]
-     * e.g., step=1h, start=12:13: (12:13; 13:13] (13:13; 14:13]
-     * <p>
-     * Therefore, TStep(t) := Bucket0(t - tick) + step, where Bucket0 is Bucket with offset = start mod step.
+     * When {@code stepOrBuckets} is a bucket count, derive the step width from the query range first.
      */
     @Override
     public Expression surrogate() {
@@ -213,14 +213,16 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         Expression step = stepOrBuckets.dataType() == DataType.TIME_DURATION
             ? stepOrBuckets
             : Literal.timeDuration(source(), Duration.ofMillis(stepToLong(ctx)));
-        Literal tick = Literal.timeDuration(
+        return new Bucket(
             source(),
-            timestamp.dataType() == DataType.DATE_NANOS ? Duration.ofNanos(1) : Duration.ofMillis(1)
+            timestamp,
+            step,
+            null,
+            null,
+            configuration.withZoneId(ZoneOffset.UTC),
+            offsetToLong(ctx),
+            Rounding.RoundingConvention.UP
         );
-        Expression sub = new Sub(source(), timestamp, tick, configuration);
-        Bucket bucket = new Bucket(source(), sub, step, null, null, configuration.withZoneId(ZoneOffset.UTC), offsetToLong(ctx));
-
-        return new Add(source(), bucket, step, configuration);
     }
 
     @Override
@@ -302,9 +304,16 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             return resolution;
         }
 
-        return resolution.and(
+        var boundsResolution = resolution.and(
             isStringOrDateBound(Objects.requireNonNull(from), SECOND).and(isStringOrDateBound(Objects.requireNonNull(to), THIRD))
         );
+        if (boundsResolution.unresolved()) {
+            return boundsResolution;
+        }
+        if (from.foldable() == false || to.foldable() == false) {
+            return new TypeResolution("[" + sourceText() + "] `from` and `to` must be constants");
+        }
+        return boundsResolution;
     }
 
     @Override
@@ -326,15 +335,6 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     public Configuration configuration() {
         return configuration;
-    }
-
-    public Bucket timeBucketSpecRef() {
-        FoldContext ctx = FoldContext.small();
-        Expression step = stepOrBuckets.dataType() == DataType.TIME_DURATION
-            ? stepOrBuckets
-            : Literal.timeDuration(source(), Duration.ofMillis(stepToLong(ctx)));
-        long offset = offsetToLong(ctx);
-        return new Bucket(source(), timestamp, step, null, null, configuration.withZoneId(ZoneOffset.UTC), offset);
     }
 
     @Override

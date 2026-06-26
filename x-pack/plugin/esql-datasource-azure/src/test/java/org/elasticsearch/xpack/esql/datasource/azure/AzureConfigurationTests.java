@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -113,6 +116,13 @@ public class AzureConfigurationTests extends ESTestCase {
         assertFalse(config.hasCredentials());
     }
 
+    public void testHasCredentialsWithWhitespaceSasTokenIsAbsent() {
+        // A whitespace-only SAS token is treated as absent (consistent with S3/GCS short-lived tokens),
+        // so it does not count as credentials.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, "account", null, "   ", null);
+        assertFalse(config.hasCredentials());
+    }
+
     public void testEqualsAndHashCodeSameValues() {
         AzureConfiguration config1 = AzureConfiguration.fromFields("cs", "acc", "key", "sas", "ep");
         AzureConfiguration config2 = AzureConfiguration.fromFields("cs", "acc", "key", "sas", "ep");
@@ -126,6 +136,18 @@ public class AzureConfigurationTests extends ESTestCase {
         AzureConfiguration config2 = AzureConfiguration.fromFields("cs2", "acc", "key", "sas", "ep");
 
         assertNotEquals(config1, config2);
+    }
+
+    public void testNotEqualsWithDifferentSasToken() {
+        AzureConfiguration config1 = AzureConfiguration.fromFields(null, "acc", null, "sas1", "ep");
+        AzureConfiguration config2 = AzureConfiguration.fromFields(null, "acc", null, "sas2", "ep");
+        assertNotEquals(config1, config2);
+    }
+
+    public void testSasTokenAbsentByDefault() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, "account", "key", null, null);
+        assertNotNull(config);
+        assertNull(config.sasToken());
     }
 
     public void testAuthNone() {
@@ -179,11 +201,27 @@ public class AzureConfigurationTests extends ESTestCase {
         raw.put("header_row", false);
         raw.put("column_prefix", "f");
 
-        AzureConfiguration config = AzureConfiguration.fromQueryConfig(raw);
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(raw);
+        AzureConfiguration config = result.value();
         assertNotNull(config);
         assertEquals("myaccount", config.account());
         assertEquals("mykey", config.key());
         assertEquals("https://ep", config.endpoint());
+        assertThat(result.consumedKeys(), containsInAnyOrder("account", "key", "endpoint"));
+    }
+
+    public void testFromQueryConfigWithSasToken() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("account", "myaccount");
+        raw.put("sas_token", "?sv=2020-01-01");
+        raw.put("header_row", false);
+
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(raw);
+        AzureConfiguration config = result.value();
+        assertNotNull(config);
+        assertEquals("?sv=2020-01-01", config.sasToken());
+        assertTrue(config.hasCredentials());
+        assertThat(result.consumedKeys(), containsInAnyOrder("account", "sas_token"));
     }
 
     public void testFromQueryConfigStillEnforcesAuthConflict() {
@@ -199,10 +237,53 @@ public class AzureConfigurationTests extends ESTestCase {
         Map<String, Object> raw = new HashMap<>();
         raw.put("header_row", false);
         raw.put("column_prefix", "f");
-        assertNull(AzureConfiguration.fromQueryConfig(raw));
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(raw);
+        assertNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
     }
 
     public void testFromQueryConfigWithNullReturnsNull() {
-        assertNull(AzureConfiguration.fromQueryConfig(null));
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(null);
+        assertNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
+    }
+
+    public void testKeylessAuthWithAllFields() {
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of("tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "api://AzureADTokenExchange")
+        );
+
+        assertNotNull(config);
+        assertEquals("my-tenant", config.tenantId());
+        assertEquals("my-client", config.clientId());
+        assertEquals("api://AzureADTokenExchange", config.jwtAudience());
+        assertTrue(config.hasKeylessAuth());
+        assertFalse(config.hasCredentials());
+    }
+
+    public void testKeylessAuthRequiresAllFields() {
+        ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant")));
+        assertThat(e.getMessage(), containsString("client_id is required when keyless authentication settings are configured"));
+        assertThat(e.getMessage(), containsString("jwt_audience is required when keyless authentication settings are configured"));
+    }
+
+    public void testKeylessAuthConflictsWithExplicitCredentials() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromMap(
+                Map.of("account", "acc", "key", "k", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+            )
+        );
+        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with keyless authentication settings"));
+    }
+
+    public void testKeylessAuthConflictsWithAuthNone() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromMap(
+                Map.of("auth", "none", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+            )
+        );
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with keyless authentication settings"));
     }
 }

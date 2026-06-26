@@ -166,7 +166,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     public boolean updateCommit(StatelessCompoundCommit newCommit, Map<String, BlobFileRanges> commitFilesRangesOverride) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
 
-        mergeMetadata(newCommit.commitFiles(), commitFilesRangesOverride, false);
+        mergeMetadata(
+            newCommit.commitFiles(),
+            commitFilesRangesOverride,
+            false,
+            newCommit.internalFiles(),
+            newCommit.getTimestampFieldValueRange()
+        );
         // TODO: Commits may not arrive in order. However, the maximum commit we have received is the commit of this directory since the
         // TODO: files always accumulate
         return currentCommit.accumulateAndGet(newCommit, (current, contender) -> {
@@ -405,7 +411,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                     : "expect all inputs to be closed at the time the directory is closed but found that shard "
                         + shardId
                         + " has open generational files "
-                        + String.join(", ", generationalFilesTermAndGens.keySet().toArray(new String[0]));
+                        + generationalFilesTermAndGens.keySet();
             }
         }
         super.close();
@@ -446,13 +452,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * This is used to merge file metadata from other PIT contexts coming from other nodes.
      */
     public void mergePITReaderMetadata(Map<String, BlobLocation> commitFilesRanges) {
-        mergeMetadata(commitFilesRanges, Map.of(), true);
+        // PIT relocation, no newCommit in scope, no new timestamp to attribute right now
+        mergeMetadata(commitFilesRanges, Map.of(), true, null, null);
     }
 
     private void mergeMetadata(
         Map<String, BlobLocation> commitFilesRanges,
         Map<String, BlobFileRanges> commitFilesRangesOverride,
-        boolean pitContextRelocationTransfer
+        boolean pitContextRelocationTransfer,
+        @Nullable Set<String> newCommitInternalFiles,
+        @Nullable StatelessCompoundCommit.TimestampFieldValueRange newCommitTimestamp
     ) {
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
 
@@ -464,9 +473,32 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             for (var entry : commitFilesRanges.entrySet()) {
                 var fileName = entry.getKey();
                 var blobLocationFromCommit = entry.getValue();
+                // Case 1: file is in the overrides map
                 BlobFileRanges commitFileRanges = commitFilesRangesOverride.get(fileName);
                 if (commitFileRanges == null) {
-                    commitFileRanges = new BlobFileRanges(blobLocationFromCommit);
+                    BlobFileRanges existingRanges = updatedMetadata.get(fileName);
+                    if (existingRanges != null && existingRanges.blobLocation().equals(blobLocationFromCommit)) {
+                        // Case 2: file already tracked at the same location - preserve its existing entry so the timestamp originally
+                        // stamped from the file's originating CC is retained.
+                        commitFileRanges = existingRanges;
+                    } else {
+                        assert existingRanges == null || isGenerationalFile(fileName)
+                            : "A non-generational file ["
+                                + fileName
+                                + "] has unexpectedly changed blob location from "
+                                + existingRanges.blobLocation()
+                                + " to "
+                                + blobLocationFromCommit;
+                        // Case 3: not previously tracked, or blob location changed.
+                        // Use newCommit's timestamp only when this file is internal to newCommit (i.e., the commit physically wrote it).
+                        // Files referenced from older CCs have no timestamp info here and report unknown.
+                        // Note: for generational files we use updatedMetadata.putIfAbsent() below so new timestamps is not actually used.
+                        StatelessCompoundCommit.TimestampFieldValueRange ts = null;
+                        if (newCommitInternalFiles != null && newCommitInternalFiles.contains(fileName)) {
+                            ts = newCommitTimestamp;
+                        }
+                        commitFileRanges = new BlobFileRanges(blobLocationFromCommit, ts);
+                    }
                 } else {
                     assert commitFileRanges.blobLocation().equals(blobLocationFromCommit)
                         : "BlobFileRanges override for ["

@@ -56,6 +56,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinct.class)
         .binary(CountDistinct::new)
+        .capabilities("flattened")
         .name("count_distinct");
 
     private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
@@ -70,7 +71,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Map.entry(DataType.IP, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TSID_DATA_TYPE, CountDistinctBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TSID_DATA_TYPE, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.FLATTENED, CountDistinctBytesRefAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;
@@ -78,6 +80,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
 
     @FunctionInfo(
         returnType = "long",
+        briefSummary = "Returns the approximate number of distinct values.",
         description = "Returns the approximate number of distinct values.",
         note = "[Counts are approximate](/reference/query-languages/esql/functions-operators/"
             + "aggregation-functions/count_distinct.md#esql-agg-count-distinct-approximate).",
@@ -123,13 +126,26 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version", "_tsid" },
+            type = {
+                "boolean",
+                "date",
+                "date_nanos",
+                "double",
+                "flattened",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version",
+                "_tsid" },
             description = "Column or literal for which to count the number of distinct values."
         ) Expression field,
         @Param(
             optional = true,
             name = "precision",
             type = { "integer", "long", "unsigned_long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. "
                 + "The maximum supported value is 40000. Thresholds above this number will have the "
                 + "same effect as a threshold of 40000. The default value is 3000."

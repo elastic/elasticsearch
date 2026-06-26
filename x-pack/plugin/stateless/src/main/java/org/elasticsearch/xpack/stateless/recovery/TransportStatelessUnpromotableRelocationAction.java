@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -27,8 +28,10 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +40,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
@@ -51,6 +55,7 @@ import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.PitReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -67,6 +72,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 
@@ -105,6 +111,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     private final SearchService searchService;
     private final PITRelocationService pitRelocationService;
     private final ObjectStoreService objectStoreService;
+    private final PitRelocationMetrics pitRelocationMetrics;
 
     private static final Logger logger = LogManager.getLogger(TransportStatelessUnpromotableRelocationAction.class);
 
@@ -118,7 +125,8 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         ProjectResolver projectResolver,
         SearchService searchService,
         PITRelocationService pitRelocationService,
-        StatelessComponents statelessComponents
+        StatelessComponents statelessComponents,
+        PitRelocationMetrics pitRelocationMetrics
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -128,6 +136,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         this.pitRelocationService = pitRelocationService;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
         this.objectStoreService = statelessComponents.getObjectStoreService();
+        this.pitRelocationMetrics = pitRelocationMetrics;
         var threadPool = transportService.getThreadPool();
         this.recoveryExecutor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
@@ -227,10 +236,22 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             listener.onResponse(null);
             return;
         }
-        logger.debug("handle PITHandoffResponse for shard {}. Open pit infos: {}", indexShard.shardId(), response.getOpenPITContextInfos());
-
+        pitRelocationMetrics.recordTargetResponseReceived();
+        if (response.getOpenPITContextInfos().isEmpty()) {
+            logger.debug("handling empty PITHandoffResponse for shard {}", indexShard.shardId());
+            listener.onResponse(null);
+            return;
+        } else {
+            logger.debug(
+                "handling PITHandoffResponse for shard {}. {} open PIT infos: {}",
+                indexShard.shardId(),
+                response.getOpenPITContextInfos().size(),
+                response.getOpenPITContextInfos()
+            );
+        }
         try (var refs = new RefCountingListener(listener)) {
             for (OpenPITContextInfo pitContextInfo : response.getOpenPITContextInfos()) {
+                pitRelocationMetrics.recordTargetContextHandled();
                 openPitAsync(indexShard, pitContextInfo, refs.acquire());
             }
         }
@@ -254,6 +275,9 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     segmentsFileName,
                     metadata,
                     indexShard::wrapSearcher,
+                    // pitContextInfo.reshardingState() can't be null, see serialization logic.
+                    pitContextInfo.reshardingState().indexReshardingMetadata,
+                    pitContextInfo.reshardingState().splitShardCountSummary,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(SearcherSupplier searcherSupplier) {
@@ -264,10 +288,13 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                                     indexService,
                                     indexShard,
                                     searcherSupplier,
-                                    pitContextInfo.keepAlive()
+                                    pitContextInfo.keepAlive(),
+                                    pitContextInfo.reshardingState.indexReshardingMetadata(),
+                                    pitContextInfo.reshardingState.splitShardCountSummary
                                 );
                                 assert newReaderContext != null;
                                 logger.debug("adding relocated ReaderContext with id: [{}]", newReaderContext.id());
+                                pitRelocationMetrics.recordTargetReaderContextCreated();
                             };
                             assert (shardState.equals(IndexShardState.STARTED) == false
                                 && shardState.equals(IndexShardState.POST_RECOVERY) == false)
@@ -324,11 +351,8 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     }
 
     private void doHandleStartHandoff(StartHandoffRequest request, ActionListener<RelocationHandoffResponse> listener) {
-        if (searchService.isPitRelocationEnabled() == false) {
-            listener.onResponse(EMPTY_RESPONSE);
-            return;
-        }
-
+        logger.debug("handling start handoff request for shard [{}]", request.getShardId());
+        pitRelocationMetrics.recordSourceHandoff();
         try {
             ShardId shardId = request.getShardId();
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -348,6 +372,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                 );
             }
 
+            if (searchService.isPitRelocationEnabled() == false) {
+                listener.onResponse(EMPTY_RESPONSE);
+                return;
+            }
+
             getOpenPITContextInfos(shardId, listener.map(RelocationHandoffResponse::new));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -355,20 +384,27 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     }
 
     private void getOpenPITContextInfos(ShardId shardId, ActionListener<PITHandoffResponse> listener) {
-        List<ReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
+        List<PitReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
+        logger.debug("getting pit context infos for shard {}. Active contexts: {}", shardId, activeContexts.size());
         List<OpenPITContextInfo> pitContextInfos = Collections.synchronizedList(new ArrayList<>(activeContexts.size()));
 
         try (var listeners = new RefCountingListener(listener.map(r -> new PITHandoffResponse(pitContextInfos)))) {
-            for (ReaderContext context : activeContexts) {
-                fetchOpenPitContextInfo(shardId, context, listeners.acquire(r -> r.ifPresent(pitContextInfos::add)));
+            for (PitReaderContext context : activeContexts) {
+                fetchOpenPitContextInfo(shardId, context, listeners.acquire(r -> r.ifPresent(info -> {
+                    pitContextInfos.add(info);
+                    pitRelocationMetrics.recordSourceContextCreated();
+                })));
             }
         }
     }
 
-    private void fetchOpenPitContextInfo(ShardId shardId, ReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener) {
+    private void fetchOpenPitContextInfo(ShardId shardId, PitReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener) {
         // In case of a failure we want just to ignore this PIT and continue with the relocation process
         listener = listener.delegateResponse((l, e) -> {
-            logger.debug("Unexpected exception while fetching Open PIT context info for shard " + shardId + " " + context, e);
+            logger.warn(
+                "Unexpected exception while fetching Open PIT context info for shard " + shardId + ", context id " + context.id(),
+                e
+            );
             l.onResponse(Optional.empty());
         });
 
@@ -404,7 +440,8 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                                     indexCommit.getSegmentsFileName(),
                                     context.keepAlive(),
                                     new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
-                                    statelessCompoundCommit.commitFiles()
+                                    statelessCompoundCommit.commitFiles(),
+                                    new OpenPITReshardingState(context.reshardingMetadata(), context.shardCountSummary())
                                 )
                             )
                         );
@@ -415,7 +452,10 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             }));
         } catch (Exception e) {
             // Ignore the exception and continue with the next context
-            logger.debug("Unexpected exception while fetching Open PIT context info for shard " + shardId + " " + context, e);
+            logger.warn(
+                "Unexpected exception while fetching Open PIT context info for shard " + shardId + ", context id " + context.id(),
+                e
+            );
             listener.onResponse(Optional.empty());
         }
     }
@@ -460,22 +500,45 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         }
     }
 
-    record OpenPITContextInfo(
-        ShardId shardId,
-        String segmentsFileName,
-        long keepAlive,
-        SearchContextIdForNode contextId,
-        Map<String, BlobLocation> metadata
-    ) implements Writeable {
+    private static final TransportVersion RESHARDING_METADATA_IN_PIT_RELOCATION = TransportVersion.fromName(
+        "resharding_metadata_in_pit_relocation"
+    );
+
+    static class OpenPITContextInfo implements Writeable {
+        private final ShardId shardId;
+        private final String segmentsFileName;
+        private final long keepAlive;
+        private final SearchContextIdForNode contextId;
+        private final Map<String, BlobLocation> metadata;
+        private final OpenPITReshardingState reshardingState;
 
         OpenPITContextInfo(StreamInput in) throws IOException {
-            this(
-                new ShardId(in),
-                in.readString(),
-                in.readVLong(),
-                new SearchContextIdForNode(in),
-                in.readMap(StreamInput::readString, BlobLocation::readFromTransport)
-            );
+            shardId = new ShardId(in);
+            segmentsFileName = in.readString();
+            keepAlive = in.readVLong();
+            contextId = new SearchContextIdForNode(in);
+            metadata = in.readMap(StreamInput::readString, BlobLocation::readFromTransport);
+            if (in.getTransportVersion().supports(RESHARDING_METADATA_IN_PIT_RELOCATION)) {
+                reshardingState = new OpenPITReshardingState(in);
+            } else {
+                reshardingState = OpenPITReshardingState.notPresent();
+            }
+        }
+
+        OpenPITContextInfo(
+            ShardId shardId,
+            String segmentsFileName,
+            long keepAlive,
+            SearchContextIdForNode contextId,
+            Map<String, BlobLocation> metadata,
+            OpenPITReshardingState reshardingState
+        ) {
+            this.shardId = shardId;
+            this.segmentsFileName = segmentsFileName;
+            this.keepAlive = keepAlive;
+            this.contextId = contextId;
+            this.metadata = metadata;
+            this.reshardingState = reshardingState;
         }
 
         @Override
@@ -485,6 +548,9 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             out.writeVLong(keepAlive);
             contextId.writeTo(out);
             out.writeMap(metadata, StreamOutput::writeString, StreamOutput::writeWriteable);
+            if (out.getTransportVersion().supports(RESHARDING_METADATA_IN_PIT_RELOCATION)) {
+                reshardingState.writeTo(out);
+            }
         }
 
         @Override
@@ -503,6 +569,68 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                 + ", metadata="
                 + metadata
                 + '}';
+        }
+
+        public ShardId shardId() {
+            return shardId;
+        }
+
+        public String segmentsFileName() {
+            return segmentsFileName;
+        }
+
+        public long keepAlive() {
+            return keepAlive;
+        }
+
+        public SearchContextIdForNode contextId() {
+            return contextId;
+        }
+
+        public Map<String, BlobLocation> metadata() {
+            return metadata;
+        }
+
+        public OpenPITReshardingState reshardingState() {
+            return reshardingState;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            OpenPITContextInfo that = (OpenPITContextInfo) o;
+            return keepAlive == that.keepAlive
+                && Objects.equals(shardId, that.shardId)
+                && Objects.equals(segmentsFileName, that.segmentsFileName)
+                && Objects.equals(contextId, that.contextId)
+                && Objects.equals(metadata, that.metadata)
+                && Objects.equals(reshardingState, that.reshardingState);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(shardId, segmentsFileName, keepAlive, contextId, metadata, reshardingState);
+        }
+    }
+
+    /// Contains all resharding-related metadata of an open PIT.
+    /// This is needed to apply special logic related to resharding when opening a new reader in scope of PIT relocation.
+    record OpenPITReshardingState(@Nullable IndexReshardingMetadata indexReshardingMetadata, SplitShardCountSummary splitShardCountSummary)
+        implements
+            Writeable {
+        OpenPITReshardingState(StreamInput in) throws IOException {
+            this(in.readOptional(IndexReshardingMetadata::new), new SplitShardCountSummary(in));
+        }
+
+        // Placeholder value used when caller didn't provide this data.
+        static OpenPITReshardingState notPresent() {
+            return new OpenPITReshardingState(null, SplitShardCountSummary.UNSET);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalWriteable(indexReshardingMetadata);
+            splitShardCountSummary.writeTo(out);
         }
     }
 

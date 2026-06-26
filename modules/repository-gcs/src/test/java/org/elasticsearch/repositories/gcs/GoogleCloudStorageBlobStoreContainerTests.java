@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.OptionalInt;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.instanceOf;
@@ -81,6 +82,10 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         when(storageService.client(eq(ProjectId.DEFAULT), any(String.class), any(String.class), any(GcsRepositoryStatsCollector.class)))
             .thenReturn(meteredStorage);
 
+        GoogleCloudStorageClientSettings mockClientSettings = mock(GoogleCloudStorageClientSettings.class);
+        when(mockClientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
+        when(storageService.clientSettings(any(), any())).thenReturn(mockClientSettings);
+
         try (
             BlobStore store = new GoogleCloudStorageBlobStore(
                 ProjectId.DEFAULT,
@@ -90,8 +95,11 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 storageService,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 randomIntBetween(1, 8) * 1024,
+                OptionalInt.empty(),
                 BackoffPolicy.noBackoff(),
-                new GcsRepositoryStatsCollector()
+                new GcsRepositoryStatsCollector(),
+                null,
+                null
             )
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);

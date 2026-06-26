@@ -9,11 +9,11 @@
 
 package org.elasticsearch.datageneration.datasource;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -312,18 +312,16 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     }
 
     protected Object extendedDocValuesParams() {
-        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-        if (Build.current().isSnapshot() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             return ESTestCase.randomBoolean();
         }
 
-        return switch (ESTestCase.randomInt(5)) {
+        // Only multi_value: true is emitted here because this handler does not coordinate single-value data generation, so emitting. The
+        // multi_value: false path is exercised by SingleValueDocValuesDataSourceHandler.
+        return switch (ESTestCase.randomInt(2)) {
             case 0 -> false;
-            case 1 -> Map.of("cardinality", "low");
-            case 2 -> Map.of("cardinality", "high");
-            case 3 -> true;
-            case 4 -> Map.of("cardinality", "low", "multi_value", "arrays");
-            case 5 -> Map.of("cardinality", "high", "multi_value", "arrays");
+            case 1 -> true;
+            case 2 -> Map.of("multi_value", true);
             default -> throw new IllegalStateException();
         };
     }

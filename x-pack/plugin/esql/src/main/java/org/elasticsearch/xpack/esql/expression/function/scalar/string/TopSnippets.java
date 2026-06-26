@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
@@ -109,6 +110,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static final String ORDER = "order";
     private static final String DOC_ORDER = "none";
     private static final String SCORE_ORDER = "score";
+    private static final String ANALYZER = "analyzer";
 
     static final String DEFAULT_PRE_TAG = "<em>";
     static final String DEFAULT_POST_TAG = "</em>";
@@ -121,17 +123,23 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         entry(PRE_TAG, DataType.KEYWORD),
         entry(POST_TAG, DataType.KEYWORD),
         entry(ENCODER, DataType.KEYWORD),
-        entry(ORDER, DataType.KEYWORD)
+        entry(ORDER, DataType.KEYWORD),
+        entry(ANALYZER, DataType.KEYWORD)
     );
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         returnType = "keyword",
         preview = true,
+        briefSummary = "Extracts the best snippets for a query string from a text field.",
         description = "Use `TOP_SNIPPETS` to extract the best snippets for a given query string from a text field.",
         detailedDescription = """
                 `TOP_SNIPPETS` can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
                 `TOP_SNIPPETS` will extract the best snippets for a given query string.
+
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
             """,
         examples = {
             @Example(file = "top-snippets", tag = "top-snippets-with-field", applies_to = "stack: preview 9.3.0"),
@@ -179,6 +187,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         @Param(
             name = "query",
             type = { "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "The input text containing only query terms for snippet extraction."
                 + " Lucene query syntax, operators, and wildcards are not allowed."
         ) Expression query,
@@ -218,7 +227,12 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                     """, valueHint = { "default" }, applies_to = "stack: preview 9.5.0"),
                 @MapParam.MapParamEntry(name = "order", type = "keyword", description = """
                     Order of returned snippets: `score` (default, by relevance) or `none` (original text order).
-                    """, valueHint = { "score", "none" }, applies_to = "stack: preview 9.5.0") }
+                    """, valueHint = { "score", "none" }, applies_to = "stack: preview 9.5.0"),
+                @MapParam.MapParamEntry(name = "analyzer", type = "keyword", description = """
+                    Name of the analyzer to use for scoring and highlighting. When omitted, defaults to the standard
+                    analyzer. The name must match a registered analyzer (prebuilt or plugin-contributed), such as
+                    `standard`, `whitespace`, `simple`, `keyword`, `english`, `french`, `german`, `spanish`, etc.
+                    """, valueHint = { "english" }, applies_to = "stack: preview 9.5.0") }
         ) Expression options
     ) {
         super(source, options == null ? List.of(field, query) : List.of(field, query, options));
@@ -297,6 +311,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         validateOptionValueIsNonNegativeInteger(options, NUM_WORDS);
         validateEncoder(options);
         validateOrder(options);
+        validateAnalyzer(options);
         validateHighlightOnlyOptions(options);
     }
 
@@ -334,6 +349,17 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         }
     }
 
+    private static void validateAnalyzer(Map<String, Object> options) {
+        Object value = options.get(ANALYZER);
+        if (value == null) {
+            return;
+        }
+        String name = (String) value;
+        if (name.isBlank()) {
+            throw new InvalidArgumentException("'{}' option must be a non-empty string", ANALYZER);
+        }
+    }
+
     private static void validateHighlightOnlyOptions(Map<String, Object> options) {
         boolean highlight = Boolean.TRUE.equals(options.get(HIGHLIGHT));
         if (highlight == false) {
@@ -351,7 +377,18 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public boolean foldable() {
-        return field().foldable() && query().foldable() && (options() == null || options().foldable());
+        if (field().foldable() == false || query().foldable() == false) {
+            return false;
+        }
+        if (options() == null) {
+            return true;
+        }
+        // Folding builds a synthetic ToEvaluator with no AnalysisRegistry, so we can only fold
+        // when 'analyzer' isn't requested. All option entries must be foldable so toEvaluator
+        // can read them at fold time.
+        return options() instanceof MapExpression map
+            && map.containsKey(ANALYZER) == false
+            && map.children().stream().allMatch(Expression::foldable);
     }
 
     @Override
@@ -510,12 +547,14 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         int numWords;
         boolean docOrder;
         PassageFormatter highlightFormatter = null;
+        String analyzerName = null;
         if (options != null) {
             Map<String, Object> opts = new HashMap<>();
             Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
             numSnippets = numSnippets(opts);
             numWords = numWords(opts);
             docOrder = DOC_ORDER.equals(opts.get(ORDER));
+            analyzerName = (String) opts.get(ANALYZER);
             if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
                 String preTag = (String) opts.getOrDefault(PRE_TAG, DEFAULT_PRE_TAG);
                 String postTag = (String) opts.getOrDefault(POST_TAG, DEFAULT_POST_TAG);
@@ -531,7 +570,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
 
-        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+        Analyzer resolvedAnalyzer = analyzerName == null ? new StandardAnalyzer() : toEvaluator.getAnalyzer(analyzerName);
+        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer(resolvedAnalyzer);
 
         Object foldedQuery = query.fold(toEvaluator.foldCtx());
         // at this point this should only return null if we have List<BytesRef> which we handle in process

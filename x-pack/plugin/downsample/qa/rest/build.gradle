@@ -14,6 +14,8 @@ dependencies {
   yamlRestTestImplementation project(xpackModule('rollup'))
 
   clusterModules project(xpackModule('downsample'))
+  clusterModules project(xpackModule('esql'))
+  clusterModules project(xpackModule('autoscaling'))
   clusterModules project(xpackModule('analytics'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(':modules:lang-painless')
@@ -25,7 +27,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline', 'capabilities'
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline', 'capabilities', 'esql.query'
   }
 }
 

@@ -58,7 +58,6 @@ import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -424,10 +423,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             assertThat(uploadedBlobs, not(hasItems(secondCommitFile.get())));
 
-            assertThat(testHarness.commitService.getMaxGenerationToUploadForFlush(testHarness.shardId), equalTo(-1L));
+            assertThat(
+                testHarness.commitService.getMaxPendingOrUploadedGeneration(testHarness.shardId),
+                equalTo(secondCommit.getGeneration())
+            );
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
             ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
-            assertThat(testHarness.commitService.getMaxGenerationToUploadForFlush(testHarness.shardId), equalTo(1L));
+            assertThat(
+                testHarness.commitService.getMaxPendingOrUploadedGeneration(testHarness.shardId),
+                equalTo(secondCommit.getGeneration())
+            );
 
             testHarness.commitService.onCommitCreation(thirdCommit);
             PlainActionFuture<Void> thirdCommitListener = new PlainActionFuture<>();
@@ -850,7 +855,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    @TestIssueLogging(value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE", issueUrl = "#5520")
     public void testCommitsTrackingTakesIntoAccountSearchNodeUsage() throws Exception {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
@@ -927,15 +931,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertThat(deletedCommits, empty());
 
             PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
-            logger.info("Before response with merge commit use");
             fakeSearchNode.respondWithUsedCommitsToUploadNotify(mergePTG, mergePTG);
-            logger.info("After response with merge commit use");
 
             var expectedDeletedCommits = uploadedCommits.stream()
                 .filter(ptg -> mergePTG.equals(ptg) == false)
                 .map(p -> new StaleCompoundCommit(shardId, p, primaryTerm))
                 .collect(Collectors.toSet());
-            assertThat(deletedCommits, equalTo(expectedDeletedCommits));
+            // respondWithUsedCommitsToUploadNotify completes the uploaded-commit-notification listener synchronously, but the
+            // overall in-use-commits processing (and therefore the stale-commit deletions) can complete asynchronously. See
+            // StatelessCommitNotificationPublisher#sendNewUploadedCommitNotificationAndFetchInUseCommits.
+            assertBusy(() -> assertThat(deletedCommits, equalTo(expectedDeletedCommits)));
         }
     }
 
@@ -1016,7 +1021,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .map(commit -> staleCommit(shardId, commit))
                 .filter(commit -> commit.primaryTermAndGeneration().generation() != firstCommit.getGeneration())
                 .collect(Collectors.toSet());
-            assertThat(deletedCommits, equalTo(expectedDeletedCommits));
+            // respondWithUsedCommitsToUploadNotify completes the uploaded-commit-notification listener synchronously, but the
+            // overall in-use-commits processing (and therefore the stale-commit deletions) can complete asynchronously. See
+            // StatelessCommitNotificationPublisher#sendNewUploadedCommitNotificationAndFetchInUseCommits.
+            assertBusy(() -> assertThat(deletedCommits, equalTo(expectedDeletedCommits)));
         }
     }
 
@@ -1678,10 +1686,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         Request request,
                         ActionListener<Response> listener
                     ) {
-                        assert action == TransportNewCommitNotificationAction.TYPE;
                         if (activateSearchNode.get()) {
                             fakeSearchNode.doExecute(action, request, listener);
                         } else {
+                            assert action == TransportNewCommitNotificationAction.TYPE : "Unexpected ActionType: " + action;
                             ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(
                                 new NewCommitNotificationResponse(Set.of())
                             );
@@ -1719,6 +1727,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
             waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
 
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            // The upload thread's sendNewUploadedCommitNotification may race with the state change
+            // and send a TransportFetchShardCommitsInUseAction through fakeSearchNode, which needs
+            // a DiscoveryNode to construct the response.
+            var searchNodeId = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId();
+            fakeSearchNode.setSearchDiscoveryNode(state.getNodes().get(searchNodeId));
             stateRef.set(state);
             activateSearchNode.set(true);
 

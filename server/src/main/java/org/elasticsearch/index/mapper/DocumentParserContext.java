@@ -18,11 +18,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
-import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -62,6 +62,15 @@ public abstract class DocumentParserContext {
             this.isWithinCopyTo = in.isWithinCopyTo();
             this.path = in.path();
             this.parser = in.parser();
+            this.doc = in.doc();
+        }
+
+        private Wrapper(ObjectMapper parent, DocumentParserContext in, XContentParser parser) {
+            super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
+            this.in = in;
+            this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = parser;
             this.doc = in.doc();
         }
 
@@ -140,6 +149,11 @@ public abstract class DocumentParserContext {
         public BytesRef getTsid() {
             return in.getTsid();
         }
+
+        @Override
+        public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+            return in.luceneDocumentsInShardIndexOrder();
+        }
     }
 
     /**
@@ -157,6 +171,22 @@ public abstract class DocumentParserContext {
 
         public int get() {
             return dynamicMapperSize;
+        }
+    }
+
+    /**
+     * Tracks the cumulative number of object elements encountered inside arrays while parsing the
+     * current document. The same mutable instance is shared across every {@link DocumentParserContext}
+     * spawned from the root context (child, nested, copy-to, switched parser, etc.) so the count
+     * reflects every nested or sibling array in the same document. This is what
+     * {@link MapperService#INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING} bounds; tracking per array
+     * invocation would let a caller bypass the limit by chunking a payload across many arrays.
+     */
+    private static final class ObjectArrayElementCounter {
+        private long count = 0;
+
+        long incrementAndGet() {
+            return ++count;
         }
     }
 
@@ -194,6 +224,8 @@ public abstract class DocumentParserContext {
 
     private FieldArrayContext fieldArrayContext;
 
+    private final ObjectArrayElementCounter objectArrayElementCounter;
+
     /**
      * Fields that are copied from values of other fields via copy_to.
      * This per-document state is needed since it is possible
@@ -229,6 +261,7 @@ public abstract class DocumentParserContext {
         Set<String> mappingCopyToFields,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
+        ObjectArrayElementCounter objectArrayElementCounter,
         boolean recordedSource,
         Set<String> singleValuedFields
     ) {
@@ -254,6 +287,7 @@ public abstract class DocumentParserContext {
         assert this.mappingCopyToFields == Set.copyOf(this.mappingCopyToFields); // ensure that we've been passed an ImmutableSet(12|N)
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
+        this.objectArrayElementCounter = objectArrayElementCounter;
         this.recordedSource = recordedSource;
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
     }
@@ -280,6 +314,7 @@ public abstract class DocumentParserContext {
             in.mappingCopyToFields,
             in.copyToFields,
             in.dynamicMappersSize,
+            in.objectArrayElementCounter,
             in.recordedSource,
             in.singleValuedFields
         );
@@ -313,6 +348,7 @@ public abstract class DocumentParserContext {
             mappingLookup.fieldTypesLookup().getCopyToDestinationFields(),
             new HashSet<>(),
             new DynamicMapperSize(),
+            new ObjectArrayElementCounter(),
             false,
             new HashSet<>()
         );
@@ -359,14 +395,14 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Enforces that a field configured with {@code multi_value=no} receives at most one value per document. The first call for a given
+     * Enforces that a field configured with {@code multi_value=false} receives at most one value per document. The first call for a given
      * field name succeeds; a subsequent call for the same name throws {@link IllegalArgumentException}. Shared across all child contexts
      * so the constraint is respected regardless of which context sub-tree the duplicate value comes from.
      */
     public final void enforceSingleValue(String fieldName) {
         if (singleValuedFields.add(fieldName) == false) {
             throw new IllegalArgumentException(
-                "Field [" + fieldName + "] is configured with [multi_value=no] but encountered multiple values in the same document"
+                "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
         }
     }
@@ -440,6 +476,26 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Counts the next object element parsed inside an array against {@link MapperService#INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING}
+     * and throws if the per-document cumulative limit has been exceeded. The counter is shared across every sub-context spawned
+     * for the document (nested objects, sibling arrays, copy-to, switched parsers), so chunking a payload across many arrays
+     * cannot bypass the limit. Must be called exactly once per object element parsed inside an array.
+     */
+    public final void incrementAndCheckObjectArrayElementLimit() {
+        long limit = indexSettings().getMappingArrayObjectsLimit();
+        if (objectArrayElementCounter.incrementAndGet() > limit) {
+            throw new DocumentParsingException(
+                parser().getTokenLocation(),
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of ["
+                    + limit
+                    + "]. This limit can be set by changing the ["
+                    + MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
+    }
+
+    /**
      * Clones the current context to mark it as an array, if it's not already marked, or restore it if it's within a nested object.
      * Applies to synthetic source only.
      */
@@ -500,7 +556,9 @@ public abstract class DocumentParserContext {
     }
 
     public final boolean canAddIgnoredField() {
-        return mappingLookup.isSourceSynthetic() && recordedSource == false && indexSettings().getSkipIgnoredSourceWrite() == false;
+        return (mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored())
+            && recordedSource == false
+            && indexSettings().getSkipIgnoredSourceWrite() == false;
     }
 
     Mapper.SourceKeepMode sourceKeepModeFromIndexSettings() {
@@ -522,6 +580,28 @@ public abstract class DocumentParserContext {
 
     public ObjectMapper.Dynamic dynamic() {
         return dynamic;
+    }
+
+    /**
+     * Resolves the effective {@link ObjectMapper.Dynamic} for an unmapped field named {@code currentFieldName}
+     * in the current parse context.
+     *
+     * <p>In strict columnar index modes, unmapped fields under a declared object prefix may have a
+     * per-prefix dynamic setting different from the root dynamic. This method performs a longest-prefix
+     * match against the per-object dynamic settings captured during auto-flattening, falling back to
+     * the context's inherited dynamic when no prefix matches.
+     *
+     * <p>For all other index modes the method returns {@link #dynamic()} unchanged, preserving the
+     * existing behaviour with zero overhead.
+     *
+     * @param currentFieldName the simple (un-prefixed) name of the field being parsed
+     * @return the resolved dynamic value to use for this field
+     */
+    public final ObjectMapper.Dynamic resolveDynamic(String currentFieldName) {
+        if (indexSettings().getMode().isStrictColumnar() == false) {
+            return dynamic();
+        }
+        return root().resolveDynamic(path().pathAsText(currentFieldName), dynamic());
     }
 
     public void markFieldAsAppliedFromTemplate(String fieldName) {
@@ -820,6 +900,12 @@ public abstract class DocumentParserContext {
     public abstract Iterable<LuceneDocument> nonRootDocuments();
 
     /**
+     * Returns all Lucene documents for this parse context in the order they must be passed to
+     * {@link org.apache.lucene.index.IndexWriter#addDocuments}: children before their parent.
+     */
+    public abstract List<LuceneDocument> luceneDocumentsInShardIndexOrder();
+
+    /**
      * @return a RootObjectMapper.Builder to be used to construct a dynamic mapping update
      */
     public final RootObjectMapper.Builder updateRoot() {
@@ -847,6 +933,15 @@ public abstract class DocumentParserContext {
             return this;
         }
         final LuceneDocument doc = new LuceneDocument(nestedMapper.fullPath(), doc());
+        if (indexSettings().isSliceEnabled() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            final String routing = routing();
+            if (routing != null) {
+                RoutingFieldMapper routingFieldMapper = (RoutingFieldMapper) getMetadataMapper(RoutingFieldMapper.NAME);
+                if (routingFieldMapper != null) {
+                    routingFieldMapper.addRoutingField(this, doc, routing);
+                }
+            }
+        }
         // We need to add the uid or id to this nested Lucene document too,
         // If we do not do this then when a document gets deleted only the root Lucene document gets deleted and
         // not the nested Lucene documents! Besides the fact that we would have zombie Lucene documents, the ordering of
@@ -944,25 +1039,12 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Return a context for flattening subobjects
-     * @param fieldName   the name of the field to be flattened
-     */
-    public final DocumentParserContext createFlattenContext(String fieldName) {
-        return switchParser(new FlatteningXContentParser(parser(), fieldName));
-    }
-
-    /**
      * Clone this context, replacing the XContentParser with the passed one
      * @param parser    the replacement parser
      * @return  a new context with a replaced parser
      */
     public final DocumentParserContext switchParser(XContentParser parser) {
-        return new Wrapper(this.parent, this) {
-            @Override
-            public XContentParser parser() {
-                return parser;
-            }
-        };
+        return new Wrapper(this.parent, this, parser);
     }
 
     /**

@@ -411,6 +411,7 @@ sample_data_ts_long | 42
 ;
 
 fieldIsPartiallyUnmappedMultiIndex
+skip_flattened_rewrite: insist_on_flattened_unsupported
 required_capability: index_metadata_field
 required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -437,6 +438,7 @@ sample_data            | Connected to 10.1.0.1
 ;
 
 fieldIsPartiallyUnmappedAndRenamedMultiIndex
+skip_flattened_rewrite: insist_on_flattened_unsupported
 required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data
 | INSIST_🐔 message
@@ -463,6 +465,7 @@ Connected to 10.1.0.1
 ;
 
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
+skip_flattened_rewrite: insist_on_flattened_unsupported
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
@@ -490,6 +493,7 @@ partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 
 ;
 
 partialMappingStats
+skip_flattened_rewrite: partial_mapping_field_extract_conflict
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
@@ -509,6 +513,7 @@ max(@timestamp):date     | count(*):long | message:keyword
 ;
 
 partialMappingCoalesce
+skip_flattened_rewrite: partial_mapping_field_extract_conflict
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
@@ -538,6 +543,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 ;
 
 partialMappingUnionTypes
+skip_flattened_rewrite: partial_mapping_field_extract_conflict
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
@@ -566,6 +572,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 ;
 
 partialMappingStatsAfterCast
+skip_flattened_rewrite: partial_mapping_field_extract_conflict
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
@@ -579,4 +586,106 @@ warningRegex: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot
 count(*):long | message::INT:integer
 13            | null
 1             | 42
+;
+
+##############################
+# LOAD mode with LOOKUP JOIN #
+##############################
+
+// Unmapped field present in _source is loaded from the primary index after LOOKUP JOIN.
+loadUnmappedFieldAfterLookupJoin
+required_capability: optional_fields_load_with_lookup_join
+required_capability: join_lookup_v12
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN partial_message_types_lookup ON message
+| KEEP @timestamp, message, message_type, unmapped_message
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | message:keyword        | message_type:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | connection           | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | error                | Disconnection error
+2024-10-23T13:52:55.015Z | Connection error?      | error                | Disconnection error
+2024-10-23T13:51:54.732Z | Connection error?      | error                | Disconnection error
+2024-10-23T13:33:34.937Z | 42                     | numeric              | 43
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | connection           | Disconnected from 10.1.0.2
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | connection           | Disconnected from 10.1.0.3
+;
+
+// A field absent from all mappings and _source returns null downstream of LOOKUP JOIN.
+loadAbsentFieldAfterLookupJoin
+required_capability: optional_fields_load_with_lookup_join
+required_capability: join_lookup_v12
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN partial_message_types_lookup ON message
+| KEEP @timestamp, message_type, completely_absent_field
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | message_type:keyword | completely_absent_field:keyword
+2024-10-23T13:55:01.543Z | connection           | null
+2024-10-23T13:53:55.832Z | error                | null
+2024-10-23T13:52:55.015Z | error                | null
+2024-10-23T13:51:54.732Z | error                | null
+2024-10-23T13:33:34.937Z | numeric              | null
+2024-10-23T12:27:28.948Z | connection           | null
+2024-10-23T12:15:03.360Z | connection           | null
+;
+
+// In load mode, an unmapped join key is read from _source as keyword and used in the LOOKUP JOIN.
+// The KEEP before the join is required: it binds the key to the primary, not the lookup output.
+loadUnmappedJoinKeyFromSourceTreatedAsKeyword
+required_capability: optional_fields_load_with_lookup_join
+required_capability: join_lookup_v12
+
+SET unmapped_fields="load"\;
+FROM no_message_sample_data
+| KEEP message
+| LOOKUP JOIN message_types_lookup ON message
+| SORT message ASC, type ASC
+;
+
+message:keyword        | type:keyword
+Connected to 10.1.0.1  | Success
+Connected to 10.1.0.2  | Success
+Connected to 10.1.0.3  | Success
+Connection error       | Error
+Connection error       | Error
+Connection error       | Error
+Disconnected           | Disconnected
+;
+
+###############################################
+# LOAD mode with expression-based LOOKUP JOIN #
+###############################################
+
+// Expression-based LOOKUP JOIN: unmapped field loaded from primary even when no lookup row matches.
+// unmapped_event_duration values are digit strings; message_type values are alphabetic — in keyword
+// order digits sort before letters so the expression is always false, no lookup rows match, and
+// message_type is null for every row. The non-null unmapped_event_duration values prove the field
+// was loaded from the primary's _source.
+loadUnmappedField_expressionJoin_noMatch
+required_capability: optional_fields_load_with_lookup_join
+required_capability: lookup_join_on_boolean_expression
+required_capability: join_lookup_v12
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN partial_message_types_lookup ON unmapped_event_duration > message_type
+| KEEP @timestamp, unmapped_event_duration, message_type
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | unmapped_event_duration:keyword | message_type:keyword
+2024-10-23T13:55:01.543Z | 1756468                         | null
+2024-10-23T13:53:55.832Z | 5033756                         | null
+2024-10-23T13:52:55.015Z | 8268154                         | null
+2024-10-23T13:51:54.732Z | 725449                          | null
+2024-10-23T13:33:34.937Z | 1232383                         | null
+2024-10-23T12:27:28.948Z | 2764890                         | null
+2024-10-23T12:15:03.360Z | 3450234                         | null
 ;

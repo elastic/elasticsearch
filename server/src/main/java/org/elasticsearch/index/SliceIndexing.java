@@ -10,6 +10,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.rest.RestRequest;
 
@@ -25,6 +26,13 @@ public final class SliceIndexing {
     public static final String PARAM_NAME = "_slice";
     public static final FeatureFlag SLICE_FEATURE_FLAG = new FeatureFlag("slice_indexing");
     public static final TransportVersion SLICE_MISSING_EXCEPTION_VERSION = TransportVersion.fromName("slice_missing_exception");
+    public static final TransportVersion SEARCH_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName("search_slice_routing_state");
+    public static final TransportVersion CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName(
+        "cluster_search_shards_slice_routing_state"
+    );
+    public static final TransportVersion VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName(
+        "validate_query_slice_routing_state"
+    );
     private static final int MAX_SLICE_VALUE_LENGTH = 128;
     private static final Pattern VALID_SLICE_VALUE_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?");
 
@@ -33,14 +41,6 @@ public final class SliceIndexing {
      * This is used to query across all slices while still indicating intentional slice-mode access.
      */
     public static final String SLICE_ALL = "_all";
-
-    /**
-     * Internal marker used to carry {@link #SLICE_ALL} through {@link org.elasticsearch.action.search.SearchRequest#routing(String)}
-     * so the coordinator can satisfy "slice required" validation and then clear routing before shard resolution.
-     *
-     * This value is not realistically sendable as an HTTP query param.
-     */
-    public static final String SLICE_ALL_ROUTING_MARKER = "\u0000_slice_all";
 
     /**
      * Parsed routing result with provenance indicating if the value came from {@code _slice}.
@@ -59,7 +59,7 @@ public final class SliceIndexing {
                 "invalid [_slice] value [" + slice + "]: length [" + slice.length() + "] exceeds max [" + MAX_SLICE_VALUE_LENGTH + "]"
             );
         }
-        if (SLICE_ALL.equals(slice) || SLICE_ALL_ROUTING_MARKER.equals(slice)) {
+        if (SLICE_ALL.equals(slice)) {
             throw new IllegalArgumentException("invalid [_slice] value [" + slice + "]: value is reserved");
         }
         if (VALID_SLICE_VALUE_PATTERN.matcher(slice).matches() == false) {
@@ -90,6 +90,101 @@ public final class SliceIndexing {
             throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
         }
         return new ParsedRouting(slice != null ? slice : routing, slice != null);
+    }
+
+    /**
+     * Parses and validates the REST-level {@code routing} and {@code _slice} parameters for search APIs.
+     * If {@code _slice} is supplied, the returned routing contains the effective routing values
+     * (or {@code null} for {@code _slice=_all}).
+     */
+    public static ParsedRouting parseSearchRoutingOrSliceWithProvenance(RestRequest request) {
+        final String routing = request.param("routing");
+        final String slice = request.param(PARAM_NAME);
+        if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [_slice]");
+        }
+        if (slice != null && routing != null) {
+            throw new IllegalArgumentException("[routing] is not allowed together with [_slice]");
+        }
+        if (slice == null) {
+            return new ParsedRouting(routing, false);
+        }
+        if (SLICE_ALL.equals(slice)) {
+            return new ParsedRouting(null, true);
+        }
+        final String[] slices = Strings.splitStringByCommaToArray(slice);
+        if (slices.length == 0) {
+            throw new IllegalArgumentException("invalid [_slice] value: value must be non-empty");
+        }
+        for (String sliceValue : slices) {
+            validateUserSliceValue(sliceValue);
+        }
+        return new ParsedRouting(String.join(",", slices), true);
+    }
+
+    /**
+     * Validates request-level slice/routing requirements for APIs that target a single index.
+     */
+    public static void validateSliceRoutingRequirement(
+        boolean sliceEnabled,
+        boolean routingFromSlice,
+        String routing,
+        String requestDescription,
+        String target
+    ) {
+        if (sliceEnabled == false && routingFromSlice) {
+            throw new IllegalArgumentException(
+                "[_slice] is not allowed when [index.slice.enabled] is false for " + requestDescription + " targeting [" + target + "]"
+            );
+        }
+        if (sliceEnabled && routingFromSlice == false) {
+            if (routing != null) {
+                throw new IllegalArgumentException(
+                    "[routing] is not allowed when [index.slice.enabled] is true for "
+                        + requestDescription
+                        + " targeting ["
+                        + target
+                        + "], use [_slice] instead"
+                );
+            }
+            throw new IllegalArgumentException(
+                "[_slice] is required when [index.slice.enabled] is true for " + requestDescription + " targeting [" + target + "]"
+            );
+        }
+    }
+
+    /**
+     * Validates request-level slice/routing requirements and resolves effective routing for search-style APIs.
+     * When {@code anySliceEnabled} is true and no {@code _slice} parameter was provided, the request is treated
+     * as {@code _slice=_all} (routing is left unrestricted, covering all slices).
+     */
+    public static String validateAndResolveSliceRoutingRequirement(
+        boolean anySliceEnabled,
+        boolean routingFromSlice,
+        String routing,
+        String requestedSlice,
+        String requestDescription,
+        String target,
+        boolean allowSliceWhenNoLocalSliceEnabled
+    ) {
+        if (anySliceEnabled && routingFromSlice == false && routing != null) {
+            throw new IllegalArgumentException(
+                "[routing] is not allowed when [index.slice.enabled] is true for "
+                    + requestDescription
+                    + " targeting ["
+                    + target
+                    + "], use [_slice] instead"
+            );
+        }
+        if (routingFromSlice && anySliceEnabled == false && allowSliceWhenNoLocalSliceEnabled == false) {
+            throw new IllegalArgumentException(
+                "[_slice] is not allowed when [index.slice.enabled] is false for " + requestDescription + " targeting [" + target + "]"
+            );
+        }
+        if (routingFromSlice) {
+            return SLICE_ALL.equals(requestedSlice) ? null : requestedSlice;
+        }
+        return routing;
     }
 
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzer
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
@@ -47,15 +49,17 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
 
     @Override
     protected LogicalPlan rule(PromqlCommand promql, AnalyzerContext context) {
-        LogicalPlan resolved = promql.promqlPlan().transformUp(UnresolvedPromqlFunction.class, ResolvePromqlFunctions::resolveFunction);
+        PromqlFunctionRegistry registry = context.promqlFunctionRegistry();
+        LogicalPlan resolved = promql.promqlPlan()
+            .transformUp(UnresolvedPromqlFunction.class, unresolved -> resolveFunction(unresolved, registry));
         return promql.withPromqlPlan(resolved);
     }
 
-    static LogicalPlan resolveFunction(UnresolvedPromqlFunction unresolved) {
+    static LogicalPlan resolveFunction(UnresolvedPromqlFunction unresolved, PromqlFunctionRegistry registry) {
         String name = unresolved.functionName();
 
-        PromqlFunctionDefinition metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
-        if (PromqlFunctionRegistry.INSTANCE.isNotImplemented(name)) {
+        PromqlFunctionDefinition metadata = registry.functionMetadata(name);
+        if (registry.isNotImplemented(name)) {
             throw new VerificationException(List.of(Failure.fail(unresolved, "Function [{}] is not yet implemented", name)));
         }
         if (metadata == null) {
@@ -135,12 +139,15 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                 AcrossSeriesAggregate.Grouping.NONE,
                 List.of()
             );
+            case HISTOGRAM -> metadata == PromqlHistogramQuantile.PROMQL_DEFINITION
+                ? new HistogramQuantile(unresolved.source(), child, metadata, extraParams)
+                : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(unresolved.source(), child, metadata, extraParams);
             case VALUE_TRANSFORMATION -> new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             case VECTOR_CONVERSION -> new VectorConversionFunction(unresolved.source(), child, metadata, extraParams);
             case SCALAR_CONVERSION -> new ScalarConversionFunction(unresolved.source(), child, metadata, extraParams);
             case SCALAR, TIME_EXTRACTION -> child == null
-                ? new ScalarFunction(unresolved.source(), name)
+                ? new ScalarFunction(unresolved.source(), metadata)
                 : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             default -> throw new VerificationException(
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))

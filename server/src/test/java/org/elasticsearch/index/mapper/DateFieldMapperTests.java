@@ -30,12 +30,13 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
@@ -122,99 +123,14 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertFalse(field.fieldType().stored());
     }
 
-    public void testMultiValueSorted() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "sorted").endObject();
-        }));
-        DateFieldMapper mapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(
-            mapper.docValuesParameters(),
-            equalTo(
-                new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
-                )
-            )
-        );
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
     }
 
-    public void testMultiValueSortedSetNotAllowed() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        var e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "sorted_set").endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
-        );
-    }
-
-    public void testMultiValueDefaultIsSorted() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        DateFieldMapper mapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED));
-    }
-
-    public void testMultiValueNoAcceptsSingleValue() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
-        }));
-        mapper.parse(source(b -> b.field("field", "2016-03-11")));
-    }
-
-    public void testMultiValueNoRejectsArray() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
-        }));
-        DocumentParsingException e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", "2016-03-11", "2016-03-12")))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
-        );
-    }
-
-    public void testMultiValueNoUsesNumericDocValues() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
-        }));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertFalse("expected at least one indexable field for [field]", fields.isEmpty());
-        boolean hasDocValuesField = false;
-        for (IndexableField f : fields) {
-            DocValuesType dvType = f.fieldType().docValuesType();
-            if (dvType != DocValuesType.NONE) {
-                hasDocValuesField = true;
-                assertEquals("multi_value=no must use NUMERIC doc values, not SORTED_NUMERIC", DocValuesType.NUMERIC, dvType);
-            }
-        }
-        assertTrue("expected a doc values field for [field]", hasDocValuesField);
-    }
-
-    public void testNotIndexed() throws Exception {
-
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("index", false)));
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
-
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+    @Override
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        return DocValuesType.SORTED_NUMERIC;
     }
 
     public void testNoDocValues() throws Exception {
@@ -713,10 +629,18 @@ public class DateFieldMapperTests extends MapperTestCase {
             private final DateFormatter formatter = resolution == DateFieldMapper.Resolution.MILLISECONDS
                 ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
                 : DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER;
+            // date fields have doc_values enabled by default, so multi_value: false can always be requested when the feature is on.
+            private final boolean enforceSingleValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+
+            @Override
+            public boolean enforcesSingleValue() {
+                return enforceSingleValue;
+            }
 
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                if (randomBoolean()) {
+                // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+                if (enforceSingleValue || randomBoolean()) {
                     Value v = generateValue();
                     if (v.malformedOutput != null) {
                         return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
@@ -800,6 +724,11 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 if (ignoreMalformed) {
                     b.field("ignore_malformed", true);
+                }
+                if (enforceSingleValue) {
+                    b.startObject("doc_values");
+                    b.field("multi_value", false);
+                    b.endObject();
                 }
             }
 
@@ -966,7 +895,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 // One big doc block
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                try (var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(from, to).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -977,7 +906,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 // Smaller doc blocks
                 int docBlockSize = 1000;
-                try (var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     for (int i = from; i < to; i += docBlockSize) {
                         var docBlock = TestBlock.docs(IntStream.range(i, i + docBlockSize).toArray());
@@ -990,7 +919,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     }
                 }
                 // One smaller doc block:
-                try (var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(1010, 2020).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -1001,7 +930,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     }
                 }
                 // Read two tiny blocks:
-                try (var columnReader = (LongsBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(32, 64).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -1050,5 +979,23 @@ public class DateFieldMapperTests extends MapperTestCase {
                 false
             )
         );
+    }
+
+    public void testColumnarDateArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        // Use epoch_millis format so input numbers and synthetic-source output both serialize as raw millis strings without ambiguity.
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "date").field("format", "epoch_millis").endObject())
+        ).documentMapper();
+        // Cap at year ~2096 to stay well within Java's date range.
+        long v1 = randomLongBetween(0L, 4_000_000_000_000L);
+        long v2 = randomLongBetween(0L, 4_000_000_000_000L);
+        long v3 = randomLongBetween(0L, 4_000_000_000_000L);
+        // Out-of-order with v2 duplicated — sorted-deduped output would collapse the run.
+        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        // epoch_millis values are emitted as quoted strings under strict columnar synthetic source.
+        assertThat(src, containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
     }
 }

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.Rounding.RoundingConvention;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -44,8 +46,11 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.Rounding.RoundingConvention.DOWN;
+import static org.elasticsearch.common.Rounding.RoundingConvention.UP;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
@@ -72,6 +77,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         .quaternaryConfig(Bucket::new)
         .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
+    public static final TransportVersion ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION = TransportVersion.fromName(
+        "esql_support_explicit_bucket_rounding_configuration"
+    );
 
     private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId) {
 
@@ -164,6 +172,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
     }
 
+    private final RoundingConvention roundingConvention;
     private final Configuration configuration;
     private final Expression field;
     private final Expression buckets;
@@ -173,6 +182,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @FunctionInfo(
         returnType = { "double", "date", "date_nanos" },
+        briefSummary = "Creates groups of values (buckets) from a datetime or numeric input.",
         description = """
             Creates groups of values - buckets - out of a datetime or numeric input.
             The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.""",
@@ -275,23 +285,26 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "buckets",
             type = { "integer", "long", "double", "date_period", "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
         ) Expression buckets,
         @Param(
             name = "from",
             type = { "integer", "long", "double", "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Can be a number, a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
             type = { "integer", "long", "double", "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."
         ) Expression to,
         Configuration configuration
     ) {
-        this(source, field, buckets, from, to, configuration, 0L);
+        this(source, field, buckets, from, to, configuration, 0L, null);
     }
 
     public Bucket(
@@ -301,7 +314,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         Expression from,
         Expression to,
         Configuration configuration,
-        long offset
+        long offset,
+        RoundingConvention roundingConvention
     ) {
         super(source, fields(field, buckets, from, to));
         this.field = field;
@@ -310,6 +324,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         this.to = to;
         this.configuration = configuration;
         this.offset = offset;
+        this.roundingConvention = roundingConvention != null ? roundingConvention : DOWN;
     }
 
     private Bucket(StreamInput in) throws IOException {
@@ -320,7 +335,10 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             in.readOptionalNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
             ((PlanStreamInput) in).configuration(),
-            in.getTransportVersion().supports(ESQL_BUCKET_OFFSET) ? in.readZLong() : 0L
+            in.getTransportVersion().supports(ESQL_BUCKET_OFFSET) ? in.readZLong() : 0L,
+            in.getTransportVersion().supports(ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION)
+                ? in.readEnum(RoundingConvention.class)
+                : null
         );
     }
 
@@ -354,6 +372,16 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 ESQL_BUCKET_OFFSET
             );
         }
+
+        if (transportVersion.supports(ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION)) {
+            out.writeEnum(roundingConvention);
+        } else if (roundingConvention != DOWN) {
+            throw new EsqlIllegalArgumentException(
+                "bucket explicit rounding is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
+                transportVersion,
+                ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION
+            );
+        }
     }
 
     @Override
@@ -369,19 +397,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            Rounding.Prepared preparedRounding = getDateRounding(toEvaluator.foldCtx());
+            var preparedRounding = getDateRounding(toEvaluator.foldCtx());
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
-            double roundTo;
-            if (from != null) {
-                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
-                double f = ((Number) from.fold(toEvaluator.foldCtx())).doubleValue();
-                double t = ((Number) to.fold(toEvaluator.foldCtx())).doubleValue();
-                roundTo = pickRounding(b, f, t);
-            } else {
-                roundTo = ((Number) buckets.fold(toEvaluator.foldCtx())).doubleValue();
-            }
+            double roundTo = getNumberRoundTo(toEvaluator.foldCtx());
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
@@ -410,25 +430,44 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     public Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
         assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
+
+        Rounding.Prepared prepared;
+        // `buckets` is the target, pick the finest length
         if (buckets.dataType().isWholeNumber()) {
             int b = ((Number) buckets.fold(foldContext)).intValue();
             long f = foldToLong(foldContext, from);
             long t = foldToLong(foldContext, to);
-            if (min != null && max != null) {
-                return new DateRoundingPicker(b, f, t, configuration.zoneId()).pickRounding().prepare(min, max);
+            var rounding = new DateRoundingPicker(b, f, t, configuration.zoneId()).pickRounding();
+            if (UP.equals(roundingConvention)) {
+                rounding = Rounding.ToUpperRounding.createRounding(rounding);
             }
-            return new DateRoundingPicker(b, f, t, configuration.zoneId()).pickRounding().prepareForUnknown();
+            if (min != null && max != null) {
+                prepared = rounding.prepare(min, max);
+            } else {
+                prepared = rounding.prepareForUnknown();
+            }
         } else {
+            // `buckets` is the bucket length, use it directly
             assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
-            return DateTrunc.createRounding(buckets.fold(foldContext), configuration.zoneId(), min, max, offset);
+            prepared = DateTrunc.createRounding(buckets.fold(foldContext), configuration.zoneId(), min, max, offset, roundingConvention);
         }
+
+        return prepared;
     }
 
-    private double pickRounding(int buckets, double from, double to) {
-        double precise = (to - from) / buckets;
-        double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
-        double halfPower = nextPowerOfTen / 2;
-        return precise < halfPower ? halfPower : nextPowerOfTen;
+    private double getNumberRoundTo(FoldContext foldContext) {
+        if (from != null) {
+            assert to != null : "Both from and to must be set";
+            int b = ((Number) buckets.fold(foldContext)).intValue();
+            double f = ((Number) from.fold(foldContext)).doubleValue();
+            double t = ((Number) to.fold(foldContext)).doubleValue();
+            double precise = (t - f) / b;
+            double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
+            double halfPower = nextPowerOfTen / 2;
+            return precise < halfPower ? halfPower : nextPowerOfTen;
+        } else {
+            return ((Number) buckets.fold(foldContext)).doubleValue();
+        }
     }
 
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):
@@ -457,11 +496,17 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 "date_period",
                 "time_duration"
             );
-            return bucketsType.isWholeNumber()
-                ? resolution.and(checkArgsCount(4))
+            // 4-arg ctor: range + time unit or number of buckets
+            // e.g. BUCKET(@timestamp, 1 day, "2023-01-01", "2024-01-01")
+            // or BUCKET(@timestamp, 5, "2023-01-01", "2024-01-01")
+            if (bucketsType.isWholeNumber() || from != null) {
+                return resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
-                    .and(() -> isStringOrDate(to, sourceText(), FOURTH))
-                : resolution.and(checkArgsCount(2)); // temporal amount
+                    .and(() -> isStringOrDate(to, sourceText(), FOURTH));
+            }
+            // 2-arg ctor: round by a time unit unbound
+            // e.g. BUCKET(@timestamp, 1 day)
+            return resolution.and(checkArgsCount(2));
         }
         if (fieldType.isNumeric()) {
             return isNumeric(buckets, sourceText(), SECOND).and(() -> {
@@ -504,7 +549,15 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     public static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, exp -> DataType.isString(exp) || DataType.isDateTime(exp), operationName, paramOrd, "datetime", "string");
+        return isType(
+            e,
+            exp -> DataType.isString(exp) || DataType.isMillisOrNanos(exp),
+            operationName,
+            paramOrd,
+            "datetime",
+            "date_nanos",
+            "string"
+        );
     }
 
     @Override
@@ -518,7 +571,13 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     private long foldToLong(FoldContext ctx, Expression e) {
         Object value = Foldables.valueOf(ctx, e);
-        return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
+        if (DataType.isDateTime(e.dataType())) {
+            return ((Number) value).longValue();
+        }
+        if (e.dataType() == DataType.DATE_NANOS) {
+            return DateUtils.toMilliSeconds(((Number) value).longValue());
+        }
+        return dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 
     @Override
@@ -533,12 +592,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     public Expression replaceChildren(List<Expression> newChildren) {
         Expression from = newChildren.size() > 2 ? newChildren.get(2) : null;
         Expression to = newChildren.size() > 3 ? newChildren.get(3) : null;
-        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to, configuration, offset);
+        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to, configuration, offset, roundingConvention);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Bucket::new, field, buckets, from, to, configuration, offset);
+        return NodeInfo.create(this, Bucket::new, field, buckets, from, to, configuration, offset, roundingConvention);
     }
 
     public Expression field() {
@@ -561,18 +620,35 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return offset;
     }
 
+    public RoundingConvention roundingConfiguration() {
+        return roundingConvention;
+    }
+
     public Configuration configuration() {
         return configuration;
     }
 
     @Override
     public String toString() {
-        return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + ", offset=" + offset + '}';
+        return "Bucket{"
+            + "field="
+            + field
+            + ", buckets="
+            + buckets
+            + ", from="
+            + from
+            + ", to="
+            + to
+            + ", offset="
+            + offset
+            + "roundingConfiguration="
+            + roundingConvention
+            + '}';
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), children(), configuration, offset);
+        return Objects.hash(getClass(), children(), configuration, offset, roundingConvention);
     }
 
     @Override
@@ -582,6 +658,38 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
         Bucket other = (Bucket) obj;
 
-        return configuration.equals(other.configuration) && offset == other.offset;
+        return configuration.equals(other.configuration) && offset == other.offset && roundingConvention == other.roundingConvention;
+    }
+
+    protected Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
+        if ((buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable())) == false) {
+            return null;
+        }
+        DataType fieldType = field.dataType();
+        if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
+            // Auto-mode date BUCKET (whole-number bucket count + range): a non-positive count is nonsensical.
+            // The picker would silently fall through to YEAR_OF_CENTURY and surface a misleading "1 year" interval;
+            // skip metadata emission instead. Period/duration spans go through createRounding which already rejects
+            // zero/negative values at fold time, so they don't reach here in an impossible state.
+            if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).intValue() <= 0) {
+                return null;
+            }
+            Rounding rounding = getDateRounding(foldContext).getUnprepared();
+            Rounding.Interval interval = rounding.getInterval();
+            return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
+        }
+        if (fieldType.isNumeric()) {
+            double roundTo = getNumberRoundTo(foldContext);
+            // Impossible bucket configurations (zero/negative buckets count, zero/inverted ranges) yield NaN,
+            // ±Infinity, or non-positive widths. Skip metadata emission in those cases — the query itself fails
+            // at runtime, and surfacing garbage values on the column descriptor would be misleading.
+            if (Double.isFinite(roundTo) == false || roundTo <= 0.0) {
+                return null;
+            }
+            return Map.of("bucket", Map.of("interval", roundTo));
+        }
+        // BUCKET only supports date/date_nanos and numeric fields. Any new type added to BUCKET that hasn't been
+        // taught to this metadata path should fail loudly rather than silently dropping metadata.
+        throw new IllegalStateException("BUCKET metadata not implemented for field type [" + fieldType + "]");
     }
 }

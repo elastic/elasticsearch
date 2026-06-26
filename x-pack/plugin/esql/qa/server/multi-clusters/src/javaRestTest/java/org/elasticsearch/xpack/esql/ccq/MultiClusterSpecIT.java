@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_EQUALITY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
@@ -68,6 +69,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_INFO_C
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -155,7 +159,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         "lookupJoinExpressionAfterLimitAndRemoteEnrich",
         "lookupJoinWithSemanticFilterDeduplicationComplex",
         // Lookup join after FORK is not support in CCS yet
-        "forkBeforeLookupJoin"
+        "forkBeforeLookupJoin",
+        // Lookup join after FROM-union subquery with remote indices is not supported in CCS yet
+        "inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin",
+        // Lookup join after INLINE STATS (coordinator-only) is not supported in CCS yet
+        "Inline stats by and lookup join",
+        // Lookup join after STATS (coordinator-only) is not supported in CCS yet
+        "Lookup join after stats by"
     );
 
     @Override
@@ -169,6 +179,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         }
         // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
+
+        assumeTrue(
+            "Remote cluster must not support " + testCase.missingCapabilitiesRemoteCluster + " for test " + testName,
+            doesntHaveCapabilities(remoteClusterClient(), testCase.missingCapabilitiesRemoteCluster)
+        );
 
         // Filter out capabilities that are required only on the local cluster and then check the remaining on the remote cluster.
         List<String> remoteCapabilities = testCase.requiredCapabilities.stream()
@@ -205,7 +220,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 hasCapabilities(remoteClusterClient(), List.of(INLINE_STATS_SUPPORTS_REMOTE.capabilityName()))
             );
         }
-        if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())) {
+        if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())
+            || testCase.requiredCapabilities.contains(APPROXIMATION_LOOKUP_JOIN_V2.capabilityName())) {
             assumeTrue(
                 "LOOKUP JOIN not yet supported in CCS",
                 hasCapabilities(adminClient(), List.of(ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName()))
@@ -236,6 +252,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             "Dense vector equality is not supported in CCS unless all nodes support it",
             testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
         );
+
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -372,7 +389,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
         }
-        if (testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
+        if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
+            || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())
+            || testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
             return convertSubqueryToRemoteIndices(testCase);
         }
         String query = testCase.query;
@@ -459,7 +478,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     /**
-     * Convert index patterns and subqueries in FROM commands to use remote indices for a given test case.
+     * Convert index patterns and subqueries in FROM and WHERE IN subqueries to use remote
+     * indices for a given test case.
      */
     private static CsvSpecReader.CsvTestCase convertSubqueryToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         String query = testCase.query;

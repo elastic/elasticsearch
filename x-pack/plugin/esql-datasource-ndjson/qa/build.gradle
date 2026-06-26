@@ -53,7 +53,7 @@ def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
 def serverProject = project(xpackModule('esql:qa:server'))
 def ndjsonFixtureOutputRoot = file("${buildDir}/ndjson-iceberg-fixtures")
-def standaloneNdjsonFromCsv = ['employees', 'web_logs', 'books']
+def standaloneNdjsonFromCsv = ['employees', 'web_logs', 'books', 'employees_no_mv']
 
 def generateStandaloneNdjsonTasks = []
 standaloneNdjsonFromCsv.each { baseName ->
@@ -69,9 +69,28 @@ standaloneNdjsonFromCsv.each { baseName ->
     inputs.file(csvInput)
     outputs.file(ndjsonOut)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateStandaloneNdjsonTasks.add(tasks.named(taskName))
 }
+
+// Multifile-split fixtures: 3-way split of employees.csv into multifile_split/employees_{00,01,02}.ndjson.
+// Used by the shared external-multifile.csv-spec and external-multifile-resolution.csv-spec when
+// NdJsonFormatSpecIT's readScriptSpec is broadened to include them.
+def multifileSplitDir = file("${ndjsonFixtureOutputRoot}/iceberg-fixtures/multifile_split")
+def multifileSplitCsv = new File(testFixturesDataDir, "employees.csv")
+tasks.register('generateMultifileSplitNdjson_employees', JavaExec) {
+  dependsOn serverProject.tasks.named('compileNdjsonFixtureGeneratorJava')
+  dependsOn testFixturesProject.tasks.named('processResources')
+  classpath = serverProject.configurations.ndjsonFixtureGenerator + serverProject.sourceSets.ndjsonFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.NdJsonFixtureGenerator'
+  args = [multifileSplitCsv.path, multifileSplitDir.path, '3']
+  inputs.file(multifileSplitCsv)
+  outputs.dir(multifileSplitDir)
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
+}
+generateStandaloneNdjsonTasks.add(tasks.named('generateMultifileSplitNdjson_employees'))
 
 tasks.register('generateStandaloneNdjsonFixtures') {
   dependsOn generateStandaloneNdjsonTasks
@@ -100,13 +119,3 @@ tasks.named('javaRestTest') {
     showStandardStreams = false
   }
 }
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
-  }
-  restTests {
-    includeXpack 'esql'
-  }
-}
-

@@ -27,7 +27,10 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.extractStringList;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
@@ -39,13 +42,17 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
     public static final String CLIENT_ID_FIELD = "client_id";
     public static final String SCOPES_FIELD = "scopes";
 
-    public static final String REQUIRED_FIELDS = String.join(", ", CLIENT_ID_FIELD, SCOPES_FIELD);
+    public static final Set<String> REQUIRED_FIELDS = Set.of(CLIENT_ID_FIELD, SCOPES_FIELD);
+
+    public static final String OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR =
+        "Cannot update OAuth2 fields as the service was not configured with OAuth2 settings. "
+            + "Please create a new Inference Endpoint with the OAuth2 settings instead.";
+
+    public static final String WAIT_FOR_UPGRADE_TO_COMPLETE_ERROR_MESSAGE =
+        "Cannot send OAuth2 settings to an older node. Please wait until all nodes are upgraded before using OAuth2.";
 
     private static final String CLIENT_ID_CONFIG_DESCRIPTION = "ID of application registered with the authorization server.";
     private static final String SCOPES_CONFIG_DESCRIPTION = "The permissions that the application is requesting.";
-
-    private final String clientId;
-    private final List<String> scopes;
 
     /**
      * Parses client_id and scopes from the map. Either both must be present or both absent.
@@ -90,9 +97,9 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         if (missingFields.isEmpty() == false) {
             validationException.addValidationError(
                 Strings.format(
-                    "[%s] OAuth2 fields [%s] must be provided together; missing: [%s]",
+                    "[%s] OAuth2 fields %s must be provided together; missing: [%s]",
                     ModelConfigurations.SERVICE_SETTINGS,
-                    REQUIRED_FIELDS,
+                    new TreeSet<>(REQUIRED_FIELDS),
                     String.join(", ", missingFields)
                 )
             );
@@ -102,9 +109,20 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         return ValidationResult.success(new OAuth2Settings(clientId, scopes));
     }
 
+    public static String clientSecretRequiredError(Set<String> requiredFields) {
+        return Strings.format(
+            "To use OAuth2 the [%1$s] field must be set, either remove fields %2$s, or provide the [%1$s] field.",
+            CLIENT_SECRET_FIELD,
+            new TreeSet<>(requiredFields)
+        );
+    }
+
     public static boolean hasAnyOAuth2Fields(Map<String, Object> map) {
         return map.containsKey(CLIENT_ID_FIELD) || map.containsKey(SCOPES_FIELD);
     }
+
+    private final String clientId;
+    private final List<String> scopes;
 
     public OAuth2Settings(String clientId, List<String> scopes) {
         this.clientId = Objects.requireNonNull(clientId);

@@ -173,6 +173,9 @@ public class TextEmbeddingConfig implements NlpConfig {
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
+        if (tokenization instanceof ByteLevelBpeTokenization) {
+            return ByteLevelBpeTokenization.ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED;
+        }
         return TransportVersion.minimumCompatible();
     }
 

@@ -6,13 +6,15 @@
  */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release'
 
 esplugin {
   name = 'esql-datasource-azure'
   description = 'Azure Blob Storage provider for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.azure.AzureDataSourcePlugin'
-  extendedPlugins = ['x-pack-esql', 'esql-datasource-netty-commons']
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-netty-commons', 'workload-identity']
 }
 
 base {
@@ -30,6 +32,12 @@ dependencies {
   compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
+  // Apache Arrow BufferAllocator API for breaker-accounted direct memory in readBytesAsync.
+  // Runtime classes are loaded via the x-pack-esql plugin's classloader (extendedPlugins).
+  compileOnly project(':libs:arrow')
+
+  // OIDC JWT issuer-client SPI, provided at runtime via the 'workload-identity' extended plugin.
+  compileOnly project(':modules:workload-identity:spi')
 
   // Azure Blob Storage - minimal set, versions aligned with repository-azure
   implementation 'com.azure:azure-storage-blob:12.27.1'
@@ -60,10 +68,65 @@ dependencies {
   compileOnly project(path: xpackModule('esql-datasource-netty-commons'))
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  // azure-core's listBlobs XML response is parsed by jackson-dataformat-xml, which requires
+  // woodstox-core + stax2-api at runtime. Without them, deserialization fails inside azure-core
+  // and is reported as a misleading "Package versions ..." LinkageError; the real cause is
+  // NoClassDefFoundError: org/codehaus/stax2/XMLInputFactory2.
+  implementation "com.fasterxml.woodstox:woodstox-core:6.7.0"
+  implementation "org.codehaus.woodstox:stax2-api:4.2.2"
   implementation "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   testImplementation project(':test:framework')
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':libs:arrow')
+  testImplementation project(xpackModule('esql:compute'))
+
+  // Java REST tests for workload identity auth against the Azure fixture.
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
+  javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
+  javaRestTestImplementation project(':test:fixtures:azure-fixture')
+  javaRestTestImplementation project(':test:fixtures:tls-utils')
+
+  // The DEFAULT distribution already bundles repository-azure, workload-identity, and the
+  // datasource modules exercised by AzureWorkloadIdentityAuthIT. Mapper plugins are not part of
+  // DEFAULT and still need to be provisioned explicitly for the test cluster.
+  clusterPlugins project(':plugins:mapper-size')
+  clusterPlugins project(':plugins:mapper-murmur3')
+}
+
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution('needs repository-azure, workload-identity, and bundled ESQL datasource modules')
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+
+  // Match the longer timeouts used by other Azure ITs; HTTPS handshakes plus IMDS round-trips
+  // can push first-request latency above the default REST client timeout.
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+
+  testLogging {
+    events = ["passed", "skipped", "failed"]
+    exceptionFormat = "full"
+    showStandardStreams = false
+  }
+}
+
+tasks.named("test").configure {
+  // Needed for Arrow's direct memory access (UnsafeAllocationManager)
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Run the whole suite under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf on the direct-memory read path fails deterministically with a stack
+  // trace at the offending allocation instead of surfacing as a flaky native corruption later
+  // in the same JVM.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -129,15 +192,12 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.handler.codec.haproxy.HAProxyMessage',
     'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
 
-    // from jackson-dataformat-xml (woodstox/stax2)
-    'org.codehaus.stax2.LocationInfo',
-    'org.codehaus.stax2.XMLStreamLocation2',
-    'org.codehaus.stax2.XMLStreamReader2',
-    'org.codehaus.stax2.XMLStreamWriter2',
-    'org.codehaus.stax2.ri.Stax2ReaderAdapter',
-    'org.codehaus.stax2.ri.Stax2WriterAdapter',
-    'org.codehaus.stax2.typed.Base64Variant',
-    'org.codehaus.stax2.typed.Base64Variants',
+    // from com.ctc.wstx.osgi.WstxBundleActivator (woodstox-core)
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+
+    // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
+    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
 
     // Optional dependency of nimbus-jose-jwt
     'com.google.crypto.tink.subtle.Ed25519Sign',
@@ -223,12 +283,6 @@ tasks.named("thirdPartyAudit").configure {
 
     // from nimbus-jose-jwt (siv-mode is an optional AES-SIV provider)
     'org.cryptomator.siv.SivMode',
-
-    // from net.minidev:accessors-smart (ASM is used for optional bytecode-gen accessor optimization)
-    'org.objectweb.asm.ClassWriter',
-    'org.objectweb.asm.Label',
-    'org.objectweb.asm.MethodVisitor',
-    'org.objectweb.asm.Type',
   )
 
   ignoreViolations(

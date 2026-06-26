@@ -90,6 +90,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private transient volatile boolean clusterInfoInitializing;
     // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
     private transient boolean inSubplan = false;
+    // Is the current subplan a subquery-join (IN-subquery) subplan? Used to distinguish from INLINE STATS subplans.
+    private transient boolean isSubqueryJoinSubPlan = false;
 
     // fields that are not Writeable since they are only needed on the primary CCS coordinator
     private final transient Predicate<String> skipOnFailurePredicate; // Predicate to determine if we should skip a cluster on failure
@@ -231,7 +233,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         swapCluster(clusterAlias, (ca, previous) -> {
             var expr = indexExpression;
             if (previous != null) {
-                expr = previous.getIndexExpression() + "," + indexExpression;
+                expr = Strings.isNullOrBlank(indexExpression)
+                    ? previous.getIndexExpression()
+                    : previous.getIndexExpression() + "," + indexExpression;
             }
             var displayClusterAlias = Objects.equals(clusterAlias, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? localCusterName : null;
             return new Cluster(clusterAlias, displayClusterAlias, expr, shouldSkipOnFailure(clusterAlias));
@@ -361,12 +365,18 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return inSubplan == false;
     }
 
-    public void startSubPlans() {
+    public void startSubPlans(boolean isSubqueryJoin) {
         this.inSubplan = true;
+        this.isSubqueryJoinSubPlan = isSubqueryJoin;
+    }
+
+    public boolean isSubqueryJoinSubPlan() {
+        return isSubqueryJoinSubPlan;
     }
 
     public void finishSubPlans() {
         this.inSubplan = false;
+        this.isSubqueryJoinSubPlan = false;
     }
 
     /**

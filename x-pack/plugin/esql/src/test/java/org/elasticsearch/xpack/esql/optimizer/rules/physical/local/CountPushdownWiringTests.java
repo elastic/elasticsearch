@@ -25,7 +25,10 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -197,7 +200,14 @@ public class CountPushdownWiringTests extends ESTestCase {
         sourceMetadata.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
 
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
         FragmentExec fragment = new FragmentExec(agg);
@@ -211,7 +221,14 @@ public class CountPushdownWiringTests extends ESTestCase {
     public void testCannotSkipSplitDiscoveryWhenNoRowCount() {
         List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER));
         SourceMetadata metadata = stubMetadata(attrs, Map.of());
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
         FragmentExec fragment = new FragmentExec(agg);
@@ -228,7 +245,14 @@ public class CountPushdownWiringTests extends ESTestCase {
         sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
 
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(AGE), List.of(countAlias, AGE));
         FragmentExec fragment = new FragmentExec(agg);
@@ -247,7 +271,14 @@ public class CountPushdownWiringTests extends ESTestCase {
         sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
 
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias sumAlias = alias("s", new Sum(Source.EMPTY, AGE));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(sumAlias));
         FragmentExec fragment = new FragmentExec(agg);
@@ -268,7 +299,14 @@ public class CountPushdownWiringTests extends ESTestCase {
         sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
 
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Alias sumAlias = alias("s", new Sum(Source.EMPTY, AGE));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias, sumAlias));
@@ -314,7 +352,14 @@ public class CountPushdownWiringTests extends ESTestCase {
         // No STATS_PARTIAL — stats are global
 
         SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "s3://bucket/*.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/*.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
 
@@ -425,7 +470,14 @@ public class CountPushdownWiringTests extends ESTestCase {
             }
         };
 
-        ExternalRelation external = new ExternalRelation(Source.EMPTY, "file:///test.parquet", metadata, attrs);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         return new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias));
     }
@@ -473,7 +525,12 @@ public class CountPushdownWiringTests extends ESTestCase {
         return registry;
     }
 
-    private static class StubFormatReader implements FormatReader {
+    private static class StubFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         private final AggregatePushdownSupport support;
 
         StubFormatReader(AggregatePushdownSupport support) {

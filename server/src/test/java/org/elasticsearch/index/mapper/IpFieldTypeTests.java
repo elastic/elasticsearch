@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 
@@ -72,7 +73,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            true
+            true,
+            false,
+            false,
+            IndexVersion.current(),
+            null
         );
 
         String ip = "2001:db8::2:1";
@@ -124,7 +129,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            false
+            false,
+            false,
+            false,
+            IndexVersion.current(),
+            null
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
@@ -359,7 +368,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            false
+            false,
+            false,
+            false,
+            IndexVersion.current(),
+            null
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

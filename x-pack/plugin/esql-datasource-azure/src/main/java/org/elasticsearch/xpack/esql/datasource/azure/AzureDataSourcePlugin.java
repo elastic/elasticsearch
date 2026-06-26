@@ -8,15 +8,17 @@
 package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Data source plugin providing Azure Blob Storage support for ESQL.
@@ -26,8 +28,13 @@ import java.util.Set;
  * <pre>
  *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
  *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
- *     WITH (account="myaccount", key="...", endpoint="https://myaccount.blob.core.windows.net")
+ *     WITH {"account": "myaccount", "key": "...", "endpoint": "https://myaccount.blob.core.windows.net"}
  * </pre>
+ * <p>
+ * The node-level {@link Environment} needed to resolve the AKS Workload Identity token symlink
+ * ({@code ${ES_PATH_CONF}/esql-datasource-azure/azure-federated-token}) arrives through the
+ * {@link StorageProviderServices} threaded into {@link #storageProviders(StorageProviderServices)}.
+ * Without it the workload-identity chain is {@code ManagedIdentity}-only.
  */
 public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
@@ -37,22 +44,14 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-        StorageProviderFactory azureFactory = new StorageProviderFactory() {
-            @Override
-            public StorageProvider create(Settings settings) {
-                return new AzureStorageProvider((AzureConfiguration) null);
-            }
-
-            @Override
-            public StorageProvider create(Settings settings, Map<String, Object> config) {
-                if (config == null || config.isEmpty()) {
-                    return create(settings);
-                }
-                AzureConfiguration azureConfig = AzureConfiguration.fromQueryConfig(config);
-                return new AzureStorageProvider(azureConfig);
-            }
-        };
+    public Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
+        Environment environment = services.environment();
+        ExecutorService executor = services.executor();
+        StorageProviderFactory azureFactory = StorageProviderFactory.of(
+            () -> new AzureStorageProvider(null, environment, executor),
+            AzureConfiguration::fromQueryConfig,
+            cfg -> new AzureStorageProvider(cfg, environment, executor)
+        );
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
     }
 

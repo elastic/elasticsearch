@@ -136,6 +136,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return blobFileRanges != null ? blobFileRanges.getPosition(pos, length) : pos;
     }
 
+    public long getTimestampMillis(String fileName) {
+        var blobFileRanges = currentMetadata.get(fileName);
+        return blobFileRanges != null
+            ? BlobFileRanges.midpointMillisOrUnknown(blobFileRanges.timestampRange())
+            : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+    }
+
     StatelessSharedBlobCacheService getCacheService() {
         return cacheService;
     }
@@ -294,12 +301,16 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         BlobCacheMetrics blobCacheMetrics,
         @Nullable Releasable releasable
     ) {
+        var blobFile = blobFileRanges.blobLocation().blobFile();
         var reader = new CacheFileReader(
             getCacheFile(blobFileRanges),
-            getCacheBlobReader(name, blobFileRanges.blobLocation().blobFile()),
+            getCacheBlobReader(name, blobFile),
             blobFileRanges,
             blobCacheMetrics,
-            cacheService.getThreadPool().relativeTimeInMillisSupplier()
+            cacheService.getThreadPool().relativeTimeInMillisSupplier(),
+            cacheService.getRegionSize(),
+            context,
+            cacheService.hasSearchRole()
         );
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
     }
@@ -314,7 +325,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             // blob length (with padding added).
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
             // todo: time-source
-            new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime)
+            new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
+            cacheService.isCacheBoostPreferenceEnabled()
+                ? BlobFileRanges.midpointMillisOrUnknown(blobFileRanges.timestampRange())
+                : SharedBlobCacheService.UNKNOWN_TIMESTAMP
         );
     }
 

@@ -20,10 +20,12 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -50,6 +53,7 @@ public class PlanExecutor {
     private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
     private final EsqlFunctionRegistry functionRegistry;
+    private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;
@@ -67,6 +71,7 @@ public class PlanExecutor {
         CrossProjectModeDecider crossProjectModeDecider,
         DataSourceModule dataSourceModule,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         EsqlParser parser,
         ExternalSourceCacheService cacheService
     ) {
@@ -74,6 +79,7 @@ public class PlanExecutor {
         this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = functionRegistry;
+        this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry, crossProjectModeDecider.crossProjectEnabled());
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
@@ -90,10 +96,12 @@ public class PlanExecutor {
         AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
+        DatasetResolver datasetResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
+        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
@@ -103,7 +111,8 @@ public class PlanExecutor {
             services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
             dataSourceModule,
             services.clusterService().getSettings(),
-            cacheService
+            cacheService,
+            cancellation
         );
         final var session = new EsqlSession(
             sessionId,
@@ -112,10 +121,12 @@ public class PlanExecutor {
             indexResolver,
             enrichPolicyResolver,
             viewResolver,
+            datasetResolver,
             externalSourceResolver,
             parser,
             preAnalyzer,
             functionRegistry,
+            promqlFunctionRegistry,
             mapper,
             verifier,
             metrics,

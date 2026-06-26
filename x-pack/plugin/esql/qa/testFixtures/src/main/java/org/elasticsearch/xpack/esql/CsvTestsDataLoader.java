@@ -16,7 +16,6 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -34,6 +33,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -63,19 +63,22 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 
 public class CsvTestsDataLoader {
 
     static {
         // Ensure the logging factory is initialized before the static logger field below. When running standalone (via main() or
         // Gradle's loadCsvSpecData task), nothing has initialized the ES logging system before this class is loaded.
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 
     private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
     private static final int BULK_DATA_SIZE = 100_000;
+    private static final String VIEW_SUPPORT_PROBE_NAME = "esql-view-support-probe";
+    private static final String VIEW_SUPPORT_PROBE_QUERY = "{\"query\":\"ROW x = 1\"}";
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(
@@ -102,7 +105,13 @@ public class CsvTestsDataLoader {
             .withDynamic("false")
             .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
+        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_no_short")
+            .withTypeMapping(removeFields("short"))
+            .withDynamic("false"),
+        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_short_as_long")
+            .withTypeMapping(Map.of("short", "long")),
         new TestDataset("hosts"),
+        new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
         new TestDataset("apps"),
         new TestDataset("apps").withIndex("apps_short").withTypeMapping(Map.of("id", "short")),
         new TestDataset("languages"),
@@ -118,11 +127,25 @@ public class CsvTestsDataLoader {
             "lookup-settings.json"
         ),
         new TestDataset("languages_mixed_numerics").withSetting("lookup-settings.json"),
+        new TestDataset(
+            "keyword_languages_lookup",
+            "mapping-keyword_languages_lookup.json",
+            "keyword_languages_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("ul_logs"),
         new TestDataset("sample_data"),
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
+        new TestDataset(
+            "partial_message_types_lookup",
+            "mapping-partial_message_types_lookup.json",
+            "partial_message_types_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
+        new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
+            .withDynamic("false"),
         new TestDataset(
             "partial_mapping_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",
@@ -134,6 +157,9 @@ public class CsvTestsDataLoader {
             "partial_mapping_sample_data.csv"
         ),
         new TestDataset("mv_sample_data"),
+        new TestDataset("event_alerts"),
+        new TestDataset("event_logs"),
+        new TestDataset("event_empty").noData(),
         new TestDataset("alerts"),
         new TestDataset("sample_data").withIndex("sample_data_str").withTypeMapping(Map.of("client_ip", "keyword")),
         new TestDataset("sample_data").withIndex("sample_data_ts_long")
@@ -162,6 +188,7 @@ public class CsvTestsDataLoader {
         new TestDataset("ages"),
         new TestDataset("heights"),
         new TestDataset("decades"),
+        new TestDataset("mv_decades"),
         new TestDataset("airports"),
         new TestDataset("airports").withIndex("airports_mp").withData("airports_mp.csv").withSetting("lookup-settings.json"),
         new TestDataset("airports_no_doc_values").withData("airports.csv"),
@@ -178,9 +205,30 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
-        new TestDataset("k8s_unmapped", "mapping-k8s-unmapped.json", "k8s.csv").withSetting("k8s-settings.json"),
+        new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        new TestDataset("k8s_retyped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(Map.of("network.bytes_in", "double", "network.cost", "long")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
+        new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
+        new TestDataset(
+            "promql_classic_histogram",
+            "mapping-promql-classic-histogram-passthrough.json",
+            "promql_classic_histogram.csv",
+            "promql_classic_histogram-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
+        new TestDataset(
+            "promql_histogram_no_le",
+            "mapping-promql-histogram-no-le-passthrough.json",
+            "promql_histogram_no_le.csv",
+            "promql_histogram_no_le-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
+        new TestDataset("otel-metrics", "otel-metrics-mappings.json", "k8s-otel.csv", "otel-metrics-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
+        new TestDataset("prom-metrics", "prom-metrics-mappings.json", "k8s-prometheus-remote-write.csv", "prom-metrics-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")
@@ -217,6 +265,8 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
         new TestDataset("web_logs"),
+        new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
+        new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),
@@ -247,13 +297,21 @@ public class CsvTestsDataLoader {
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
         new TestDataset("flattened_otel_logs"),
+        new TestDataset("flattened_many"),
+        new TestDataset("flattened_keyed"),
+        new TestDataset("path_lookup").withSetting("lookup-settings.json"),
+        new TestDataset("flattened_typed").withRequiredCapabilities(EsqlCapabilities.Cap.FLATTENED_DATATYPE),
+        new TestDataset("ts_flattened", "mapping-ts_flattened.json", "ts_flattened.csv", "ts_flattened-settings.json"),
+        new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
+        new TestDataset("host_info_lookup").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V5),
-        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
+        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -294,7 +352,27 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_rehired"),
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
-        new ViewConfig("employees_extra")
+        new ViewConfig("employees_extra"),
+        new ViewConfig("view_with_subquery"),
+        new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_row_employees_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_k8s_max_bytes_by_cluster", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_max_rate", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW)),
+        new ViewConfig("employees_in_subquery_stats", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_conjunction", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_disjunction", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_nested", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_stats_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_conjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -315,7 +393,6 @@ public class CsvTestsDataLoader {
      */
     public static void main(String[] args) throws IOException {
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
         LogConfigurator.configureESLogging();
         boolean indexes = false;
         boolean policies = false;
@@ -632,9 +709,17 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadViewsIntoEs(RestClient client) throws IOException {
-        if (clusterHasViewSupport(client)) {
+        loadViewsIntoEs(client, cap -> true);
+    }
+
+    public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
+        if (clusterSupportsViews(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
+                if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
+                    logger.info("Skipping view [{}], missing required capabilities {}", view.name, view.requiredCapabilities);
+                    continue;
+                }
                 loadView(client, view);
             }
         } else {
@@ -643,7 +728,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void deleteViews(RestClient client) throws IOException {
-        if (clusterHasViewSupport(client)) {
+        if (clusterSupportsViews(client)) {
             logger.debug("Deleting views");
             for (var view : VIEW_CONFIGS.values()) {
                 deleteView(client, view.name);
@@ -749,28 +834,60 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        Request request = new Request("GET", "/_query/view");
+    public static boolean clusterSupportsViews(RestClient client) throws IOException {
+        final Set<Integer> unsupportedViewCrudStatusCodes = Set.of(400, 405, 410, 500);
+        final Set<Integer> ignoredProbeDeleteStatusCodes = Set.of(400, 404, 405, 410, 500);
+
+        // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
+        Request capRequest = new Request("GET", "/_capabilities");
+        capRequest.addParameter("method", "POST");
+        capRequest.addParameter("path", "/_query");
+        capRequest.addParameter("capabilities", "views_crud_as_index_actions");
         try {
-            Response ignored = client.performRequest(request);
+            Response capResponse = client.performRequest(capRequest);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
+            JsonNode supported = json.get("supported");
+            if (supported == null || supported.asBoolean() == false) {
+                return false;
+            }
+        } catch (ResponseException e) {
+            return false;
+        }
+
+        // Step 2: probe the API path used by loadView (PUT /_query/view/{name}). In serverless mode
+        // an old node can still pass generic checks and read probes, but reject PUT with 410 because
+        // RestPutViewAction lacks the required @ServerlessScope.
+        try {
+            Request createProbeView = new Request("PUT", "/_query/view/" + VIEW_SUPPORT_PROBE_NAME);
+            createProbeView.setJsonEntity(VIEW_SUPPORT_PROBE_QUERY);
+            client.performRequest(createProbeView);
+            try {
+                client.performRequest(new Request("DELETE", "/_query/view/" + VIEW_SUPPORT_PROBE_NAME));
+            } catch (ResponseException e) {
+                if (ignoredProbeDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
+                    throw e;
+                }
+            }
+            return true;
         } catch (ResponseException e) {
             int code = e.getResponse().getStatusLine().getStatusCode();
-            // Different versions of Elasticsearch return different codes when views are not supported
-            if (code == 410 || code == 400 || code == 500 || code == 405) {
+            // Serverless restriction (410) or old servers not supporting this view API path.
+            if (unsupportedViewCrudStatusCodes.contains(code)) {
                 return false;
             }
             throw e;
         }
-        return true;
     }
 
     private static void deleteView(RestClient client, String viewName) throws IOException {
+        final Set<Integer> ignoredDeleteStatusCodes = Set.of(400, 404, 405, 410, 500, 503);
         try {
             client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
         } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
-            // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500
-            if (code != 404 && code != 400 && code != 410 && code != 500) {
+            // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500.
+            // 503 (master_not_discovered_exception) is transient and can occur in BWC mixed-cluster tests after node restarts.
+            if (ignoredDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
                 logger.info("View delete error: {}", e.getMessage());
                 throw e;
             }
@@ -1278,6 +1395,20 @@ public class CsvTestsDataLoader {
          * ingestion more fields are added dynamically. Required for csv tests which do not ingest the csvs into real indices.
          */
         public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
+            if (dynamicTypeMapping != null && mappingFileName != null) {
+                Map<String, EsField> mappedFields = LoadMapping.loadMapping(streamMapping());
+                for (String fieldName : dynamicTypeMapping.keySet()) {
+                    if (isMappedField(mappedFields, fieldName)) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + fieldName
+                                + "] in dynamicTypeMapping for dataset ["
+                                + indexName
+                                + "] is already mapped; use withTypeMapping instead"
+                        );
+                    }
+                }
+            }
             return new TestDataset(
                 indexName,
                 mappingFileName,
@@ -1290,6 +1421,25 @@ public class CsvTestsDataLoader {
                 inferenceEndpoints,
                 requiredCapabilities
             );
+        }
+
+        private static boolean isMappedField(Map<String, EsField> mapping, String fieldName) {
+            String[] segments = fieldName.split("\\.");
+            Map<String, EsField> currentMap = mapping;
+            for (int i = 0; i < segments.length; i++) {
+                EsField field = currentMap.get(segments[i]);
+                if (field == null) {
+                    return false;
+                }
+                if (i == segments.length - 1) {
+                    return true;
+                }
+                currentMap = field.getProperties();
+                if (currentMap == null || currentMap.isEmpty()) {
+                    return false;
+                }
+            }
+            return false;
         }
 
         /**
@@ -1378,7 +1528,11 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record ViewConfig(String name) {
+    public record ViewConfig(String name, List<EsqlCapabilities.Cap> requiredCapabilities) {
+        public ViewConfig(String name) {
+            this(name, List.of());
+        }
+
         public String loadQuery() {
             return getResourceString("/views/" + name + ".esql");
         }

@@ -47,13 +47,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -637,8 +637,6 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
-    public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
-
     /** Feature flag gating the ES95 pipeline-based TSDB doc values codec. */
     public static final FeatureFlag ES95_CODEC_FEATURE_FLAG = new FeatureFlag("es95_codec");
 
@@ -740,6 +738,17 @@ public final class IndexSettings {
             }
         }
     }, Property.IndexScope, Property.Final, Property.ServerlessPublic);
+
+    /**
+     * Indicates that slice is validated and can be utilized as configured given the current cluster state
+     */
+    public static final Setting<Boolean> SLICE_VALIDATED = Setting.boolSetting(
+        "index.slice.validated",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
 
     /**
     * The {@link IndexMode "mode"} of the index.
@@ -851,16 +860,14 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
-        if (MODE.get(s) == IndexMode.TIME_SERIES) {
-            if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
-                return "true";
-            }
-            return "false";
-        } else if (MODE.get(s) == IndexMode.LOGSDB) {
-            return iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB) ? "true" : "false";
-        } else {
-            return "false";
+        var indexMode = MODE.get(s);
+        if (indexMode == IndexMode.TIME_SERIES) {
+            return Boolean.toString(iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB));
         }
+        if (indexMode == IndexMode.LOGSDB || indexMode.isStrictColumnar()) {
+            return Boolean.toString(iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB));
+        }
+        return "false";
     }, Property.IndexScope, Property.Final);
 
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
@@ -870,7 +877,31 @@ public final class IndexSettings {
             return indexMode.defaultSourceMode().name();
         },
         "index.mapping.source.mode",
-        value -> {},
+        new Setting.Validator<SourceFieldMapper.Mode>() {
+            @Override
+            public void validate(SourceFieldMapper.Mode value) {}
+
+            @Override
+            public void validate(SourceFieldMapper.Mode value, Map<Setting<?>, Object> settings) {
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode.supportedSourceModes().contains(value) == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "unsupported source mode [%s] for index mode [%s]; supported values: %s",
+                            value,
+                            indexMode,
+                            indexMode.supportedSourceModes()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(MODE).iterator();
+            }
+        },
         Setting.Property.Final,
         Setting.Property.IndexScope,
         Setting.Property.ServerlessPublic
@@ -885,10 +916,12 @@ public final class IndexSettings {
                 .between(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
 
             boolean useSyntheticRecoverySource = isNewIndexVersion || isIndexVersionInBackportRange;
-            return String.valueOf(
-                useSyntheticRecoverySource
-                    && Objects.equals(INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings), SourceFieldMapper.Mode.SYNTHETIC)
-            );
+
+            var sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
+            boolean sourceModeDefault = sourceMode == SourceFieldMapper.Mode.SYNTHETIC
+                || sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
+
+            return String.valueOf(useSyntheticRecoverySource && sourceModeDefault);
 
         },
         new Setting.Validator<>() {
@@ -897,12 +930,25 @@ public final class IndexSettings {
 
             @Override
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                var indexMode = (IndexMode) settings.get(MODE);
                 if (enabled == false) {
+                    // columnar mode requires synthetic recovery source
+                    if (indexMode.isStrictColumnar()) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] must not be false when [%s] is set to [%s].",
+                                RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
+                                MODE.getKey(),
+                                indexMode.name()
+                            )
+                        );
+                    }
+
                     return;
                 }
 
                 // Verify if synthetic source is enabled on the index; fail if it is not
-                var indexMode = (IndexMode) settings.get(MODE);
                 if (indexMode.defaultSourceMode() != SourceFieldMapper.Mode.SYNTHETIC) {
                     var sourceMode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
                     if (sourceMode != SourceFieldMapper.Mode.SYNTHETIC) {
@@ -937,7 +983,7 @@ public final class IndexSettings {
                 return Boolean.FALSE.toString();
             }
             var indexMode = IndexSettings.MODE.get(settings);
-            return Boolean.toString(indexMode.useTimeSeriesDocValuesCodec());
+            return Boolean.toString(indexMode.isColumnar());
         },
         Property.IndexScope,
         Property.Final
@@ -963,13 +1009,51 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
+        "index.mapping.index_disabled_by_default",
+        settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar()),
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Controls whether columnar id mode is used. This is a proxy setting for the default based on index.mode setting.
+     * Proxy mainly exists for tests to easily randomly test with columnar id mode.
+     */
+    public static final Setting<Boolean> USE_COLUMNAR_ID_BY_DEFAULT = Setting.boolSetting(
+        "index.mapping.use_columnar_id_mode_by_default",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            IndexVersion indexVersionCreated = SETTING_INDEX_VERSION_CREATED.get(settings);
+            if (indexVersionCreated.before(IndexVersions.MAPPING_ID_MODE_DEFAULT)) {
+                return Boolean.FALSE.toString();
+            }
+            IndexMode indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode.isStrictColumnar());
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Opt in setting that enables the ES95 TSDB doc values codec for a given time series index.
-     * Registered only when {@link #ES95_CODEC_FEATURE_FLAG} is enabled, defaults to {@code false}.
+     * Registered only when {@link #ES95_CODEC_FEATURE_FLAG} is enabled. Defaults to {@code true}
+     * for time series indices created on or after
+     * {@link IndexVersions#TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG}, {@code false} otherwise.
      */
     public static final Setting<Boolean> TIME_SERIES_ES95_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es95_codec.enabled",
-        false,
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
+            boolean isTimeSeries = IndexMode.TIME_SERIES.equals(MODE.get(settings));
+            boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG);
+            return Boolean.toString(isTimeSeries && onByDefault);
+        },
         Property.IndexScope,
         Property.Final
     );
@@ -993,7 +1077,7 @@ public final class IndexSettings {
             return Boolean.FALSE.toString();
         }
         IndexMode indexMode = IndexSettings.MODE.get(settings);
-        return Boolean.toString(indexMode.useEs812PostingsFormat());
+        return Boolean.toString(indexMode.isColumnar());
     }, Property.IndexScope, Property.Final);
 
     /**
@@ -1057,8 +1141,7 @@ public final class IndexSettings {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             }
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
-            if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
-                && (indexVersionCreated.onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS) || indexVersionCreated.equals(IndexVersions.ZERO))) {
+            if (indexModeSupportsSeqNoDocValuesOnly(indexMode, indexVersionCreated)) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             }
             return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
@@ -1068,6 +1151,14 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.Final
     );
+
+    static boolean indexModeSupportsSeqNoDocValuesOnly(IndexMode indexMode, IndexVersion indexVersionCreated) {
+        if (indexMode.isStrictColumnar()) {
+            return true;
+        }
+        return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
+            && (indexVersionCreated.onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS) || indexVersionCreated.equals(IndexVersions.ZERO));
+    }
 
     public static final Setting<Boolean> INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING = Setting.boolSetting(
         "index.mapping.exclude_source_vectors",
@@ -1079,7 +1170,9 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING = Setting.boolSetting(
         "index.dense_vector.experimental_features",
-        Build.current().isSnapshot(),
+        // snapshot should use new experimental formats
+        // enabling with slice feature as well for ease of testing
+        Build.current().isSnapshot() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled(),
         Property.IndexScope,
         Property.Final
     );
@@ -1092,61 +1185,87 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
-    public static final Setting<Boolean> DISABLE_SEQUENCE_NUMBERS = Setting.boolSetting(
-        "index.disable_sequence_numbers",
-        false,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean enabled) {}
+    public static final Setting<Boolean> DISABLE_SEQUENCE_NUMBERS = Setting.boolSetting("index.disable_sequence_numbers", settings -> {
+        if (settings == null) {
+            return Boolean.FALSE.toString();
+        }
+        IndexMode indexMode = IndexSettings.MODE.get(settings);
+        if (indexMode.isStrictColumnar()) {
+            var indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
+            // Only enable by default if the index version supports it
+            if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)) {
+                return Boolean.TRUE.toString();
+            }
+        }
+        return Boolean.FALSE.toString();
+    }, new Setting.Validator<>() {
+        @Override
+        public void validate(Boolean enabled) {}
 
-            @Override
-            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
-                if (enabled) {
-                    var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
-                    if (indexVersion.equals(IndexVersions.ZERO)) {
-                        // Settings are validated in different places before a real indexVersion has been assigned or is missing for other
-                        // reasons (eg. composable index templates). In those cases IndexVersion.ZERO is used as fallback value, and we
-                        // don't want to fail those validations so we return early here because the next two validation checks require
-                        // the IndexMetadata.SETTING_INDEX_VERSION_CREATED to be set. At index creation time we _will_ validate with the
-                        // creation version.
-                        return;
-                    }
-                    if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
-                                DISABLE_SEQUENCE_NUMBERS.getKey(),
-                                IndexVersions.DISABLE_SEQUENCE_NUMBERS,
-                                indexVersion
-                            )
-                        );
-                    }
-                    // Sequence numbers cannot be trimmed for points, so we enforce doc values only usage
-                    var seqNoIndexOptions = (SeqNoFieldMapper.SeqNoIndexOptions) settings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
-                    if (seqNoIndexOptions != SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
-                                DISABLE_SEQUENCE_NUMBERS.getKey(),
-                                SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
-                                SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
-                                seqNoIndexOptions
-                            )
-                        );
-                    }
+        @Override
+        public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+            if (enabled) {
+                var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+                if (indexVersion.equals(IndexVersions.ZERO)) {
+                    // Settings are validated in different places before a real indexVersion has been assigned or is missing for other
+                    // reasons (eg. composable index templates). In those cases IndexVersion.ZERO is used as fallback value, and we
+                    // don't want to fail those validations so we return early here because the next two validation checks require
+                    // the IndexMetadata.SETTING_INDEX_VERSION_CREATED to be set. At index creation time we _will_ validate with the
+                    // creation version.
+                    return;
+                }
+                if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                            DISABLE_SEQUENCE_NUMBERS.getKey(),
+                            IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+                            indexVersion
+                        )
+                    );
+                }
+                // Sequence numbers cannot be trimmed for points, so we enforce doc values only usage
+                var seqNoIndexOptions = (SeqNoFieldMapper.SeqNoIndexOptions) settings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
+                if (seqNoIndexOptions != SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                            DISABLE_SEQUENCE_NUMBERS.getKey(),
+                            SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                            SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                            seqNoIndexOptions
+                        )
+                    );
                 }
             }
+        }
 
-            @Override
-            public Iterator<Setting<?>> settings() {
-                List<Setting<?>> list = List.of(SETTING_INDEX_VERSION_CREATED, SEQ_NO_INDEX_OPTIONS_SETTING);
-                return list.iterator();
+        @Override
+        public Iterator<Setting<?>> settings() {
+            List<Setting<?>> list = List.of(SETTING_INDEX_VERSION_CREATED, SEQ_NO_INDEX_OPTIONS_SETTING);
+            return list.iterator();
+        }
+    }, Property.IndexScope, Property.Final);
+
+    public static final Setting<Boolean> DYNAMIC_STRINGS_AUTO_TEXT = Setting.boolSetting(
+        "index.mapping.dynamic_strings.auto_text",
+        settings -> {
+            IndexMode mode = IndexSettings.MODE.get(settings);
+            boolean disableAutoTextByDefault = mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR;
+            return Boolean.toString(disableAutoTextByDefault == false);
+        },
+        value -> {
+            if (value == false && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException(
+                    "[index.mapping.dynamic_strings.auto_text] can only be disabled when the"
+                        + " columnar_index_mode feature flag is enabled"
+                );
             }
         },
-        Property.IndexScope,
-        Property.Final
+        Property.Dynamic,
+        Property.IndexScope
     );
 
     private final Index index;
@@ -1219,6 +1338,7 @@ public final class IndexSettings {
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
     private volatile boolean earlyTermination;
+    private volatile float postFilterSelectivityThreshold;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile boolean weightMatchesEnabled;
@@ -1228,6 +1348,7 @@ public final class IndexSettings {
     private volatile long mappingNestedFieldsLimit;
     private volatile long mappingNestedParentsLimit;
     private volatile long mappingNestedDocsLimit;
+    private volatile long mappingArrayObjectsLimit;
     private volatile long mappingTotalFieldsLimit;
     private volatile boolean ignoreDynamicFieldsBeyondLimit;
     private volatile boolean ignoreDynamicFieldNamesBeyondLimit;
@@ -1237,6 +1358,7 @@ public final class IndexSettings {
     private volatile boolean requestCacheEnabled;
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
+    private volatile boolean dynamicStringsAutoText;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
@@ -1250,6 +1372,8 @@ public final class IndexSettings {
     private final boolean timeSeriesEs95CodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
+    private final boolean indexDisabledByDefault;
+    private final boolean useColumnarIdByDefault;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1427,12 +1551,22 @@ public final class IndexSettings {
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         sliceEnabled = scopedSettings.get(SLICE_ENABLED);
+        if (sliceEnabled && SLICE_VALIDATED.get(settings) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "unknown setting [%s] please check that any required plugins are installed.",
+                    SLICE_ENABLED.getKey()
+                )
+            );
+        }
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
         mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
         mappingNestedParentsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING);
         mappingNestedDocsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+        mappingArrayObjectsLimit = scopedSettings.get(INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING);
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         ignoreDynamicFieldNamesBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
@@ -1450,6 +1584,7 @@ public final class IndexSettings {
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         hnswFilterHeuristic = scopedSettings.get(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC);
         earlyTermination = scopedSettings.get(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION);
+        postFilterSelectivityThreshold = scopedSettings.get(DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
@@ -1458,6 +1593,8 @@ public final class IndexSettings {
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
+        indexDisabledByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
+        useColumnarIdByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
@@ -1500,6 +1637,7 @@ public final class IndexSettings {
             }
         }
         disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
+        dynamicStringsAutoText = DYNAMIC_STRINGS_AUTO_TEXT.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold
@@ -1573,6 +1711,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING, this::setMappingNestedParentsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING, this::setMappingArrayObjectsLimit);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
             this::setIgnoreDynamicFieldsBeyondLimit
@@ -1594,6 +1733,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
+        scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_TEXT, this::setDynamicStringsAutoText);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2126,6 +2266,14 @@ public final class IndexSettings {
         this.mappingNestedDocsLimit = value;
     }
 
+    public long getMappingArrayObjectsLimit() {
+        return mappingArrayObjectsLimit;
+    }
+
+    private void setMappingArrayObjectsLimit(long value) {
+        this.mappingArrayObjectsLimit = value;
+    }
+
     public long getMappingTotalFieldsLimit() {
         return mappingTotalFieldsLimit;
     }
@@ -2281,6 +2429,14 @@ public final class IndexSettings {
         return useEs812PostingsFormat;
     }
 
+    public boolean isIndexDisabledByDefault() {
+        return indexDisabledByDefault;
+    }
+
+    public boolean isUseColumnarIdByDefault() {
+        return useColumnarIdByDefault;
+    }
+
     /**
      * Returns <code>true</code> if request cache is enabled.
      */
@@ -2328,6 +2484,14 @@ public final class IndexSettings {
         this.earlyTermination = earlyTermination;
     }
 
+    public float getPostFilterSelectivityThreshold() {
+        return this.postFilterSelectivityThreshold;
+    }
+
+    private void setPostFilterSelectivityThreshold(float postFilterSelectivityThreshold) {
+        this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
+    }
+
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {
         return seqNoIndexOptions;
     }
@@ -2345,5 +2509,16 @@ public final class IndexSettings {
 
     public boolean sequenceNumbersDisabled() {
         return disableSequenceNumbers;
+    }
+
+    private void setDynamicStringsAutoText(boolean enabled) {
+        this.dynamicStringsAutoText = enabled;
+    }
+
+    /**
+     * Returns <code>true</code> if dynamically mapped strings should be mapped with a keyword subfield.
+     */
+    public boolean getDynamicStringsAutoText() {
+        return dynamicStringsAutoText;
     }
 }

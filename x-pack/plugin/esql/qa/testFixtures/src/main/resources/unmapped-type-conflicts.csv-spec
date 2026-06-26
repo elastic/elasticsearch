@@ -2,11 +2,11 @@
 
 ######################################
 # Mapped and unmapped conflict tests #
-######################################  
+######################################
 
 typeConflictWithUnmappedJustFrom
 required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -21,19 +21,19 @@ ignoreOrder:true
 2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | sample_data
 2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data
 2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data
-null                         | null         | null                | Connected to 10.1.0.1! | no_mapping_sample_data
-null                         | null         | null                | Connection error?      | no_mapping_sample_data
-null                         | null         | null                | Connection error?      | no_mapping_sample_data
-null                         | null         | null                | Connection error?      | no_mapping_sample_data
-null                         | null         | null                | 42                     | no_mapping_sample_data
-null                         | null         | null                | Connected to 10.1.0.2! | no_mapping_sample_data
-null                         | null         | null                | Connected to 10.1.0.3! | no_mapping_sample_data
+2024-10-23T13:55:01.543Z     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | no_mapping_sample_data
+2024-10-23T13:51:54.732Z     | 173.21.3.15  | 725447              | Connection error?      | no_mapping_sample_data
+2024-10-23T13:52:55.015Z     | 173.21.3.15  | 8268152             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:53:55.832Z     | 173.21.3.15  | 5033754             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | no_mapping_sample_data
+2024-10-23T12:27:28.948Z     | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
+2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
 
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -49,19 +49,19 @@ ignoreOrder:true
 2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | sample_data
 2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data
 2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data
-null                         | null         | null                | Connected to 10.1.0.1! | no_mapping_sample_data
-null                         | null         | null                | Connection error?      | no_mapping_sample_data
-null                         | null         | null                | Connection error?      | no_mapping_sample_data
-null                         | null         | null                | Connection error?      | no_mapping_sample_data
-null                         | null         | null                | 42                     | no_mapping_sample_data
-null                         | null         | null                | Connected to 10.1.0.2! | no_mapping_sample_data
-null                         | null         | null                | Connected to 10.1.0.3! | no_mapping_sample_data
+2024-10-23T13:55:01.543Z     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | no_mapping_sample_data
+2024-10-23T13:51:54.732Z     | 173.21.3.15  | 725447              | Connection error?      | no_mapping_sample_data
+2024-10-23T13:52:55.015Z     | 173.21.3.15  | 8268152             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:53:55.832Z     | 173.21.3.15  | 5033754             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | no_mapping_sample_data
+2024-10-23T12:27:28.948Z     | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
+2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
 
 typeConflictWithUnmappedJustKeepWildcardPrefix
 required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -77,13 +77,13 @@ ignoreOrder:true
 2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | sample_data
 2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data
 2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data
-null                         | null         | null                | Connected to 10.1.0.1! | no_mapping_sample_data
-null                         | null         | null                | Connection error?      | no_mapping_sample_data
-null                         | null         | null                | Connection error?      | no_mapping_sample_data
-null                         | null         | null                | Connection error?      | no_mapping_sample_data
-null                         | null         | null                | 42                     | no_mapping_sample_data
-null                         | null         | null                | Connected to 10.1.0.2! | no_mapping_sample_data
-null                         | null         | null                | Connected to 10.1.0.3! | no_mapping_sample_data
+2024-10-23T13:55:01.543Z     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | no_mapping_sample_data
+2024-10-23T13:51:54.732Z     | 173.21.3.15  | 725447              | Connection error?      | no_mapping_sample_data
+2024-10-23T13:52:55.015Z     | 173.21.3.15  | 8268152             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:53:55.832Z     | 173.21.3.15  | 5033754             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | no_mapping_sample_data
+2024-10-23T12:27:28.948Z     | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
+2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
 noTypeConflictKeywordUnmappedCastToKeyword
@@ -245,6 +245,31 @@ sample_data            | 2764889.0
 sample_data            | 3450233.0
 sample_data            | 5033755.0
 sample_data            | 8268153.0
+;
+
+// Reproducer for #151525.
+typeConflictShortUnmappedCastToInteger
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
+
+SET unmapped_fields="load"\;
+FROM all_types, all_types_no_short METADATA _index
+| EVAL short = short::integer
+| KEEP _index, short
+| SORT _index, short
+;
+
+_index:keyword     | short:integer
+all_types          | 10
+all_types          | 20
+all_types          | 30
+all_types          | 40
+all_types          | 50
+all_types_no_short | 10
+all_types_no_short | 20
+all_types_no_short | 30
+all_types_no_short | 40
+all_types_no_short | 50
 ;
 
 // Confirm that the employees_no_names index does not have first_name and last_name mapped.
@@ -456,6 +481,7 @@ emp_no:integer | gender:text           | _index:keyword
 // null.
 typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention
 required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -465,12 +491,12 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 ignoreOrder:true
 
 @timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
-null                     | null         | null                | Connection error?      | no_mapping_sample_data
-null                     | null         | null                | Connection error?      | no_mapping_sample_data
-null                     | null         | null                | Connection error?      | no_mapping_sample_data
-null                     | null         | null                | Connected to 10.1.0.3! | no_mapping_sample_data
-null                     | null         | null                | Connected to 10.1.0.2! | no_mapping_sample_data
-null                     | null         | null                | Connected to 10.1.0.1! | no_mapping_sample_data
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | no_mapping_sample_data
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | no_mapping_sample_data
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | no_mapping_sample_data
 ;
 
 // https://github.com/elastic/elasticsearch/issues/141994
@@ -642,7 +668,7 @@ no_mapping_sample_data
 // reproducer for https://github.com/elastic/elasticsearch/issues/145206
 typeConflictPartiallyUnmappedKeywordFieldKept
 required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -658,13 +684,13 @@ event_duration:long
 1232382
 2764889
 3450233
-null
-null
-null
-null
-null
-null
-null
+725447
+1232381
+1756466
+2764888
+3450232
+5033754
+8268152
 ;
 
 ###########################
@@ -673,6 +699,7 @@ null
 
 noTypeConflictKeywordNonExistentNoCast
 required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, colors METADATA _index
@@ -873,6 +900,66 @@ heights        | null
 ###########################
 # Mapped x 2 and unmapped #
 ###########################
+
+// #151525, small numeric variant: short is mapped as short (all_types), as long (all_types_short_as_long), and unmapped
+// (all_types_no_short). Without a cast the conflict is unsupported; an explicit cast must resolve all three legs.
+typeConflictShortLongUnmappedNotCast
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
+
+SET unmapped_fields="load"\;
+FROM all_types, all_types_short_as_long, all_types_no_short METADATA _index
+| KEEP _index, short
+| SORT _index
+;
+
+_index:keyword          | short:unsupported
+all_types               | null
+all_types               | null
+all_types               | null
+all_types               | null
+all_types               | null
+all_types_no_short      | null
+all_types_no_short      | null
+all_types_no_short      | null
+all_types_no_short      | null
+all_types_no_short      | null
+all_types_short_as_long | null
+all_types_short_as_long | null
+all_types_short_as_long | null
+all_types_short_as_long | null
+all_types_short_as_long | null
+;
+
+typeConflictShortLongUnmappedCastToInteger
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
+
+SET unmapped_fields="load"\;
+FROM all_types, all_types_short_as_long, all_types_no_short METADATA _index
+| EVAL short = short::integer
+| KEEP _index, short
+| SORT _index, short
+;
+
+_index:keyword          | short:integer
+all_types               | 10
+all_types               | 20
+all_types               | 30
+all_types               | 40
+all_types               | 50
+all_types_no_short      | 10
+all_types_no_short      | 20
+all_types_no_short      | 30
+all_types_no_short      | 40
+all_types_no_short      | 50
+all_types_short_as_long | 10
+all_types_short_as_long | 20
+all_types_short_as_long | 30
+all_types_short_as_long | 40
+all_types_short_as_long | 50
+;
 
 typeConflictLongDateUnmappedCastToKeyword
 required_capability: optional_fields_v5
@@ -1995,6 +2082,7 @@ no_mapping_sample_data | 2024-10-23T13:55:01.543Z
 
 typeConflictLongUnmappedSortWithCastToLong
 required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -2003,24 +2091,25 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 ;
 
 _index:keyword         | event_duration:long
-no_mapping_sample_data | null
+no_mapping_sample_data | 725447
 sample_data            | 725448
-no_mapping_sample_data | null
+no_mapping_sample_data | 1232381
 sample_data            | 1232382
-no_mapping_sample_data | null
+no_mapping_sample_data | 1756466
 sample_data            | 1756467
-no_mapping_sample_data | null
+no_mapping_sample_data | 2764888
 sample_data            | 2764889
-no_mapping_sample_data | null
+no_mapping_sample_data | 3450232
 sample_data            | 3450233
-no_mapping_sample_data | null
+no_mapping_sample_data | 5033754
 sample_data            | 5033755
-no_mapping_sample_data | null
+no_mapping_sample_data | 8268152
 sample_data            | 8268153
 ;
 
 typeConflictLongUnmappedSortWithCastToKeyword
 required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -2029,19 +2118,19 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 ;
 
 _index:keyword         | event_duration:long
-no_mapping_sample_data | null
+no_mapping_sample_data | 1232381
 sample_data            | 1232382
-no_mapping_sample_data | null
+no_mapping_sample_data | 1756466
 sample_data            | 1756467
-no_mapping_sample_data | null
+no_mapping_sample_data | 2764888
 sample_data            | 2764889
-no_mapping_sample_data | null
+no_mapping_sample_data | 3450232
 sample_data            | 3450233
-no_mapping_sample_data | null
+no_mapping_sample_data | 5033754
 sample_data            | 5033755
-no_mapping_sample_data | null
+no_mapping_sample_data | 725447
 sample_data            | 725448
-no_mapping_sample_data | null
+no_mapping_sample_data | 8268152
 sample_data            | 8268153
 ;
 
@@ -2333,6 +2422,282 @@ sample_data                           | 5033755.0
 sample_data                           | 8268153.0
 ;
 
+################################################################
+# Timeseries with mapped, unmapped, and partially mapped fields #
+################################################################
+
+typeConflictLongUnmappedTimeseriesCastToLong
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| WHERE cluster == "qa"
+| EVAL bytes = network.bytes_in::long
+| STATS min_b = MIN(bytes), max_b = MAX(bytes), c = COUNT(bytes) BY _index
+| SORT _index
+;
+
+min_b:long | max_b:long | c:long | _index:keyword
+1          | 1021       | 82     | k8s
+1          | 1021       | 82     | k8s_unmapped
+;
+
+typeConflictLongUnmappedTimeseriesCastToKeyword
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| WHERE network.bytes_in::long > 1000
+| EVAL bytes = network.bytes_in::keyword
+| KEEP _index, bytes
+| SORT bytes, _index
+;
+
+_index:keyword | bytes:keyword
+k8s            | 1005
+k8s_unmapped   | 1005
+k8s            | 1006
+k8s_unmapped   | 1006
+k8s            | 1007
+k8s_unmapped   | 1007
+k8s            | 1009
+k8s_unmapped   | 1009
+k8s            | 1018
+k8s_unmapped   | 1018
+k8s            | 1021
+k8s_unmapped   | 1021
+;
+
+typeConflictDoubleUnmappedTimeseriesWhereWithCastToDouble
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| WHERE network.cost::double > 12.0
+| EVAL cost = network.cost::keyword
+| KEEP _index, cost
+| SORT _index, cost
+;
+
+_index:keyword | cost:keyword
+k8s            | 12.125
+k8s            | 12.125
+k8s            | 12.125
+k8s            | 12.125
+k8s            | 12.25
+k8s            | 12.375
+k8s            | 12.375
+k8s            | 12.375
+k8s            | 12.5
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.25
+k8s_unmapped   | 12.375
+k8s_unmapped   | 12.375
+k8s_unmapped   | 12.375
+k8s_unmapped   | 12.5
+;
+
+typeConflictLongUnmappedTimeseriesStats
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| STATS s = SUM(network.bytes_in::long), c = COUNT(network.bytes_in::long) BY _index
+| SORT _index
+;
+
+s:long | c:long | _index:keyword
+98808  | 200    | k8s
+98808  | 200    | k8s_unmapped
+;
+
+typeConflictDoubleUnmappedTimeseriesStats
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| STATS avg_cost = AVG(network.cost::double), c = COUNT(network.cost::double) BY _index
+| SORT _index
+;
+
+avg_cost:double | c:long | _index:keyword
+6.423125        | 200    | k8s
+6.423125        | 200    | k8s_unmapped
+;
+
+typeConflictLongUnmappedTimeseriesSortWithCast
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| SORT network.bytes_in::long DESC, _index
+| KEEP _index, network.bytes_in
+| LIMIT 10
+;
+
+_index:keyword | network.bytes_in:long
+k8s            | 1021
+k8s_unmapped   | 1021
+k8s            | 1018
+k8s_unmapped   | 1018
+k8s            | 1009
+k8s_unmapped   | 1009
+k8s            | 1007
+k8s_unmapped   | 1007
+k8s            | 1006
+k8s_unmapped   | 1006
+;
+
+typeConflictLongUnmappedTimeseriesChainedCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| WHERE cluster == "qa"
+| EVAL bytes = network.bytes_in::long::keyword
+| STATS min_b = MIN(bytes), max_b = MAX(bytes), c = COUNT(bytes) BY _index
+| SORT _index
+;
+
+min_b:keyword | max_b:keyword | c:long | _index:keyword
+1             | 995           | 82     | k8s
+1             | 995           | 82     | k8s_unmapped
+;
+
+typeConflictLongUnmappedTimeseriesTsCommandStats
+required_capability: optional_fields_v5
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s, k8s_unmapped METADATA _index
+| STATS s = SUM(network.bytes_in::long), c = COUNT(network.bytes_in::long) BY _index
+| SORT _index
+;
+
+s:long | c:long | _index:keyword
+4852   | 9      | k8s
+4852   | 9      | k8s_unmapped
+;
+
+// region is keyword, mapped in k8s but unmapped in k8s_unmapped.
+// As a PotentiallyUnmappedKeywordEsField, it is loaded from _source for k8s_unmapped.
+tsPartiallyMappedKeywordField
+required_capability: optional_fields_v5
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s, k8s_unmapped METADATA _index
+| STATS r = min(max_over_time(region)) BY time_bucket = bucket(@timestamp, 1minute), _index
+| SORT time_bucket, _index
+| LIMIT 10
+;
+
+r:keyword | time_bucket:datetime     | _index:keyword
+us        | 2024-05-10T00:00:00.000Z | k8s
+us        | 2024-05-10T00:00:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:01:00.000Z | k8s
+us        | 2024-05-10T00:01:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:02:00.000Z | k8s
+us        | 2024-05-10T00:02:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:03:00.000Z | k8s
+us        | 2024-05-10T00:03:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:04:00.000Z | k8s
+us        | 2024-05-10T00:04:00.000Z | k8s_unmapped
+;
+
+// network.bytes_in is long, mapped in k8s but unmapped in k8s_unmapped.
+// Cast to long to resolve it via MultiTypeEsField.
+tsPartiallyMappedNonKeywordFieldWithCast
+required_capability: optional_fields_v5
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s, k8s_unmapped METADATA _index
+| WHERE pod == "one"
+| STATS tx = sum(max_over_time(network.bytes_in :: long)) BY cluster, time_bucket = bucket(@timestamp, 10minute), _index
+| SORT time_bucket, cluster, _index
+| LIMIT 20
+;
+
+tx:long | cluster:keyword | time_bucket:datetime     | _index:keyword
+970     | prod            | 2024-05-10T00:00:00.000Z | k8s
+970     | prod            | 2024-05-10T00:00:00.000Z | k8s_unmapped
+842     | qa              | 2024-05-10T00:00:00.000Z | k8s
+842     | qa              | 2024-05-10T00:00:00.000Z | k8s_unmapped
+753     | staging         | 2024-05-10T00:00:00.000Z | k8s
+753     | staging         | 2024-05-10T00:00:00.000Z | k8s_unmapped
+990     | prod            | 2024-05-10T00:10:00.000Z | k8s
+990     | prod            | 2024-05-10T00:10:00.000Z | k8s_unmapped
+1006    | qa              | 2024-05-10T00:10:00.000Z | k8s
+1006    | qa              | 2024-05-10T00:10:00.000Z | k8s_unmapped
+947     | staging         | 2024-05-10T00:10:00.000Z | k8s
+947     | staging         | 2024-05-10T00:10:00.000Z | k8s_unmapped
+953     | prod            | 2024-05-10T00:20:00.000Z | k8s
+953     | prod            | 2024-05-10T00:20:00.000Z | k8s_unmapped
+917     | qa              | 2024-05-10T00:20:00.000Z | k8s
+917     | qa              | 2024-05-10T00:20:00.000Z | k8s_unmapped
+749     | staging         | 2024-05-10T00:20:00.000Z | k8s
+749     | staging         | 2024-05-10T00:20:00.000Z | k8s_unmapped
+;
+
+###############################################
+# Timeseries with 2x mapped + unmapped fields #
+###############################################
+
+typeConflictLongDoubleUnmappedTimeseriesStats
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_retyped, k8s_unmapped METADATA _index
+| STATS s = SUM(network.bytes_in::double), c = COUNT(network.bytes_in::double) BY _index
+| SORT _index
+;
+
+s:double | c:long | _index:keyword
+98808.0  | 200    | k8s
+98808.0  | 200    | k8s_retyped
+98808.0  | 200    | k8s_unmapped
+;
+
+typeConflictLongDoubleUnmappedTimeseriesCastToKeyword
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_retyped, k8s_unmapped METADATA _index
+| WHERE cluster == "qa"
+| EVAL bytes = network.bytes_in::keyword
+| STATS c = COUNT(bytes) BY _index
+| SORT _index
+;
+
+c:long | _index:keyword
+82     | k8s
+82     | k8s_retyped
+82     | k8s_unmapped
+;
+
+typeConflictDateDateNanosUnmappedTimeseriesStats
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, datenanos-k8s, no_mapping_sample_data METADATA _index
+| EVAL ts = @timestamp::date
+| STATS c = COUNT(ts) BY _index
+| SORT _index
+;
+
+c:long | _index:keyword
+200    | datenanos-k8s
+200    | k8s
+7      | no_mapping_sample_data
+;
+
 ############################################
 # Deeply nested partially unmapped fields  #
 ############################################
@@ -2462,67 +2827,160 @@ addresses_text           | Europe
 addresses_text           | North America
 ;
 
-############################
-# TS with partially mapped #
-############################
+#####################################
+# auto-casting of two-legged PUNKS  #
+#####################################
 
-// region is keyword, mapped in k8s but unmapped in k8s_unmapped.
-// As a PotentiallyUnmappedKeywordEsField, it is loaded from _source for k8s_unmapped.
-tsPartiallyMappedKeywordField
+autocast two-legged long punk
 required_capability: optional_fields_v5
-required_capability: ts_command_v0
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
-TS k8s, k8s_unmapped METADATA _index
-| STATS r = min(max_over_time(region)) BY time_bucket = bucket(@timestamp, 1minute), _index
-| SORT time_bucket, _index
-| LIMIT 10
+FROM k8s_unmapped, k8s_retyped METADATA _index
+# for determinism and keeping output size in check
+| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
+| EVAL 
+    x = network.cost::double,
+    y = sqrt(network.cost)
 ;
 
-r:keyword | time_bucket:datetime     | _index:keyword
-us        | 2024-05-10T00:00:00.000Z | k8s
-us        | 2024-05-10T00:00:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:01:00.000Z | k8s
-us        | 2024-05-10T00:01:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:02:00.000Z | k8s
-us        | 2024-05-10T00:02:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:03:00.000Z | k8s
-us        | 2024-05-10T00:03:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:04:00.000Z | k8s
-us        | 2024-05-10T00:04:00.000Z | k8s_unmapped
+# notes
+# network.cost: A free floating two-legged PUNK is always auto-cast to the mapped typed (LONG in this case).
+#            x: A two-legged PUNKs inside a convert function is never auto-cast. It is read directly from _source. This
+#                   is why some [x] values show more decimal points; no loss of precision! 
+#            y: A two-legged PUNKs inside a non-convert function (math in this case) is always auto-cast to the mapped 
+#                   type, but sqrt(LONG) is always a DOUBLE, hence the column type.
+network.cost:long | x:double | y:double
+9                 | 9.0      | 3.0
+9                 | 9.375    | 3.0
+1                 | 1.0      | 1.0
+1                 | 1.25     | 1.0
+9                 | 9.0      | 3.0
 ;
 
-// network.bytes_in is long, mapped in k8s but unmapped in k8s_unmapped.
-// Cast to long to resolve it via MultiTypeEsField.
-tsPartiallyMappedNonKeywordFieldWithCast
+autocast two-legged double punk
 required_capability: optional_fields_v5
-required_capability: ts_command_v0
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
-TS k8s, k8s_unmapped METADATA _index
-| WHERE pod == "one"
-| STATS tx = sum(max_over_time(network.bytes_in :: long)) BY cluster, time_bucket = bucket(@timestamp, 10minute), _index
-| SORT time_bucket, cluster, _index
-| LIMIT 20
+FROM k8s_unmapped, k8s METADATA _index
+# for determinism and keeping output size in check
+| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
+| EVAL 
+    x = network.cost::double,
+    y = sqrt(network.cost)
 ;
 
-tx:long | cluster:keyword | time_bucket:datetime     | _index:keyword
-970     | prod            | 2024-05-10T00:00:00.000Z | k8s
-970     | prod            | 2024-05-10T00:00:00.000Z | k8s_unmapped
-842     | qa              | 2024-05-10T00:00:00.000Z | k8s
-842     | qa              | 2024-05-10T00:00:00.000Z | k8s_unmapped
-753     | staging         | 2024-05-10T00:00:00.000Z | k8s
-753     | staging         | 2024-05-10T00:00:00.000Z | k8s_unmapped
-990     | prod            | 2024-05-10T00:10:00.000Z | k8s
-990     | prod            | 2024-05-10T00:10:00.000Z | k8s_unmapped
-1006    | qa              | 2024-05-10T00:10:00.000Z | k8s
-1006    | qa              | 2024-05-10T00:10:00.000Z | k8s_unmapped
-947     | staging         | 2024-05-10T00:10:00.000Z | k8s
-947     | staging         | 2024-05-10T00:10:00.000Z | k8s_unmapped
-953     | prod            | 2024-05-10T00:20:00.000Z | k8s
-953     | prod            | 2024-05-10T00:20:00.000Z | k8s_unmapped
-917     | qa              | 2024-05-10T00:20:00.000Z | k8s
-917     | qa              | 2024-05-10T00:20:00.000Z | k8s_unmapped
-749     | staging         | 2024-05-10T00:20:00.000Z | k8s
-749     | staging         | 2024-05-10T00:20:00.000Z | k8s_unmapped
+# notes
+# network.cost: A free floating two-legged PUNK is always auto-cast to the mapped typed (LONG in this case).
+#            x: A two-legged PUNKs inside a convert function is never auto-cast. It is read directly from _source.
+#            y: A two-legged PUNKs inside a non-convert function (math in this case) is always auto-cast to the mapped 
+#               type, but sqrt(LONG) is always a DOUBLE, hence the column type.
+network.cost:double | x:double | y:double
+9.375               | 9.375    | 3.0618621784789726
+9.375               | 9.375    | 3.0618621784789726
+1.25                | 1.25     | 1.118033988749895 
+1.25                | 1.25     | 1.118033988749895 
+9.25                | 9.25     | 3.0413812651491097
 ;
+
+autocast two-legged punk in WHERE
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s_unmapped, k8s_retyped METADATA _index
+| WHERE network.cost >= 1
+# for determinism and keeping output size in check
+| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
+;
+
+# [network.cost] is LONG in k8s_retyped, unmapped in k8s_unmapped
+network.cost:long
+9
+9
+1
+1
+9
+;
+
+autocast two-legged punk in EVAL
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s_unmapped, k8s_retyped METADATA _index
+# for determinism and keeping output size in check
+| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
+| EVAL x = network.cost + 1
+;
+
+# [network.cost] is LONG in k8s_retyped, unmapped in k8s_unmapped
+network.cost:long | x:long
+9                 | 10
+9                 | 10
+1                 | 2
+1                 | 2
+9                 | 10
+;
+
+autocast two-legged punk in STATS
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s_unmapped, k8s_retyped
+| STATS avg_cost = AVG(network.cost), max_cost = MAX(network.cost), min_cost = MIN(network.cost)
+;
+
+# [network.cost] is LONG in k8s_retyped, unmapped in k8s_unmapped
+avg_cost:double | max_cost:long | min_cost:long
+6.245           | 13            | 0
+;
+
+#####################################
+# reproducers from CI failures      #
+#####################################
+
+issue-146036-longer-reproducer
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM dense_vector_arithmetic, no_mapping_s*
+| keep id, client_ip, env 
+| rename id AS language_name
+| stats client_ip = first(greatest(language_name, 4, -72), null)
+;
+
+client_ip:long
+4
+;
+
+issue-146036-shorter-reproducer
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM dense_vector_arithmetic, no_mapping_sample_data
+| KEEP id
+| RENAME id AS language_name
+| EVAL x = GREATEST(language_name, 4, -72)
+;
+ignoreOrder:true
+
+language_name:long | x:long
+0                  | 4
+1                  | 4
+2                  | 4
+3                  | 4
+null               | null
+null               | null
+null               | null
+null               | null
+null               | null
+null               | null
+null               | null
+;
+
+#####################################

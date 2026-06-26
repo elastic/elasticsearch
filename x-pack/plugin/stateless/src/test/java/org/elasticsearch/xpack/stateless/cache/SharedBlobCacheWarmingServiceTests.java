@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,16 +71,21 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 import org.mockito.Mockito;
 
+import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
@@ -616,6 +624,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 // warm up to the endOffset (exclusive)
                 fakeNode.warmingService.warmBlobOffsets(
                     indexShard,
+                    fakeNode.searchDirectory,
                     Map.of(new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()), endOffset),
                     warmListener
                 );
@@ -676,6 +685,387 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     assertThat((long) read, equalTo(testRange.end() - testRange.start()));
                 }
             }
+        }
+    }
+
+    public void testWarmByteRangeIsThrottled() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        // pick small cache geometry so a single vbcc spans many regions, producing many populate tasks for the throttle to coordinate
+        final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
+        final long rangeSizeInBytes = regionSizeInBytes;
+
+        final AtomicInteger inFlightReads = new AtomicInteger();
+        final AtomicInteger maxConcurrentReads = new AtomicInteger();
+        final AtomicInteger totalReads = new AtomicInteger();
+        final SetOnce<String> trackedBlobName = new SetOnce<>();
+
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4))
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(rangeSizeInBytes))
+                    // ratio 0.0 → throttle limit clamped to 1, so at most one populate task can read at a time
+                    .put(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING.getKey(), 0.0)
+                    .put(
+                        SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(),
+                        ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE)
+                    )
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                        if (blobName.equals(trackedBlobName.get()) == false) {
+                            return super.readBlob(purpose, blobName, position, length);
+                        }
+                        int n = inFlightReads.incrementAndGet();
+                        maxConcurrentReads.accumulateAndGet(n, Math::max);
+                        totalReads.incrementAndGet();
+                        // brief delay so concurrent reads, if allowed, can overlap and be observed
+                        safeSleep(20);
+                        InputStream delegate;
+                        try {
+                            delegate = super.readBlob(purpose, blobName, position, length);
+                        } catch (RuntimeException | IOException e) {
+                            inFlightReads.decrementAndGet();
+                            throw e;
+                        }
+                        return new FilterInputStream(delegate) {
+                            private final AtomicBoolean closed = new AtomicBoolean();
+
+                            @Override
+                            public void close() throws IOException {
+                                if (closed.compareAndSet(false, true)) {
+                                    try {
+                                        super.close();
+                                    } finally {
+                                        inFlightReads.decrementAndGet();
+                                    }
+                                }
+                            }
+                        };
+                    }
+                };
+            }
+        }) {
+            // build a vbcc that spans many regions so the byte-range fetch produces multiple populate tasks
+            Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
+            var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(8, 16), false);
+            VirtualBatchedCompoundCommit vbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "fake-node-id",
+                primaryTerm,
+                indexCommits.get(0).getGeneration(),
+                fileName -> uploadedBlobLocations.get(fileName),
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            do {
+                appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+                if (vbcc.getTotalSizeInBytes() > regionSizeInBytes * 8L) {
+                    break;
+                }
+                indexCommits = fakeNode.generateIndexCommits(randomIntBetween(8, 16), false);
+            } while (true);
+            vbcc.freeze();
+
+            // upload the vbcc to the blob store so warming reads from it
+            var indexBlobContainer = fakeNode.getShardContainer();
+            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                indexBlobContainer.writeBlobAtomic(
+                    OperationPurpose.INDICES,
+                    vbcc.getBlobName(),
+                    vbccInputStream,
+                    vbcc.getTotalSizeInBytes(),
+                    true
+                );
+            }
+            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
+            BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
+                fakeNode.searchDirectory,
+                vbcc.lastCompoundCommit().primaryTermAndGeneration(),
+                fakeNode.clusterService.localNode().getId()
+            );
+            uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
+
+            // start counting reads only for the vbcc blob, after upload, to avoid noise from setup
+            trackedBlobName.set(vbcc.getBlobName());
+
+            var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(fakeNode.searchStore);
+            when(indexShard.shardId()).thenReturn(fakeNode.shardId);
+
+            BlobFile blobFile = new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration());
+            PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+            fakeNode.warmingService.warmBlobOffsets(
+                indexShard,
+                fakeNode.searchDirectory,
+                Map.of(blobFile, vbcc.getTotalSizeInBytes()),
+                warmListener
+            );
+            safeGet(warmListener);
+
+            // throttle limit is clamped to 1, so we should never see more than one fetch from the blob store at a time
+            assertThat(maxConcurrentReads.get(), lessThanOrEqualTo(1));
+            // sanity: the warming actually exercised the path enough to make the upper bound meaningful
+            assertThat(totalReads.get(), greaterThan(1));
+            assertThat(inFlightReads.get(), equalTo(0));
+        }
+    }
+
+    /**
+     * Verifies that the per-file {@link org.elasticsearch.common.util.concurrent.ThrottledTaskRunner} inside
+     * {@link SharedBlobCacheWarmingService.AbstractWarmer.WarmBlobByteRangeTask} ensures fair interleaving of
+     * page reads across concurrently warmed files.
+     * <p>
+     * Without the per-file runner, all pages of the first file would flood the central queue before any page of
+     * the second file could enter, causing the second file's early regions to miss the warming timeout. With the
+     * per-file runner (limit 1), the central queue interleaves pages from both files so each file gets its early
+     * regions cached promptly.
+     */
+    public void testWarmByteRangePerFileFairness() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
+        final long rangeSizeInBytes = regionSizeInBytes;
+
+        // Blob names for the two files we will warm concurrently.
+        final long generationA = 1L;
+        final long generationB = 2L;
+        final String blobNameA = StatelessCompoundCommit.blobNameFromGeneration(generationA);
+        final String blobNameB = StatelessCompoundCommit.blobNameFromGeneration(generationB);
+
+        // Track blob-store reads in arrival order (reads are serialised by the central throttle, so no lock needed,
+        // but CopyOnWriteArrayList avoids any visibility concern with the assertion thread).
+        final List<String> readOrder = Collections.synchronizedList(new ArrayList<>());
+
+        // Each outer WarmBlobByteRangeTask counts down once after its fetchRange() call returns, i.e. after it has
+        // submitted the first page of its file to the central queue. readBlob() awaits this latch before returning
+        // so that B's first task is guaranteed to be in the central queue before A's first read completes.
+        final CountDownLatch outerTasksDone = new CountDownLatch(2);
+
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(8))
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(rangeSizeInBytes))
+                    // ratio 0.0 → central throttle limit clamped to 1 (serial reads), making the interleaving order deterministic
+                    .put(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING.getKey(), 0.0)
+                    .put(
+                        SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(),
+                        ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE)
+                    )
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                        if (blobName.equals(blobNameA) || blobName.equals(blobNameB)) {
+                            readOrder.add(blobName);
+                            // Block until both files' outer tasks have returned from fetchRange(), guaranteeing that
+                            // the second file's first page task is already in the central queue when this read
+                            // completes. After the first read the latch is at 0 and subsequent awaits return
+                            // immediately.
+                            safeAwait(outerTasksDone);
+                        }
+                        return super.readBlob(purpose, blobName, position, length);
+                    }
+                };
+            }
+
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    warmingRatioProvider
+                ) {
+                    @Override
+                    protected void scheduleWarmingTask(ActionListener<Releasable> warmTask) {
+                        // Wrap the task so that after its onResponse() returns (i.e. after fetchRange() has
+                        // submitted the file's first page to the central queue) the latch counts down.
+                        super.scheduleWarmingTask(ActionListener.runAfter(warmTask, outerTasksDone::countDown));
+                    }
+                };
+            }
+        }) {
+            // Write two raw blobs of identical content; each spans several cache regions.
+            int regionsPerFile = 5;
+            long blobSize = (long) regionsPerFile * regionSizeInBytes;
+            byte[] data = new byte[Math.toIntExact(blobSize)];
+            random().nextBytes(data);
+
+            var shardContainer = fakeNode.getShardContainer();
+            shardContainer.writeBlobAtomic(OperationPurpose.INDICES, blobNameA, new ByteArrayInputStream(data), blobSize, true);
+            shardContainer.writeBlobAtomic(OperationPurpose.INDICES, blobNameB, new ByteArrayInputStream(data), blobSize, true);
+
+            // Mark both blobs as uploaded so the cache-blob-reader routes reads through the object store.
+            var latestTermAndGen = new PrimaryTermAndGeneration(primaryTerm, generationB);
+            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, latestTermAndGen);
+
+            var blobFileA = new BlobFile(blobNameA, new PrimaryTermAndGeneration(primaryTerm, generationA));
+            var blobFileB = new BlobFile(blobNameB, new PrimaryTermAndGeneration(primaryTerm, generationB));
+
+            var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(fakeNode.searchStore);
+            when(indexShard.shardId()).thenReturn(fakeNode.shardId);
+
+            PlainActionFuture<Void> warmFuture = new PlainActionFuture<>();
+            fakeNode.warmingService.warmBlobOffsets(
+                indexShard,
+                fakeNode.searchDirectory,
+                Map.of(blobFileA, blobSize, blobFileB, blobSize),
+                warmFuture
+            );
+            safeGet(warmFuture);
+
+            // Both blobs must have been read.
+            assertThat("expected reads from blob A", readOrder.contains(blobNameA), is(true));
+            assertThat("expected reads from blob B", readOrder.contains(blobNameB), is(true));
+
+            // With the per-file runner, reads from the two files interleave: each file's first region must be read
+            // before the other file's last region. Without the per-file runner the central queue drains all of A's
+            // pages before any of B's, so firstB >= lastA and these assertions would fail.
+            int firstA = readOrder.indexOf(blobNameA);
+            int firstB = readOrder.indexOf(blobNameB);
+            int lastA = readOrder.lastIndexOf(blobNameA);
+            int lastB = readOrder.lastIndexOf(blobNameB);
+            assertThat(
+                "per-file runner must interleave: first read of B before last read of A; readOrder=" + readOrder,
+                firstB,
+                lessThan(lastA)
+            );
+            assertThat(
+                "per-file runner must interleave: first read of A before last read of B; readOrder=" + readOrder,
+                firstA,
+                lessThan(lastB)
+            );
+        }
+    }
+
+    /**
+     * Verifies that the store ref acquired at the start of warmCache is released as soon as all warming tasks are
+     * enqueued, not held until the tasks complete. This matters because a queued-but-not-yet-run task must not
+     * prevent shard closure: after a search-recovery timeout the shard may need to close and re-assign while
+     * background warming tasks are still sitting in the queue.
+     */
+    public void testStoreRefReleasedBeforeTaskExecution() throws Exception {
+        long primaryTerm = randomLongBetween(1, 10);
+        var capturedTasks = new ArrayList<ActionListener<Releasable>>();
+
+        try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(2))
+                    .put(
+                        SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+                        ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * 4L)
+                    )
+                    // disable offline warming: FakeStatelessNode has no BCC blob data, so
+                    // readReferencedCompoundCommitsUsingCache would hang the async chain
+                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.getKey(), false)
+                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false)
+                    .build();
+            }
+
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    warmingRatioProvider
+                ) {
+                    @Override
+                    protected void scheduleWarmingTask(ActionListener<Releasable> task) {
+                        capturedTasks.add(task);
+                    }
+                };
+            }
+        }) {
+            long generation = randomLongBetween(3, 42);
+            var blobFile = new BlobFile(
+                StatelessCompoundCommit.blobNameFromGeneration(generation),
+                new PrimaryTermAndGeneration(primaryTerm, generation)
+            );
+            // A commit with a handful of files; no real blob data needed — tasks are intercepted before execution
+            var commit = TestUtils.getCommitWithInternalFilesReplicatedRanges(
+                node.shardId,
+                blobFile,
+                node.node.getEphemeralId(),
+                0,
+                node.sharedCacheService.getRegionSize()
+            );
+
+            var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(node.searchStore);
+            when(indexShard.shardId()).thenReturn(node.shardId);
+            when(indexShard.state()).thenReturn(IndexShardState.RECOVERING);
+            when(indexShard.routingEntry()).thenReturn(
+                TestShardRouting.newShardRouting(node.shardId, node.node.getId(), true, ShardRoutingState.INITIALIZING)
+            );
+
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            node.warmingService.warmCache(SEARCH, indexShard, commit, node.searchDirectory, null, false, future);
+
+            // All tasks are enqueued (captured) but none has run yet.
+            assertThat("expect at least one warming task to be enqueued", capturedTasks.isEmpty(), is(false));
+            assertFalse("warmCache listener must not have fired while tasks are still pending", future.isDone());
+
+            // Closing the store releases the self-ref. If warmCache still held a ref, hasReferences() would
+            // remain true. With the fix the store ref is released in warmCache's finally block, so the store
+            // closes fully here.
+            node.searchStore.close();
+            assertFalse(
+                "store ref must be released by warmCache before tasks execute, not held until they complete",
+                node.searchStore.hasReferences()
+            );
+
+            // Drain captured tasks: store is now closing so isCancelled() = true → tasks skip all blob reads
+            // and release their listener chain, which eventually fires the warmCache listener.
+            for (var task : capturedTasks) {
+                task.onResponse(() -> {});
+            }
+            safeGet(future);
         }
     }
 
@@ -1142,10 +1532,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(readEnd - readStart)), readStart)
                         );
                     }
-                    // The region immediately after the header should NOT be cached, but we must skip the footer region.
+                    // The region immediately after the header should NOT be cached, but we must skip
+                    // any region covered by the footer (which may start one region before the file's last region
+                    // when the 16-byte Lucene footer straddles a region boundary).
                     int firstUncachedRegion = lastHeaderRegion + 1;
-                    int footerRegion = node.sharedCacheService.getEndingRegion(loc.offset() + loc.fileLength());
-                    if (firstUncachedRegion < footerRegion) {
+                    // footer occupies [fileLength - footerLength, fileLength); use its start region as the guard
+                    int footerStartRegion = node.sharedCacheService.getRegion(loc.offset() + loc.fileLength() - CodecUtil.footerLength());
+                    if (firstUncachedRegion < footerStartRegion) {
                         long uncachedRegionStart = (long) firstUncachedRegion * regionSize;
                         assertFalse(
                             fileName + " region " + firstUncachedRegion + " (after header) should NOT be cached",

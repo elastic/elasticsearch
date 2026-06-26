@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -25,6 +26,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessage;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -100,9 +103,13 @@ public class MockTransport extends StubbableTransport {
         } else {
             final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
-                response.writeTo(output);
+                if (response instanceof BytesTransportMessage bytesResponse) {
+                    BytesTransportMessageTestUtils.writeThinWithBytes(output, bytesResponse);
+                } else {
+                    response.writeTo(output);
+                }
                 deliveredResponse = transportResponseHandler.read(
-                    new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writeableRegistry())
+                    new NamedWriteableAwareStreamInput(ReleasableBytesReference.wrap(output.bytes()).streamInput(), writeableRegistry())
                 );
             } catch (IOException | UnsupportedOperationException e) {
                 throw new AssertionError("failed to serialize/deserialize response " + response, e);

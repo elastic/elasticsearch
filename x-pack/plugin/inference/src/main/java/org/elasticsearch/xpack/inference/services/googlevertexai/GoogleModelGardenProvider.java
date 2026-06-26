@@ -40,9 +40,12 @@ public enum GoogleModelGardenProvider {
     GOOGLE(
         CompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_COMPLETION_HANDLER,
         ChatCompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER,
+        // Pass the full task settings so the entity can fall back to the configured maxTokens when
+        // the per-request value is null.
         (unifiedChatInput, modelId, taskSettings) -> new GoogleVertexAiUnifiedChatCompletionRequestEntity(
             unifiedChatInput,
-            taskSettings.thinkingConfig()
+            taskSettings.thinkingConfig(),
+            taskSettings.maxTokens()
         )
     ),
     ANTHROPIC(

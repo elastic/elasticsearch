@@ -51,7 +51,6 @@ import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -64,12 +63,14 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
@@ -79,6 +80,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
@@ -713,7 +715,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
-    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
         ArrayList<IndexResult> results = new ArrayList<>(operations.size());
         for (Index index : operations) {
             results.add(index(index));
@@ -943,7 +945,7 @@ public abstract class Engine implements Closeable {
             if (uncachedLookup) {
                 docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), loadSeqNo);
             } else {
-                docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), get.uid(), loadSeqNo);
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), loadSeqNo);
             }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
@@ -1043,13 +1045,18 @@ public abstract class Engine implements Closeable {
         SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary
     ) throws EngineException {
-        return acquireSearcherSupplier(wrapper, scope, splitShardCountSummary, getReferenceManager(scope));
+        return acquireSearcherSupplier(
+            wrapper,
+            scope,
+            r -> wrapExternalDirectoryReader(r, splitShardCountSummary),
+            getReferenceManager(scope)
+        );
     }
 
     protected SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
-        SplitShardCountSummary splitShardCountSummary,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> externalDirectoryReaderWrapper,
         ReferenceManager<ElasticsearchDirectoryReader> referenceManager
     ) throws EngineException {
         /* Acquire order here is store -> manager since we need
@@ -1060,12 +1067,12 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            ElasticsearchDirectoryReader acquiredReader = referenceManager.acquire();
             final DirectoryReader maybeWrappedDirectoryReader;
             if (scope == SearcherScope.EXTERNAL) {
-                maybeWrappedDirectoryReader = wrapExternalDirectoryReader(acquire, splitShardCountSummary);
+                maybeWrappedDirectoryReader = externalDirectoryReaderWrapper.apply(acquiredReader);
             } else {
-                maybeWrappedDirectoryReader = acquire;
+                maybeWrappedDirectoryReader = acquiredReader;
             }
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
@@ -1085,7 +1092,7 @@ public abstract class Engine implements Closeable {
                 @Override
                 protected void doClose() {
                     try {
-                        referenceManager.release(acquire);
+                        referenceManager.release(acquiredReader);
                     } catch (IOException e) {
                         throw new UncheckedIOException("failed to close", e);
                     } catch (AlreadyClosedException e) {
@@ -1155,6 +1162,16 @@ public abstract class Engine implements Closeable {
     }
 
     protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);
+
+    /**
+     * Returns whether this engine has performed a document-id lookup (resolving a document via its {@code _id} to its sequence number /
+     * version, as part of an update, delete, or versioned index operation) within the last {@code recencyThreshold}.
+     * <p>
+     * The default implementation returns {@code false}; engines that track id lookups should override this.
+     */
+    public boolean hasRecentIdLookup(TimeValue recencyThreshold) {
+        return false;
+    }
 
     boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
         return true;
@@ -1997,13 +2014,13 @@ public abstract class Engine implements Closeable {
             return this.doc.docs();
         }
 
-        public BytesReference source() {
+        public SourceToParse.Source source() {
             return this.doc.source();
         }
 
         @Override
         public int estimatedSizeInBytes() {
-            return (id().length() * 2) + source().length() + 12;
+            return (id().length() * 2) + source().estimatedSizeInBytes() + 12;
         }
 
         /**

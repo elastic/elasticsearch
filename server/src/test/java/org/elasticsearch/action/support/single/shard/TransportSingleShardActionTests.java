@@ -311,4 +311,5 @@ public class TransportSingleShardActionTests extends ESTestCase {
             return new PlainShardsIterator(List.of(shardRouting));
         }
     }
+
 }

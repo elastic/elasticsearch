@@ -44,7 +44,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -58,9 +57,11 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ReindexCancelRelocationIT extends ESIntegTestCase {
@@ -75,11 +76,6 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
     // RPS keeps each slice well under 1s so the reindex doesn't sleep through relocation
     private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
-
-    @BeforeClass
-    public static void skipSetupIfReindexResilienceDisabled() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -144,7 +140,8 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
             assertTrue("relocation handoff must reach the destination within 60s", resumeReceivedOnDestination.await(60, TimeUnit.SECONDS));
 
             // Drive the cancel through the cancel-reindex API. This must surface the 503 service-unavailable raised by
-            // BulkByScrollTask.ensureCancellable() rather than swallowing it as a not-found, regardless of the underlying delegation.
+            // BulkByPaginatedSearchTask.ensureCancellable() rather than swallowing it as a not-found, regardless of the underlying
+            // delegation.
             final ElasticsearchException cancelReindexFailure = expectThrows(
                 ElasticsearchException.class,
                 () -> client().execute(TransportCancelReindexAction.TYPE, new CancelReindexRequest(originalTaskId, false))
@@ -207,6 +204,11 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
         final TaskId originalTaskId = startAsyncThrottledReindexOnNode(shutdownNode);
         assertThat("original task should be on the to-be-shutdown node", originalTaskId.getNodeId(), equalTo(nodeIdByName(shutdownNode)));
 
+        final long originalStartTimeMillis = client().execute(
+            TransportGetReindexAction.TYPE,
+            new GetReindexRequest(originalTaskId, false, TimeValue.timeValueSeconds(30))
+        ).actionGet().getTaskResult().getTask().startTime();
+
         // Trigger relocation; this blocks until the source has handed off to the destination and the .tasks index records the relocation.
         internalCluster().getInstance(ShutdownPrepareService.class, shutdownNode).prepareForShutdown();
         ensureGreen(TaskResultsService.TASK_INDEX);
@@ -225,6 +227,7 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
         unthrottleReindex(relocatedTaskId);
 
         // Cancel via the original (stale) task id — this exercises cancel-tasks's originalTaskId match end-to-end.
+        final long timeMillisBeforeCancel = System.currentTimeMillis();
         final CancelReindexResponse cancelResponse = client().execute(
             TransportCancelReindexAction.TYPE,
             new CancelReindexRequest(originalTaskId, true)
@@ -234,11 +237,19 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
         assertThat(
             "cancelled response embeds a completed GetReindexResponse",
             body,
-            allOf(Matchers.<String, Object>hasEntry("cancelled", true), Matchers.<String, Object>hasEntry("completed", true))
+            allOf(Matchers.hasEntry("cancelled", true), Matchers.hasEntry("completed", true))
         );
+        assertThat(body.get("id"), equalTo(originalTaskId.toString()));
+        assertThat(body.get("start_time_in_millis"), equalTo(originalStartTimeMillis));
+        // we have millisecond precision here, so leave space for 1ms because runningTimeInNanos has nanosecond resolution
+        final long expectedMinimumRunningTimeMillis = TimeUnit.MILLISECONDS.toNanos(timeMillisBeforeCancel - originalStartTimeMillis - 1);
+        assertThat(((Number) body.get("running_time_in_nanos")).longValue(), greaterThanOrEqualTo(expectedMinimumRunningTimeMillis));
+        assertThat(body.get("original_task_id"), is(nullValue()));
+        assertThat(body.get("original_start_time_in_millis"), is(nullValue()));
         @SuppressWarnings("unchecked")
         final Map<String, Object> status = (Map<String, Object>) body.get("status");
-        assertThat("task was cancelled by user request", status, Matchers.<String, Object>hasEntry("canceled", "by user request"));
+        // the status.canceled message varies depending on what code first discovers that the reindex task is canceled
+        assertThat("task was cancelled", status.get("canceled"), notNullValue());
 
         assertBusy(() -> assertThat("no reindex task should remain after cancellation", listReindexParentTasks(), hasSize(0)));
     }

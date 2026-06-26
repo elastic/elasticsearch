@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -59,6 +60,64 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
     public void testMixedTypesInferKeyword() {
         assertEquals(DataType.KEYWORD, HivePartitionDetector.inferType(List.of("2024", "hello")));
+    }
+
+    /**
+     * Standard metadata names are dedicated: a partition directory claiming one (here
+     * {@code /_index=…/}) surfaces under the {@code _partition.} prefix so {@code METADATA _index}
+     * keeps its spec meaning (dataset name) while the layout's value stays queryable. Values and
+     * types follow the rename; non-colliding keys are untouched.
+     */
+    public void testReservedMetadataNameSurfacesUnderPartitionPrefix() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/_index=alpha/year=2024/file1.parquet"),
+            entry("s3://bucket/data/_index=beta/year=2023/file2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(2, result.partitionColumns().size());
+        assertFalse("reserved name must not surface as-is", result.partitionColumns().containsKey("_index"));
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
+
+        Map<String, Object> file1 = result.filePartitionValues()
+            .get(StoragePath.of("s3://bucket/data/_index=alpha/year=2024/file1.parquet"));
+        assertEquals("alpha", file1.get("_partition._index"));
+        assertEquals(2024, file1.get("year"));
+
+        assertWarnings(
+            "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+            "partition column [_index] surfaced as [_partition._index]"
+        );
+    }
+
+    /**
+     * {@code _tier} is a snapshot-gated standard metadata name, but reservation is build-mode
+     * independent: a {@code /_tier=…/} layout is renamed to {@code _partition._tier} in release
+     * builds too, so the same dataset surfaces the same column names regardless of build.
+     */
+    public void testSnapshotGatedReservedNameStillRenamedInReleaseBuilds() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/_tier=hot/file1.parquet"),
+            entry("s3://bucket/data/_tier=cold/file2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertFalse("snapshot-gated reserved name must not surface as-is", result.partitionColumns().containsKey("_tier"));
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._tier"));
+        assertEquals(
+            "hot",
+            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/_tier=hot/file1.parquet")).get("_partition._tier")
+        );
+
+        assertWarnings(
+            "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+            "partition column [_tier] surfaced as [_partition._tier]"
+        );
     }
 
     public void testInconsistentKeysReturnsEmpty() {
@@ -187,6 +246,81 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
         PartitionMetadata result = detector.detect(files, Map.of("irrelevant", "value"));
         assertFalse(result.isEmpty());
+    }
+
+    public void testHiveDefaultPartitionAlone() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/file.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
+        // month has only the Hive null sentinel; with no concrete values it should still be parseable as INTEGER
+        // and the per-file value should be null, not the literal sentinel string.
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
+
+        Map<String, Object> partitions = result.filePartitionValues()
+            .get(StoragePath.of("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/file.parquet"));
+        assertEquals(2024, partitions.get("year"));
+        assertNull(partitions.get("month"));
+    }
+
+    public void testHiveDefaultPartitionMixedWithIntegers() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2024/month=06/f1.parquet"),
+            entry("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/f2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
+
+        Map<String, Object> p1 = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/year=2024/month=06/f1.parquet"));
+        assertEquals(6, p1.get("month"));
+
+        Map<String, Object> p2 = result.filePartitionValues()
+            .get(StoragePath.of("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/f2.parquet"));
+        assertNull(p2.get("month"));
+    }
+
+    public void testHiveDefaultPartitionMixedWithStrings() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/region=us-east/f1.parquet"),
+            entry("s3://bucket/data/region=__HIVE_DEFAULT_PARTITION__/f2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("region"));
+
+        Map<String, Object> p1 = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/region=us-east/f1.parquet"));
+        assertEquals("us-east", p1.get("region"));
+
+        Map<String, Object> p2 = result.filePartitionValues()
+            .get(StoragePath.of("s3://bucket/data/region=__HIVE_DEFAULT_PARTITION__/f2.parquet"));
+        assertNull(p2.get("region"));
+    }
+
+    public void testInferTypeSkipsNullsInteger() {
+        assertEquals(DataType.INTEGER, HivePartitionDetector.inferType(Arrays.asList("1", null, "2")));
+    }
+
+    public void testInferTypeSkipsNullsDouble() {
+        assertEquals(DataType.DOUBLE, HivePartitionDetector.inferType(Arrays.asList("1.5", null, "2.7")));
+    }
+
+    public void testInferTypeSkipsNullsBoolean() {
+        assertEquals(DataType.BOOLEAN, HivePartitionDetector.inferType(Arrays.asList("true", null, "false")));
+    }
+
+    public void testCastValueNullReturnsNull() {
+        assertNull(HivePartitionDetector.castValue(null, DataType.INTEGER));
+        assertNull(HivePartitionDetector.castValue(null, DataType.LONG));
+        assertNull(HivePartitionDetector.castValue(null, DataType.DOUBLE));
+        assertNull(HivePartitionDetector.castValue(null, DataType.BOOLEAN));
+        assertNull(HivePartitionDetector.castValue(null, DataType.KEYWORD));
     }
 
     private static StorageEntry entry(String path) {

@@ -50,22 +50,22 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
     private final TransportService transportService;
-    private final Executor esqlExecutor;
+    private final Executor searchExecutor;
     private final DataNodeComputeHandler dataNodeComputeHandler;
 
     ClusterComputeHandler(
         ComputeService computeService,
         ExchangeService exchangeService,
         TransportService transportService,
-        Executor esqlExecutor,
+        Executor searchExecutor,
         DataNodeComputeHandler dataNodeComputeHandler
     ) {
         this.computeService = computeService;
         this.exchangeService = exchangeService;
-        this.esqlExecutor = esqlExecutor;
+        this.searchExecutor = searchExecutor;
         this.transportService = transportService;
         this.dataNodeComputeHandler = dataNodeComputeHandler;
-        transportService.registerRequestHandler(ComputeService.CLUSTER_ACTION_NAME, esqlExecutor, ClusterComputeRequest::new, this);
+        transportService.registerRequestHandler(ComputeService.CLUSTER_ACTION_NAME, searchExecutor, ClusterComputeRequest::new, this);
     }
 
     void startComputeOnRemoteCluster(
@@ -105,7 +105,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             cluster.connection,
             childSessionId,
             queryPragmas.exchangeBufferSize(),
-            esqlExecutor,
+            searchExecutor,
             listener.delegateFailure((l, unused) -> {
                 final CancellableTask groupTask;
                 final Runnable onGroupFailure;
@@ -139,7 +139,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         clusterRequest,
                         groupTask,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
+                        new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, searchExecutor)
                     );
                     var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
@@ -157,7 +157,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             var builder = new EsqlExecutionInfo.Cluster.Builder(v);
-            if (executionInfo.isMainPlan()) {
+            // Update shard counts from the main plan, or from an IN-subquery subplan for remote-only clusters.
+            // For INLINE STATS subplans, skip shard count updates here — the main plan will set the definitive values.
+            if (executionInfo.isMainPlan() || executionInfo.isSubqueryJoinSubPlan()) {
                 builder.setTotalShards(resp.getTotalShards())
                     .setSuccessfulShards(resp.getSuccessfulShards())
                     .setSkippedShards(resp.getSkippedShards())

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.ndjson;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -17,7 +18,9 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Parameterized integration tests for compressed NDJSON files (.ndjson.gz, .ndjson.zst, .ndjson.zstd, .ndjson.bz2, .ndjson.bz).
@@ -26,10 +29,28 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
-    private static final List<String> COMPRESSED_FORMATS = List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd", "ndjson.bz2", "ndjson.bz");
+    // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
+    // builds, so .ndjson.bz2/.ndjson.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
+    private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
+        ? List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd", "ndjson.bz2", "ndjson.bz")
+        : List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+
+    /** Same SchemaAdaptingIterator limitation as the uncompressed NDJSON IT — see {@link NdJsonFormatSpecIT}. */
+    private static final Set<String> SKIPPED_TESTS = Set.of(
+        "strictCount",
+        "strictFilterAndSort",
+        "strictSalaryStats",
+        "strictAggregateByGender",
+        "ubnCount",
+        "ubnExplicitCount",
+        "readAllEmployeesMultiFile",
+        "multiFileDistinctFileCount",
+        "multiFileGroupByFile",
+        "multiFileMetadataSizePositive"
+    );
 
     public NdJsonCompressedFormatSpecIT(
         String fileName,
@@ -49,8 +70,29 @@ public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTest
         return cluster.getHttpAddresses();
     }
 
+    // Migrated specs run via FROM <dataset> on S3 (the anonymous-capable fixture backs a dataset without
+    // a cluster encryption key) and via the rebuilt EXTERNAL query on the other backends, so none are skipped.
+    @Override
+    protected Set<StorageBackend> datasetModeBackends() {
+        return Set.of(StorageBackend.S3);
+    }
+
+    @Override
+    protected void shouldSkipTest(String testName) throws IOException {
+        if (SKIPPED_TESTS.contains(testName)) {
+            assumeTrue(testName + " not supported by NDJSON multi-file path (SchemaAdaptingIterator limitation)", false);
+        }
+        super.shouldSkipTest(testName);
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/external-basic.csv-spec");
+        return readExternalSpecTestsWithFormats(
+            COMPRESSED_FORMATS,
+            "/external-basic.csv-spec",
+            "/external-multifile.csv-spec",
+            "/external-multifile-resolution.csv-spec",
+            "/external-multivalue.csv-spec"
+        );
     }
 }

@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
@@ -75,6 +77,162 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(value.length()),
             matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1)
         );
+    }
+
+    /**
+     * {@code field_extract(<flattened>, "<key>")} must fuse into a per-key doc-values
+     * load via {@link KeyedFlattenedDocValuesBlockLoader} (its {@code SortedSetKeyedBlockDocValuesReader}
+     * for non-time-series indices). The profile signature
+     * {@code test:column_at_a_time:SortedSetKeyedBlockDocValuesReader} is the proof that the rewrite
+     * reached the data node and the keyed loader was actually used to read values.
+     */
+    public void testFieldExtractFusesToKeyedFlattenedLoader() throws IOException {
+        assumeTrue(
+            "fn_field_extract must be enabled (field_extract registered for this build)",
+            FieldExtract.isFnFieldExtractCapabilityMet()
+        );
+        String hostName = "host-" + randomAlphaOfLength(8);
+        test(
+            justType("flattened"),
+            b -> b.startObject("test").field("host.name", hostName).endObject(),
+            "| EVAL test = field_extract(test, \"host.name\")",
+            matchesList().item(hostName),
+            matchesMap().entry("test:column_at_a_time:SortedSetKeyedBlockDocValuesReader", 1)
+        );
+    }
+
+    /**
+     * Same fusion as {@link #testFieldExtractFusesToKeyedFlattenedLoader} but in time-series mode.
+     * TSDB stores flattened keyed values in binary doc values, so the keyed loader returns its
+     * {@code BinaryKeyedBlockDocValuesReader} variant instead of the
+     * {@code SortedSetKeyedBlockDocValuesReader} the standard test asserts on. Together this and
+     * {@link #testFieldExtractFusesToKeyedFlattenedLoaderInLogsDbMode} cover the
+     * binary-doc-values code path; a regression in either deployment would otherwise go silent.
+     */
+    public void testFieldExtractFusesToKeyedFlattenedLoaderInTimeSeriesMode() throws IOException {
+        String hostName = "host-" + randomAlphaOfLength(8);
+        createTestIndex(timeSeriesIndexBody());
+        bulkIndexIntoTest(
+            List.of(
+                Map.of("@timestamp", "2024-04-15T00:00:00Z", "dim", "d-" + randomAlphaOfLength(4), "test", Map.of("host.name", hostName))
+            )
+        );
+        assertFieldExtractFusesToBinaryKeyedFlattenedLoader(hostName);
+    }
+
+    /**
+     * Logsdb is the other index mode that uses binary doc values for flattened keyed sub-fields
+     * (any {@code IndexMode.isColumnar()} mode opts in via {@code useTimeSeriesDocValuesFormat}),
+     * so the keyed loader returns {@code BinaryKeyedBlockDocValuesReader} here too. The test just
+     * mirrors the TSDB sibling with logsdb-shaped index settings (mode=logsdb plus an
+     * {@code @timestamp} field, no routing dimension required).
+     */
+    public void testFieldExtractFusesToKeyedFlattenedLoaderInLogsDbMode() throws IOException {
+        String hostName = "host-" + randomAlphaOfLength(8);
+        createTestIndex(logsdbIndexBody());
+        bulkIndexIntoTest(List.of(Map.of("@timestamp", "2024-04-15T00:00:00Z", "test", Map.of("host.name", hostName))));
+        assertFieldExtractFusesToBinaryKeyedFlattenedLoader(hostName);
+    }
+
+    /**
+     * Shared body for the two binary-doc-values modes: runs the {@code field_extract} query against
+     * the {@code "test"} index already populated by the caller, asserts the value round-trips, and
+     * asserts that the data-driver profile shows a single
+     * {@code test:column_at_a_time:BinaryKeyedBlockDocValuesReader}.
+     */
+    private void assertFieldExtractFusesToBinaryKeyedFlattenedLoader(String hostName) throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+
+        Map<String, Object> result = runEsql(requestObjectBuilder().query("""
+            FROM test
+            | EVAL test = field_extract(test, "host.name")
+            | STATS test = MV_SORT(VALUES(test))
+            """).profile(true), new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) result.get("values");
+        assertEquals(List.of(List.of(hostName)), values);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        boolean assertedDataDriver = false;
+        for (Map<String, Object> p : profiles) {
+            if ("data".equals(p.get("description")) == false) {
+                continue;
+            }
+            assertedDataDriver = true;
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            checkOperatorProfile(
+                "data",
+                operators,
+                List.of(matchesMap().entry("test:column_at_a_time:BinaryKeyedBlockDocValuesReader", 1))
+            );
+        }
+        assertTrue("expected the data driver profile to assert the keyed loader signature", assertedDataDriver);
+    }
+
+    private static String timeSeriesIndexBody() {
+        return """
+            {
+              "settings": {
+                "index": {
+                  "mode": "time_series",
+                  "routing_path": ["dim"],
+                  "number_of_shards": 1,
+                  "time_series": {
+                    "start_time": "2024-04-14T00:00:00Z",
+                    "end_time": "2024-04-16T00:00:00Z"
+                  }
+                }
+              },
+              "mappings": {
+                "properties": {
+                  "@timestamp": { "type": "date" },
+                  "dim": { "type": "keyword", "time_series_dimension": true },
+                  "test": { "type": "flattened" }
+                }
+              }
+            }
+            """;
+    }
+
+    private static String logsdbIndexBody() {
+        return """
+            {
+              "settings": { "index": { "mode": "logsdb", "number_of_shards": 1 } },
+              "mappings": {
+                "properties": {
+                  "@timestamp": { "type": "date" },
+                  "test": { "type": "flattened" }
+                }
+              }
+            }
+            """;
+    }
+
+    private void createTestIndex(String body) throws IOException {
+        deleteIndexIfExists("test");
+        Request createIndex = new Request("PUT", "test");
+        createIndex.setJsonEntity(body);
+        Response response = client().performRequest(createIndex);
+        assertThat(
+            entityToMap(response.getEntity(), XContentType.JSON),
+            matchesMap().entry("shards_acknowledged", true).entry("index", "test").entry("acknowledged", true)
+        );
+    }
+
+    private void bulkIndexIntoTest(List<Map<String, Object>> docs) throws IOException {
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "");
+        StringBuilder body = new StringBuilder();
+        for (Map<String, Object> doc : docs) {
+            body.append("{\"create\":{\"_index\":\"test\"}}\n");
+            body.append(Strings.toString(JsonXContent.contentBuilder().map(doc))).append("\n");
+        }
+        bulk.setJsonEntity(body.toString());
+        Response response = client().performRequest(bulk);
+        assertThat(entityToMap(response.getEntity(), XContentType.JSON), matchesMap().entry("errors", false).extraOk());
     }
 
     /**
@@ -141,17 +299,14 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     public void testMvMinToKeywordHighCardinality() throws IOException {
         String min = "a".repeat(between(1, 256));
         String max = "b".repeat(between(1, 256));
-        test(
-            b -> b.startObject("test")
-                .field("type", "keyword")
-                .startObject("doc_values")
-                .field("cardinality", "high")
-                .endObject()
-                .endObject(),
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MIN(test)",
             matchesList().item(min),
-            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.SeparateCount", 1)
+            // High-cardinality keyword now stores values as ArrayOrderInlineNull binary doc values; MV_MIN pushdown is disabled for
+            // that encoding (see KeywordFieldType#supportsBlockLoaderConfig), so values are loaded with the generic reader instead.
+            matchesMap().entry("test:column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount", 1)
         );
     }
 
@@ -266,17 +421,14 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     public void testMvMaxToKeywordHighCardinality() throws IOException {
         String min = "a".repeat(between(1, 256));
         String max = "b".repeat(between(1, 256));
-        test(
-            b -> b.startObject("test")
-                .field("type", "keyword")
-                .startObject("doc_values")
-                .field("cardinality", "high")
-                .endObject()
-                .endObject(),
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
-            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.SeparateCount", 1)
+            // High-cardinality keyword now stores values as ArrayOrderInlineNull binary doc values; MV_MAX pushdown is disabled for
+            // that encoding (see KeywordFieldType#supportsBlockLoaderConfig), so values are loaded with the generic reader instead.
+            matchesMap().entry("test:column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount", 1)
         );
     }
 
@@ -1040,7 +1192,42 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Map<String, List<MapMatcher>> expectedLoadersPerDriver,
         Consumer<List<String>> assertDataNodeSig
     ) throws IOException {
-        test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, null);
+        test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, null, null);
+    }
+
+    /**
+     * Runs a {@code MV_MIN}/{@code MV_MAX} pushdown test against a strict-columnar index so the keyword field gets HIGH-cardinality binary
+     * doc values, exercising the {@code FromBinary.SeparateCount} block loaders instead of the SortedSet ordinal loaders.
+     */
+    private void testHighCardinality(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String eval,
+        Matcher<?> expectedValue,
+        MapMatcher expectedLoaders
+    ) throws IOException {
+        test(
+            mapping,
+            doc,
+            """
+                FROM test
+                """ + eval + """
+                | STATS test = MV_SORT(VALUES(test))
+                """,
+            expectedValue,
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of("data", List.of(expectedLoaders)),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            ),
+            null,
+            IndexMode.COLUMNAR.getName()
+        );
     }
 
     private void test(
@@ -1053,7 +1240,21 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Consumer<List<String>> assertDataNodeSig,
         Settings pragmas
     ) throws IOException {
-        indexValue(mapping, doc);
+        test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, pragmas, null);
+    }
+
+    private void test(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String query,
+        Matcher<?> expectedValue,
+        Matcher<?> columnMatcher,
+        Map<String, List<MapMatcher>> expectedLoadersPerDriver,
+        Consumer<List<String>> assertDataNodeSig,
+        Settings pragmas,
+        String indexMode
+    ) throws IOException {
+        indexValue(mapping, doc, indexMode);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
         if (pragmas != null) {
             builder.pragmasOk().pragmas(pragmas);
@@ -1071,6 +1272,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("planning", matchesMap().extraOk())
                     .entry("parsing", matchesMap().extraOk())
                     .entry("view_resolution", matchesMap().extraOk())
+                    .entry("dataset_resolution", matchesMap().extraOk())
                     .entry("preanalysis", matchesMap().extraOk())
                     .entry("indices_resolution", matchesMap().extraOk())
                     .entry("enrich_resolution", matchesMap().extraOk())
@@ -1111,6 +1313,14 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
     private void indexValue(CheckedConsumer<XContentBuilder, IOException> mapping, CheckedConsumer<XContentBuilder, IOException> doc)
         throws IOException {
+        indexValue(mapping, doc, null);
+    }
+
+    private void indexValue(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String indexMode
+    ) throws IOException {
         try {
             // Delete the index if it has already been created.
             client().performRequest(new Request("DELETE", "test"));
@@ -1128,6 +1338,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 config.startObject("index");
                 config.field("number_of_shards", 1);
                 config.field("mapping.use_doc_values_skipper", true);
+                if (indexMode != null) {
+                    config.field("mode", indexMode);
+                }
                 config.endObject();
             }
             config.endObject();
@@ -1204,7 +1417,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     private static String lookupOperatorName() {
-        return Build.current().isSnapshot() ? "StreamingLookupOperator" : "LookupOperator";
+        // Streaming lookup is enabled by default via the esql.query.lookup_join_streaming setting
+        return "StreamingLookupOperator";
     }
 
     private CheckedConsumer<XContentBuilder, IOException> justType(String type) {

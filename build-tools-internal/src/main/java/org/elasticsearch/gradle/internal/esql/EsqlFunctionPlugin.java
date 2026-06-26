@@ -11,12 +11,14 @@ package org.elasticsearch.gradle.internal.esql;
 
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
+import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.util.PlatformUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.Transformer;
+import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
@@ -27,13 +29,15 @@ import org.gradle.plugins.ide.idea.IdeaPlugin;
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -60,13 +64,36 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         boolean isCi = loadBuildParams(project).get().getCi();
 
+        var dependencies = project.getDependencies();
+        dependencies.add("compileOnly", dependencies.project(Map.of("path", ":server")));
+        dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:esql-core")));
+        dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:core")));
         if (project.getPath().equals(":x-pack:plugin:esql") == false) {
-            project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql"));
-            project.getDependencies().add("testImplementation", project.project(":x-pack:plugin:esql:qa:testFixtures"));
+            dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:esql")));
+            dependencies.add("testImplementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql")));
+            dependencies.add("testImplementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:qa:testFixtures")));
         }
-        project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql:compute"));
-        project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql:compute:ann"));
-        project.getDependencies().add("annotationProcessor", project.project(":x-pack:plugin:esql:compute:gen"));
+        /*
+         * The main esql plugin bundles compute as {@code implementation} so that it is included in
+         * the plugin zip and available at runtime. External function plugins declare it as
+         * {@code compileOnly} because the compute jar is already on the classpath via the main
+         * esql plugin, and including it again would be redundant. The plugin zip assembly subtracts
+         * the {@code compileOnly} configuration from the {@code runtimeClasspath}, so using
+         * {@code compileOnly} here for external plugins correctly prevents compute from being
+         * double-bundled.
+         */
+        if (project.getPath().equals(":x-pack:plugin:esql")) {
+            dependencies.add("implementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute")));
+        } else {
+            dependencies.add("compileOnly", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute")));
+        }
+        dependencies.add("implementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute:ann")));
+        dependencies.add("annotationProcessor", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute:gen")));
+        dependencies.add("testImplementation", dependencies.project(Map.of("path", ":test:framework")));
+        Project coreProject = project.project(":x-pack:plugin:core");
+        ProjectDependency coreTestDep = (ProjectDependency) dependencies.project(Map.of("path", coreProject.getPath()));
+        coreTestDep.capabilities(caps -> caps.requireCapability(coreProject.getGroup() + ":" + coreTestDep.getName() + "-test-artifacts"));
+        dependencies.add("testImplementation", coreTestDep);
 
         String generatedPath = "src/main/generated";
         Directory generatedSourceDir = project.getLayout().getProjectDirectory().dir(generatedPath);
@@ -96,15 +123,19 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
         for (String folder : DOC_FOLDERS) {
             File tempDir = project.file("build/testrun/test/temp/" + folder);
             File commandsExamplesFile = new File(tempDir, "commands.examples");
+            String pluginName = project.getExtensions().getByType(PluginPropertiesExtension.class).getName();
             FileTree mdFiles = project.fileTree(
-                new File(project.getRootDir(), "docs/reference/query-languages/" + folder + "/_snippets/commands/examples/"),
+                new File(
+                    project.getRootDir(),
+                    "docs/reference/query-languages/" + folder + "/_snippets/generated/" + pluginName + "/commands/examples/"
+                ),
                 tree -> tree.include("**/*.csv-spec/*.md")
             );
 
             Path docFolder = new File(project.getRootDir(), "docs/reference/query-languages/" + folder).toPath();
-            File snippetsDocFolder = docFolder.resolve("_snippets").toFile();
-            File imagesDocFolder = docFolder.resolve("images").toFile();
-            File kibanaDocFolder = docFolder.resolve("kibana").toFile();
+            File snippetsDocFolder = docFolder.resolve("_snippets/generated/" + pluginName).toFile();
+            File imagesDocFolder = docFolder.resolve("images/generated/" + pluginName).toFile();
+            File kibanaDocFolder = docFolder.resolve("kibana/generated/" + pluginName).toFile();
             File snippetsFolder = project.file("build/testrun/test/temp/" + folder + "/_snippets");
             File imagesFolder = project.file("build/testrun/test/temp/" + folder + "/images");
             File kibanaFolder = project.file("build/testrun/test/temp/" + folder + "/kibana");
@@ -125,19 +156,23 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                         injected.getFs().sync(spec -> {
                             spec.from(snippetsDocFolder);
                             spec.into(snippetsFolder);
+                            spec.setIncludeEmptyDirs(false);
                         });
                         injected.getFs().sync(spec -> {
                             spec.from(imagesDocFolder);
                             spec.into(imagesFolder);
+                            spec.setIncludeEmptyDirs(false);
                         });
                         injected.getFs().sync(spec -> {
                             spec.from(kibanaDocFolder);
                             spec.into(kibanaFolder);
+                            spec.setIncludeEmptyDirs(false);
                         });
                     }
                 }
             });
 
+            test.systemProperty("es.pluginName", pluginName);
             if (isCi) {
                 test.systemProperty("generateDocs", "assert");
             } else {
@@ -174,7 +209,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
     }
 
     private static void writeCommandsExamplesFile(File outputFile, FileTree mdFiles) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
+        try (BufferedWriter writer = Files.newBufferedWriter(outputFile.toPath(), StandardCharsets.UTF_8)) {
             for (File file : mdFiles) {
                 writer.write(file.getParentFile().getName() + "/" + file.getName());
                 writer.newLine();
@@ -214,6 +249,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                 spec.from(snippetsFolder);
                 spec.into(snippetsDocFolder);
                 spec.include("**/*.md");
+                spec.setIncludeEmptyDirs(false);
                 if (countTypes <= 100) {
                     spec.preserve(preserveSpec -> preserveSpec.include("**/*.md"));
                 } else {
@@ -250,9 +286,11 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                 spec.from(imagesFolder);
                 spec.into(imagesDocFolder);
                 spec.include("**/*.svg");
+                spec.setIncludeEmptyDirs(false);
                 if (countImages <= 100) {
                     spec.preserve(preserveSpec -> preserveSpec.include("**/*.svg"));
                 }
+                spec.setFilteringCharset("UTF-8");
                 spec.filter(replaceFont);
             });
         }
@@ -286,6 +324,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                 spec.from(kibanaFolder);
                 spec.into(kibanaDocFolder);
                 spec.include("**/*.md", "**/*.json");
+                spec.setIncludeEmptyDirs(false);
                 spec.preserve(preserveSpec -> {
                     if (countKibana <= 100) {
                         preserveSpec.include("**/*.md", "**/*.json");
@@ -294,6 +333,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                         preserveSpec.include(sub + "/**");
                     }
                 });
+                spec.setFilteringCharset("UTF-8");
                 spec.filter(replaceLinks);
             });
         }

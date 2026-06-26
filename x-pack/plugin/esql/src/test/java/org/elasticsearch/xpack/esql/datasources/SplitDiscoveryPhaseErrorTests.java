@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -90,7 +91,7 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     public void testSuccessfulDiscoveryUnaffected() {
         ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.parquet", "parquet");
-        SplitProvider okProvider = ctx -> List.of();
+        SplitProvider okProvider = ctx -> SplitDiscoveryResult.EMPTY;
 
         PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(okProvider)));
 
@@ -111,6 +112,12 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     private static ExternalSourceFactory testFactory(SplitProvider provider) {
         return new ExternalSourceFactory() {
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                throw new UnsupportedOperationException("test stub does not implement validation");
+            }
+
             @Override
             public String type() {
                 return "test";

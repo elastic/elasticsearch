@@ -993,6 +993,7 @@ emp_no:integer | first_name:keyword | salary:integer | job_positions:keyword
 ;
 
 sortLimitByMultivalueGroupKeyFiltered
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: esql_topn_by
 
 FROM employees
@@ -1086,11 +1087,63 @@ emp_no:integer | language_code:integer | language_name:keyword
 10005          | 1                     | English
 ;
 
+// SORT key renamed by a Project lifted above a LOOKUP JOIN.
+// https://github.com/elastic/elasticsearch/issues/148612
+sortRenameSortKeyLimitByWithLookupJoin
+required_capability: fix_reorder_limit_project_and_order_by_preserves_refs
+required_capability: esql_topn_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| RENAME salary AS pay
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT pay
+| LIMIT 5 BY language_code
+| KEEP emp_no, language_code, pay, language_name
+| SORT emp_no, language_code
+;
+
+emp_no:integer | language_code:integer | pay:integer | language_name:keyword
+10001          | 2                     | 57305       | French
+10002          | 5                     | 56371       | null
+10003          | 4                     | 61805       | German
+10004          | 5                     | 36174       | null
+10005          | 1                     | 63528       | English
+;
+
+
+// Companion positive test: the RENAME targets the join column, so the SORT key still survives the Project.
+// https://github.com/elastic/elasticsearch/issues/148612
+sortLimitByRenamingJoinKey
+required_capability: fix_reorder_limit_project_and_order_by_preserves_refs
+required_capability: esql_topn_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| RENAME languages AS language_code
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT salary
+| LIMIT 5 BY language_code
+| KEEP emp_no, language_code, salary, language_name
+| SORT emp_no, language_code
+;
+
+emp_no:integer | language_code:integer | salary:integer | language_name:keyword
+10001          | 2                     | 57305          | French
+10002          | 5                     | 56371          | null
+10003          | 4                     | 61805          | German
+10004          | 5                     | 36174          | null
+10005          | 1                     | 63528          | English
+;
+
 limitByWithEnrich
 required_capability: enrich_load
 required_capability: limit_by_enrich_fix
 
-FROM *,-addresses_*
+FROM *,-addresses_*,-date_nanos_union_types
 | ENRICH languages_policy on street
 | KEEP abbrev, integer, year
 | LIMIT 1 BY abbrev
@@ -1235,4 +1288,72 @@ FROM sample_data
 2023-10-23T12:27:28.948Z | Connected to 10.1.0.2
 2023-10-23T13:33:34.937Z | Disconnected
 2023-10-23T13:51:54.732Z | Connection error
+;
+
+replaceTopNWithLimitOnConstantSort
+FROM employees
+| EVAL x = null
+| SORT x
+| LIMIT 100
+| STATS count = COUNT(*)
+;
+
+count:long
+100
+;
+
+pruneConstantSortKeysFromTopN
+FROM employees
+| EVAL x = null
+| SORT x, emp_no ASC
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+pruneNonNullConstantSortKeyFromTopN
+FROM employees
+| EVAL x = 1
+| SORT x, emp_no ASC
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+pruneConstantCaseExpressionSortKeyFromTopN
+FROM employees
+| EVAL x = CASE(true, 5, emp_no)
+| SORT x, emp_no ASC
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+// constant_keyword is read at query time, not a plan-time literal, so its sort key is not pruned.
+sortByConstantKeywordFieldIsPreserved
+FROM all_types
+| SORT `constant_keyword-foo`, keyword ASC
+| KEEP `constant_keyword-foo`, keyword
+| LIMIT 3
+;
+
+constant_keyword-foo:keyword | keyword:keyword
+foo                          | key1
+foo                          | key2
+foo                          | key3
 ;

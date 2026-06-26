@@ -4,14 +4,37 @@ config:
   auto-retry: false
   allow-labels: ":StorageEngine/PromQL"
   trigger-phrase: '.*run\W+elasticsearch-ci/promql-compliance-bench.*'
+env:
+  PROMCHECK_VER: "0.5"
+  PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
 steps:
-  - label: "promql-compliance-bench setup"
-    key: promql-compliance-bench-setup
-    command: .buildkite/scripts/promql-compliance-bench.sh setup
-    timeout_in_minutes: 10
+  - label: ":prometheus: promcheck-lang-compliance:test"
+    key: promql-compliance-bench-100
+    command: |
+      if ! command -v uv >/dev/null 2>&1; then
+        curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
+        export PATH="$${HOME}/.local/bin:$${PATH}"
+      fi
+      if [[ -n "$${TESTS_SEED:-}" ]]; then
+        export PROMCHECK_SEED="$${TESTS_SEED}"
+      else
+        export PROMCHECK_SEED="$${BUILDKITE_PULL_REQUEST:?BUILDKITE_PULL_REQUEST is required}"
+      fi
+      buildkite-agent meta-data set "tests-seed-$${BUILDKITE_JOB_ID}" "$${PROMCHECK_SEED}"
+      .buildkite/scripts/promql-compliance-bench.sh grafana_dashboards_100_distinct_queries
+    timeout_in_minutes: 120
+    retry:
+      automatic:
+        - exit_status: -1
+          limit: 2
+        - exit_status: 137
+          limit: 2
+    artifact_paths:
+      - "/tmp/promql-compliance-bench-output/*"
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n4-standard-2
-      diskType: hyperdisk-balanced
+      machineType: n1-standard-8
+      docker: "true"
+      diskType: pd-ssd
       buildDirectory: /dev/shm/bk

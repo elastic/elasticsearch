@@ -841,7 +841,25 @@ final class DefaultSearchContext extends SearchContext {
     public Query rewrittenQuery() {
         Query query = super.rewrittenQuery();
         maybeMarkAsMatchTail();
+        maybeDisableSkippingForTotalHits();
         return query;
+    }
+
+    private void maybeDisableSkippingForTotalHits() {
+        if (searchAfter() == null) {
+            return;
+        }
+        if (trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+            return;
+        }
+        SortAndFormats sort = sort();
+        if (sort == null) {
+            return;
+        }
+        SortField primarySort = sort.sort.getSort()[0];
+        if (primarySort.getComparatorSource() instanceof LongValuesComparatorSource source) {
+            source.setDisableSkipping();
+        }
     }
 
     private void maybeMarkAsMatchTail() {

@@ -51,6 +51,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     private final NumericType targetNumericType;
 
     private boolean alwaysMatchTailQuery = false;
+    private boolean disableSkipping = false;
 
     public LongValuesComparatorSource(
         IndexNumericFieldData indexFieldData,
@@ -85,6 +86,15 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         this.alwaysMatchTailQuery = true;
     }
 
+    /**
+     * Disables the competitive iterator for this comparator. Used when search_after is combined
+     * with total hits tracking: the competitive iterator built immediately from the top value
+     * would skip docs that still need to be counted, causing an under-count.
+     */
+    public void setDisableSkipping() {
+        this.disableSkipping = true;
+    }
+
     private SortedNumericLongValues loadDocValues(LeafReaderContext context) {
         final LeafNumericFieldData data = indexFieldData.load(context);
         SortedNumericLongValues values;
@@ -117,7 +127,11 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final long lMissingValue = (Long) missingObject(missingValue, reversed);
-        return new XLongComparator(numHits, fieldname, lMissingValue, reversed, enableSkipping) {
+        // When disableSkipping is set (search_after + track total hits), force Pruning.NONE so that
+        // no competitive iterator is built. Without this, the iterator built from the top value
+        // (search_after bound) skips docs before they are counted, giving an incorrect total count.
+        final Pruning pruning = disableSkipping ? Pruning.NONE : enableSkipping;
+        return new XLongComparator(numHits, fieldname, lMissingValue, reversed, pruning) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 final int maxDoc = context.reader().maxDoc();

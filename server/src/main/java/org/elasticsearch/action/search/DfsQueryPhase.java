@@ -14,27 +14,21 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.query.NestedQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
-import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,11 +46,11 @@ class DfsQueryPhase extends SearchPhase {
 
     private final SearchPhaseResults<SearchPhaseResult> queryResult;
     private final Client client;
-    private final AbstractSearchAsyncAction<?> context;
+    private final SearchDfsQueryThenFetchAsyncAction context;
     private final SearchProgressListener progressListener;
     private long phaseStartTimeInNanos;
 
-    DfsQueryPhase(SearchPhaseResults<SearchPhaseResult> queryResult, Client client, AbstractSearchAsyncAction<?> context) {
+    DfsQueryPhase(SearchPhaseResults<SearchPhaseResult> queryResult, Client client, SearchDfsQueryThenFetchAsyncAction context) {
         super(NAME);
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = queryResult;
@@ -69,11 +63,10 @@ class DfsQueryPhase extends SearchPhase {
         return SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResult, dfs);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     protected void run() {
         phaseStartTimeInNanos = System.nanoTime();
-        List<DfsSearchResult> searchResults = (List<DfsSearchResult>) context.results.getAtomicArray().asList();
+        List<DfsSearchResult> searchResults = context.results.getAtomicArray().asList();
         AggregatedDfs dfs = aggregateDfs(searchResults);
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
@@ -84,14 +77,16 @@ class DfsQueryPhase extends SearchPhase {
             context
         );
 
-        List<DfsKnnResults> knnResults = mergeKnnResults(context.getRequest(), searchResults);
+        context.knnResults = mergeKnnResults(context.getRequest(), searchResults);
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             final int shardIndex = dfsResult.getShardIndex();
+            ShardSearchRequest shardSearchRequest = context.buildShardSearchRequest(context.shardIterators[shardIndex], shardIndex);
+            shardSearchRequest.canReturnNullResponseIfMatchNoDocs(context.hasShardResponse() && shardSearchRequest.scroll() == null);
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(
                 context.getOriginalIndices(shardIndex),
                 dfsResult.getContextId(),
-                rewriteShardSearchRequest(knnResults, dfsResult.getShardSearchRequest()),
+                shardSearchRequest,
                 dfs
             );
             final Transport.Connection connection;
@@ -152,48 +147,9 @@ class DfsQueryPhase extends SearchPhase {
         counter.onFailure(shardIndex, shardTarget, exception);
     }
 
-    // package private for testing
-    ShardSearchRequest rewriteShardSearchRequest(List<DfsKnnResults> knnResults, ShardSearchRequest request) {
-        SearchSourceBuilder source = request.source();
-        if (source == null || source.knnSearch().isEmpty()) {
-            return request;
-        }
-
-        List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>(source.subSearches());
-
-        int i = 0;
-        for (DfsKnnResults dfsKnnResults : knnResults) {
-            List<ScoreDoc> scoreDocs = new ArrayList<>();
-            for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
-                if (scoreDoc.shardIndex == request.shardRequestIndex()) {
-                    scoreDocs.add(scoreDoc);
-                }
-            }
-            scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-            String nestedPath = dfsKnnResults.getNestedPath();
-            QueryBuilder query = new KnnScoreDocQueryBuilder(
-                scoreDocs.toArray(Lucene.EMPTY_SCORE_DOCS),
-                source.knnSearch().get(i).getField(),
-                source.knnSearch().get(i).getQueryVector(),
-                source.knnSearch().get(i).getSimilarity(),
-                source.knnSearch().get(i).getFilterQueries()
-            ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
-            if (nestedPath != null) {
-                query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
-            }
-            subSearchSourceBuilders.add(new SubSearchSourceBuilder(query));
-            i++;
-        }
-
-        source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
-        request.source(source);
-
-        return request;
-    }
-
     private static List<DfsKnnResults> mergeKnnResults(SearchRequest request, List<DfsSearchResult> dfsSearchResults) {
         if (request.hasKnnSearch() == false) {
-            return null;
+            return Collections.emptyList();
         }
         SearchSourceBuilder source = request.source();
         List<List<TopDocs>> topDocsLists = new ArrayList<>(source.knnSearch().size());

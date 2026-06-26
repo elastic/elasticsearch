@@ -95,6 +95,19 @@ setup:
         name: ghost
 
 ---
+"delete-wildcard-resolves-to-datasets":
+  # With no datasets registered, DELETE /_query/dataset/* resolves the wildcard against the namespace,
+  # keeps only datasets (none), and acks the empty result. It must not 404 on the wildcard and must not
+  # touch indices. Before the fix the raw `*` reached the registry and 404'd. (The destructive-guard
+  # behaviour with action.destructive_requires_name=true is covered in DataSourceCrudIT — the shared
+  # REST test cluster relaxes that setting for its own wildcard cleanup.)
+  - do:
+      esql.delete_dataset:
+        name: "*"
+
+  - match: { acknowledged: true }
+
+---
 "get-missing":
   # Concrete-name miss -> 404. Wildcard miss -> 200 [].
   - do:

@@ -105,6 +105,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final String UNKNOWN_SETTING_KEY = "unknown_setting";
     private static final String UNKNOWN_SETTING_VALUE = "unknown_value";
     private static final String ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN = "The inference endpoint [%s] does not exist and cannot be updated";
+    private static final String CLUSTER_INCOMPATIBLE_ERROR_MESSAGE = "cluster is not compatible with this configuration";
     private static final String DEFAULT_UPDATE_REQUEST_BODY = buildDefaultUpdateRequestBody();
 
     private static String buildDefaultUpdateRequestBody() {
@@ -146,6 +147,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             return null;
         }).when(service).onModelUpdated(any(), any(), any());
         featureService = mock(FeatureService.class);
+        // Mockito doesn't invoke interface default methods; stub checkClusterCompatibility to report
+        // supported so the update path proceeds (mirrors the onModelUpdated stub above).
+        when(service.checkClusterCompatibility(any(), any(), any())).thenReturn(InferenceService.ClusterCompatibility.supported());
         action = new TransportUpdateInferenceModelAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -614,6 +618,79 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verifyModelRegistryUpdateInvoked();
         // The failure must short-circuit the chain: the re-fetch stage must never run.
         verify(mockModelRegistry, never()).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
+    }
+
+    public void testMasterOperation_ClusterCompatibilityCheckFailed_ThrowsBadRequest() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        mockParsePersistedConfigWithSecretsToReturnModel(createModel());
+        mockBuildModelFromConfigAndSecretsToReturnNewModel();
+        when(service.checkClusterCompatibility(any(), any(), any())).thenReturn(
+            InferenceService.ClusterCompatibility.unsupported(CLUSTER_INCOMPATIBLE_ERROR_MESSAGE)
+        );
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is(CLUSTER_INCOMPATIBLE_ERROR_MESSAGE));
+        verifyNoModelRegistryMutations();
+        verify(service, never()).onModelUpdated(any(), any(), any());
+    }
+
+    public void testMasterOperation_ClusterCompatibilityCheckPassed_InvokesCheckWithMergedModel() {
+        var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+
+        var existingModel = createModel(MAX_BATCH_SIZE_INITIAL_VALUE);
+        var mergedModel = createModel(MAX_BATCH_SIZE_UPDATED_VALUE);
+        mockParsePersistedConfigWithSecretsToReturnModel(existingModel);
+        when(service.buildModelFromConfigAndSecrets(any(ModelConfigurations.class), any(ModelSecrets.class))).thenReturn(mergedModel);
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        when(service.updateModelWithEmbeddingDetails(any(GoogleVertexAiEmbeddingsModel.class), eq(3))).thenAnswer(
+            invocationOnMock -> invocationOnMock.getArgument(0)
+        );
+        mockUpdateModelTransactionToReturnBoolean(true, existingModel);
+        mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
+        when(service.parsePersistedConfig(unparsedModel)).thenReturn(existingModel);
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
+        var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(response.getModel(), is(existingModel.getConfigurations()));
+        verifyModelRegistryUpdateInvoked();
+
+        var featureServiceCaptor = ArgumentCaptor.forClass(FeatureService.class);
+        var stateCaptor = ArgumentCaptor.forClass(ClusterState.class);
+        var modelCaptor = ArgumentCaptor.forClass(Model.class);
+        verify(service).checkClusterCompatibility(featureServiceCaptor.capture(), stateCaptor.capture(), modelCaptor.capture());
+        assertThat(featureServiceCaptor.getValue(), sameInstance(featureService));
+        assertThat(stateCaptor.getValue(), sameInstance(ClusterState.EMPTY_STATE));
+        assertThat(modelCaptor.getValue(), sameInstance(mergedModel));
+    }
+
+    public void testMasterOperation_NoOpUpdate_SkipsClusterCompatibilityCheck() {
+        var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        var model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        when(service.buildModelFromConfigAndSecrets(any(ModelConfigurations.class), any(ModelSecrets.class))).thenReturn(model);
+        mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
+        when(service.parsePersistedConfig(unparsedModel)).thenReturn(model);
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
+
+        var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(response.getModel(), is(model.getConfigurations()));
+        verifyNoModelRegistryMutations();
+        verify(service, never()).checkClusterCompatibility(any(), any(), any());
     }
 
     private static GoogleVertexAiEmbeddingsModel createModel() {

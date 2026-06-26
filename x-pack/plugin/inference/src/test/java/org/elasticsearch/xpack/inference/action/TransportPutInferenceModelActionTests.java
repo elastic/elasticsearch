@@ -8,30 +8,47 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportPutInferenceModelActionTests extends ESTestCase {
@@ -103,5 +120,67 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
                     + "please complete upgrades before creating an endpoint with this task_type"
             )
         );
+    }
+
+    public void testMasterOperation_ClusterCompatibilityCheckFailed_ReturnsStatusException() throws Exception {
+        var serviceName = "test_service";
+        var inferenceEntityId = "test_inference_entity_id";
+        var errorMessage = "cluster is not compatible with this configuration";
+
+        var featureServiceMock = mock(FeatureService.class);
+        var clusterServiceMock = mock(ClusterService.class);
+        when(clusterServiceMock.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(InferencePlugin.SKIP_VALIDATE_AND_START))
+        );
+        when(clusterServiceMock.state()).thenReturn(ClusterState.EMPTY_STATE);
+
+        var licenseState = MockLicenseState.createMock();
+        when(licenseState.isAllowed(any(LicensedFeature.class))).thenReturn(true);
+        var modelRegistryMock = mock(ModelRegistry.class);
+        var serviceRegistryMock = mock(InferenceServiceRegistry.class);
+        var service = mock(InferenceService.class);
+        when(service.getMinimalSupportedVersion()).thenReturn(TransportVersion.current());
+        when(service.checkClusterCompatibility(any(), any(), any())).thenReturn(
+            InferenceService.ClusterCompatibility.unsupported(errorMessage)
+        );
+        when(serviceRegistryMock.getService(serviceName)).thenReturn(Optional.of(service));
+
+        var model = mock(Model.class);
+        doAnswer(invocation -> {
+            ActionListener<Model> modelListener = invocation.getArgument(3);
+            modelListener.onResponse(model);
+            return null;
+        }).when(service).parseRequestConfig(eq(inferenceEntityId), eq(TaskType.SPARSE_EMBEDDING), anyMap(), any());
+
+        var state = mock(ClusterState.class);
+        when(state.getMinTransportVersion()).thenReturn(TransportVersion.current());
+
+        var action = new TransportPutInferenceModelAction(
+            mock(TransportService.class),
+            clusterServiceMock,
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            licenseState,
+            modelRegistryMock,
+            serviceRegistryMock,
+            Settings.EMPTY,
+            mock(),
+            featureServiceMock
+        );
+
+        var request = new PutInferenceModelAction.Request(
+            TaskType.SPARSE_EMBEDDING,
+            inferenceEntityId,
+            new BytesArray("{\"service\": \"test_service\"}"),
+            XContentType.JSON,
+            null
+        );
+        var listener = new TestPlainActionFuture<PutInferenceModelAction.Response>();
+        action.masterOperation(mock(Task.class), request, state, listener);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is(errorMessage));
+        verify(modelRegistryMock, never()).storeModel(any(), any(), any());
     }
 }

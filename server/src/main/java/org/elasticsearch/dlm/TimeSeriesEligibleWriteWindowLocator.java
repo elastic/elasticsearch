@@ -57,21 +57,29 @@ public class TimeSeriesEligibleWriteWindowLocator {
         DataStreamGlobalRetention globalRetention,
         long requestStartTimestamp
     ) {
-        if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
+        // Eligible write window is only applicable for time series data streams
+        if (dataStream.getIndexMode() != IndexMode.TIME_SERIES || dataStream.isSystem()) {
             return -1;
         }
         String ilmPolicy = getEffectiveIlmPolicy(dataStream, projectMetadata);
 
+        // If there is an effective ILM policy, we delegate the write window calculation to the ILM plugin.
         if (ilmPolicy != null) {
             return getEligibleWriteWindowFromPolicy(ilmPolicy, projectMetadata);
         }
         TimeValue writeWindow = null;
         if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
+            // Data stream lifecycle is executing the following actions in order, so the first read-only
+            // configuration is the one that will determine the eligible write window.
             if (dataStream.getDataLifecycle().downsamplingRounds() != null) {
+                // First, we check downsampling, downsampling configuration needs to have at least 1 round and the rounds
+                // are sorted based on their after time. So, picking the first one is sufficient.
                 writeWindow = dataStream.getDataLifecycle().downsamplingRounds().getFirst().after();
             } else if (dataStream.getDataLifecycle().frozenAfter() != null) {
+                // Then we check the frozenAfter configuration.
                 writeWindow = dataStream.getDataLifecycle().frozenAfter();
             } else {
+                // Finally, we check the effective retention configuration
                 writeWindow = dataStream.getDataLifecycle().getEffectiveDataRetention(globalRetention, dataStream.isInternal());
             }
         }

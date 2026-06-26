@@ -75,15 +75,22 @@ public class TimeSeriesEligibleWriteWindowLocatorWithIlm extends TimeSeriesEligi
         }
         for (String phaseName : TimeseriesLifecycleType.ORDERED_VALID_PHASES) {
             Phase phase = lifecyclePolicyMetadata.getPolicy().getPhases().get(phaseName);
-            if (phase == null) {
-                continue;
-            }
-            for (String readOnlyAction : TimeseriesLifecycleType.READ_ONLY_ACTIONS) {
-                if (phase.getActions().containsKey(readOnlyAction)) {
-                    return phase.getMinimumAge().millis();
-                }
+            if (isReadOnlyPhase(phase)) {
+                return phase.getMinimumAge().millis();
             }
         }
         return -1;
+    }
+
+    private boolean isReadOnlyPhase(Phase phase) {
+        if (phase == null) {
+            return false;
+        }
+        for (String readOnlyAction : TimeseriesLifecycleType.READ_ONLY_ACTIONS) {
+            if (phase.getActions().containsKey(readOnlyAction)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

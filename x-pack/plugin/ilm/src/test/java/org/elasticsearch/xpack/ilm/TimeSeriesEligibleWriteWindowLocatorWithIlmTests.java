@@ -37,6 +37,8 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.DeleteAction.WITH_SNAPSHOT_DELETE;
 import static org.hamcrest.Matchers.equalTo;
@@ -153,7 +155,7 @@ public class TimeSeriesEligibleWriteWindowLocatorWithIlmTests extends ESTestCase
         // both hot and warm define read-only actions; hot comes first in ORDERED_VALID_PHASES
         TimeValue hotAge = TimeValue.timeValueDays(1);
         TimeValue warmAge = TimeValue.timeValueDays(7);
-        Phase hot = new Phase("hot", hotAge, Map.of(ReadOnlyAction.NAME, new ReadOnlyAction()));
+        Phase hot = new Phase("hot", hotAge, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
         Phase warm = new Phase("warm", warmAge, Map.of(ReadOnlyAction.NAME, new ReadOnlyAction()));
         LifecyclePolicy policy = new LifecyclePolicy("my-policy", Map.of("hot", hot, "warm", warm));
         ProjectMetadata project = projectWithIlmMetadata(
@@ -162,6 +164,12 @@ public class TimeSeriesEligibleWriteWindowLocatorWithIlmTests extends ESTestCase
         assertEquals(hotAge.millis(), locator.getEligibleWriteWindowFromPolicy("my-policy", project));
     }
 
+    /**
+     * This method produces a SINGLE valid read-only phase. If this method is used to create
+     * different phases, it doesn't mean they can be combined to a valid policy since it contains
+     * actions that could be seen as "final". For example, a searchable snapshot in hot, means
+     * that you cannot force merge in warm.
+     */
     private static Phase randomReadOnlyPhase(TimeValue age) {
         String phaseName = randomFrom(TimeseriesLifecycleType.ORDERED_VALID_PHASES);
         List<String> validPhaseActions = switch (phaseName) {
@@ -172,8 +180,12 @@ public class TimeSeriesEligibleWriteWindowLocatorWithIlmTests extends ESTestCase
             case "delete" -> TimeseriesLifecycleType.ORDERED_VALID_DELETE_ACTIONS;
             default -> throw new AssertionError("unexpected phase name: " + phaseName);
         };
-        String readOnlyAction = randomFrom(validPhaseActions.stream().filter(TimeseriesLifecycleType.READ_ONLY_ACTIONS::contains).toList());
-        return new Phase(phaseName, age, Map.of(readOnlyAction, readOnlyActions.get(readOnlyAction)));
+        List<String> readOnlyActionsInPhase = validPhaseActions.stream()
+            .filter(TimeseriesLifecycleType.READ_ONLY_ACTIONS::contains)
+            .toList();
+        Map<String, LifecycleAction> phaseConfig = randomNonEmptySubsetOf(readOnlyActionsInPhase).stream()
+            .collect(Collectors.toMap(Function.identity(), readOnlyActions::get));
+        return new Phase(phaseName, age, phaseConfig);
     }
 
     private static DataStream dataStream(String name, DataStreamLifecycle lifecycle) {

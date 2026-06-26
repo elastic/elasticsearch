@@ -96,7 +96,9 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
                         i,
                         new ResolvedIndexExpression(
                             current.original(),
-                            new LocalExpressions(Set.of(), LocalIndexResolutionResult.SUCCESS, null),
+                            current.remoteExpressions().isEmpty()
+                                ? new LocalExpressions(Set.of(), LocalIndexResolutionResult.SUCCESS, null)
+                                : LocalExpressions.NONE,
                             current.remoteExpressions()
                         )
                     );

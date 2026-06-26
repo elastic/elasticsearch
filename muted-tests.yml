@@ -716,3 +716,9 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testWriteFileMultipleOfChunkSize
   issue: https://github.com/elastic/elasticsearch/issues/152286
+- class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
+  method: testCancelAllReindexTasksByActionWithMixedRelocationState
+  issue: https://github.com/elastic/elasticsearch/issues/152291
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationCompletesWithMultipleHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/152292

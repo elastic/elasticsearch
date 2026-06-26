@@ -2659,6 +2659,14 @@ public class EsqlCapabilities {
         DATASET_IN_FROM_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
+         * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
+         * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
+         * verification failure that old coordinators in a mixed cluster still hit.
+         */
+        FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
          * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
          * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator
@@ -3215,6 +3223,14 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/151540
          */
         FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+
+        /**
+         * An empty list passed as a query parameter (named or positional) is treated as null
+         * instead of producing an NPE. A defined-but-null param used in an identifier or pattern
+         * position produces a clean parsing error instead of silently yielding an empty column name.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
+         */
+        EMPTY_LIST_PARAM_AS_NULL,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

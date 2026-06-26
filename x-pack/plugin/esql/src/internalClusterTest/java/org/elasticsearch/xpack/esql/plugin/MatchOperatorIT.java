@@ -400,6 +400,70 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
     }
 
+    public void testMatchOperatorAfterInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE content:"fox"
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchOperatorAfterGroupedInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE content:"fox"
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testNotMatchOperatorAfterInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE NOT content:"brown fox"
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(5)));
+        }
+    }
+
+    public void testMatchOperatorNotPushableAfterInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE content:"fox" OR length(content) < 20
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
+    }
+
     public void testWhereFalseBeforeInlineStatsWithMatchOperator() {
         var query = """
             FROM test
@@ -408,8 +472,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             | WHERE content:"fox"
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testMatchOperatorWithLookupJoin() {

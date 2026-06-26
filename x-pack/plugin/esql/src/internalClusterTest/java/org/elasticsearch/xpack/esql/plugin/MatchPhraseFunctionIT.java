@@ -352,6 +352,70 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after MV_EXPAND"));
     }
 
+    public void testMatchPhraseAfterInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match_phrase(content, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchPhraseAfterGroupedInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE match_phrase(content, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testNotMatchPhraseAfterInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE NOT match_phrase(content, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(2), List.of(3), List.of(4), List.of(5)));
+        }
+    }
+
+    public void testMatchPhraseNotPushableAfterInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match_phrase(content, "brown fox") OR length(content) < 20
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
+    }
+
     public void testWhereFalseBeforeInlineStatsWithMatchPhrase() {
         var query = """
             FROM test
@@ -360,8 +424,9 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE match_phrase(content, "brown fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testWhereFalseWithEvalBeforeInlineStatsAndMatchPhrase() {
@@ -373,8 +438,9 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE match_phrase(content, "brown fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testMatchPhraseWithLookupJoin() {

@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -69,9 +70,12 @@ import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQue
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -286,12 +290,20 @@ public abstract class FullTextFunction extends Function
                 });
             }
 
+            // Collect Aggregate nodes that are internal to InlineStats (at analysis time) or InlineJoin
+            // (at post-optimization time, after InlineStats.surrogate() has fired). These aggregates
+            // are safe — they are the sub-query side of a left join and do not block full-text pushdown.
+            // Use identity-based comparison to avoid false matches with structurally equal but unrelated aggregates.
+            Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
+            plan.forEachDown(InlineStats.class, is -> inlineStatsAggregates.add(is.aggregate()));
+            plan.forEachDown(InlineJoin.class, ij -> { if (ij.right() instanceof Aggregate agg) inlineStatsAggregates.add(agg); });
+
             checkCommandsBeforeExpression(
                 plan,
                 condition,
                 FullTextFunction.class,
                 lp -> (lp instanceof Limit == false)
-                    && (lp instanceof Aggregate == false)
+                    && (lp instanceof Aggregate == false || inlineStatsAggregates.contains(lp))
                     && (lp instanceof UnionAll == false)
                     && (lp instanceof MvExpand == false)
                     && (lp instanceof Fork == false)

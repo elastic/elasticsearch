@@ -614,7 +614,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
-        entries.add(RemoteFetchDataNodeBatchOperator.Status.ENTRY);
+        entries.add(RemoteFetchHandleDecodeOperator.Status.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(MetricsInfoOperator.Status.ENTRY);
         entries.add(TsInfoOperator.Status.ENTRY);

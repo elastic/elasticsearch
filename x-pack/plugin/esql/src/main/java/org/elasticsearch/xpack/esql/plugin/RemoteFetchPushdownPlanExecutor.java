@@ -60,6 +60,25 @@ final class RemoteFetchPushdownPlanExecutor {
         this.localBreakerSettings = localBreakerSettings;
     }
 
+    List<Operator> buildOperators(
+        PhysicalPlan pushdownPlan,
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
+        FoldContext foldContext,
+        DriverContext driverContext
+    ) {
+        if (pushdownPlan == null) {
+            return List.of();
+        }
+        List<Operator.OperatorFactory> factories = new ArrayList<>();
+        PushdownPipeline pipeline = buildPipeline(pushdownPlan, factories, shardContexts, foldContext);
+        List<Operator> operators = new ArrayList<>(factories.size() + 1);
+        for (Operator.OperatorFactory factory : factories) {
+            operators.add(factory.get(driverContext));
+        }
+        appendPositionFinalizerIfNeeded(operators, pipeline, driverContext);
+        return operators;
+    }
+
     List<Page> execute(
         List<Page> pages,
         PhysicalPlan pushdownPlan,
@@ -191,6 +210,30 @@ final class RemoteFetchPushdownPlanExecutor {
             return buildFragmentPipeline(fragmentExec.fragment(), factories, shardContexts, foldContext);
         }
         throw new IllegalStateException("unsupported remote fetch pushdown plan [" + plan.getClass().getSimpleName() + "]");
+    }
+
+    private void appendPositionFinalizerIfNeeded(List<Operator> operators, PushdownPipeline pipeline, DriverContext driverContext) {
+        NameId positionAttributeId = pipeline.positionAttributeId();
+        if (positionAttributeId == null) {
+            return;
+        }
+        Layout.ChannelAndType position = pipeline.layout().get(positionAttributeId);
+        if (position == null) {
+            throw new IllegalStateException("remote fetch pushdown lost position-mapping attribute");
+        }
+        int positionChannel = position.channel();
+        int totalChannels = pipeline.layout().numberOfChannels();
+        if (positionChannel == totalChannels - 1) {
+            return;
+        }
+        List<Integer> projection = new ArrayList<>(totalChannels);
+        for (int channel = 0; channel < totalChannels; channel++) {
+            if (channel != positionChannel) {
+                projection.add(channel);
+            }
+        }
+        projection.add(positionChannel);
+        operators.add(new ProjectOperatorFactory(projection).get(driverContext));
     }
 
     private PushdownPipeline buildFragmentPipeline(

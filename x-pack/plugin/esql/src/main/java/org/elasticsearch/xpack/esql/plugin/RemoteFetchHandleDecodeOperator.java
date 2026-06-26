@@ -12,7 +12,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
@@ -20,19 +24,22 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
-import java.util.List;
 import java.util.Objects;
 
 /**
- * Data-node-side batch operator for remote fetch over bidirectional exchange.
+ * Decodes remote fetch handles into a doc-location page suitable for {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}.
  * <p>
- * It consumes one page of handles that has already been partitioned to a single retained target session and
- * executes one local fetch call for that full handle batch. This operator does not perform transport fanout.
+ * Input pages contain exactly one bytes block with one serialized {@link RemoteFetchHandle} per row.
+ * Output pages contain:
+ * <ul>
+ *     <li>channel 0: doc block (shard, segment, doc)</li>
+ *     <li>channel 1 (optional): position mapping used by pushdown filtering</li>
+ * </ul>
  */
-final class RemoteFetchDataNodeBatchOperator implements Operator {
-    private final RemoteFetcher batchFetcher;
+final class RemoteFetchHandleDecodeOperator implements Operator {
+    private final BlockFactory blockFactory;
+    private final boolean includePositionMapping;
     private final Deque<Page> outputQueue = new ArrayDeque<>();
     private boolean finished;
     private Exception failure;
@@ -41,8 +48,9 @@ final class RemoteFetchDataNodeBatchOperator implements Operator {
     private long rowsReceived;
     private long rowsEmitted;
 
-    RemoteFetchDataNodeBatchOperator(RemoteFetcher batchFetcher) {
-        this.batchFetcher = batchFetcher;
+    RemoteFetchHandleDecodeOperator(BlockFactory blockFactory, boolean includePositionMapping) {
+        this.blockFactory = blockFactory;
+        this.includePositionMapping = includePositionMapping;
     }
 
     @Override
@@ -58,12 +66,8 @@ final class RemoteFetchDataNodeBatchOperator implements Operator {
             }
             pagesReceived++;
             rowsReceived += page.getPositionCount();
-            List<RemoteFetchHandle> handles = decodeHandles(page);
-            validateSingleTargetSession(handles);
-            // This executes on the target data node against retained local shard contexts;
-            // it does not fan out additional transport requests per handle from here.
-            List<Page> fetched = batchFetcher.fetch(handles);
-            enqueue(fetched);
+            Page decoded = decodeHandles(page);
+            outputQueue.add(decoded);
         } catch (Exception e) {
             failure = e;
         } finally {
@@ -101,7 +105,7 @@ final class RemoteFetchDataNodeBatchOperator implements Operator {
         if (e instanceof RuntimeException re) {
             throw re;
         }
-        throw new IllegalStateException("remote fetch batch operator failed", e);
+        throw new IllegalStateException("remote fetch handle decode failed", e);
     }
 
     @Override
@@ -117,74 +121,62 @@ final class RemoteFetchDataNodeBatchOperator implements Operator {
         return new Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 
-    private static List<RemoteFetchHandle> decodeHandles(Page page) {
+    private Page decodeHandles(Page page) {
         if (page.getBlockCount() != 1) {
             throw new IllegalStateException("expected a single handle block but got [" + page.getBlockCount() + "]");
         }
         BytesRefBlock handlesBlock = page.getBlock(0);
-        List<RemoteFetchHandle> handles = new ArrayList<>(page.getPositionCount());
         BytesRef scratch = new BytesRef();
-        for (int position = 0; position < page.getPositionCount(); position++) {
-            if (handlesBlock.isNull(position)) {
-                throw new IllegalStateException("remote fetch handle block cannot contain nulls");
-            }
-            if (handlesBlock.getValueCount(position) != 1) {
-                throw new IllegalStateException("remote fetch handle block must have exactly one value per row");
-            }
-            handles.add(RemoteFetchHandle.fromBytesRef(handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch)));
-        }
-        return handles;
-    }
-
-    private void enqueue(List<Page> fetchedPages) {
-        if (fetchedPages.isEmpty()) {
-            return;
-        }
-        boolean success = false;
-        try {
-            outputQueue.addAll(fetchedPages);
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(Releasables.wrap(fetchedPages));
-            }
-        }
-    }
-
-    private static void validateSingleTargetSession(List<RemoteFetchHandle> handles) {
-        if (handles.size() < 2) {
-            return;
-        }
-        RemoteFetchHandle first = handles.getFirst();
-        for (int i = 1; i < handles.size(); i++) {
-            RemoteFetchHandle current = handles.get(i);
-            if (first.nodeId().equals(current.nodeId()) == false
-                || first.retainedSessionId().equals(current.retainedSessionId()) == false) {
-                throw new IllegalStateException(
-                    "remote fetch batch must contain handles from a single target session but saw ["
-                        + first.nodeId()
-                        + "/"
-                        + first.retainedSessionId()
-                        + "] and ["
-                        + current.nodeId()
-                        + "/"
-                        + current.retainedSessionId()
-                        + "]"
+        String expectedNodeId = null;
+        String expectedSessionId = null;
+        try (
+            DocVector.FixedBuilder docBuilder = DocVector.newFixedBuilder(blockFactory, page.getPositionCount());
+            IntBlock.Builder positionBuilder = includePositionMapping ? blockFactory.newIntBlockBuilder(page.getPositionCount()) : null
+        ) {
+            for (int position = 0; position < page.getPositionCount(); position++) {
+                if (handlesBlock.isNull(position)) {
+                    throw new IllegalStateException("remote fetch handle block cannot contain nulls");
+                }
+                if (handlesBlock.getValueCount(position) != 1) {
+                    throw new IllegalStateException("remote fetch handle block must have exactly one value per row");
+                }
+                RemoteFetchHandle handle = RemoteFetchHandle.fromBytesRef(
+                    handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch)
                 );
+                if (expectedNodeId == null) {
+                    expectedNodeId = handle.nodeId();
+                    expectedSessionId = handle.retainedSessionId();
+                } else if (expectedNodeId.equals(handle.nodeId()) == false
+                    || expectedSessionId.equals(handle.retainedSessionId()) == false) {
+                        throw new IllegalStateException(
+                            "remote fetch batch must contain handles from a single target session but saw ["
+                                + expectedNodeId
+                                + "/"
+                                + expectedSessionId
+                                + "] and ["
+                                + handle.nodeId()
+                                + "/"
+                                + handle.retainedSessionId()
+                                + "]"
+                        );
+                    }
+                docBuilder.append(handle.shard(), handle.segment(), handle.doc());
+                if (positionBuilder != null) {
+                    positionBuilder.appendInt(position);
+                }
             }
+            Block docBlock = docBuilder.build(DocVector.config()).asBlock();
+            if (positionBuilder == null) {
+                return new Page(docBlock);
+            }
+            return new Page(docBlock, positionBuilder.build());
         }
-    }
-
-    @FunctionalInterface
-    interface RemoteFetcher {
-        List<Page> fetch(List<RemoteFetchHandle> handles) throws Exception;
     }
 
     public record Status(int pagesReceived, int pagesEmitted, long rowsReceived, long rowsEmitted) implements Operator.Status {
-
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
-            "remote_fetch_data_node_batch",
+            "remote_fetch_handle_decode",
             Status::new
         );
 

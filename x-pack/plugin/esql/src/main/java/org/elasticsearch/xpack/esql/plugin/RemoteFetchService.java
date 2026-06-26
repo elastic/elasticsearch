@@ -28,9 +28,11 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -88,7 +91,6 @@ public final class RemoteFetchService {
     private final BlockFactory blockFactory;
     private final PlannerSettings.Holder plannerSettings;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
-    private final RemoteFieldLoader fieldLoader;
     private final RemoteFetchPushdownPlanExecutor pushdownPlanExecutor;
     private final RetainedSearchContextsRegistry retainedSearchContexts;
     private final ExchangeServerFactory exchangeServerFactory;
@@ -120,7 +122,6 @@ public final class RemoteFetchService {
         this.blockFactory = blockFactory;
         this.plannerSettings = transportActionServices.plannerSettings();
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
-        this.fieldLoader = new RemoteFieldLoader(bigArrays, localBreakerSettings);
         this.pushdownPlanExecutor = new RemoteFetchPushdownPlanExecutor(bigArrays, localBreakerSettings);
         this.retainedSearchContexts = Objects.requireNonNull(retainedSearchContexts);
         this.exchangeServerFactory = Objects.requireNonNull(exchangeServerFactory);
@@ -570,9 +571,7 @@ public final class RemoteFetchService {
                 clusterService.getSettings()
             );
             releasable = Releasables.wrap(server, lease, localBreaker);
-            List<Operator> intermediate = List.of(
-                new RemoteFetchDataNodeBatchOperator(buildRemoteFetcher(request, shardContexts, settings, driverContext.blockFactory()))
-            );
+            List<Operator> intermediate = buildDataNodeOperators(request, shardContexts, settings, driverContext);
             server.startWithOperators(
                 driverContext,
                 transportService.getThreadPool().getThreadContext(),
@@ -595,23 +594,62 @@ public final class RemoteFetchService {
         }
     }
 
-    private RemoteFetchDataNodeBatchOperator.RemoteFetcher buildRemoteFetcher(
+    private List<Operator> buildDataNodeOperators(
         ExchangeSetupRequest request,
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
         PlannerSettings settings,
-        BlockFactory exchangeBlockFactory
+        DriverContext driverContext
     ) {
-        // Keep plan compilation in the service layer; the batch operator only needs to transform handle batches.
-        return handles -> {
-            List<Page> fetched = fieldLoader.execute(handles, request.fields(), shardContexts, settings, exchangeBlockFactory);
-            return pushdownPlanExecutor.execute(
-                fetched,
+        boolean includePositionMapping = request.pushdownPlan() != null;
+        List<Operator> operators = new ArrayList<>();
+        operators.add(new RemoteFetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping));
+
+        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = RemoteFieldLoader.buildFieldInfos(
+            request.fields(),
+            shardContexts,
+            settings
+        );
+        IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readerContexts = shardContexts.map(
+            c -> new ValuesSourceReaderOperator.ShardContext(
+                c.searcher().getIndexReader(),
+                c::newSourceLoader,
+                c.storedFieldsSequentialProportion()
+            )
+        );
+        operators.add(
+            new ValuesSourceReaderOperator.Factory(
+                settings.valuesLoadingJumboSize(),
+                fieldInfos,
+                readerContexts,
+                fieldInfos.size() <= settings.reuseColumnLoadersThreshold(),
+                0,
+                settings.sourceReservationFactor(),
+                settings.docSequenceBytesRefFieldThreshold(),
+                () -> 0L
+            ).get(driverContext)
+        );
+        operators.add(new ProjectOperatorFactory(fetchedFieldsProjection(fieldInfos.size(), includePositionMapping)).get(driverContext));
+        operators.addAll(
+            pushdownPlanExecutor.buildOperators(
                 request.pushdownPlan(),
                 shardContexts,
-                exchangeBlockFactory,
-                request.configuration().newFoldContext()
-            );
-        };
+                request.configuration().newFoldContext(),
+                driverContext
+            )
+        );
+        return operators;
+    }
+
+    private List<Integer> fetchedFieldsProjection(int fieldCount, boolean includePositionMapping) {
+        List<Integer> projection = new ArrayList<>(fieldCount + (includePositionMapping ? 1 : 0));
+        int firstFieldChannel = includePositionMapping ? 2 : 1;
+        for (int field = 0; field < fieldCount; field++) {
+            projection.add(firstFieldChannel + field);
+        }
+        if (includePositionMapping) {
+            projection.add(1);
+        }
+        return projection;
     }
 
     private DiscoveryNode determineClientNode(CancellableTask task) {

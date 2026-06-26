@@ -708,6 +708,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            null,
             Mockito.mock(PlannerSettings.Holder.class),
             null
         );

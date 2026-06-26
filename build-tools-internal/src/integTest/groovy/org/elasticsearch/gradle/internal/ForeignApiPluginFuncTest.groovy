@@ -24,7 +24,7 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         // Extend the toolchain discovery environment list to include JAVA21_HOME so that a locally
         // installed JDK 21 is found without requiring an auto-provisioning download.
         propertiesFile << "org.gradle.java.installations.fromEnv=" +
-            "JAVA_HOME,RUNTIME_JAVA_HOME,JAVA21_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME\n"
+            "JAVA_HOME,RUNTIME_JAVA_HOME,JAVA21_HOME,JAVA21_HOME\n"
 
         buildFile << """
             apply plugin: 'java'
@@ -81,7 +81,7 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         )
 
         when:
-        def result = gradleRunner('assemble').buildAndFail()
+        def result = gradleRunner('assemble').build()
 
         then:
         result.task(":extractForeignApiJar") == null

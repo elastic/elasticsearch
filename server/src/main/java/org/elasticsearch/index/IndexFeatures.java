@@ -51,8 +51,6 @@ public class IndexFeatures implements FeatureSpecification {
         "constant_field_type.normalized_wildcard_query_support"
     );
 
-    public static final NodeFeature INDEX_SLICE_INDEXING = new NodeFeature("index.slice_indexing");
-
     @Override
     public Set<NodeFeature> getTestFeatures() {
         Set<NodeFeature> features = new HashSet<>(
@@ -72,7 +70,7 @@ public class IndexFeatures implements FeatureSpecification {
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            features.add(INDEX_SLICE_INDEXING);
+            features.add(SLICE_INDEXING);
         }
         return Set.copyOf(features);
     }

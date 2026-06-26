@@ -17,40 +17,24 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.Plugin.PluginServices;
 
-import java.nio.file.Files;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 
 /**
- * Test-only plugin that provides the {@link IndexSettings#SLICE_VALIDATED} setting for clusters
- * that use {@link IndexSettings#SLICE_ENABLED} without the DiskBBQ x-pack plugin.
+ * Test-only plugin that validates slice indexing by providing the {@link IndexSettings#SLICE_VALIDATED} setting
+ * for clusters that use {@link IndexSettings#SLICE_ENABLED} without the DiskBBQ x-pack plugin.
  * Mirrors the logic in {@code ESIntegTestCase.AlwaysValidateSlicePlugin}.
- * <p>
- * When DiskBBQ is present it registers its own {@code SliceIndexingValidationProvider}, so this
- * plugin skips registration to avoid a duplicate-setting conflict.
  */
 public class SliceIndexingValidationPlugin extends Plugin {
-
-    // Class.forName cannot detect other plugins due to ES plugin classloader isolation.
-    // Instead, detect DiskBBQ presence via the modules directory in createComponents, which
-    // is guaranteed to run before any index creation can occur.
-    private volatile boolean diskBbqPresent = false;
-
-    @Override
-    public Collection<Object> createComponents(PluginServices services) {
-        diskBbqPresent = Files.isDirectory(services.environment().modulesDir().resolve("diskbbq"));
-        return List.of();
-    }
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         return List.of(new SliceIndexingValidationProvider());
     }
 
-    private final class SliceIndexingValidationProvider implements IndexSettingProvider {
+    private static final class SliceIndexingValidationProvider implements IndexSettingProvider {
         @Override
         public void provideAdditionalSettings(
             String indexName,
@@ -63,7 +47,7 @@ public class SliceIndexingValidationPlugin extends Plugin {
             IndexVersion indexVersion,
             Settings.Builder additionalSettings
         ) {
-            if (diskBbqPresent == false && IndexSettings.SLICE_ENABLED.get(indexTemplateAndCreateRequestSettings)) {
+            if (IndexSettings.SLICE_ENABLED.get(indexTemplateAndCreateRequestSettings)) {
                 additionalSettings.put(IndexSettings.SLICE_VALIDATED.getKey(), "true");
             }
         }

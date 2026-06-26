@@ -28,6 +28,8 @@ import java.util.Set;
  */
 public final class SourceStatisticsSerializer {
 
+    /** Common prefix of every flat statistics key (row count, size, per-column stats, partial flag). */
+    public static final String STATS_KEY_PREFIX = "_stats.";
     public static final String STATS_ROW_COUNT = "_stats.row_count";
     public static final String STATS_SIZE_BYTES = "_stats.size_bytes";
     /**
@@ -201,8 +203,22 @@ public final class SourceStatisticsSerializer {
      * Min/max/size_bytes accumulators are unchanged: they only sum across files where the
      * column is present, which is the correct semantics regardless of implicit nulls.
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public static Map<String, Object> mergeStatistics(List<Map<String, Object>> splitStats) {
+        // Footer formats (Parquet/ORC) always write complete per-file column stats, so an absent
+        // column folds into implicit nulls. This is the default for callers that only merge such stats.
+        return mergeStatistics(splitStats, true);
+    }
+
+    /**
+     * @param implicitNullsForAbsentColumn when {@code true} (footer formats), a column absent from a
+     *        per-file map is treated as physically absent and its rows fold into the merged null_count
+     *        (UNION_BY_NAME semantics). When {@code false} (text formats under partial harvest), a
+     *        column absent from any file's stats is "not harvested" -- it may be physically present --
+     *        so the merged column is dropped entirely, forcing downstream COUNT/MIN/MAX to safe-miss
+     *        (re-scan) rather than undercount or serve a subset extremum.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public static Map<String, Object> mergeStatistics(List<Map<String, Object>> splitStats, boolean implicitNullsForAbsentColumn) {
         if (splitStats == null || splitStats.isEmpty()) {
             return null;
         }
@@ -313,19 +329,41 @@ public final class SourceStatisticsSerializer {
             allColumns.addAll(columnsInThisFile);
         }
 
-        // Implicit-nulls pass: for every column ever seen, fold the row count of files that
-        // do not physically contain the column into that column's null_count accumulator.
-        // This only adds value when there are at least two files; the size==1 fast path above
-        // returns the single map verbatim and never reaches here.
-        for (String colName : allColumns) {
-            String key = columnNullCountKey(colName);
-            for (int i = 0; i < perFileColumns.size(); i++) {
-                if (perFileColumns.get(i).contains(colName) == false) {
-                    long fileRowCount = perFileRowCounts[i];
-                    nullCounts.merge(key, new long[] { fileRowCount }, (a, b) -> {
-                        a[0] += b[0];
-                        return a;
-                    });
+        if (implicitNullsForAbsentColumn) {
+            // Footer (UNION_BY_NAME) pass: for every column ever seen, fold the row count of files
+            // that do not physically contain the column into that column's null_count accumulator.
+            // This only adds value when there are at least two files; the size==1 fast path above
+            // returns the single map verbatim and never reaches here.
+            for (String colName : allColumns) {
+                String key = columnNullCountKey(colName);
+                for (int i = 0; i < perFileColumns.size(); i++) {
+                    if (perFileColumns.get(i).contains(colName) == false) {
+                        long fileRowCount = perFileRowCounts[i];
+                        nullCounts.merge(key, new long[] { fileRowCount }, (a, b) -> {
+                            a[0] += b[0];
+                            return a;
+                        });
+                    }
+                }
+            }
+        } else {
+            // Text partial-harvest pass: a column absent from any file's stats is "not harvested"
+            // (the file may physically contain it), not "all null". The merge cannot serve a correct
+            // COUNT/MIN/MAX for such a column, so drop it entirely -- downstream safe-misses (re-scans)
+            // rather than undercounting (COUNT) or serving a subset extremum (MIN/MAX).
+            for (String colName : allColumns) {
+                boolean observedInEveryFile = true;
+                for (Set<String> cols : perFileColumns) {
+                    if (cols.contains(colName) == false) {
+                        observedInEveryFile = false;
+                        break;
+                    }
+                }
+                if (observedInEveryFile == false) {
+                    nullCounts.remove(columnNullCountKey(colName));
+                    mins.remove(columnMinKey(colName));
+                    maxs.remove(columnMaxKey(colName));
+                    colSizeBytes.remove(columnSizeBytesKey(colName));
                 }
             }
         }

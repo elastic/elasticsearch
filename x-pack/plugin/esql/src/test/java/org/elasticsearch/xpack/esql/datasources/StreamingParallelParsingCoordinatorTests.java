@@ -402,6 +402,68 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Canonical-stripe attribution is file-global. On a parallel <b>macro-split</b> ({@code baseFileOffset > 0})
+     * each chunk's stats base offset must equal its file-global {@code splitStartByte} — the two are the same
+     * file-global byte on a record-aligned chunk, and the stripe grid is file-global
+     * ({@code ordinal = floor((statsBase + recordOffsetInChunk) / stripeSize)}). An earlier version passed
+     * {@code chunk.coverageStart()} (stream-local, 0-based) to {@code .stats(...)} while {@code .splitStartByte()}
+     * used {@code baseFileOffset + coverageStart()}, so a parallel macro-split attributed records to stream-local
+     * stripes and misaligned siblings on the file-global grid. Red before that fix, green after.
+     */
+    public void testParallelStripeBaseIsFileGlobalForMacroSplit() throws Exception {
+        int lineCount = 1000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        long baseFileOffset = 1_000_000L; // a non-zero macro-split start
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            // Small chunkSize forces several chunks so interior + EOF chunks are both exercised.
+            LineFormatReader reader = new LineFormatReader(1024);
+            collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    stream,
+                    null,
+                    List.of("line"),
+                    100,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    baseFileOffset,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    sink,
+                    64L, // stripe addressing active
+                    StripeColumnScope.PROJECTED
+                )
+            );
+
+            List<FormatReadContext> seen;
+            synchronized (reader.seenContexts) {
+                seen = new ArrayList<>(reader.seenContexts);
+            }
+            assertTrue("Expected at least 2 chunks, recorded " + seen.size(), seen.size() >= 2);
+            for (int i = 0; i < seen.size(); i++) {
+                FormatReadContext ctx = seen.get(i);
+                assertEquals(
+                    "chunk[" + i + "] stats base must be file-global (== splitStartByte), not stream-local",
+                    ctx.splitStartByte(),
+                    ctx.statsBaseOffset()
+                );
+                assertTrue(
+                    "chunk[" + i + "] stats base [" + ctx.statsBaseOffset() + "] must include the macro-split baseFileOffset ["
+                        + baseFileOffset + "]",
+                    ctx.statsBaseOffset() >= baseFileOffset
+                );
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * Guards against reuse of {@code chunk.index % pageQueueRingSize} slots ahead of the consumer:
      * without {@code dispatchPermits} a fast parser could recycle buffers and interleave pages from
      * different chunk generations into the same queue while the consumer is still draining an earlier chunk.

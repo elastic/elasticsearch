@@ -445,9 +445,10 @@ public class ExternalSourceResolver {
             // (see ComputeService#canSkipSplitDiscovery), which dominates the savings.
             // We don't gate this on the query (which isn't known here) — see issue #148086 for the
             // design notes.
+            boolean implicitNulls = foldsAbsentColumnAsImplicitNull(extMetadata.sourceType());
             Map<String, Object> aggregatedStats = cacheable
-                ? readAndAggregateAllFileStatsWithCache(listing, config)
-                : readAndAggregateAllFileStats(listing, config);
+                ? readAndAggregateAllFileStatsWithCache(listing, config, implicitNulls)
+                : readAndAggregateAllFileStats(listing, config, implicitNulls);
             if (aggregatedStats != null) {
                 // Replace anchor-only stats with globally-aggregated stats.
                 // Preserve all non-stats keys from the current extMetadata (e.g. file_count, config).
@@ -670,7 +671,10 @@ public class ExternalSourceResolver {
         SourceMetadata firstMeta = allMetadata.get(firstFile);
         // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
         // no second cache or storage hit per file.
-        Map<String, Object> aggregatedStats = aggregateFileStatistics(allMetadata.values());
+        Map<String, Object> aggregatedStats = aggregateFileStatistics(
+            allMetadata.values(),
+            foldsAbsentColumnAsImplicitNull(firstMeta.sourceType())
+        );
         ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
 
         // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
@@ -784,7 +788,7 @@ public class ExternalSourceResolver {
      * Returns {@code null} if any file lacks statistics (prevents incorrect partial results).
      */
     @Nullable
-    static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata) {
+    static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         for (SourceMetadata meta : allMetadata) {
             // Cached entries embed stats in sourceMetadata(); uncached entries use typed statistics().
@@ -798,7 +802,20 @@ public class ExternalSourceResolver {
                 return null;
             }
         }
-        return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats);
+        return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
+    }
+
+    /**
+     * Whether {@code sourceType}'s format folds an absent column into implicit nulls when merging
+     * per-file statistics. Footer formats (Parquet/ORC) do: a file physically lacking a column
+     * contributes it as all-null. Text formats (CSV/TSV/NDJSON) do not — a column absent from a
+     * file's harvested stats may still be physically present but unharvested, so the cross-file merge
+     * must drop it and force a re-scan rather than serve a subset COUNT/MIN/MAX. Unknown formats keep
+     * the footer default (no behavior change).
+     */
+    private boolean foldsAbsentColumnAsImplicitNull(String sourceType) {
+        FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
+        return reader == null || reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
     }
 
     /**
@@ -809,7 +826,7 @@ public class ExternalSourceResolver {
      * (the caller will then mark stats as partial instead of using incomplete aggregations).
      */
     @Nullable
-    private Map<String, Object> readAndAggregateAllFileStats(FileList listing, Map<String, Object> config) {
+    private Map<String, Object> readAndAggregateAllFileStats(FileList listing, Map<String, Object> config, boolean implicitNulls) {
         int fileCount = listing.fileCount();
         List<StoragePath> paths = new ArrayList<>(fileCount);
         for (int i = 0; i < fileCount; i++) {
@@ -832,7 +849,7 @@ public class ExternalSourceResolver {
             LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
             return null;
         }
-        return aggregateFileStatistics(allMeta);
+        return aggregateFileStatistics(allMeta, implicitNulls);
     }
 
     /**
@@ -842,7 +859,7 @@ public class ExternalSourceResolver {
      * Returns {@code null} if any file cannot be resolved or lacks statistics.
      */
     @Nullable
-    private Map<String, Object> readAndAggregateAllFileStatsWithCache(FileList listing, Map<String, Object> config) {
+    private Map<String, Object> readAndAggregateAllFileStatsWithCache(FileList listing, Map<String, Object> config, boolean implicitNulls) {
         int fileCount = listing.fileCount();
         List<Map<String, Object>> perFileStats = new ArrayList<>(fileCount);
         for (int i = 0; i < fileCount; i++) {
@@ -874,7 +891,7 @@ public class ExternalSourceResolver {
                 return null;
             }
         }
-        return SourceStatisticsSerializer.mergeStatistics(perFileStats);
+        return SourceStatisticsSerializer.mergeStatistics(perFileStats, implicitNulls);
     }
 
     private ExternalSourceMetadata buildUnifiedMetadata(
@@ -887,10 +904,20 @@ public class ExternalSourceResolver {
         List<Attribute> schema = List.copyOf(unifiedSchema);
         Map<String, Object> enrichedSourceMetadata;
         if (aggregatedStats != null) {
-            // Aggregated stats already contain all the _stats.* keys merged across all files.
-            // Start from the reference meta's base map and overlay the aggregated stats.
+            // Aggregated stats already contain all the _stats.* keys merged across all files and are
+            // authoritative: a column the cross-file merge dropped (e.g. a text column harvested in
+            // only some files) must NOT survive via the anchor file's own per-column keys. So strip
+            // every _stats.* key from the anchor base before overlaying — overlaying alone would leak
+            // the anchor's stale columns, since putAll only overwrites keys the aggregate still has.
             Map<String, Object> base = referenceMeta.sourceMetadata();
-            Map<String, Object> merged = base != null ? new HashMap<>(base) : new HashMap<>();
+            Map<String, Object> merged = new HashMap<>();
+            if (base != null) {
+                for (Map.Entry<String, Object> entry : base.entrySet()) {
+                    if (entry.getKey().startsWith(SourceStatisticsSerializer.STATS_KEY_PREFIX) == false) {
+                        merged.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
             merged.putAll(aggregatedStats);
             enrichedSourceMetadata = Map.copyOf(merged);
         } else {

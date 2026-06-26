@@ -634,6 +634,12 @@ public final class StreamingParallelParsingCoordinator {
                 // record to its canonical stripe (floor((base + recordOffsetInChunk) / stripeSize)) and
                 // emits one per-stripe contribution. Stripe addressing is a pure stats overlay here — the
                 // chunk's bytes and boundaries are exactly what the segmentator produced, untouched.
+                // File-global byte offset of this chunk's first byte. Both the reader's record-offset
+                // base (splitStartByte) and the canonical-stripe attribution base (stats) are file-global
+                // and must be the SAME value on a record-aligned chunk — otherwise a parallel macro-split
+                // (baseFileOffset > 0) attributes records to stream-local stripes, misaligning siblings on
+                // the file-global grid. Mirrors the serial branch's .splitStartByte/.stats(baseFileOffset).
+                long chunkFileGlobalStart = baseFileOffset + chunk.coverageStart();
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
                     .batchSize(batchSize)
@@ -642,9 +648,9 @@ public final class StreamingParallelParsingCoordinator {
                     .lastSplit(true)
                     .recordAligned(true)
                     .readSchema(readSchema)
-                    .splitStartByte(baseFileOffset + chunk.coverageStart())
+                    .splitStartByte(chunkFileGlobalStart)
                     .maxRecordBytes(maxRecordBytes)
-                    .stats(chunk.coverageStart(), statsStripeSize, chunk.last())
+                    .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
                     .statsColumnScope(statsColumnScope)
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook reaches the

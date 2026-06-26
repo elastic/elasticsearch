@@ -688,9 +688,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/152095
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
   methods:
-    - testEvaluate {TestCase=geo_shape and geo_shape}
-    - testCrankyEvaluateBlockWithoutNulls {TestCase=geo_shape and geo_shape}
-    - testEvaluateInManyThreads {TestCase=geo_shape and geo_shape}
+  - testEvaluate {TestCase=geo_shape and geo_shape}
+  - testCrankyEvaluateBlockWithoutNulls {TestCase=geo_shape and geo_shape}
+  - testEvaluateInManyThreads {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152108
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
@@ -752,3 +752,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
   method: testEvaluate {TestCase=geo_shape and geo_point}
   issue: https://github.com/elastic/elasticsearch/issues/152236
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:keep.sortWithLimitFifteenAndProject}
+  issue: https://github.com/elastic/elasticsearch/issues/152238
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:bucket.docsBucketNumeric}
+  issue: https://github.com/elastic/elasticsearch/issues/152239
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:BASELINE}
+  issue: https://github.com/elastic/elasticsearch/issues/149746
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:highlight.highlightFieldWithNoMatch}
+  issue: https://github.com/elastic/elasticsearch/issues/152240

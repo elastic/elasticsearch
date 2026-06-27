@@ -71,6 +71,14 @@ public final class Expressions {
             NameId id = existing != null ? existing.id() : new NameId();
             Attribute refAttr = switch (exp) {
                 case FieldAttribute fa when fa.field() instanceof TypeConflictedField -> fa.flagTypeConflicts();
+                case UnsupportedAttribute ua -> new UnsupportedAttribute(
+                    ua.source(),
+                    ua.qualifier(),
+                    ua.name(),
+                    ua.field(),
+                    ua.hasCustomMessage() ? ua.unresolvedMessage() : null,
+                    id
+                );
                 case ReferenceAttribute ra -> ra.withId(id);
                 case ExternalMetadataAttribute xa -> new ExternalMetadataAttribute(
                     xa.source(),

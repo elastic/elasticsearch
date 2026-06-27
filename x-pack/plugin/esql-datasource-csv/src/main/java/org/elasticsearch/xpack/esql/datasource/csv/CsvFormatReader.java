@@ -2053,6 +2053,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * even for purely numeric projections).
          */
         private int[] byteHintColumns;
+        /**
+         * Inverse of {@link #byteHintColumns}: maps a projected column index to its byte-hint slot, or
+         * {@code -1} for columns that are not byte-hinted. Lets the direct-block batch loop decide, per
+         * column, whether to append straight to the builder or retain the value so the builder can be
+         * sized up-front (see {@link #convertDirectBatchToPage}).
+         */
+        private int[] columnToByteHintSlot;
+        // Per-batch retain buffers for the direct-block byte-hint pass, one entry per byte-hint column.
+        // The direct path streams records, so a keyword column's total byte size is unknown until the
+        // whole batch is parsed. Rather than let the BytesRefArray regrow (and to match the byte-hinted
+        // Jackson path), keyword/text values are retained here while the batch is parsed, then replayed
+        // into a builder sized with the exact total. The arrays are reused across batches (grown, never
+        // shrunk) so the steady state allocates nothing.
+        private byte[][] kwRetainData;
+        private int[] kwRetainDataLen;
+        private int[][] kwRetainValueLen;
+        private int kwRetainRows;
         private int columnCount;
         /** Total number of columns in the file schema (not just projected). */
         private int schemaColumnCount;
@@ -2713,6 +2730,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             byteHintColumns = Arrays.copyOf(stringSlots, stringColumns);
+            columnToByteHintSlot = new int[columnCount];
+            Arrays.fill(columnToByteHintSlot, -1);
+            for (int slot = 0; slot < byteHintColumns.length; slot++) {
+                columnToByteHintSlot[byteHintColumns[slot]] = slot;
+            }
             rowBuffer = new Object[columnCount];
 
             projectedFieldSet = new BitSet(schemaSize);
@@ -3104,14 +3126,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 return acceptedRows == 0 ? null : new Page(acceptedRows);
             }
+            final boolean useByteHint = byteHintColumns.length > 0;
             BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[columnCount];
             try {
+                // Non-byte-hinted columns are sized by position count and filled as the batch is parsed.
+                // Byte-hinted (KEYWORD/TEXT) columns are left null here: the direct path streams records, so
+                // a string column's total byte size is unknown until the whole batch is parsed. Their values
+                // are retained while parsing, then replayed into a builder sized with the exact byte total so
+                // the BytesRefArray byte storage is allocated once instead of regrowing, matching the
+                // byte-hinted Jackson path in convertRowsToPage (see buildRetainedByteHintColumns).
                 for (int i = 0; i < columnCount; i++) {
+                    if (useByteHint && columnToByteHintSlot[i] >= 0) {
+                        continue;
+                    }
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
                         ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
                         batchSize
                     );
+                }
+                if (useByteHint) {
+                    resetByteHintRetain();
                 }
                 int acceptedRows = 0;
                 while (directBatchRecordsRead < batchSize) {
@@ -3125,12 +3160,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     directBatchRecordsRead++;
                     totalRowCount++;
                     if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
-                        appendStagedRow(builders);
+                        if (useByteHint) {
+                            appendStagedRowDeferringByteHint(builders);
+                        } else {
+                            appendStagedRow(builders);
+                        }
                         acceptedRows++;
                     }
                 }
                 if (acceptedRows == 0) {
                     return null;
+                }
+                if (useByteHint) {
+                    buildRetainedByteHintColumns(builders, acceptedRows);
                 }
                 Block[] blocks = new Block[columnCount];
                 for (int i = 0; i < columnCount; i++) {
@@ -3142,54 +3184,157 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
+        /** Resets the per-batch byte-hint retain buffers, allocating them on first use and reusing them after. */
+        private void resetByteHintRetain() {
+            if (kwRetainData == null) {
+                int slots = byteHintColumns.length;
+                kwRetainData = new byte[slots][];
+                kwRetainDataLen = new int[slots];
+                kwRetainValueLen = new int[slots][];
+            }
+            kwRetainRows = 0;
+            Arrays.fill(kwRetainDataLen, 0);
+        }
+
+        /**
+         * Like {@link #appendStagedRow} but retains byte-hinted (KEYWORD/TEXT) columns into the per-batch
+         * buffers instead of appending them, so their builders can be sized up-front once the batch's exact
+         * byte total is known (see {@link #buildRetainedByteHintColumns}). Non-hinted columns append
+         * immediately, exactly as on the {@link #appendStagedRow} path. Column stats, when enabled, are fed
+         * here for retained columns so the result is identical regardless of which path runs.
+         */
+        private void appendStagedRowDeferringByteHint(BlockUtils.BuilderWrapper[] builders) {
+            final boolean stats = accumulateDirectStats;
+            final int row = kwRetainRows;
+            for (int i = 0; i < columnCount; i++) {
+                int slot = columnToByteHintSlot[i];
+                if (slot < 0) {
+                    appendStagedColumn(builders, i);
+                    continue;
+                }
+                int[] valueLen = kwRetainValueLen[slot];
+                if (valueLen == null || row >= valueLen.length) {
+                    int newLen = valueLen == null ? Math.max(16, row + 1) : Math.max(row + 1, valueLen.length * 2);
+                    valueLen = valueLen == null ? new int[newLen] : Arrays.copyOf(valueLen, newLen);
+                    kwRetainValueLen[slot] = valueLen;
+                }
+                if (stageNull[i]) {
+                    valueLen[row] = -1;
+                    if (stats) {
+                        columnStats.acceptNullAt(i);
+                    }
+                } else {
+                    BytesRef v = stageRef[i];
+                    byte[] data = kwRetainData[slot];
+                    int used = kwRetainDataLen[slot];
+                    int need = used + v.length;
+                    if (data == null || need > data.length) {
+                        int newCap = data == null ? Math.max(64, need) : Math.max(need, data.length * 2);
+                        data = data == null ? new byte[newCap] : Arrays.copyOf(data, newCap);
+                        kwRetainData[slot] = data;
+                    }
+                    System.arraycopy(v.bytes, v.offset, data, used, v.length);
+                    valueLen[row] = v.length;
+                    kwRetainDataLen[slot] = need;
+                    if (stats) {
+                        columnStats.acceptBytesRefAt(i, v);
+                    }
+                }
+            }
+            kwRetainRows++;
+        }
+
+        /**
+         * Creates the byte-hinted column builders deferred during the batch parse and replays their retained
+         * values in row order. Each builder is sized with the exact retained byte total so its byte storage
+         * is allocated once. The created wrappers are stored back into {@code builders} so the caller's
+         * assembly loop builds them and its {@code finally} releases them on any failure.
+         */
+        private void buildRetainedByteHintColumns(BlockUtils.BuilderWrapper[] builders, int acceptedRows) {
+            for (int slot = 0; slot < byteHintColumns.length; slot++) {
+                int col = byteHintColumns[slot];
+                BlockUtils.BuilderWrapper wrapper = BlockUtils.wrapperFor(
+                    blockFactory,
+                    ElementType.BYTES_REF,
+                    acceptedRows,
+                    kwRetainDataLen[slot]
+                );
+                builders[col] = wrapper;
+                BytesRefBlock.Builder builder = (BytesRefBlock.Builder) wrapper.builder();
+                byte[] data = kwRetainData[slot];
+                int[] valueLen = kwRetainValueLen[slot];
+                BytesRef scratch = new BytesRef();
+                int offset = 0;
+                for (int row = 0; row < acceptedRows; row++) {
+                    int len = valueLen[row];
+                    if (len < 0) {
+                        builder.appendNull();
+                    } else {
+                        // data is non-null whenever any row contributed bytes (len >= 0 below implies a
+                        // non-null value was retained, so the column's byte buffer was allocated).
+                        scratch.bytes = data;
+                        scratch.offset = offset;
+                        scratch.length = len;
+                        builder.appendBytesRef(scratch);
+                        offset += len;
+                    }
+                }
+            }
+        }
+
         /**
          * Flushes the typed staging slots of one accepted row into the block builders. Each primitive
          * element type appends straight from its typed array (no boxing).
          */
         private void appendStagedRow(BlockUtils.BuilderWrapper[] builders) {
-            final boolean stats = accumulateDirectStats;
             for (int i = 0; i < columnCount; i++) {
-                Block.Builder builder = builders[i].builder();
-                if (stageNull[i]) {
-                    builder.appendNull();
+                appendStagedColumn(builders, i);
+            }
+        }
+
+        /** Flushes one column's staged value into its builder (no boxing); feeds column stats when enabled. */
+        private void appendStagedColumn(BlockUtils.BuilderWrapper[] builders, int i) {
+            final boolean stats = accumulateDirectStats;
+            Block.Builder builder = builders[i].builder();
+            if (stageNull[i]) {
+                builder.appendNull();
+                if (stats) {
+                    columnStats.acceptNullAt(i);
+                }
+                return;
+            }
+            switch (directElements[i]) {
+                case LONG -> {
+                    ((LongBlock.Builder) builder).appendLong(stageLong[i]);
                     if (stats) {
-                        columnStats.acceptNullAt(i);
+                        columnStats.acceptLongAt(i, stageLong[i]);
                     }
-                    continue;
                 }
-                switch (directElements[i]) {
-                    case LONG -> {
-                        ((LongBlock.Builder) builder).appendLong(stageLong[i]);
-                        if (stats) {
-                            columnStats.acceptLongAt(i, stageLong[i]);
-                        }
+                case INT -> {
+                    ((IntBlock.Builder) builder).appendInt(stageInt[i]);
+                    if (stats) {
+                        columnStats.acceptIntAt(i, stageInt[i]);
                     }
-                    case INT -> {
-                        ((IntBlock.Builder) builder).appendInt(stageInt[i]);
-                        if (stats) {
-                            columnStats.acceptIntAt(i, stageInt[i]);
-                        }
-                    }
-                    case DOUBLE -> {
-                        ((DoubleBlock.Builder) builder).appendDouble(stageDouble[i]);
-                        if (stats) {
-                            columnStats.acceptDoubleAt(i, stageDouble[i]);
-                        }
-                    }
-                    case BOOLEAN -> {
-                        ((BooleanBlock.Builder) builder).appendBoolean(stageBool[i]);
-                        if (stats) {
-                            columnStats.acceptBooleanAt(i, stageBool[i]);
-                        }
-                    }
-                    case BYTES_REF -> {
-                        ((BytesRefBlock.Builder) builder).appendBytesRef(stageRef[i]);
-                        if (stats) {
-                            columnStats.acceptBytesRefAt(i, stageRef[i]);
-                        }
-                    }
-                    default -> throw new IllegalStateException("Unexpected element type in direct-block staging: " + directElements[i]);
                 }
+                case DOUBLE -> {
+                    ((DoubleBlock.Builder) builder).appendDouble(stageDouble[i]);
+                    if (stats) {
+                        columnStats.acceptDoubleAt(i, stageDouble[i]);
+                    }
+                }
+                case BOOLEAN -> {
+                    ((BooleanBlock.Builder) builder).appendBoolean(stageBool[i]);
+                    if (stats) {
+                        columnStats.acceptBooleanAt(i, stageBool[i]);
+                    }
+                }
+                case BYTES_REF -> {
+                    ((BytesRefBlock.Builder) builder).appendBytesRef(stageRef[i]);
+                    if (stats) {
+                        columnStats.acceptBytesRefAt(i, stageRef[i]);
+                    }
+                }
+                default -> throw new IllegalStateException("Unexpected element type in direct-block staging: " + directElements[i]);
             }
         }
 

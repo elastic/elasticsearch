@@ -1,4 +1,4 @@
-area: Columnar
+area: Mapping
 issues: []
 pr: 152357
 summary: Support nested fields under subobjects:false

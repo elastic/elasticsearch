@@ -11,6 +11,8 @@ package org.elasticsearch.monitor.metrics;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -36,6 +38,8 @@ import java.util.List;
  * counters since process start (useful for sharing-rate over time).
  */
 public class AnalyzerMetrics extends AbstractLifecycleComponent {
+
+    private static final Logger logger = LogManager.getLogger(AnalyzerMetrics.class);
 
     public static final String UNIQUE_ANALYZERS_METRIC = "es.analysis.analyzers.unique.current";
     public static final String TOTAL_REFERENCES_METRIC = "es.analysis.analyzers.references.current";
@@ -107,6 +111,7 @@ public class AnalyzerMetrics extends AbstractLifecycleComponent {
                 c.close();
             } catch (Exception e) {
                 // gauges only hold a registry handle; nothing to recover from a close failure
+                logger.debug("failed to close analyzer metric", e);
             }
         }
         metrics.clear();

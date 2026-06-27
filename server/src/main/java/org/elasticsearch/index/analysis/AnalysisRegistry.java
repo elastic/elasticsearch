@@ -26,6 +26,8 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -54,6 +56,8 @@ import static java.util.Collections.unmodifiableMap;
  * This class exists per node and allows to create per-index {@link IndexAnalyzers} via {@link #build}
  */
 public final class AnalysisRegistry implements Closeable {
+    private static final Logger logger = LogManager.getLogger(AnalysisRegistry.class);
+
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
     public static final String INDEX_ANALYSIS_ANALYZER = "index.analysis.analyzer";
@@ -1203,8 +1207,11 @@ public final class AnalysisRegistry implements Closeable {
             // than the GLOBAL-retagged wrapper we handed out (whose close() would not cascade).
             try {
                 entry.evictable.close();
-            } catch (Exception ignored) {
-                // best-effort close
+            } catch (Exception e) {
+                // Best-effort close: an evicted analyzer's resources are CPU-only (CloseableThreadLocal,
+                // SynonymMap), so a close failure leaks at most a little memory and is not actionable —
+                // log at debug rather than failing the release.
+                logger.debug(() -> "failed to close evicted analyzer [" + key + "]", e);
             }
             return current == entry ? null : current;
         });

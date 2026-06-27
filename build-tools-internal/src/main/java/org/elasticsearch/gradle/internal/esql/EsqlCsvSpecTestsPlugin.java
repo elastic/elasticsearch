@@ -85,10 +85,7 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
                 // pattern used by yamlRestTest via GradleUtils.extendSourceSet. Test-class bleed
                 // from javaRestTest into the csv runner is prevented by testClassesDirs being
                 // scoped to csvSpecTest output only.
-                project.getDependencies().add(
-                    csvSpecTestSourceSet.getImplementationConfigurationName(),
-                    javaRestTestSourceSet.getOutput()
-                );
+                project.getDependencies().add(csvSpecTestSourceSet.getImplementationConfigurationName(), javaRestTestSourceSet.getOutput());
                 project.getConfigurations()
                     .named(csvSpecTestSourceSet.getCompileClasspathConfigurationName())
                     .configure(

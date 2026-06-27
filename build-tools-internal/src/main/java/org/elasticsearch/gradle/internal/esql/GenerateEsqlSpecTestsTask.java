@@ -157,8 +157,7 @@ public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
                     return readScriptSpec("/SPEC_FILE_NAME");
                 }
             }
-            """
-            .replace("SPEC_FILE_NAME", specFileName)
+            """.replace("SPEC_FILE_NAME", specFileName)
             .replace("PACKAGE_NAME", packageName)
             .replace("BASE_CLASS_NAME", baseClassName)
             .replace("CLASS_NAME", className);

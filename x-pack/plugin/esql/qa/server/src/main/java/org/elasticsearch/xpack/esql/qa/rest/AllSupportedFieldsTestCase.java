@@ -922,7 +922,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private static final Set<DataType> COLUMNAR_UNSUPPORTED_TYPES = Set.of();
 
     private static boolean excludedInColumnar(DataType type, IndexMode mode) {
-        return mode.isStrictColumnar() && COLUMNAR_UNSUPPORTED_TYPES.contains(type);
+        if (mode.isStrictColumnar() == false) {
+            return false;
+        }
+        // geo_shape/cartesian_shape are reconstructable in columnar only on nodes that have the feature, so exclude them
+        // during a rolling upgrade where an older node would reject them in a columnar index.
+        if ((type == DataType.GEO_SHAPE || type == DataType.CARTESIAN_SHAPE)
+            && clusterHasFeature("mapper.columnar.supports_shape_fields") == false) {
+            return true;
+        }
+        return COLUMNAR_UNSUPPORTED_TYPES.contains(type);
     }
 
     private static String fieldName(DataType type) {

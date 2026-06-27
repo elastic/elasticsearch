@@ -598,6 +598,15 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
+    /**
+     * Verifies that when the incremental-bulk request timeout ({@link IncrementalBulkService#REQUEST_TIMEOUT}) elapses
+     * before any sub-request is dispatched, the whole request fails as a global failure: the session task is cancelled
+     * and the resulting {@code TaskCancelledException} is surfaced to the client as a top-level
+     * {@link RestStatus#TOO_MANY_REQUESTS} (429) rather than a per-item failure.
+     *
+     * <p>The entire body is sent as a single last chunk only after the timeout has fired, so no split/sub-request is ever
+     * submitted — exercising the {@code globalFailure} path in {@code IncrementalBulkService.Handler}.
+     */
     public void testRequestTimeoutReturnsTooManyRequests() throws Exception {
         final var nodeName = internalCluster().getRandomNodeName();
         final var timeout = TimeValue.timeValueMillis(100);
@@ -632,6 +641,16 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
+    /**
+     * Verifies that when the request timeout elapses after at least one sub-request has already been submitted, the
+     * request does not fail globally: items indexed before the timeout are preserved and the timeout instead surfaces as
+     * a per-item failure. The client receives HTTP 200 with {@code errors: true}, where the item committed before the
+     * timeout reports {@link RestStatus#CREATED} (201) and the item submitted after the timeout reports
+     * {@link RestStatus#TOO_MANY_REQUESTS} (429).
+     *
+     * <p>The 1-byte {@code split_bulk} watermarks force the first chunk to split into a sub-request immediately, so the
+     * "before-timeout" document is durably indexed (asserted via the realtime GET) before the session is cancelled.
+     */
     public void testRequestTimeoutPartialResponse() throws Exception {
         final var nodeName = internalCluster().startCoordinatingOnlyNode(
             Settings.builder()

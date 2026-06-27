@@ -13,6 +13,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MathUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Encapsulates all vector/centroid-type-specific arithmetic for k-means clustering.
@@ -78,10 +79,19 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     /** Returns the length (dimension) of the vector. */
     int length(V vector);
 
+    /** Returns a deep copy of the given vector. */
+    V copyOf(V vector);
+
     // ---- Centroid update operations ----
 
     /** Copy the first {@code dim} elements of {@code vector} into {@code centroid}. */
     void initCentroid(V centroid, V vector, int dim);
+
+    /**
+     * Writes a float-precision result into a native-type centroid.
+     * For float centroids this is a simple copy. For byte centroids this rounds and clamps.
+     */
+    void initCentroidFromFloat(V centroid, float[] floatValues, int dim);
 
     /**
      * Creates a reusable accumulator state for mean-based centroid updates via
@@ -241,6 +251,12 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     /** Convenience constant for the byte ops singleton. */
     CentroidOps<byte[]> BYTE = ByteOps.INSTANCE;
 
+    /**
+     * Concatenates multiple {@link ClusteringVectorValues} instances into a single view.
+     * Used by the tiered merge strategy to combine centroids from multiple segments.
+     */
+    ClusteringVectorValues<V> concatenate(ClusteringVectorValues<V>[] parts);
+
     // ---- Implementations ----
 
     /**
@@ -339,8 +355,18 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public float[] copyOf(float[] vector) {
+            return Arrays.copyOf(vector, vector.length);
+        }
+
+        @Override
         public void initCentroid(float[] centroid, float[] vector, int dim) {
             System.arraycopy(vector, 0, centroid, 0, dim);
+        }
+
+        @Override
+        public void initCentroidFromFloat(float[] centroid, float[] floatValues, int dim) {
+            System.arraycopy(floatValues, 0, centroid, 0, dim);
         }
 
         private void accumulate(float[] centroid, float[] vector, int dim) {
@@ -457,6 +483,16 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
                 }
             };
         }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public ClusteringVectorValues<float[]> concatenate(ClusteringVectorValues<float[]>[] parts) {
+            ClusteringFloatVectorValues[] floatParts = new ClusteringFloatVectorValues[parts.length];
+            for (int i = 0; i < parts.length; i++) {
+                floatParts[i] = (ClusteringFloatVectorValues) parts[i];
+            }
+            return new ConcatenatedClusteringFloatVectorValues(floatParts);
+        }
     }
 
     /**
@@ -553,8 +589,20 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public byte[] copyOf(byte[] vector) {
+            return Arrays.copyOf(vector, vector.length);
+        }
+
+        @Override
         public void initCentroid(byte[] centroid, byte[] vector, int dim) {
             System.arraycopy(vector, 0, centroid, 0, dim);
+        }
+
+        @Override
+        public void initCentroidFromFloat(byte[] centroid, float[] floatValues, int dim) {
+            for (int d = 0; d < dim; d++) {
+                centroid[d] = (byte) Math.clamp(Math.round(floatValues[d]), -128, 127);
+            }
         }
 
         private void accumulate(int[] centroid, byte[] vector, int dim) {
@@ -717,6 +765,16 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             for (int d = 0; d < dim; d++) {
                 byteCentroid[d] = (byte) Math.clamp(Math.round(floatBuffer[d]), -128, 127);
             }
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public ClusteringVectorValues<byte[]> concatenate(ClusteringVectorValues<byte[]>[] parts) {
+            ClusteringByteVectorValues[] byteParts = new ClusteringByteVectorValues[parts.length];
+            for (int i = 0; i < parts.length; i++) {
+                byteParts[i] = (ClusteringByteVectorValues) parts[i];
+            }
+            return new ConcatenatedClusteringByteVectorValues(byteParts);
         }
 
     }

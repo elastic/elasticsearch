@@ -27,6 +27,9 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
 
     protected abstract ClusteringVectorValues<V> generateData(int nSamples, int nDims, int nClusters);
 
+    /** Wraps an array of centroids into a ClusteringVectorValues view for testing. */
+    protected abstract ClusteringVectorValues<V> wrapAsView(V[] centroids, int dim);
+
     public void testHKmeans() throws IOException {
         int nClusters = random().nextInt(1, 10);
         int nVectors = random().nextInt(nClusters, nClusters * 200);
@@ -108,6 +111,47 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
     }
 
     protected abstract ClusteringVectorValues<V> generateFewDistinctData(int nVectors, int dims, int diffValues);
+
+    public void testClusterByInsertion() throws IOException {
+        int nClusters = random().nextInt(2, 8);
+        int nVectors = random().nextInt(nClusters * 10, nClusters * 200);
+        int dims = random().nextInt(2, 20);
+        int targetSize = (int) ((float) nVectors / nClusters);
+
+        CentroidOps<V> ops = centroidOps();
+        ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
+
+        // First, do a full cluster to get "initial centroids" (simulating a dominant segment's priors)
+        HierarchicalKMeans<V> hkmeans = HierarchicalKMeans.ofSerial(ops, dims);
+        KMeansResult<V> fullResult = hkmeans.cluster(vectors, targetSize);
+        assertKMeansResultValid(fullResult, nVectors, nClusters);
+
+        // Now use those centroids as initial seeds for clusterByInsertion
+        ClusteringVectorValues<V> priorView = wrapAsView(fullResult.centroids(), dims);
+        KMeansResult<V> insertionResult = hkmeans.clusterByInsertion(vectors, priorView, targetSize);
+        assertKMeansResultValid(insertionResult, nVectors, nClusters);
+    }
+
+    public void testClusterByConcatenation() throws IOException {
+        int nClusters = random().nextInt(2, 8);
+        int nVectors = random().nextInt(nClusters * 10, nClusters * 200);
+        int dims = random().nextInt(2, 20);
+        int targetSize = (int) ((float) nVectors / nClusters);
+
+        CentroidOps<V> ops = centroidOps();
+        ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
+
+        // Full cluster to get "prior centroids" simulating concatenated priors from multiple segments
+        HierarchicalKMeans<V> hkmeans = HierarchicalKMeans.ofSerial(ops, dims);
+        KMeansResult<V> fullResult = hkmeans.cluster(vectors, targetSize);
+        assertKMeansResultValid(fullResult, nVectors, nClusters);
+
+        int[] clusterSizes = fullResult.clusterCounts();
+        ClusteringVectorValues<V> priorView = wrapAsView(fullResult.centroids(), dims);
+
+        KMeansResult<V> concatResult = hkmeans.clusterByConcatenation(vectors, priorView, clusterSizes, nVectors, targetSize);
+        assertKMeansResultValid(concatResult, nVectors, nClusters);
+    }
 
     // ---- Helpers ----
 

@@ -30,6 +30,11 @@ public class ByteHierarchicalKMeansTests extends AbstractHierarchicalKMeansTestC
     }
 
     @Override
+    protected ClusteringVectorValues<byte[]> wrapAsView(byte[][] centroids, int dim) {
+        return KMeansByteVectorValues.build(Arrays.asList(centroids), null, dim);
+    }
+
+    @Override
     protected ClusteringVectorValues<byte[]> generateFewDistinctData(int nVectors, int dims, int diffValues) {
         byte[][] values = new byte[diffValues][dims];
         for (int i = 0; i < diffValues; i++) {

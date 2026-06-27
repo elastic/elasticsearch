@@ -56,32 +56,25 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        EsqlCsvSpecTestsExtension extension = project.getExtensions()
-            .create("esqlCsvSpecTests", EsqlCsvSpecTestsExtension.class);
+        EsqlCsvSpecTestsExtension extension = project.getExtensions().create("esqlCsvSpecTests", EsqlCsvSpecTestsExtension.class);
 
         project.getTasks().register("generateEsqlSpecTests", GenerateEsqlSpecTestsTask.class, task -> {
             task.getSpecFilesDir().set(extension.getSpecFilesDir());
             task.getPackageName().set(extension.getPackageName());
             task.getVariantPrefixes().set(project.provider(extension::getVariantPrefixes));
             task.getVariantBaseClasses().set(project.provider(extension::getVariantBaseClasses));
-            task.getOutputDirectory().set(
-                project.getLayout().getBuildDirectory().dir("generated-csv-spec-test-sources/java")
-            );
+            task.getOutputDirectory().set(project.getLayout().getBuildDirectory().dir("generated-csv-spec-test-sources/java"));
             task.setDescription("Generates per-csv-spec-file IT classes for each declared variant.");
             task.setGroup("verification");
         });
 
         project.getPlugins().withType(JavaBasePlugin.class, javaPlugin -> {
-            SourceSetContainer sourceSets = project.getExtensions()
-                .getByType(JavaPluginExtension.class)
-                .getSourceSets();
+            SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
 
             // Create csvSpecTest source set and wire in the generated sources.
             // This must happen before afterEvaluate so compilation tasks are registered.
             SourceSet csvSpecTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
-            csvSpecTestSourceSet.getJava().srcDir(
-                project.getTasks().named("generateEsqlSpecTests")
-            );
+            csvSpecTestSourceSet.getJava().srcDir(project.getTasks().named("generateEsqlSpecTests"));
 
             // Wire classpath after all plugins have run so javaRestTest is guaranteed to exist.
             project.afterEvaluate(p -> {
@@ -89,22 +82,21 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
 
                 // csvSpecTest compiles against javaRestTest output (for AbstractEsqlSpecIT)
                 // and inherits all of javaRestTest's compile and runtime dependencies.
-                project.getDependencies().add(
-                    csvSpecTestSourceSet.getImplementationConfigurationName(),
-                    javaRestTestSourceSet.getOutput()
-                );
+                project.getDependencies().add(csvSpecTestSourceSet.getImplementationConfigurationName(), javaRestTestSourceSet.getOutput());
                 project.getConfigurations()
                     .named(csvSpecTestSourceSet.getCompileClasspathConfigurationName())
-                    .configure(c -> c.extendsFrom(
-                        project.getConfigurations()
-                            .getByName(javaRestTestSourceSet.getCompileClasspathConfigurationName())
-                    ));
+                    .configure(
+                        c -> c.extendsFrom(
+                            project.getConfigurations().getByName(javaRestTestSourceSet.getCompileClasspathConfigurationName())
+                        )
+                    );
                 project.getConfigurations()
                     .named(csvSpecTestSourceSet.getRuntimeClasspathConfigurationName())
-                    .configure(c -> c.extendsFrom(
-                        project.getConfigurations()
-                            .getByName(javaRestTestSourceSet.getRuntimeClasspathConfigurationName())
-                    ));
+                    .configure(
+                        c -> c.extendsFrom(
+                            project.getConfigurations().getByName(javaRestTestSourceSet.getRuntimeClasspathConfigurationName())
+                        )
+                    );
             });
         });
     }

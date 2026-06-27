@@ -12,6 +12,7 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -71,7 +72,7 @@ final class BinaryDocValuesTermEqualQuery extends Query {
                 // OptionalColumnAtATimeReader and return a non-null iterator.
                 final DocIdSetIterator iter = ((BlockLoader.OptionalColumnAtATimeReader) values).tryTermEqualIterator(term);
                 assert iter != null : "tryTermEqualIterator returned null after rewrite() verified it would not";
-                return ConstantScoreScorerSupplier.fromIterator(iter, score(), scoreMode, context.reader().maxDoc());
+                return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iter));
             }
 
             @Override

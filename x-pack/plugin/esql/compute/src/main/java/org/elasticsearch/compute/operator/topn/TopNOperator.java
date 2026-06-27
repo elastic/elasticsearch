@@ -14,7 +14,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -185,22 +184,9 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public TopNOperator get(DriverContext driverContext) {
-            return getTopNOperator(driverContext.blockFactory(), this, parallelWorkerConfig);
-        }
-
-        @Override
-        public TopNOperator getWorkerOperator(DriverContext driverContext) {
-            return getTopNOperator(driverContext.workerBlockFactory(), null, null);
-        }
-
-        private TopNOperator getTopNOperator(
-            BlockFactory blockFactory,
-            @Nullable TopNOperatorFactory factory,
-            @Nullable ParallelWorkerConfig parallelWorkerConfig
-        ) {
             return new TopNOperator(
-                blockFactory,
-                blockFactory.breaker(),
+                driverContext.blockFactory(),
+                driverContext.blockFactory().breaker(),
                 topCount,
                 elementTypes,
                 encoders,
@@ -209,7 +195,6 @@ public class TopNOperator implements Operator, Accountable {
                 jumboPageBytes,
                 inputOrdering,
                 minCompetitive,
-                factory,
                 parallelWorkerConfig
             );
         }
@@ -232,9 +217,6 @@ public class TopNOperator implements Operator, Accountable {
 
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
-
-    @Nullable
-    private final TopNOperatorFactory factory;
 
     @Nullable
     private final ParallelWorkerConfig parallelWorkerConfig;
@@ -260,6 +242,9 @@ public class TopNOperator implements Operator, Accountable {
      */
     @Nullable
     private final SharedMinCompetitive minCompetitive;
+
+    @Nullable
+    private final SharedMinCompetitive.Supplier minCompetitiveSupplier;
     /**
      * How many times {@link #minCompetitive} was updated.
      */
@@ -318,7 +303,6 @@ public class TopNOperator implements Operator, Accountable {
             jumboPageBytes,
             inputOrdering,
             minCompetitiveSupplier,
-            null,
             null
         );
     }
@@ -334,7 +318,6 @@ public class TopNOperator implements Operator, Accountable {
         long jumboPageBytes,
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier,
-        @Nullable TopNOperatorFactory factory,
         @Nullable ParallelWorkerConfig parallelWorkerConfig
     ) {
         TopNQueue inputQueue = null;
@@ -351,6 +334,7 @@ public class TopNOperator implements Operator, Accountable {
         }
         this.inputQueue = inputQueue;
         this.minCompetitive = minCompetitive;
+        this.minCompetitiveSupplier = minCompetitiveSupplier;
         this.blockFactory = blockFactory;
         this.breaker = breaker;
         this.maxPageRows = maxPageRows;
@@ -363,7 +347,6 @@ public class TopNOperator implements Operator, Accountable {
         for (SortOrder so : sortOrders) {
             channelInKey[so.channel] = true;
         }
-        this.factory = factory;
         this.parallelWorkerConfig = parallelWorkerConfig;
     }
 
@@ -498,16 +481,30 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public Operator tryPromote(DriverContext driverContext) {
-        if (parallelWorkerConfig == null || factory == null) {
-            return this;
-        }
-        if (PARALLEL_TOPN_FEATURE_FLAG.isEnabled() == false) {
+        // TODO:
+        if (parallelWorkerConfig == null) {
             return this;
         }
         if (rowsReceived > parallelWorkerConfig.promotionThresholdRows()) {
-            return new ParallelTopNOperator(parallelWorkerConfig, driverContext, factory, this);
+            return new ParallelTopNOperator(parallelWorkerConfig, driverContext, this);
         }
         return this;
+    }
+
+    TopNOperator spawnWorker(BlockFactory childBlockFactory) {
+        return new TopNOperator(
+            childBlockFactory,
+            childBlockFactory.breaker(),
+            inputQueue.topCount,
+            elementTypes,
+            encoders,
+            sortOrders,
+            maxPageRows,
+            jumboPageBytes,
+            inputOrdering,
+            minCompetitiveSupplier,
+            null
+        );
     }
 
     @Override
@@ -535,19 +532,6 @@ public class TopNOperator implements Operator, Accountable {
         spare = null;
         inputQueue = null;
         output = null;
-    }
-
-    /**
-     * Releases the {@link org.elasticsearch.compute.data.LocalCircuitBreaker} backing this
-     * operator's block factory, returning its reserved bytes to the parent breaker. Must only
-     * be called by {@link ParallelTopNOperator} on background worker instances after
-     * {@link #close()} has returned all row bytes to the LC — never on the merge-target
-     * instance whose block factory belongs to the driver's own context.
-     */
-    void releaseBreaker() {
-        if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {
-            localBreaker.close();
-        }
     }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator

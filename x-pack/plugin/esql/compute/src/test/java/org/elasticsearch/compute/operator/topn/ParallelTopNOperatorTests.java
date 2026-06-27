@@ -324,7 +324,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         TopNOperator initialWorker = workerFactory.get(driverContext);
         TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), 1, 10, 0);
 
-        try (ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, workerFactory, initialWorker)) {
+        try (ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker)) {
             // Buffer has room, not yet finished.
             assertTrue(op.needsInput());
             assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
@@ -341,7 +341,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         TopNOperator initialWorker = workerFactory.get(driverContext);
         TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), 2, 10, 0);
 
-        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, workerFactory, initialWorker);
+        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker);
         try {
             op.finish();
             // Workers may or may not have finished yet. Wait until they do.
@@ -350,21 +350,6 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         } catch (AssertionError e) {
             op.close();
             throw e;
-        }
-    }
-
-    /**
-     * After {@code finish()} is called, {@code needsInput()} must return false.
-     */
-    public void testNeedsInputAfterFinish() {
-        DriverContext driverContext = driverContext();
-        TopNOperator.TopNOperatorFactory workerFactory = workerOnlyFactory();
-        TopNOperator initialWorker = workerFactory.get(driverContext);
-        TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), 1, 10, 0);
-
-        try (ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, workerFactory, initialWorker)) {
-            op.finish();
-            assertFalse(op.needsInput());
         }
     }
 
@@ -378,7 +363,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         TopNOperator initialWorker = workerFactory.get(driverContext);
         TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), 1, 10, 0);
 
-        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, workerFactory, initialWorker);
+        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker);
         try {
             Page inputPage = buildLongPage(driverContext().blockFactory(), LongStream.range(0, 5));
             op.addInput(inputPage);
@@ -415,7 +400,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         TopNOperator initialWorker = workerFactory.get(driverContext);
         TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), 2, 10, 0);
 
-        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, workerFactory, initialWorker);
+        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker);
         Page page = buildLongPage(driverContext().blockFactory(), LongStream.range(0, 5));
         op.addInput(page);
         // Close without calling finish or getOutput.
@@ -444,7 +429,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         TopNOperator initialWorker = workerFactory.get(driverContext);
         TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), workerCount, 10, 0);
 
-        try (ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, workerFactory, initialWorker)) {
+        try (ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker)) {
             long shallowSize = RamUsageEstimator.shallowSizeOfInstance(ParallelTopNOperator.class);
 
             // While workers are still running their state is not safe to read; ramBytesUsed
@@ -479,7 +464,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         TopNOperator initialWorker = workerFactory.get(driverContext);
         TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), workerCount, 10, 0);
 
-        try (ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, workerFactory, initialWorker)) {
+        try (ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker)) {
             assertThat(op.toString(), equalTo("ParallelTopNOperator[workers=" + (workerCount + 1) + "]"));
         }
     }
@@ -498,7 +483,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         TopNOperator initialWorker = workerFactory.get(driverContext);
         TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(randomlyRejectingExecutor, 2, 10, 0);
 
-        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, workerFactory, initialWorker);
+        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, initialWorker);
 
         List<Long> input = new ArrayList<>(LongStream.range(1, 1001).boxed().toList());
         Collections.shuffle(input, random());
@@ -531,7 +516,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
             TopNOperator.TopNOperatorFactory factory = workerOnlyFactory();
             TopNOperator initial = factory.get(ctx);
             TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), 1, 10, 0);
-            ParallelTopNOperator op = new ParallelTopNOperator(config, ctx, factory, initial);
+            ParallelTopNOperator op = new ParallelTopNOperator(config, ctx, initial);
             try {
                 op.addInput(buildLongPage(ctx.blockFactory(), LongStream.of(123L)));
                 op.finish();

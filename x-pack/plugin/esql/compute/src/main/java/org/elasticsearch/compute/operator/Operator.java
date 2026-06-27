@@ -120,10 +120,6 @@ public interface Operator extends Releasable {
     interface OperatorFactory extends Describable {
         /** Creates a new intermediate operator. */
         Operator get(DriverContext driverContext);
-
-        default Operator getWorkerOperator(DriverContext driverContext) {
-            throw new UnsupportedOperationException();
-        }
     }
 
     /**

@@ -13,18 +13,20 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.exchange.ExchangeBuffer;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -50,14 +52,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <h2>Memory accounting and LC ownership transfer</h2>
  * {@code mergeTarget} charges allocations directly to the driver's circuit breaker. Each
  * background worker has its own {@link org.elasticsearch.compute.data.LocalCircuitBreaker}
- * (LC) via {@link DriverContext#workerBlockFactory()}.
+ * (LC) via {@link DriverContext#createChildBlockFactory()}.
  * The LC backs every allocation the worker makes: the {@link TopNQueue} struct, the spare
  * {@link TopNRow}, and the bytes inside each row (each {@link TopNRow} holds a direct
  * reference to its creator's breaker).
  *
  * <p><b>Aborting workers</b> clean up on the worker thread: {@link TopNOperator#close()}
  * closes all rows and the queue struct, returning their bytes to the LC;
- * {@link TopNOperator#releaseBreaker()} then closes the LC and returns its reserved bytes
+ * {@link DriverContext#releaseChildBlockFactory} then closes the LC and returns its reserved bytes
  * to the driver's breaker.
  *
  * <p><b>Non-aborting workers</b> transfer ownership of their operator — including their LC —
@@ -69,7 +71,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *       LC. {@code allWorkersDone} guarantees the driver sees each LC's fully-updated state.</li>
  *   <li>Calls {@link TopNOperator#close()} on the worker. The queue is empty so no rows are
  *       closed; only the queue's struct bytes are returned to the LC.</li>
- *   <li>Calls {@link TopNOperator#releaseBreaker()} for all workers in {@link #close()},
+ *   <li>Calls {@link DriverContext#releaseChildBlockFactory} for all workers in {@link #close()},
  *       <em>after</em> {@code mergeTarget.close()} — which closes any surviving rows, each
  *       returning its bytes to its worker LC — so every LC is fully drained before being
  *       released to the driver's breaker.</li>
@@ -93,14 +95,13 @@ public class ParallelTopNOperator implements Operator, Accountable {
     private final TopNOperator mergeTarget;
 
     /** Background worker operators, one per {@code esql_worker} thread. */
-    private final List<TopNOperator> workers;
+    private final List<Worker> workers;
 
     private final DriverContext driverContext;
     private final Executor executor;
     private final FailureCollector failureCollector = new FailureCollector();
 
-    /** Decrements as each background worker permanently exits; fires {@link #allWorkersDone}. */
-    private final AtomicInteger runningWorkerTasks;
+    private final PendingTasks pendingTasks;
     /** Completes when all background workers have finished (or there were none). */
     private final SubscribableListener<Void> allWorkersDone = new SubscribableListener<>();
 
@@ -119,16 +120,10 @@ public class ParallelTopNOperator implements Operator, Accountable {
     /**
      * @param config          parallel worker configuration (executor, worker count, etc.)
      * @param driverContext   driver context for block-factory and async-action tracking
-     * @param factory         factory used to create fresh background worker operators
      * @param initialWorker   the promoted {@link TopNOperator} that holds pre-promotion rows;
      *                        becomes {@link #mergeTarget} and is never sent to a background thread
      */
-    public ParallelTopNOperator(
-        TopNOperator.ParallelWorkerConfig config,
-        DriverContext driverContext,
-        TopNOperator.TopNOperatorFactory factory,
-        TopNOperator initialWorker
-    ) {
+    public ParallelTopNOperator(TopNOperator.ParallelWorkerConfig config, DriverContext driverContext, TopNOperator initialWorker) {
         this.in = new ExchangeBuffer(config.maxInFlightPages());
         this.driverContext = driverContext;
         this.executor = config.executor();
@@ -141,114 +136,101 @@ public class ParallelTopNOperator implements Operator, Accountable {
             );
         }
         this.workers = new ArrayList<>(backgroundWorkerCount);
-        for (int i = 0; i < backgroundWorkerCount; i++) {
-            workers.add(factory.getWorkerOperator(driverContext));
+        boolean success = false;
+        try {
+            for (int i = 0; i < backgroundWorkerCount; i++) {
+                BlockFactory childFactory = driverContext.createChildBlockFactory();
+                try {
+                    TopNOperator workerOp = initialWorker.spawnWorker(childFactory);
+                    workers.add(new Worker(childFactory, workerOp));
+                    childFactory = null;
+                } finally {
+                    if (childFactory != null) {
+                        driverContext.releaseChildBlockFactory(childFactory);
+                    }
+                }
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                releaseWorkers();
+            }
         }
-
-        this.runningWorkerTasks = new AtomicInteger(backgroundWorkerCount);
-        for (TopNOperator worker : workers) {
-            driverContext.addAsyncAction();
-            scheduleWorker(worker);
+        this.pendingTasks = new PendingTasks(() -> {
+            allWorkersDone.onResponse(null);
+            if (closed) {
+                releaseWorkers();
+            }
+            driverContext.removeAsyncAction();
+        });
+        driverContext.addAsyncAction();
+        for (var worker : workers) {
+            scheduleWorker(worker.topN);
         }
     }
 
     private void scheduleWorker(TopNOperator worker) {
-        // If the queue depth is at least as large as the thread count, even an immediately-free
-        // thread wouldn't reach our task soon. Run inline instead.
-        if (executor instanceof ThreadPoolExecutor tpe && tpe.getQueue().size() >= tpe.getMaximumPoolSize()) {
-            runWorkerInline(worker);
-            return;
-        }
-
         executor.execute(new AbstractRunnable() {
             @Override
-            protected void doRun() throws Exception {
-                runWorker(worker);
+            protected void doRun() {
+                // Incremented here, not before execute(), so queued tasks don't block completion.
+                // Safe because `finish` draining the buffer with `processPagesWithCurrentThread` before calling `pendingTasks#finishTask`
+                pendingTasks.newTask();
+                try {
+                    Page page;
+                    while ((page = in.pollPage()) != null) {
+                        worker.addInput(page);
+                    }
+                    // Buffer temporarily empty; reschedule when more pages arrive or buffer finishes.
+                    if (in.isFinished() == false) {
+                        in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker)));
+                    }
+                } finally {
+                    pendingTasks.finishTask();
+                }
             }
 
             @Override
             public void onFailure(Exception e) {
-                ParallelTopNOperator.this.onFailure(worker, e);
+                failureCollector.unwrapAndCollect(e);
+                in.finish(true);
             }
 
             @Override
             public void onRejection(Exception e) {
-                if (e instanceof EsRejectedExecutionException) {
-                    // Thread pool full; run inline on the driver thread instead.
-                    // If the buffer empties before finishing, the worker is rescheduled.
-                    runWorkerInline(worker);
-                } else {
-                    onFailure(e);
-                }
+                // fine, let the main thread merge this queue later
             }
         });
     }
 
-    private void runWorkerInline(TopNOperator worker) {
-        try {
-            runWorker(worker);
-        } catch (Exception e) {
-            onFailure(worker, e);
-        }
-    }
-
-    private void onFailure(TopNOperator worker, Exception e) {
-        failureCollector.unwrapAndCollect(e);
-        in.finish(true);
-        workerPermanentlyExited(worker, true);
-    }
-
-    private void runWorker(TopNOperator worker) {
-        Page page;
-        while (closed == false && (page = in.pollPage()) != null) {
-            worker.addInput(page);
-        }
-
-        if (in.isFinished()) {
-            boolean abort = closed || failureCollector.hasFailure();
-            workerPermanentlyExited(worker, abort);
-        } else {
-            // Buffer temporarily empty; reschedule when more pages arrive or buffer finishes.
-            in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker)));
-        }
-    }
-
-    /**
-     * Called when a background worker has permanently stopped.
-     *
-     * <p>For the <b>abort path</b> ({@code abort == true}): the worker's queue rows are
-     * closed and the LC is released here on the worker thread.
-     *
-     * <p>For the <b>non-abort transfer path</b> ({@code abort == false}): the worker exits
-     * without touching its queue or LC, transferring ownership to the driver thread.
-     * The driver merges the worker's queue in {@link #getOutput()} and releases its
-     * LC in {@link #close()}.
-     */
-    private void workerPermanentlyExited(TopNOperator worker, boolean abort) {
-        if (abort) {
-            worker.close();
-            try {
-                worker.releaseBreaker();
-            } catch (Exception e) {
-                failureCollector.unwrapAndCollect(e);
-            }
-        }
-        // else: non-abort with closed==false → driver owns this worker's queue and LC.
-        if (runningWorkerTasks.decrementAndGet() == 0) {
-            allWorkersDone.onResponse(null);
-        }
-        driverContext.removeAsyncAction();
-    }
-
     @Override
     public boolean needsInput() {
-        return finishCalled == false && in.waitForWriting() == Operator.NOT_BLOCKED;
+        return mergeTarget.needsInput();
+    }
+
+    private void processPagesWithCurrentThread() {
+        try {
+            Page page;
+            while ((page = in.pollPage()) != null) {
+                mergeTarget.addInput(page);
+            }
+        } catch (Exception e) {
+            in.finish(true);
+            throw e;
+        }
+    }
+
+    private void releaseWorkers() {
+        Releasables.close(workers);
     }
 
     @Override
     public void addInput(Page page) {
         page.allowPassingToDifferentDriver();
         in.addPage(page);
+        if (in.waitForWriting().listener().isDone() == false) {
+            processPagesWithCurrentThread();
+        }
     }
 
     @Override
@@ -256,6 +238,11 @@ public class ParallelTopNOperator implements Operator, Accountable {
         if (finishCalled == false) {
             finishCalled = true;
             in.finish(false);
+            try {
+                processPagesWithCurrentThread();
+            } finally {
+                pendingTasks.finishTask();
+            }
         }
     }
 
@@ -302,10 +289,9 @@ public class ParallelTopNOperator implements Operator, Accountable {
             // PriorityQueue.pop() nulls each heap slot, so worker.close() after the drain only
             // releases the empty queue's struct bytes — the transferred rows are not double-closed.
             // Worker LCs are released in close() after mergeTarget.close() drains surviving rows.
-            for (TopNOperator worker : workers) {
-                if (worker.inputQueue != null) {
-                    worker.inputQueue.popAllInto(mergeTarget.inputQueue);
-                    worker.close();
+            for (var worker : workers) {
+                if (worker.topN.inputQueue != null) {
+                    worker.topN.inputQueue.popAllInto(mergeTarget.inputQueue);
                 }
             }
             mergeTarget.finish();
@@ -316,32 +302,14 @@ public class ParallelTopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
-        closed = true;
         in.finish(true);
-        // Close mergeTarget first so surviving rows return their bytes to worker LCs
-        // before those LCs are released.
         mergeTarget.close();
-        if (allWorkersDone.isDone()) {
-            releaseAllWorkers();
-        } else {
-            // Workers still running will see closed==true and abort; release all workers
-            // (including any that already transferred ownership) once they have all exited.
-            allWorkersDone.addListener(ActionListener.running(this::releaseAllWorkers));
+        closed = true;
+        if (finishCalled == false) {
+            pendingTasks.finishTask();
         }
-    }
-
-    private void releaseAllWorkers() {
-        for (TopNOperator worker : workers) {
-            // Abort-path workers already closed themselves (inputQueue==null); skip them.
-            if (worker.inputQueue != null) {
-                worker.close();
-            }
-            try {
-                // releaseBreaker() calls LocalCircuitBreaker.close() which is idempotent
-                worker.releaseBreaker();
-            } catch (Exception e) {
-                failureCollector.unwrapAndCollect(e);
-            }
+        if (allWorkersDone.isDone()) {
+            releaseWorkers();
         }
     }
 
@@ -351,8 +319,8 @@ public class ParallelTopNOperator implements Operator, Accountable {
         size += mergeTarget.ramBytesUsed();
         // Worker accounting is unsafe to read concurrently; only include it once all workers have exited.
         if (allWorkersDone.isDone()) {
-            for (TopNOperator worker : workers) {
-                size += worker.ramBytesUsed();
+            for (var worker : workers) {
+                size += worker.topN.ramBytesUsed();
             }
         }
         return size;
@@ -361,5 +329,46 @@ public class ParallelTopNOperator implements Operator, Accountable {
     @Override
     public String toString() {
         return "ParallelTopNOperator[workers=" + (workers.size() + 1) + "]";
+    }
+
+    private static class PendingTasks {
+        final AtomicInteger instances = new AtomicInteger(1);
+        final AtomicBoolean completed = new AtomicBoolean();
+        final Runnable completion;
+
+        PendingTasks(Runnable completion) {
+            this.completion = completion;
+        }
+
+        void newTask() {
+            int refs = instances.incrementAndGet();
+            assert refs > 0;
+        }
+
+        void finishTask() {
+            int refs = instances.decrementAndGet();
+            assert refs >= 0;
+            if (refs == 0 && completed.compareAndSet(false, true)) {
+                completion.run();
+            }
+        }
+    }
+
+    private class Worker implements Releasable {
+        final BlockFactory factory;
+        final TopNOperator topN;
+        private final AtomicBoolean released = new AtomicBoolean();
+
+        Worker(BlockFactory factory, TopNOperator topN) {
+            this.factory = factory;
+            this.topN = topN;
+        }
+
+        @Override
+        public void close() {
+            if (released.compareAndSet(false, true)) {
+                Releasables.close(topN, () -> driverContext.releaseChildBlockFactory(factory));
+            }
+        }
     }
 }

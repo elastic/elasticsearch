@@ -764,6 +764,49 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     }
 
     /**
+     * Verifies that a multi-valued leaf inside a nested object preserves array order in columnar_stored mode too: the
+     * offsets recorded per child document are reconstructed when the index-time blob is materialized.
+     */
+    public void testColumnarStoredSourceNestedLeafArrayRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("comments");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                b.startObject("stars").field("type", "long").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument parsed = mapperService.documentMapper().parse(source(b -> {
+            b.startArray("comments");
+            b.startObject().array("stars", 50, 10, 30).endObject();
+            b.startObject().array("stars", 20, 40).endObject();
+            b.endArray();
+        }));
+
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), unwrapped -> {
+            DirectoryReader reader = wrapInMockESDirectoryReader(unwrapped);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            LeafReaderContext leaf = reader.leaves().get(0);
+            int rootDocId = parsed.docs().size() - 1;
+            int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+            LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+            sfLoader.advanceTo(rootDocId);
+            Source source = sourceLeaf.source(sfLoader, rootDocId);
+            assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"comments\":[{\"stars\":[50,10,30]},{\"stars\":[20,40]}]}"));
+        });
+    }
+
+    /**
      * Verifies that in columnar_stored mode, {@code postParse} removes the per-field fallback fields used only for
      * synthetic-source reconstruction once the whole-document blob has been written to {@code _ignored_source}.
      */

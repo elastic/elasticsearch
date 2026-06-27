@@ -454,6 +454,15 @@ public class ObjectMapper extends Mapper {
                     "the value of [enabled] is [false]; no fields with the prefix [" + fullName + "] are allowed"
                 );
             }
+            // A pass-through object records its priority in prefixProperties only at the columnar root; it cannot be
+            // captured when auto-flattened elsewhere (a non-columnar subobjects:false root, or inside a nested scope), so
+            // reject it there rather than silently dropping the pass-through behaviour.
+            if (this instanceof PassThroughObjectMapper.Builder && context.isStrictColumnar() == false) {
+                throwAutoFlatteningException(
+                    fullName,
+                    "the value of [type] is [passthrough], which is only supported at the root in columnar index modes"
+                );
+            }
             if (subobjects.explicit() && subobjects.value() == Subobjects.ENABLED) {
                 throwAutoFlatteningException(fullName, "the value of [subobjects] is [true]");
             }

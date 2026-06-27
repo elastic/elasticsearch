@@ -1527,7 +1527,8 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertEquals(ObjectMapper.Subobjects.ENABLED, inherited.mappingLookup().objectMappers().get("nested1").subobjects());
         assertNotNull(inherited.fieldType("nested1.foo.bar"));
 
-        // Override: subobjects:false on the nested field keeps the dotted child flat (no intermediate object).
+        // Override: subobjects:false on the nested field keeps the dotted child flat (no intermediate object), and a
+        // declared sub-object is auto-flattened to dotted leaves there just like at the root.
         MapperService overridden = createMapperService(mapping(b -> {
             b.startObject("nested1");
             {
@@ -1535,12 +1536,24 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.field("subobjects", false);
                 b.startObject("properties");
                 b.startObject("foo.bar").field("type", "keyword").endObject();
+                b.startObject("meta");
+                {
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
                 b.endObject();
             }
             b.endObject();
         }));
         assertNull(overridden.mappingLookup().objectMappers().get("nested1.foo"));
+        assertNull(
+            "a sub-object inside a subobjects:false nested is flattened away",
+            overridden.mappingLookup().objectMappers().get("nested1.meta")
+        );
         assertNotNull(overridden.fieldType("nested1.foo.bar"));
+        assertNotNull(overridden.fieldType("nested1.meta.host"));
         ObjectMapper nested1 = overridden.mappingLookup().objectMappers().get("nested1");
         assertEquals(ObjectMapper.Subobjects.DISABLED, nested1.subobjects());
     }

@@ -1175,6 +1175,121 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             {"comments":[{"message":"first","votes":3},{"message":"second","votes":7}]}"""));
     }
 
+    public void testStrictColumnarModesNestedLeafArrayRoundTrip() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("comments");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("message").field("type", "keyword").endObject();
+                    b.startObject("stars").field("type", "long").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        // A multi-valued leaf inside a nested object preserves array order: offsets are recorded per document, so each
+        // nested child records its own offsets on its child document and the order is reconstructed when it is read back.
+        String synthetic = syntheticSource(mapper, b -> {
+            b.startArray("comments");
+            {
+                b.startObject().field("message", "first").array("stars", 50, 10, 30).endObject();
+                b.startObject().field("message", "second").array("stars", 20, 40).endObject();
+            }
+            b.endArray();
+        });
+        assertThat(synthetic, equalTo("""
+            {"comments":[{"message":"first","stars":[50,10,30]},{"message":"second","stars":[20,40]}]}"""));
+    }
+
+    private void assertNestedLeafArrayRoundTrip(String leafType, CheckedConsumer<XContentBuilder, IOException> doc, String expected)
+        throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("comments");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                b.startObject("v").field("type", leafType).endObject();
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        assertThat(syntheticSource(mapper, doc), equalTo(expected));
+    }
+
+    public void testStrictColumnarModesNestedKeywordArrayPreservesOrder() throws Exception {
+        assertNestedLeafArrayRoundTrip("keyword", b -> {
+            b.startArray("comments");
+            b.startObject().array("v", "z", "a", "m").endObject();
+            b.endArray();
+        }, """
+            {"comments":{"v":["z","a","m"]}}""");
+    }
+
+    public void testStrictColumnarModesNestedLeafArrayWithNulls() throws Exception {
+        assertNestedLeafArrayRoundTrip("long", b -> {
+            b.startArray("comments");
+            b.startObject().startArray("v").value(50).nullValue().value(30).endArray().endObject();
+            b.endArray();
+        }, """
+            {"comments":{"v":[50,null,30]}}""");
+    }
+
+    public void testStrictColumnarModesNestedLeafArrayWithDuplicates() throws Exception {
+        assertNestedLeafArrayRoundTrip("long", b -> {
+            b.startArray("comments");
+            b.startObject().array("v", 50, 10, 50).endObject();
+            b.endArray();
+        }, """
+            {"comments":{"v":[50,10,50]}}""");
+    }
+
+    public void testStrictColumnarModesNestedMultipleChildrenLeafArrays() throws Exception {
+        assertNestedLeafArrayRoundTrip("long", b -> {
+            b.startArray("comments");
+            b.startObject().array("v", 50, 10).endObject();
+            b.startObject().array("v", 20, 40, 30).endObject();
+            b.endArray();
+        }, """
+            {"comments":[{"v":[50,10]},{"v":[20,40,30]}]}""");
+    }
+
+    public void testStrictColumnarModesRejectPassThroughInsideNested() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // A pass-through object's priority/alias is captured only at the columnar root, so inside a nested scope it is
+            // rejected (like enabled:false / a dynamic override) rather than silently degrading to plain flattening.
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("comments");
+                {
+                    b.field("type", "nested");
+                    b.startObject("properties");
+                    {
+                        b.startObject("attributes");
+                        {
+                            b.field("type", "passthrough");
+                            b.field("priority", 1);
+                            b.startObject("properties");
+                            b.startObject("host").field("type", "keyword").endObject();
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("the value of [type] is [passthrough]"));
+        }
+    }
+
     public void testStrictColumnarModesAllowHeterogeneousDynamic() throws Exception {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {

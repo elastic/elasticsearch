@@ -758,3 +758,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=update/100_synthetic_source/stored text}
   issue: https://github.com/elastic/elasticsearch/issues/152365
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/152366

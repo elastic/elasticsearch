@@ -261,7 +261,7 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_text"),
         new TestDataset("mv_text"),
         new TestDataset("dense_vector"),
-        new TestDataset("dense_vector_unmapped").withData("dense_vector.csv")
+        new TestDataset("dense_vector").withIndex("dense_vector_unmapped")
             .withDynamic("false")
             .withTypeMapping(removeFields("float_vector")),
         new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),

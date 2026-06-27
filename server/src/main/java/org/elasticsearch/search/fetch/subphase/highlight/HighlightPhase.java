@@ -135,6 +135,8 @@ public class HighlightPhase implements FetchSubPhase {
 
                 if (fieldType.isStored()) {
                     storedFields.add(fieldType.name());
+                } else if (highlighter.canHighlightWithoutSource(fieldType, context.getSearchExecutionContext())) {
+                    // The highlighter sources its content from doc values (or stored fields), so _source need not be loaded.
                 } else {
                     sourceRequired = true;
                 }

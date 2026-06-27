@@ -347,8 +347,9 @@ public final class MappingLookup {
      * doc-value columns and never keep a generic source fallback, so a fallback field (no doc values, or a type whose
      * doc-value encoding cannot rebuild its own source) has no columnar representation. The check covers every field
      * mapper, including those nested inside object and nested fields, since {@link #fieldMappers()} is the flattened set
-     * of all field mappers by full path. Metadata fields are exempt (reconstructed by their own machinery) and so are
-     * multi-fields (alternate indexings of their parent that never appear in {@code _source}).
+     * of all field mappers by full path. Metadata fields are exempt (reconstructed by their own machinery), as are
+     * multi-fields and the internal sub-fields of an {@link InferenceFieldMapper} (e.g. a {@code semantic_text} field's
+     * chunk embeddings and offsets) - none of these appear in {@code _source}.
      */
     @Nullable
     public String firstFieldNotReconstructableFromDocValues() {
@@ -356,11 +357,27 @@ public final class MappingLookup {
             if (mapper instanceof FieldMapper fieldMapper
                 && mapper instanceof MetadataFieldMapper == false
                 && isMultiField(fieldMapper.fullPath()) == false
+                && isInferenceFieldInternal(fieldMapper.fullPath()) == false
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
                 return fieldMapper.fullPath();
             }
         }
         return null;
+    }
+
+    /**
+     * Whether the field is an internal sub-field of an {@link InferenceFieldMapper} (it lives under an inference field's path).
+     * Such fields are not part of {@code _source}; the inference field reconstructs them into {@code _inference_fields} itself.
+     */
+    private boolean isInferenceFieldInternal(String fieldPath) {
+        for (String inferenceFieldPath : inferenceFields.keySet()) {
+            if (fieldPath.length() > inferenceFieldPath.length()
+                && fieldPath.startsWith(inferenceFieldPath)
+                && fieldPath.charAt(inferenceFieldPath.length()) == '.') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

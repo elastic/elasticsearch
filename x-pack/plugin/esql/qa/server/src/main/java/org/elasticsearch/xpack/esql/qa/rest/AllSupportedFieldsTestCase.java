@@ -919,11 +919,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     // Field types with no native (doc-value-based) synthetic source: columnar index modes reject them because their
     // _source cannot be reconstructed from doc values. Tracked as follow-ups in the columnar contract issue.
-    private static final Set<DataType> COLUMNAR_UNSUPPORTED_TYPES = Set.of(
-        DataType.GEO_SHAPE,
-        DataType.CARTESIAN_SHAPE,
-        DataType.CARTESIAN_POINT
-    );
+    private static final Set<DataType> COLUMNAR_UNSUPPORTED_TYPES = Set.of(DataType.GEO_SHAPE, DataType.CARTESIAN_SHAPE);
 
     private static boolean excludedInColumnar(DataType type, IndexMode mode) {
         return mode.isStrictColumnar() && COLUMNAR_UNSUPPORTED_TYPES.contains(type);

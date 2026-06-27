@@ -30,6 +30,7 @@ public class Clusters {
             .withNode(node -> node.version(Version.CURRENT))
             .withNode(node -> node.version(oldVersionString, isDetachedVersion))
             .withNode(node -> node.version(Version.CURRENT))
+            .shared(true)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)

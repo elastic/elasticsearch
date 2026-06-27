@@ -35,6 +35,9 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
+            .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
@@ -101,6 +104,9 @@ public class Clusters {
             .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", skipUnavailable.toString())
             .setting("path.repo", csvDataPath::toString)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
+            .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");

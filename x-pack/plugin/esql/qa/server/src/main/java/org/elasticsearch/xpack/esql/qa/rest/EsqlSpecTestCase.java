@@ -83,8 +83,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBE
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
-// This test can run very long in serverless configurations
-@TimeoutSuite(millis = 45 * TimeUnits.MINUTE)
+// Each class covers one csv-spec file and should complete well within 10 minutes;
+// monolithic subclasses that run all spec files must add their own longer annotation.
+@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)
@@ -116,6 +117,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return SpecReader.readScriptSpec(urls, specParser());
     }
 
+    /**
+     * Load test cases from a single named CSV spec file, e.g. {@code "/stats.csv-spec"}.
+     * Intended for use by generated per-spec-file test classes.
+     */
+    protected static List<Object[]> readScriptSpec(String specFile) throws Exception {
+        List<URL> urls = classpathResources(specFile);
+        assertEquals("Expected exactly one resource for " + specFile + " but found " + urls, 1, urls.size());
+        return SpecReader.readScriptSpec(urls, specParser());
+    }
+
     protected EsqlSpecTestCase(
         String fileName,
         String groupName,
@@ -134,17 +145,24 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     private static class Protected {
+        private final String description;
         private volatile boolean completed = false;
         private volatile boolean started = false;
         private volatile Throwable failure = null;
 
+        Protected(String description) {
+            this.description = description;
+        }
+
         private void protectedBlock(Callable<Void> callable) {
             if (completed) {
+                LOGGER.debug("Skipping [{}]: already completed", description);
                 return;
             }
             // In case tests get run in parallel, we ensure only one setup is run, and other tests wait for this
             synchronized (this) {
                 if (completed) {
+                    LOGGER.debug("Skipping [{}]: already completed", description);
                     return;
                 }
                 if (started) {
@@ -155,9 +173,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     fail("Previous test setup failed with unknown error");
                 }
                 started = true;
+                LOGGER.info("Starting [{}]", description);
                 try {
                     callable.call();
                     completed = true;
+                    LOGGER.info("Completed [{}]", description);
                 } catch (Throwable t) {
                     failure = t;
                     fail(failure, "Current test setup failed: " + failure.getMessage());
@@ -172,8 +192,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    private static final Protected INGEST = new Protected();
-    private static final Protected VIEWS = new Protected();
+    private static final Protected INGEST = new Protected("test data ingestion");
+    private static final Protected VIEWS = new Protected("view loading");
     protected static boolean testClustersOk = true;
 
     @Before
@@ -207,35 +227,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             deleteViews(adminClient());
             VIEWS.reset();
         }
-    }
-
-    @AfterClass
-    public static void wipeTestData() throws IOException {
-        if (testClustersOk == false) {
-            return;
-        }
-        try {
-            adminClient().performRequest(new Request("DELETE", "/*"));
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
-        for (CsvTestsDataLoader.EnrichConfig enrich : CsvTestsDataLoader.ENRICH_POLICIES.values()) {
-            try {
-                adminClient().performRequest(new Request("DELETE", "/_enrich/policy/" + enrich.policyName()));
-            } catch (ResponseException e) {
-                // 404 here just means we had no indexes
-                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                    throw e;
-                }
-            }
-        }
-        INGEST.reset();
-        deleteViews(adminClient());
-        VIEWS.reset();
-        deleteInferenceEndpoints(adminClient());
     }
 
     public boolean logResults() {

@@ -54,6 +54,7 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
      */
     static final Set<String> FORMAT_CONFIG_KEYS = Set.of(
         "delimiter",
+        "mode",
         "quote",
         "escape",
         "comment",
@@ -84,7 +85,7 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        // One entry serves both csv and tsv — the dialect is carried in CsvReaderStatus.format().
+        // One entry serves both csv and tsv — the format (csv/tsv) is carried in CsvReaderStatus.format().
         return List.of(CsvReaderStatus.ENTRY);
     }
 }

@@ -286,6 +286,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 "Cluster has nodes that default to low-cardinality doc values in columnar index modes",
                 clusterHasFeature("mapper.keyword.columnar_default_high_cardinality")
             );
+            assumeTrue(
+                "Cluster has nodes that do not default to doc values for text fields in columnar index modes",
+                clusterHasFeature("mapper.text_fields.enable_doc_values_by_default_in_columnar_mode")
+            );
         }
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {
@@ -299,7 +303,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         // We create both only when we're testing LOOKUP mode.
         if (indexExists(LOOKUP_INDEX_NAME) == false && indexMode == IndexMode.LOOKUP) {
             createAllTypesIndex(client(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode);
-            createAllTypesDoc(client(), minVersion(), LOOKUP_INDEX_NAME);
+            createAllTypesDoc(client(), minVersion(), LOOKUP_INDEX_NAME, indexMode);
             createEnrichPolicy(client(), minVersion(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }
     }
@@ -440,6 +444,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
+            if (excludedInColumnar(type, indexMode)) {
+                continue;
+            }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
                 continue;
             }
@@ -475,6 +482,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
+                continue;
+            }
+            if (excludedInColumnar(type, indexMode)) {
                 continue;
             }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
@@ -845,7 +855,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         String indexName = indexName(mode, nodeName);
         if (false == indexExists(client, indexName)) {
             createAllTypesIndex(client, minimumVersionAcrossAllNodes, indexName, nodeId, mode);
-            createAllTypesDoc(client, minimumVersionAcrossAllNodes, indexName);
+            createAllTypesDoc(client, minimumVersionAcrossAllNodes, indexName, mode);
         }
     }
 
@@ -891,6 +901,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                     continue;
                 }
+                if (excludedInColumnar(type, mode)) {
+                    continue;
+                }
                 config.startObject(fieldName(type));
                 typeMapping(mode, config, type);
                 config.endObject();
@@ -902,6 +915,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
         request.setJsonEntity(Strings.toString(config));
         client.performRequest(request);
+    }
+
+    // Field types with no native (doc-value-based) synthetic source: columnar index modes reject them because their
+    // _source cannot be reconstructed from doc values. Tracked as follow-ups in the columnar contract issue.
+    private static final Set<DataType> COLUMNAR_UNSUPPORTED_TYPES = Set.of(DataType.GEO_SHAPE, DataType.CARTESIAN_SHAPE);
+
+    private static boolean excludedInColumnar(DataType type, IndexMode mode) {
+        return mode.isStrictColumnar() && COLUMNAR_UNSUPPORTED_TYPES.contains(type);
     }
 
     private static String fieldName(DataType type) {
@@ -927,13 +948,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    protected static void createAllTypesDoc(RestClient client, TransportVersion minimumVersionAcrossAllNodes, String indexName)
-        throws IOException {
+    protected static void createAllTypesDoc(
+        RestClient client,
+        TransportVersion minimumVersionAcrossAllNodes,
+        String indexName,
+        IndexMode mode
+    ) throws IOException {
         XContentBuilder doc = JsonXContent.contentBuilder().startObject();
         doc.field(LOOKUP_ID_FIELD);
         doc.value(123);
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
+                continue;
+            }
+            if (excludedInColumnar(type, mode)) {
                 continue;
             }
             doc.field(fieldName(type));
@@ -1473,14 +1501,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, TransportVersion.current()) == false) {
                 continue;
             }
+            if (excludedInColumnar(type, indexMode)) {
+                continue;
+            }
 
             expected = expected.entry(fieldName(type), loadersFor(type));
         }
 
         expected = expected.entry(
             "_id",
-            indexMode == IndexMode.TIME_SERIES
-                ? matchesList().item("column_at_a_time:TsIdFieldReader")
+            indexMode == IndexMode.TIME_SERIES ? matchesList().item("column_at_a_time:TsIdFieldReader")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:IdDocValuesReader")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Id")
         )
             .entry("_ignored", matchesList().item("column_at_a_time:constant_nulls"))
@@ -1540,7 +1571,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
-            case TEXT -> syntheticSourceByDefault()
+            case TEXT -> indexMode.isStrictColumnar() || syntheticSourceByDefault()
                 ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");

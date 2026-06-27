@@ -118,7 +118,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     long epoch = System.currentTimeMillis();
 
     @Before
-    public void setupIndex() {
+    public void setupIndex() throws IOException {
         createAndPopulateIndex("test");
     }
 
@@ -1350,7 +1350,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      * The {@link LuceneTopNSourceOperator#getOutput()} is handling this exception by
      * ignoring it (which is the right thing to do) and sort of cleaning up and moving to the next docs collection.
      */
-    public void testTopNPushedToLuceneOnSortedIndex() {
+    public void testTopNPushedToLuceneOnSortedIndex() throws IOException {
         var sortOrder = randomFrom("asc", "desc");
         createAndPopulateIndex(
             "sorted_test_index",

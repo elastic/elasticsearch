@@ -41,6 +41,7 @@ count:long | integer:integer | short_int:integer
 
 // Reproducer for #152184.
 partiallyUnmappedDenseVectorIsNotAutoCast
+required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_dense_vector
 
 SET unmapped_fields="load"\;

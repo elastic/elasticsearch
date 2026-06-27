@@ -473,6 +473,7 @@ public enum IndexMode {
         @Override
         public void validateMapping(MappingLookup lookup, Settings settings) {
             validateNoMappingRuntimeFields(lookup, this);
+            validateAllFieldsReconstructableFromDocValues(lookup, this);
         }
 
         @Override
@@ -573,6 +574,7 @@ public enum IndexMode {
         @Override
         public void validateMapping(MappingLookup lookup, Settings settings) {
             validateNoMappingRuntimeFields(lookup, this);
+            validateAllFieldsReconstructableFromDocValues(lookup, this);
         }
 
         @Override
@@ -753,6 +755,25 @@ public enum IndexMode {
         // so users can locate the index or component template that introduced them.
         if (lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
             throw new IllegalArgumentException("mapping-level runtime fields are not allowed in index using [" + mode + "] index mode");
+        }
+    }
+
+    /**
+     * Columnar index modes rebuild {@code _source} purely from doc-value columns, so every field's {@code _source} must
+     * be reconstructable from doc values (synthetic source mode {@code NATIVE}). A field that is not - one with no doc
+     * values, or a type whose doc-value encoding cannot rebuild its own source - would otherwise be silently dropped or
+     * kept as a lossy source fallback, so reject it instead.
+     */
+    private static void validateAllFieldsReconstructableFromDocValues(MappingLookup lookup, IndexMode mode) {
+        String field = lookup.firstFieldNotReconstructableFromDocValues();
+        if (field != null) {
+            throw new IllegalArgumentException(
+                "field ["
+                    + field
+                    + "] cannot reconstruct _source from doc values; every field must be reconstructable from doc values in index using ["
+                    + mode
+                    + "] index mode"
+            );
         }
     }
 

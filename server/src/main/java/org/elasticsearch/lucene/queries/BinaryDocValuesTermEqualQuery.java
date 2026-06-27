@@ -31,7 +31,7 @@ import java.util.Objects;
  * Optimized term-equality query for binary doc values encoded with
  * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount}.
  *
- * <p>This query is only ever created by {@link SlowCustomBinaryDocValuesTermQuery#rewrite}, which
+ * <p>This query is only ever created by {@link ScanningBinaryDocValuesTermQuery#rewrite}, which
  * first verifies that every leaf satisfies two conditions:
  * <ol>
  *   <li>The field is single-valued ({@code countsSkipper == null || countsSkipper.maxValue() == 1}).

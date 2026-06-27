@@ -917,21 +917,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
-    // Field types with no native (doc-value-based) synthetic source: columnar index modes reject them because their
-    // _source cannot be reconstructed from doc values. Tracked as follow-ups in the columnar contract issue.
-    private static final Set<DataType> COLUMNAR_UNSUPPORTED_TYPES = Set.of();
-
     private static boolean excludedInColumnar(DataType type, IndexMode mode) {
-        if (mode.isStrictColumnar() == false) {
-            return false;
-        }
         // geo_shape/cartesian_shape are reconstructable in columnar only on nodes that have the feature, so exclude them
         // during a rolling upgrade where an older node would reject them in a columnar index.
-        if ((type == DataType.GEO_SHAPE || type == DataType.CARTESIAN_SHAPE)
-            && clusterHasFeature("mapper.columnar.supports_shape_fields") == false) {
-            return true;
-        }
-        return COLUMNAR_UNSUPPORTED_TYPES.contains(type);
+        return mode.isStrictColumnar()
+            && (type == DataType.GEO_SHAPE || type == DataType.CARTESIAN_SHAPE)
+            && clusterHasFeature("mapper.columnar.supports_shape_fields") == false;
     }
 
     private static String fieldName(DataType type) {

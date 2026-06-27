@@ -784,8 +784,12 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             }
 
             // Select merge strategy
-            TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster);
-            TieredMergeStrategy.MergeAction action = tieredStrategy.selectAction(segmentSizes, segmentCentroidCounts, segmentCentroidData);
+            TieredMergeStrategy<float[]> tieredStrategy = new TieredMergeStrategy<>(vectorPerCluster, CentroidOps.FLOAT);
+            TieredMergeStrategy.MergeAction<float[]> action = tieredStrategy.selectAction(
+                segmentSizes,
+                segmentCentroidCounts,
+                segmentCentroidData
+            );
 
             if (logger.isDebugEnabled()) {
                 int totalVectors = 0;

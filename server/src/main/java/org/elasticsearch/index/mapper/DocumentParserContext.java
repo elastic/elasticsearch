@@ -556,9 +556,15 @@ public abstract class DocumentParserContext {
     }
 
     public final boolean canAddIgnoredField() {
-        return (mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored())
+        // Columnar modes rebuild _source purely from doc-value columns. Anything not reconstructable from a field-owned
+        // doc-value representation is dropped (lossy) rather than kept as generic _ignored_source, so the generic
+        // ignored source is disabled entirely in columnar. Field-owned fallbacks (ignore_malformed, text) are written
+        // directly by their mappers, and the columnar_stored whole-document blob is written directly in postParse -
+        // neither goes through this gate.
+        return mappingLookup.isSourceSynthetic()
             && recordedSource == false
-            && indexSettings().getSkipIgnoredSourceWrite() == false;
+            && indexSettings().getSkipIgnoredSourceWrite() == false
+            && indexSettings().getMode().isStrictColumnar() == false;
     }
 
     Mapper.SourceKeepMode sourceKeepModeFromIndexSettings() {

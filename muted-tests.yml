@@ -251,7 +251,9 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/152064
-
+- class: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPluginFuncTest
+  method: testing convention tasks are cacheable and uptodate
+  issue: https://github.com/elastic/elasticsearch/issues/152371
 
 # Examples:
 #

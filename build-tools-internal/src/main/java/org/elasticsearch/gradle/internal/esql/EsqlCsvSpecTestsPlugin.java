@@ -87,8 +87,11 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
             project.afterEvaluate(p -> {
                 SourceSet javaRestTestSourceSet = sourceSets.getByName("javaRestTest");
 
-                // csvSpecTest compiles against javaRestTest output (for AbstractEsqlSpecIT)
-                // and inherits all of javaRestTest's compile and runtime dependencies.
+                // csvSpecTest compiles against javaRestTest output (Clusters, abstract IT bases)
+                // and inherits all of javaRestTest's compile and runtime dependencies — the same
+                // pattern used by yamlRestTest via GradleUtils.extendSourceSet. Test-class bleed
+                // from javaRestTest into the csv runner is prevented by testClassesDirs being
+                // scoped to csvSpecTest output only.
                 project.getDependencies().add(
                     csvSpecTestSourceSet.getImplementationConfigurationName(),
                     javaRestTestSourceSet.getOutput()

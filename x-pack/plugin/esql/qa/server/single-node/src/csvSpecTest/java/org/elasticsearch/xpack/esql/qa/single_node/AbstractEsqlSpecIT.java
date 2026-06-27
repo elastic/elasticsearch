@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -36,7 +34,6 @@ import java.nio.file.Path;
  * {@link EsqlSpecTestCase}).
  */
 // Each generated class covers one csv-spec file and should complete in a few minutes at most
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public abstract class AbstractEsqlSpecIT extends EsqlSpecTestCase {
 
@@ -47,7 +44,7 @@ public abstract class AbstractEsqlSpecIT extends EsqlSpecTestCase {
         spec.plugin("inference-service-test")
             .setting("logger." + ComputeService.class.getName(), "DEBUG")
             .settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
-    });
+    }, true);
 
     protected AbstractEsqlSpecIT(
         String fileName,

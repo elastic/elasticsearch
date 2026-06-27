@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.esql.ccq;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -88,13 +86,12 @@ import static org.mockito.Mockito.when;
  * shards/indices/clusters.
  */
 // Each generated class covers one csv-spec file and should complete in a few minutes at most
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
-    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(CSV_DATA_PATH, LOGGING_CLUSTER_SETTINGS);
-    static ElasticsearchCluster localCluster = Clusters.localCluster(CSV_DATA_PATH, remoteCluster, LOGGING_CLUSTER_SETTINGS);
+    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(CSV_DATA_PATH, LOGGING_CLUSTER_SETTINGS, true);
+    static ElasticsearchCluster localCluster = Clusters.localCluster(CSV_DATA_PATH, remoteCluster, LOGGING_CLUSTER_SETTINGS, true);
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);

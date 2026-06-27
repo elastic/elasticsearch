@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.esql.qa.mixed;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpHost;
-import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.IOUtils;
@@ -39,13 +37,12 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
  * {@link EsqlSpecTestCase}).
  */
 // Each generated class covers one csv-spec file and should complete in a few minutes at most
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster(CSV_DATA_PATH);
+    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster(CSV_DATA_PATH, true);
 
     @Override
     protected Path getCsvDataPath() {

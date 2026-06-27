@@ -24,6 +24,10 @@ public class Clusters {
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
     static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings) {
+        return remoteCluster(csvDataPath, additionalSettings, false);
+    }
+
+    static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings, boolean shared) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
@@ -37,13 +41,15 @@ public class Clusters {
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
-            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
-            .shared(true);
+            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"));
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
         for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
             cluster.setting(entry.getKey(), entry.getValue());
+        }
+        if (shared) {
+            cluster.shared(true);
         }
         return cluster.build();
     }
@@ -69,7 +75,16 @@ public class Clusters {
         ElasticsearchCluster remoteCluster,
         Map<String, String> additionalSettings
     ) {
-        return localCluster(csvDataPath, remoteCluster, true, additionalSettings);
+        return localCluster(csvDataPath, remoteCluster, true, additionalSettings, false);
+    }
+
+    public static ElasticsearchCluster localCluster(
+        Path csvDataPath,
+        ElasticsearchCluster remoteCluster,
+        Map<String, String> additionalSettings,
+        boolean shared
+    ) {
+        return localCluster(csvDataPath, remoteCluster, true, additionalSettings, shared);
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Boolean skipUnavailable) {
@@ -81,7 +96,7 @@ public class Clusters {
         Boolean skipUnavailable,
         Map<String, String> additionalSettings
     ) {
-        return localCluster(CsvTestUtils.createCsvDataDirectory(), remoteCluster, skipUnavailable, additionalSettings);
+        return localCluster(CsvTestUtils.createCsvDataDirectory(), remoteCluster, skipUnavailable, additionalSettings, false);
     }
 
     public static ElasticsearchCluster localCluster(
@@ -89,6 +104,16 @@ public class Clusters {
         ElasticsearchCluster remoteCluster,
         Boolean skipUnavailable,
         Map<String, String> additionalSettings
+    ) {
+        return localCluster(csvDataPath, remoteCluster, skipUnavailable, additionalSettings, false);
+    }
+
+    public static ElasticsearchCluster localCluster(
+        Path csvDataPath,
+        ElasticsearchCluster remoteCluster,
+        Boolean skipUnavailable,
+        Map<String, String> additionalSettings,
+        boolean shared
     ) {
         Version version = distributionVersion("tests.version.local_cluster");
         var cluster = ElasticsearchCluster.local()
@@ -106,8 +131,7 @@ public class Clusters {
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
-            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
-            .shared(true);
+            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"));
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
@@ -118,6 +142,9 @@ public class Clusters {
             for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
                 cluster.setting(entry.getKey(), entry.getValue());
             }
+        }
+        if (shared) {
+            cluster.shared(true);
         }
         return cluster.build();
     }

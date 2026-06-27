@@ -17,10 +17,14 @@ import java.nio.file.Path;
 
 public class Clusters {
     public static ElasticsearchCluster mixedVersionCluster() {
-        return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory());
+        return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory(), false);
     }
 
     public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath) {
+        return mixedVersionCluster(csvDataPath, false);
+    }
+
+    public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath, boolean shared) {
         String oldVersionString = System.getProperty("tests.old_cluster_version");
         Version oldVersion = Version.fromString(oldVersionString);
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
@@ -30,7 +34,6 @@ public class Clusters {
             .withNode(node -> node.version(Version.CURRENT))
             .withNode(node -> node.version(oldVersionString, isDetachedVersion))
             .withNode(node -> node.version(Version.CURRENT))
-            .shared(true)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
@@ -45,6 +48,9 @@ public class Clusters {
         if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        if (shared) {
+            cluster.shared(true);
         }
         return cluster.build();
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
@@ -17,14 +18,17 @@ import java.nio.file.Path;
 
 public class Clusters {
     public static ElasticsearchCluster testCluster(LocalClusterConfigProvider configProvider) {
-        return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider);
+        return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider, false);
     }
 
     public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider) {
-        return ElasticsearchCluster.local()
+        return testCluster(csvDataPath, configProvider, false);
+    }
+
+    public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider, boolean shared) {
+        LocalClusterSpecBuilder<ElasticsearchCluster> cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .nodes(2)
-            .shared(true)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
@@ -33,7 +37,10 @@ public class Clusters {
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
             .setting("ingest.geoip.downloader.enabled", "false")
-            .apply(() -> configProvider)
-            .build();
+            .apply(() -> configProvider);
+        if (shared) {
+            cluster.shared(true);
+        }
+        return cluster.build();
     }
 }

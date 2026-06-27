@@ -113,7 +113,7 @@ public class ScanningBinaryDocValuesTermQueryTests extends ESTestCase {
 
     /**
      * Multi-valued docs use ANY-value (OR) semantics: a doc matches if any one of its values
-     * exactly equals the term. When any leaf is multi-valued, {@link SlowCustomBinaryDocValuesTermQuery}
+     * exactly equals the term. When any leaf is multi-valued, {@link ScanningBinaryDocValuesTermQuery}
      * stays as the slow predicate query (does not rewrite to {@link BinaryDocValuesTermEqualQuery}).
      */
     public void testMultiValued() throws Exception {
@@ -132,14 +132,14 @@ public class ScanningBinaryDocValuesTermQueryTests extends ESTestCase {
                 BytesRef term = new BytesRef("hello");
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertEquals(3, searcher.count(new SlowCustomBinaryDocValuesTermQuery(fieldName, term)));
+                    assertEquals(3, searcher.count(new ScanningBinaryDocValuesTermQuery(fieldName, term)));
                 }
             }
         }
     }
 
     /**
-     * When any leaf has multi-valued docs, {@link SlowCustomBinaryDocValuesTermQuery#rewrite} must
+     * When any leaf has multi-valued docs, {@link ScanningBinaryDocValuesTermQuery#rewrite} must
      * NOT rewrite to the optimized query — it must stay as the slow path to preserve ANY-value
      * semantics.
      */
@@ -152,11 +152,11 @@ public class ScanningBinaryDocValuesTermQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query rewritten = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("hello")).rewrite(searcher);
+                    Query rewritten = new ScanningBinaryDocValuesTermQuery(fieldName, new BytesRef("hello")).rewrite(searcher);
                     assertThat(
                         "must stay slow when any leaf is multi-valued",
                         rewritten,
-                        Matchers.instanceOf(SlowCustomBinaryDocValuesTermQuery.class)
+                        Matchers.instanceOf(ScanningBinaryDocValuesTermQuery.class)
                     );
                 }
             }

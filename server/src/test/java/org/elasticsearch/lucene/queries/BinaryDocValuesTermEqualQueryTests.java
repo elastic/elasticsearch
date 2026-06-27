@@ -28,13 +28,13 @@ import java.nio.charset.StandardCharsets;
 /**
  * Tests for {@link BinaryDocValuesTermEqualQuery}: the optimized single-valued exact-match path.
  *
- * <p>This query is only ever constructed by {@link SlowCustomBinaryDocValuesTermQuery#rewrite}
+ * <p>This query is only ever constructed by {@link ScanningBinaryDocValuesTermQuery#rewrite}
  * after it has verified that every leaf is single-valued and the underlying codec supports
  * {@link org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader#tryTermEqualIterator}.
  * Tests here therefore use single-valued documents with the ES819 compressed format.
  *
  * <p>Multi-valued semantics and the rewrite decision are tested in
- * {@link SlowCustomBinaryDocValuesTermQueryTests}.
+ * {@link ScanningBinaryDocValuesTermQueryTests}.
  */
 public class BinaryDocValuesTermEqualQueryTests extends ESTestCase {
 
@@ -106,7 +106,7 @@ public class BinaryDocValuesTermEqualQueryTests extends ESTestCase {
 
     /**
      * When the index is all-single-valued with the ES819 compressed format,
-     * {@link SlowCustomBinaryDocValuesTermQuery#rewrite} produces a
+     * {@link ScanningBinaryDocValuesTermQuery#rewrite} produces a
      * {@link BinaryDocValuesTermEqualQuery}. Verify that both queries return identical counts.
      */
     public void testParityWithSlowQuery() throws IOException {
@@ -121,7 +121,7 @@ public class BinaryDocValuesTermEqualQueryTests extends ESTestCase {
                 BytesRef term = new BytesRef("hello");
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    int slow = searcher.count(new SlowCustomBinaryDocValuesTermQuery(fieldName, term));
+                    int slow = searcher.count(new ScanningBinaryDocValuesTermQuery(fieldName, term));
                     int fast = searcher.count(new BinaryDocValuesTermEqualQuery(fieldName, term));
                     assertEquals("optimized query must produce the same count as the slow query", slow, fast);
                 }
@@ -130,7 +130,7 @@ public class BinaryDocValuesTermEqualQueryTests extends ESTestCase {
     }
 
     /**
-     * With single-valued docs and the ES819 format, {@link SlowCustomBinaryDocValuesTermQuery#rewrite}
+     * With single-valued docs and the ES819 format, {@link ScanningBinaryDocValuesTermQuery#rewrite}
      * must return a {@link BinaryDocValuesTermEqualQuery} so the TwoPhaseIterator optimized path
      * is taken.
      */
@@ -143,7 +143,7 @@ public class BinaryDocValuesTermEqualQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query rewritten = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("hello")).rewrite(searcher);
+                    Query rewritten = new ScanningBinaryDocValuesTermQuery(fieldName, new BytesRef("hello")).rewrite(searcher);
                     assertThat(rewritten, org.hamcrest.Matchers.instanceOf(BinaryDocValuesTermEqualQuery.class));
                 }
             }

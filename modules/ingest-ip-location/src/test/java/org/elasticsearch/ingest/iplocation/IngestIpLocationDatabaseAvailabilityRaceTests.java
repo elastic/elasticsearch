@@ -170,7 +170,11 @@ public class IngestIpLocationDatabaseAvailabilityRaceTests extends ESTestCase {
         ingestService.getPipeline(projectId, PIPELINE_ID).execute(document, (ignored, e) -> executeError.set(e));
 
         assertNull("pipeline execution failed", executeError.get());
-        assertNotNull("document was not enriched (the reported symptom)", document.getSourceAndMetadata().get(TARGET_FIELD));
+        Object outputFieldRaw = document.getSourceAndMetadata().get(TARGET_FIELD);
+        assertNotNull("document was not enriched (the reported symptom)", outputFieldRaw);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> outputField = (Map<String, Object>) outputFieldRaw;
+        assertEquals("Elastic", outputField.get(ENRICHED_FIELD));
         List<?> tags = document.getFieldValue("tags", List.class, true);
         assertTrue(
             "document was tagged database-unavailable",

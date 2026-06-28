@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -428,14 +429,40 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
-    // optimizer doesn't know yet how to normalize and deduplicate cout(*), count(), count(1) etc.
+    /**
+     * {@snippet lang="text":
+     * ProjectExec[[c{r}#5, c{r}#5 AS call#7, c{r}#5 AS c_literal#9]]
+     * \_LimitExec[1000[INTEGER],8]
+     *   \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#5],FINAL,[$$c$count{r}#21, $$c$seen{r}#22],8]
+     *     \_ExchangeExec[[$$c$count{r}#21, $$c$seen{r}#22],true]
+     *       \_EsStatsQueryExec[test], stats[BasicStat[name=*, type=COUNT, query=null]], query[{"esql_single_value":{"field":"emp_no",
+     *       "next":{"range":{"emp_no":{"gt":10010,"boost":0.0}}},"source":"emp_no > 10010@2:9"}}][$$c$count{r}#26, $$c$seen{r}#27], limit[],
+     * }
+     */
     public void testMultiCountAllWithFilter() {
-        var plan = plannerOptimizer.plan("""
+        String queryText = """
             from test
             | where emp_no > 10010
             | stats c = count(), call = count(*), c_literal = count(1)
-            """, IS_SV_STATS);
-        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+            """;
+        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS);
+
+        var project = as(plan, ProjectExec.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("c", "call", "c_literal"));
+        var alias = as(projections.get(1), Alias.class);
+        assertThat(Expressions.name(alias.child()), is("c"));
+        var limit = as(project.child(), LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), is(FINAL));
+        assertThat(Expressions.names(agg.aggregates()), contains("c"));
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
+        assertThat(esStatsQuery.limit(), is(nullValue()));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
+        var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
+        var expected = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010).boost(0f), "emp_no", source);
+        assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
     @SuppressWarnings("unchecked")

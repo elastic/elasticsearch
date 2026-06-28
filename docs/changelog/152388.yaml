@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 152388
+summary: Support exists queries on keyed flattened fields when index=false
+type: bug

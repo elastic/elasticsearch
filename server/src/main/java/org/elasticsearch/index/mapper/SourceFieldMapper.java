@@ -496,8 +496,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (mode != Mode.COLUMNAR_STORED) {
             return;
         }
-        // Columnar mode disables nested objects, so there is exactly one root document (docId 0).
-        assert context.nonRootDocuments().iterator().hasNext() == false;
         try (var builder = XContentFactory.jsonBuilder()) {
             columnarSourceWriter.write(context, builder);
             BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(builder);

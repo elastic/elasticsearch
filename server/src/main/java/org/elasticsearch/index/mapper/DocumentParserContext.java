@@ -127,7 +127,9 @@ public abstract class DocumentParserContext {
 
         @Override
         public FieldArrayContext getOffSetContext() {
-            return in.getOffSetContext();
+            FieldArrayContext offsetContext = in.getOffSetContext();
+            offsetContext.setCurrentDoc(doc());
+            return offsetContext;
         }
 
         @Override
@@ -636,6 +638,7 @@ public abstract class DocumentParserContext {
         if (fieldArrayContext == null) {
             fieldArrayContext = new FieldArrayContext();
         }
+        fieldArrayContext.setCurrentDoc(doc());
         return fieldArrayContext;
     }
 

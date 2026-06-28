@@ -57,9 +57,8 @@ import static org.hamcrest.Matchers.not;
  * them. Proves that the parser → dataset rewriter → external-source resolver → analyzer →
  * execution pipeline wires up the way the PR description claims.
  *
- * <p>Single-node by design: multi-node dataset publication trips an unrelated
- * {@code ProjectMetadata.Builder} assertion already on {@code main}; coverage of that path is out
- * of scope for this PR.
+ * <p>Single-node by design; this exercises the {@code FROM <dataset>} pipeline, not cluster-state propagation across
+ * nodes (covered by {@code ProjectMetadataTests#testDatasetChangeViaDiffRebuildsIndicesLookup}).
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class FromDatasetIT extends AbstractEsqlIntegTestCase {

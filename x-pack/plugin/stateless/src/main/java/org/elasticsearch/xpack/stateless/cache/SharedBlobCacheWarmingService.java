@@ -104,7 +104,8 @@ public class SharedBlobCacheWarmingService {
         // index shards are served at page rather than region granularity.
         SEARCH(false),
         HOLLOWING(true),
-        UNHOLLOWING(true);
+        UNHOLLOWING(true),
+        INDEXING_BCC_HEADER_PREWARM(false);
 
         final boolean skipsWarmingForRegion0Locations;
 
@@ -855,10 +856,9 @@ public class SharedBlobCacheWarmingService {
     ) {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
-        final Type warmingType = Type.INDEXING;
+        final Type warmingType = Type.INDEXING_BCC_HEADER_PREWARM;
         final var bccPrewarmLabels = new HashMap<>(StatelessRecoveryMetricsCollector.commonMetricLabels(indexShard));
         bccPrewarmLabels.put("prewarming_type", warmingType.name());
-        bccPrewarmLabels.put("bcc_header_prewarming", true);
         final var warmingRun = new WarmingRun(warmingType, shardId, "prewarm", Collections.unmodifiableMap(bccPrewarmLabels));
         if (store.isClosing()) {
             listener.onFailure(

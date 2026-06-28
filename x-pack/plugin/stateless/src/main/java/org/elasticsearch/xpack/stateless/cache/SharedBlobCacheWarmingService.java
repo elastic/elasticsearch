@@ -228,9 +228,10 @@ public class SharedBlobCacheWarmingService {
     );
 
     public static final String SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME = "stateless.search.offline_warming";
+    private static final boolean DEFAULT_SEARCH_OFFLINE_WARMING_ENABLED = true;
     public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_ENABLED_SETTING = Setting.boolSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".enabled",
-        true,
+        DEFAULT_SEARCH_OFFLINE_WARMING_ENABLED,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -326,6 +327,20 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Maximum number of page-fetch tasks a single file may have concurrently queued in the central
+     * {@link #warmByteRangeThrottledTaskRunner}. Keeping this at 1 ensures that later-starting files get their
+     * early pages cached before the warming timeout, because no single file can monopolise the central queue.
+     * Raise this value if the per-file serialisation becomes a throughput bottleneck.
+     */
+    public static final Setting<Integer> WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING = Setting.intSetting(
+        "stateless.blob_cache_warming.warm_byte_range_per_file_concurrency",
+        1,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
@@ -337,10 +352,12 @@ public class SharedBlobCacheWarmingService {
     private final LongCounter idLookupPrewarmReqsTotalMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
-    private volatile boolean searchOfflineWarmingEnabled;
+    // just to make sure that the initial settings update to the default value is logged
+    private volatile boolean searchOfflineWarmingEnabled = !DEFAULT_SEARCH_OFFLINE_WARMING_ENABLED;
     private volatile boolean prewarmIndexShardForIdLookupsEnabled;
     private volatile double idLookupPrewarmRatio;
     private volatile long maxUploadPrewarmSize;
+    private volatile int warmByteRangePerFileConcurrency;
     private final WarmingRatioProvider warmingRatioProvider;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
@@ -393,7 +410,10 @@ public class SharedBlobCacheWarmingService {
             SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
             value -> this.prefetchCommitsForSearchShardRecovery = value
         );
-        clusterSettings.initializeAndWatch(SEARCH_OFFLINE_WARMING_ENABLED_SETTING, value -> this.searchOfflineWarmingEnabled = value);
+        clusterSettings.initializeAndWatch(SEARCH_OFFLINE_WARMING_ENABLED_SETTING, value -> {
+            logger.info("Search shards offline warming feature is now {}", value ? "enabled" : "disabled");
+            this.searchOfflineWarmingEnabled = value;
+        });
         clusterSettings.initializeAndWatch(UPLOAD_PREWARM_MAX_SIZE_SETTING, value -> this.maxUploadPrewarmSize = value.getBytes());
         clusterSettings.initializeAndWatch(
             PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
@@ -419,6 +439,10 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             value -> this.searchRecoveryWarmingSourceShutdownShareFactor = value
+        );
+        clusterSettings.initializeAndWatch(
+            WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
+            value -> this.warmByteRangePerFileConcurrency = value
         );
     }
 
@@ -1033,7 +1057,7 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
+                "header/footer warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
                 warmingRun.shardId(),
                 warmingRun.type(),
                 duration,
@@ -1269,7 +1293,7 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
+                "merge warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
                 warmingRun.shardId(),
                 warmingRun.type(),
                 duration,
@@ -1310,7 +1334,7 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
+                "offline warming {} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
                 warmingRun.shardId(),
                 warmingRun.type(),
                 blobFile.termAndGeneration(),
@@ -1371,7 +1395,12 @@ public class SharedBlobCacheWarmingService {
         protected abstract void onWarmingSuccess(long duration);
 
         protected void onWarmingFailed(Exception e) {
-            Supplier<String> logMessage = () -> Strings.format("%s %s warming failed", warmingRun.shardId(), warmingRun.type());
+            Supplier<String> logMessage = () -> Strings.format(
+                "%s %s warming failed with message %s",
+                warmingRun.shardId(),
+                warmingRun.type(),
+                e.getMessage()
+            );
             if (logger.isDebugEnabled()) {
                 logger.debug(logMessage, e);
             } else {
@@ -1616,6 +1645,13 @@ public class SharedBlobCacheWarmingService {
             }
 
             private void fetchRange(FileCacheKey cacheKey, CacheBlobReader cacheBlobReader, ActionListener<Void> l) {
+                // A per-file runner ensures at most warmByteRangePerFileConcurrency pages from this file queue in the
+                // central runner at a time, so that files warmed later still get early pages into cache before the timeout expires.
+                var perFileRunner = new ThrottledTaskRunner(
+                    "warm-byte-range-per-file",
+                    warmByteRangePerFileConcurrency,
+                    warmByteRangeThrottledTaskRunner.asExecutor()
+                );
                 cacheService.fetchRange(
                     cacheKey,
                     byteRangeToWarm,
@@ -1623,7 +1659,7 @@ public class SharedBlobCacheWarmingService {
                     WarmBlobByteRangeTask.this,
                     writeBuffer::get,
                     totalBytesCopied::addAndGet,
-                    warmByteRangeThrottledTaskRunner.asExecutor(),
+                    perFileRunner.asExecutor(),
                     true,
                     l
                 );

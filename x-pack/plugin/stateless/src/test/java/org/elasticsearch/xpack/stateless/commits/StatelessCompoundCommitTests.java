@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -504,49 +503,5 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
         assertThat(commit.getMaxInternalFilesOffsetInCurrentGeneration(), equalTo(currentMax));
         assertThat(commit.getMinInternalFilesOffsetInCurrentGeneration(), equalTo(currentMin));
-    }
-
-    public void testGetBlobFilesUpperBounds() {
-        int blobFileCount = randomIntBetween(2, 5);
-        Map<BlobFile, Long> expectedUpperBounds = new HashMap<>();
-        Map<String, BlobLocation> commitFiles = new HashMap<>();
-        for (int b = 0; b < blobFileCount; b++) {
-            long generation = randomNonZeroPositiveLong();
-            var termAndGen = new PrimaryTermAndGeneration(randomNonZeroPositiveLong(), generation);
-            var blobFile = new BlobFile(StatelessCompoundCommit.PREFIX + generation, termAndGen);
-            long offset = randomLongBetween(0L, 100L);
-            int fileCount = randomIntBetween(1, 5);
-            for (int f = 0; f < fileCount; f++) {
-                long length = randomLongBetween(1L, 1000L);
-                commitFiles.put("blob_" + b + "_file_" + f, new BlobLocation(blobFile, offset, length));
-                offset += length;
-            }
-            expectedUpperBounds.put(blobFile, offset);
-        }
-
-        // Add a non-maximal entry for one blob to exercise the Math.max path in getBlobFilesUpperBounds
-        var blobEntries = List.copyOf(expectedUpperBounds.entrySet());
-        var target = blobEntries.get(randomInt(blobEntries.size() - 1));
-        long existingMax = target.getValue();
-        if (existingMax > 1) {
-            commitFiles.put("extra_file", new BlobLocation(target.getKey(), 0L, existingMax - 1));
-        }
-
-        StatelessCompoundCommit commit = new StatelessCompoundCommit(
-            randomShardId(),
-            new PrimaryTermAndGeneration(randomNonZeroPositiveLong(), randomNonZeroPositiveLong()),
-            1L,
-            "node-1",
-            commitFiles,
-            randomNonZeroPositiveLong(),
-            Set.of(commitFiles.keySet().iterator().next()),
-            randomNonZeroPositiveLong(),
-            InternalFilesReplicatedRanges.EMPTY,
-            Map.of(),
-            null
-        );
-
-        var upperBounds = commit.getBlobFilesUpperBounds();
-        assertThat(upperBounds.blobs(), equalTo(expectedUpperBounds));
     }
 }

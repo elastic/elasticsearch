@@ -334,32 +334,8 @@ public record StatelessCompoundCommit(
         return commitBoundary;
     }
 
-    /**
-     * For each blob file referenced by this commit, the maximum byte offset reached by any of its constituent file entries
-     * (i.e. {@code max(offset + fileLength)} across all {@link BlobLocation}s sharing that blob file).
-     */
-    public record BlobFilesUpperBounds(Map<BlobFile, Long> blobs) implements Writeable {
-        public BlobFilesUpperBounds(StreamInput in) throws IOException {
-            this(in.readMap(BlobFile::new, StreamInput::readLong));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(blobs, (o, blobFile) -> blobFile.writeTo(o), StreamOutput::writeLong);
-        }
-    }
-
-    public BlobFilesUpperBounds getBlobFilesUpperBounds() {
-        Map<BlobFile, Long> blobFiles = new HashMap<>();
-        for (BlobLocation value : commitFiles.values()) {
-            blobFiles.compute(value.blobFile(), (ignored, existing) -> {
-                if (existing == null) {
-                    return value.offset() + value.fileLength();
-                }
-                return Math.max(existing, value.offset() + value.fileLength());
-            });
-        }
-        return new BlobFilesUpperBounds(Collections.unmodifiableMap(blobFiles));
+    public Set<BlobFile> getBlobFiles() {
+        return commitFiles.values().stream().map(BlobLocation::blobFile).collect(Collectors.toSet());
     }
 
     /**

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -33,9 +35,12 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
@@ -76,7 +81,10 @@ public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(List.of(MockRepository.Plugin.class, ShutdownPlugin.class), super.nodePlugins());
+        return CollectionUtils.concatLists(
+            List.of(MockRepository.Plugin.class, ShutdownPlugin.class, TestTelemetryPlugin.class),
+            super.nodePlugins()
+        );
     }
 
     @Override
@@ -379,5 +387,47 @@ public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
             .findFirst()
             .get();
         assertThat((long) recoveryState.getTranslog().recoveredOperations(), lessThanOrEqualTo(maxSeqNoAfterFlush - maxSeqNoBeforeFlush));
+    }
+
+    public void testRelocateIndexingShardWithMultipleBlobsPrewarmsRegionZero() throws Exception {
+        final var regionSize = ByteSizeValue.ofMb(1);
+        final var cacheSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(32))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
+            .build();
+
+        startIndexNode(Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).put(cacheSettings).build());
+        ensureStableCluster(2);
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+
+        final var numBCCs = randomIntBetween(2, 3);
+        for (int i = 0; i < numBCCs; i++) {
+            int numCommits = randomIntBetween(2, 4);
+            for (int j = 0; j < numCommits; j++) {
+                indexDocs(indexName, randomIntBetween(1, 5));
+                refresh(indexName);
+            }
+            flush(indexName);
+        }
+
+        final var indexNodeB = startIndexNode(
+            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).put(cacheSettings).build()
+        );
+        ensureStableCluster(3);
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodeB), indexName);
+        ensureGreen(indexName);
+
+        var plugin = getTelemetryPlugin(indexNodeB);
+        assertBusy(() -> {
+            long bccPrewarmBytes = plugin.getLongCounterMeasurement(
+                SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
+            ).stream().filter(m -> Boolean.TRUE.equals(m.attributes().get("bcc_header_prewarming"))).mapToLong(Measurement::getLong).sum();
+            assertThat(bccPrewarmBytes, greaterThan(0L));
+            assertThat(bccPrewarmBytes, lessThanOrEqualTo(numBCCs * regionSize.getBytes()));
+        });
     }
 }

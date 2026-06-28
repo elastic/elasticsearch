@@ -850,18 +850,16 @@ public class SharedBlobCacheWarmingService {
     public void warmCacheForBCCHeadersRead(
         IndexShard indexShard,
         BlobStoreCacheDirectory directory,
-        StatelessCompoundCommit.BlobFilesUpperBounds lastCommitBlobs,
+        Set<BlobFile> lastCommitBlobs,
         ActionListener<Void> listener
     ) {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
         final Type warmingType = Type.INDEXING;
-        final var warmingRun = new WarmingRun(
-            warmingType,
-            shardId,
-            "prewarm",
-            Maps.copyMapWithAddedEntry(StatelessRecoveryMetricsCollector.commonMetricLabels(indexShard), "prewarming_type", "region_0")
-        );
+        final var bccPrewarmLabels = new HashMap<>(StatelessRecoveryMetricsCollector.commonMetricLabels(indexShard));
+        bccPrewarmLabels.put("prewarming_type", warmingType.name());
+        bccPrewarmLabels.put("bcc_header_prewarming", true);
+        final var warmingRun = new WarmingRun(warmingType, shardId, "prewarm", Collections.unmodifiableMap(bccPrewarmLabels));
         if (store.isClosing()) {
             listener.onFailure(
                 new AlreadyClosedException("Failed to warm cache [" + warmingType + "] for " + shardId + ", store is closing")
@@ -1372,12 +1370,12 @@ public class SharedBlobCacheWarmingService {
      * This is used before BCC header reads during indexing shard recovery to avoid cache misses in the read chain.
      */
     private class Region0Warmer extends AbstractWarmer {
-        private final StatelessCompoundCommit.BlobFilesUpperBounds blobFiles;
+        private final Set<BlobFile> blobFiles;
 
         Region0Warmer(
             WarmingRun warmingRun,
             Supplier<Boolean> isStoreClosing,
-            StatelessCompoundCommit.BlobFilesUpperBounds blobFiles,
+            Set<BlobFile> blobFiles,
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
         ) {
@@ -1386,11 +1384,13 @@ public class SharedBlobCacheWarmingService {
         }
 
         void run() {
-            final int regionSize = cacheService.getRegionSize();
-            for (var blobFile : blobFiles.blobs().entrySet()) {
+            for (var blobFile : blobFiles) {
                 scheduleWarmingTask(
                     new WarmBlobLocationTask(
-                        new BlobLocation(blobFile.getKey(), 0, Math.min(blobFile.getValue(), regionSize)),
+                        // We want to prewarm the entire region 0, and the blob location file length is used
+                        // just to compute the ending region. With this we avoid having to know the blob length
+                        // upfront and we can just let the cache to fetch the entire region 0.
+                        new BlobLocation(blobFile, 0, 1),
                         listeners.acquire()
                     )
                 );
@@ -1404,7 +1404,7 @@ public class SharedBlobCacheWarmingService {
                 "{} {} pre-warming region 0 of {} blobs completed in {} ms ({} bytes copied to cache)",
                 warmingRun.shardId(),
                 warmingRun.type(),
-                blobFiles.blobs().size(),
+                blobFiles.size(),
                 duration,
                 totalBytesCopied.get()
             );

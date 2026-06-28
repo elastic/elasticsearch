@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveryInfoFromSource;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -94,8 +93,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     private static final Logger logger = LogManager.getLogger(TransportStatelessPrimaryRelocationAction.class);
 
-    private static final TransportVersion STATELESS_PRIMARY_HANDOFF_BLOB_FILES_UPPER_BOUNDS = TransportVersion.fromName(
-        "stateless_primary_handoff_blob_files_upper_bounds"
+    private static final TransportVersion STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS = TransportVersion.fromName(
+        "stateless_primary_handoff_latest_blobs"
     );
 
     public static final String START_RELOCATION_ACTION_NAME = TYPE.name() + "/start";
@@ -552,7 +551,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     assert latestBcc != null : "no uploaded BCC for shard " + shardId;
                     final long blobLength = latestBcc.calculateBccBlobLength();
                     final BlobFile latestBccBlob = latestBcc.toBlobFile();
-                    final var lastCommitBlobs = latestBcc.lastCompoundCommit().getBlobFilesUpperBounds();
+                    final var lastCommitBlobs = latestBcc.lastCompoundCommit().getBlobFiles();
                     final var lastCommitIsHollow = latestBcc.lastCompoundCommit().hollow();
                     // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new
                     // BCCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.
@@ -736,7 +735,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         private final Set<BlobFile> otherBlobFiles;
         private final boolean hasRecentIdLookup;
         @Nullable
-        private final StatelessCompoundCommit.BlobFilesUpperBounds lastCommitBlobs;
+        private final Set<BlobFile> lastCommitBlobs;
         private final boolean lastCommitIsHollow;
 
         PrimaryContextHandoffRequest(
@@ -748,7 +747,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             BlobFileWithLength latestBccBlob,
             Set<BlobFile> otherBlobFiles,
             boolean hasRecentIdLookup,
-            StatelessCompoundCommit.BlobFilesUpperBounds lastCommitBlobs,
+            Set<BlobFile> lastCommitBlobs,
             boolean lastCommitIsHollow
         ) {
             this.recoveryId = recoveryId;
@@ -773,10 +772,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
             otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
             hasRecentIdLookup = in.readBoolean();
-            lastCommitBlobs = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_BLOB_FILES_UPPER_BOUNDS)
-                ? in.readOptionalWriteable(StatelessCompoundCommit.BlobFilesUpperBounds::new)
-                : null;
-            lastCommitIsHollow = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_BLOB_FILES_UPPER_BOUNDS) && in.readBoolean();
+            lastCommitBlobs = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)
+                ? in.readCollectionAsImmutableSet(BlobFile::new)
+                : Set.of();
+            lastCommitIsHollow = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS) && in.readBoolean();
         }
 
         @Override
@@ -794,8 +793,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             out.writeOptionalWriteable(latestBccBlob);
             out.writeCollection(otherBlobFiles);
             out.writeBoolean(hasRecentIdLookup);
-            if (out.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_BLOB_FILES_UPPER_BOUNDS)) {
-                out.writeOptionalWriteable(lastCommitBlobs);
+            if (out.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)) {
+                out.writeCollection(lastCommitBlobs);
                 out.writeBoolean(lastCommitIsHollow);
             }
         }

@@ -557,16 +557,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertThat(latestBcc, is(notNullValue()));
 
             var lastCommit = latestBcc.lastCompoundCommit();
-            assertThat(
-                lastCommit.getBlobFilesUpperBounds().toString(),
-                lastCommit.getBlobFilesUpperBounds().blobs().size(),
-                greaterThan(1)
-            );
+            var lastCommitBlobFiles = lastCommit.getBlobFiles();
+            assertThat(lastCommitBlobFiles.toString(), lastCommitBlobFiles.size(), greaterThan(1));
             var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
             var indexShard = mockIndexShard(fakeNode);
 
             PlainActionFuture<Void> warmFuture = new PlainActionFuture<>();
-            fakeNode.warmingService.warmCacheForBCCHeadersRead(indexShard, directory, lastCommit.getBlobFilesUpperBounds(), warmFuture);
+            fakeNode.warmingService.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobFiles, warmFuture);
             safeGet(warmFuture);
 
             PlainActionFuture<Void> readReferencedCommitsListener = new PlainActionFuture<>();

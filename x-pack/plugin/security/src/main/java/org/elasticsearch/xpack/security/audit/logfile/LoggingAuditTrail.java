@@ -13,7 +13,6 @@ import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.Filter.Result;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
-import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,7 +40,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
@@ -1089,14 +1087,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     private class LogEntryBuilder {
 
-        private final StringMapMessage logEntry;
+        private final FastLogEntryAccumulator logEntry;
 
         LogEntryBuilder() {
             this(true);
         }
 
         LogEntryBuilder(boolean showOrigin) {
-            logEntry = new StringMapMessage(LoggingAuditTrail.this.entryCommonFields.commonFields);
+            logEntry = new FastLogEntryAccumulator(LoggingAuditTrail.this.entryCommonFields.commonFields);
             if (false == showOrigin) {
                 logEntry.remove(ORIGIN_ADDRESS_FIELD_NAME);
                 logEntry.remove(ORIGIN_TYPE_FIELD_NAME);
@@ -1673,7 +1671,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
+        static void addAuthenticationFieldsToLogEntry(FastLogEntryAccumulator logEntry, Authentication authentication) {
             assert false == authentication.isCloudApiKey() : "audit logging for Cloud API keys is not supported";
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
@@ -1698,11 +1696,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     final Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
                         .getMetadata()
                         .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
-                    final StringMapMessage crossClusterAccessLogEntry = logEntry.newInstance(Collections.emptyMap());
+                    final FastLogEntryAccumulator crossClusterAccessLogEntry = new FastLogEntryAccumulator(Collections.emptyMap());
                     addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, innerAuthentication);
                     try {
                         final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-                        builder.map(crossClusterAccessLogEntry.getData());
+                        // serialize the nested authentication as a JSON object with keys in sorted order, matching the previous
+                        // StringMapMessage-backed behavior
+                        builder.map(crossClusterAccessLogEntry.collectSetFieldsSorted());
                         logEntry.with(CROSS_CLUSTER_ACCESS_FIELD_NAME, Strings.toString(builder));
                     } catch (IOException e) {
                         throw new ElasticsearchSecurityException(
@@ -1759,45 +1759,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder with(String key, String[] values) {
-            if (values != null) {
-                logEntry.with(key, toQuotedJsonArray(values));
-            }
+            // the array reference is held as-is; it is encoded as a JSON array lazily in FastLogEntryAccumulator#formatTo
+            logEntry.with(key, values);
             return this;
         }
 
         LogEntryBuilder with(Map<String, Object> map) {
+            // values (scalars or arrays) are held as-is and encoded lazily in FastLogEntryAccumulator#formatTo based on the field type
             for (Entry<String, Object> entry : map.entrySet()) {
-                Object value = entry.getValue();
-                if (value.getClass().isArray()) {
-                    logEntry.with(entry.getKey(), toQuotedJsonArray((Object[]) value));
-                } else {
-                    logEntry.with(entry.getKey(), value);
-                }
+                logEntry.with(entry.getKey(), entry.getValue());
             }
             return this;
         }
 
         void build() {
             logger.info(AUDIT_MARKER, logEntry);
-        }
-
-        static String toQuotedJsonArray(Object[] values) {
-            assert values != null;
-            final StringBuilder stringBuilder = new StringBuilder();
-            final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
-            stringBuilder.append("[");
-            for (final Object value : values) {
-                if (value != null) {
-                    if (stringBuilder.length() > 1) {
-                        stringBuilder.append(",");
-                    }
-                    stringBuilder.append("\"");
-                    jsonStringEncoder.quoteAsString(value.toString(), stringBuilder);
-                    stringBuilder.append("\"");
-                }
-            }
-            stringBuilder.append("]");
-            return stringBuilder.toString();
         }
     }
 

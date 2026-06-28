@@ -551,12 +551,14 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), id);
         if (excludeGenerated == false) {
-            if (headers.isEmpty() == false) {
-                if (forInternalStorage) {
+            if (forInternalStorage) {
+                if (headers.isEmpty() == false) {
                     builder.field(HEADERS.getPreferredName(), headers);
-                } else {
-                    XContentUtils.addAuthorizationInfo(builder, headers);
                 }
+            } else if (credentialId != null) {
+                XContentUtils.addCloudApiKeyAuthorization(builder, credentialId);
+            } else if (headers.isEmpty() == false) {
+                XContentUtils.addAuthorizationInfo(builder, headers);
             }
             if (transformVersion != null) {
                 builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
@@ -600,7 +602,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             builder.field(retentionPolicyConfig.getWriteableName(), retentionPolicyConfig);
             builder.endObject();
         }
-        if (excludeGenerated == false && credentialId != null) {
+        if (forInternalStorage && credentialId != null) {
             builder.field(CREDENTIAL_ID.getPreferredName(), credentialId);
         }
         builder.endObject();

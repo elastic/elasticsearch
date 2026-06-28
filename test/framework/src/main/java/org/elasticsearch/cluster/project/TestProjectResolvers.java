@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Collection;
@@ -47,11 +46,6 @@ public final class TestProjectResolvers {
 
             @Override
             public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
-                throw new UnsupportedOperationException("Cannot execute on a specific project when using the 'allProjects' resolver");
-            }
-
-            @Override
-            public Releasable storeContextForProject(ProjectId projectId) {
                 throw new UnsupportedOperationException("Cannot execute on a specific project when using the 'allProjects' resolver");
             }
 
@@ -102,17 +96,6 @@ public final class TestProjectResolvers {
             }
 
             @Override
-            public Releasable storeContextForProject(ProjectId projectId) {
-                synchronized (this) {
-                    if (enforceProjectId != null) {
-                        throw new IllegalStateException("Cannot nest calls to storeContextForProject or executeOnProject");
-                    }
-                    enforceProjectId = projectId;
-                    return () -> enforceProjectId = null;
-                }
-            }
-
-            @Override
             public boolean supportsMultipleProjects() {
                 return true;
             }
@@ -122,11 +105,6 @@ public final class TestProjectResolvers {
     private static final ProjectResolver ALWAYS_THROW = new ProjectResolver() {
         @Override
         public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
-            throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
-        }
-
-        @Override
-        public Releasable storeContextForProject(ProjectId projectId) {
             throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
         }
 
@@ -210,16 +188,6 @@ public final class TestProjectResolvers {
             }
 
             @Override
-            public Releasable storeContextForProject(ProjectId otherProjectId) {
-                final ProjectId projectId = projectIdSupplier.get();
-                if (projectId.equals(otherProjectId)) {
-                    return () -> {};
-                } else {
-                    throw new IllegalArgumentException("Cannot set project id to " + otherProjectId);
-                }
-            }
-
-            @Override
             public boolean supportsMultipleProjects() {
                 return only == false;
             }
@@ -251,13 +219,6 @@ public final class TestProjectResolvers {
                     threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
                     body.run();
                 }
-            }
-
-            @Override
-            public Releasable storeContextForProject(ProjectId projectId) {
-                final var stored = threadContext.newStoredContext();
-                threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
-                return stored;
             }
 
             @Override

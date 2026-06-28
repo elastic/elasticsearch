@@ -9,7 +9,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -17,11 +16,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -204,14 +201,16 @@ public final class ThrottlingRecoveryService implements Closeable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
         private final RecoveryListener listener;
-        private final SetOnce<Releasable> storedContext = new SetOnce<>();
 
         private RecoveryRunnable(PendingRecovery pending) {
             this.projectId = pending.projectId;
             this.recoveryState = pending.recoveryState;
             this.task = pending.task;
             this.listener = RecoveryListener.assertOnce(
-                RecoveryListener.runAfter(RecoveryListener.runAfter(pending.listener, this::restoreContext), () -> releaseSlot(pending))
+                RecoveryListener.wrapPreservingContext(
+                    RecoveryListener.runAfter(pending.listener, () -> releaseSlot(pending)),
+                    threadContext
+                )
             );
         }
 
@@ -222,22 +221,7 @@ public final class ThrottlingRecoveryService implements Closeable {
 
         @Override
         protected void doRun() {
-            storeProjectContext();
-            task.accept(listener);
-        }
-
-        private void storeProjectContext() {
-            assert threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER) == null
-                : "unexpected project header in RecoveryRunnable#doRun" + threadContext.getRequestHeadersOnly();
-
-            // Adds project id header to the thread context (removed on listener completion)
-            storedContext.set(projectResolver.storeContextForProject(projectId));
-        }
-
-        private void restoreContext() {
-            if (storedContext.get() != null) {
-                storedContext.get().close();
-            }
+            projectResolver.executeOnProject(projectId, () -> task.accept(listener));
         }
     }
 }

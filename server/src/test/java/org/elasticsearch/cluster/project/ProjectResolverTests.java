@@ -208,42 +208,6 @@ public class ProjectResolverTests extends ESTestCase {
         assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
     }
 
-    public void testStoreContextForProject() {
-        final ProjectId projectId1 = randomUniqueProjectId();
-        final ProjectId projectId2 = randomUniqueProjectId();
-
-        final Map<ProjectId, ProjectMetadata> projects = createProjects();
-        projects.put(projectId1, ProjectMetadata.builder(projectId1).build());
-        projects.put(projectId2, ProjectMetadata.builder(projectId2).build());
-
-        final ThreadContext threadContext = threadPool.getThreadContext();
-
-        final String opaqueId = randomAlphaOfLengthBetween(4, 8);
-        threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
-
-        assertNull(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
-
-        final var stored = resolver.storeContextForProject(projectId1);
-        assertThat(resolver.getProjectId(), equalTo(projectId1));
-        assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId1.id()));
-        assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
-
-        // Cannot set a new project-id while one is already set
-        final IllegalStateException ex = expectThrows(IllegalStateException.class, () -> resolver.storeContextForProject(projectId2));
-        assertThat(ex.getMessage(), containsString("project-id [" + projectId1 + "] in the thread-context"));
-
-        stored.close();
-        assertNull(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
-        assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
-
-        // Can store a new project-id after closing
-        try (var ignored = resolver.storeContextForProject(projectId2)) {
-            assertThat(resolver.getProjectId(), equalTo(projectId2));
-            assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
-        }
-        assertNull(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
-    }
-
     public void testShouldSupportsMultipleProjects() {
         assertThat(resolver.supportsMultipleProjects(), equalTo(true));
     }

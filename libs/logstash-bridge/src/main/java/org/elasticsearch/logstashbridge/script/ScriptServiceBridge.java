@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.FixForMultiProject;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.ingest.common.ProcessorsWhitelistExtension;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.common.SettingsBridge;
@@ -147,15 +146,6 @@ public interface ScriptServiceBridge extends StableBridgeAPI<ScriptService>, Clo
             public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
                 if (projectId.equals(ProjectId.DEFAULT)) {
                     body.run();
-                } else {
-                    throw new IllegalArgumentException("Cannot execute on a project other than [" + ProjectId.DEFAULT + "]");
-                }
-            }
-
-            @Override
-            public Releasable storeContextForProject(ProjectId projectId) {
-                if (projectId.equals(ProjectId.DEFAULT)) {
-                    return () -> {};
                 } else {
                     throw new IllegalArgumentException("Cannot execute on a project other than [" + ProjectId.DEFAULT + "]");
                 }

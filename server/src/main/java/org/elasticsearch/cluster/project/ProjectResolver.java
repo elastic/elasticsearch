@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.Releasable;
 
 import java.util.Collection;
 import java.util.Objects;
@@ -85,15 +84,4 @@ public interface ProjectResolver extends ProjectIdResolver {
      *                               It is an error to attempt to override the active project-id
      */
     <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E;
-
-    /// Async-compatible alternative to [#executeOnProject(ProjectId, CheckedRunnable)].
-    ///
-    /// Configures the thread context for the given `projectId` and returns the prior context as a
-    /// [Releasable]. The caller is responsible for closing the returned context once all async work
-    /// associated with this project scope is complete (typically via a final `runAfter` on the relevant listener):
-    ///
-    /// Closing the returned context restores the thread context to its state before this call.
-    ///
-    /// @throws IllegalStateException if there is already a project-id set in the execution context
-    Releasable storeContextForProject(ProjectId projectId);
 }

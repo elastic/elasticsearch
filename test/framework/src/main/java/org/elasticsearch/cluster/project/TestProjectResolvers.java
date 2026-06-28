@@ -84,7 +84,7 @@ public final class TestProjectResolvers {
             public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
                 synchronized (this) {
                     if (enforceProjectId != null) {
-                        throw new IllegalStateException("Cannot nest calls to executeOnProject or storeContextForProject");
+                        throw new IllegalStateException("Cannot nest calls to executeOnProject");
                     }
                     try {
                         enforceProjectId = projectId;

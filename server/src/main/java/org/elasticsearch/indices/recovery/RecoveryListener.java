@@ -47,7 +47,7 @@ public interface RecoveryListener {
     void onRecoveryAborted();
 
     static RecoveryListener wrapPreservingContext(RecoveryListener listener, ThreadContext threadContext) {
-        final Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(true);
+        final Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(false);
         return new RecoveryListener() {
             @Override
             public void onRecoveryDone(

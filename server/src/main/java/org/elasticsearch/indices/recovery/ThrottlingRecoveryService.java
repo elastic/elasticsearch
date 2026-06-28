@@ -207,6 +207,8 @@ public final class ThrottlingRecoveryService implements Closeable {
             this.recoveryState = pending.recoveryState;
             this.task = pending.task;
             this.listener = RecoveryListener.assertOnce(
+                // We should recover the original thread context (without the project-id) when calling the listener and
+                // launching the next recovery via [#releaseSlot]
                 RecoveryListener.wrapPreservingContext(
                     RecoveryListener.runAfter(pending.listener, () -> releaseSlot(pending)),
                     threadContext

@@ -176,26 +176,43 @@ public class ObjectMapper extends Mapper {
          * @param context        the DocumentParserContext in which the mapper has been built
          */
         public final void addDynamic(String name, String prefix, Mapper.Builder mapperBuilder, DocumentParserContext context) {
-            // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
-            // we just add it as it is for sure a leaf mapper
-            if (name.contains(".") == false || subobjects.value() == Subobjects.DISABLED) {
+            // A name with no dots is for sure a leaf mapper of the current object.
+            int firstDotIndex = name.indexOf('.');
+            if (firstDotIndex < 0) {
                 add(mapperBuilder);
-            } else {
-                // We strip off the first object path of the mapper name, load or create
-                // the relevant object mapper, and then recurse down into it, passing the remainder
-                // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
-                // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
-                int firstDotIndex = name.indexOf('.');
-                String immediateChild = name.substring(0, firstDotIndex);
-                String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
-                Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
-                if (parentBuilder != null) {
-                    parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapperBuilder, context);
-                    add(parentBuilder);
-                } else {
-                    // Expected to find a matching parent object but got null.
-                    throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);
+                return;
+            }
+            if (subobjects.value() == Subobjects.DISABLED) {
+                // With subobjects:false a dotted name is flattened into a leaf of the current object - except when it lives inside a
+                // nested object. A nested field is a real document boundary, so a dynamic field inside it must be added inside the
+                // nested mapper (e.g. 'obj.n.ndyn' must be added inside the nested 'obj.n'), not flattened to a leaf at this level.
+                // We look for the shortest dotted prefix that is a nested object and recurse into it; if none is nested the field is
+                // a plain flattened leaf. Adding it at the wrong level would propose the field at the wrong path, so re-parsing keeps
+                // proposing the same dynamic update and the mapping never converges.
+                for (int dot = firstDotIndex; dot >= 0; dot = name.indexOf('.', dot + 1)) {
+                    String childFullName = prefix == null ? name.substring(0, dot) : prefix + "." + name.substring(0, dot);
+                    if (context.mappingLookup().objectMappers().get(childFullName) instanceof NestedObjectMapper) {
+                        Builder nestedBuilder = findObjectBuilder(childFullName, context);
+                        nestedBuilder.addDynamic(name.substring(dot + 1), childFullName, mapperBuilder, context);
+                        add(nestedBuilder);
+                        return;
+                    }
                 }
+                add(mapperBuilder);
+                return;
+            }
+            // We strip off the first object path of the mapper name, load or create the relevant object mapper, and then recurse
+            // down into it, passing the remainder of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then call
+            // addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
+            String immediateChild = name.substring(0, firstDotIndex);
+            String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
+            Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
+            if (parentBuilder != null) {
+                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapperBuilder, context);
+                add(parentBuilder);
+            } else {
+                // Expected to find a matching parent object but got null.
+                throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);
             }
         }
 

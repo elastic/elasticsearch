@@ -1175,6 +1175,96 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             {"comments":[{"message":"first","votes":3},{"message":"second","votes":7}]}"""));
     }
 
+    public void testStrictColumnarModesDynamicFieldInsideNestedConverges() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // A nested object is a real document boundary even under the columnar subobjects:false default, so a dynamic field inside it
+        // must be added inside the nested mapper ([n.ndyn]). If it were flattened to a root leaf ([ndyn]), the proposed mapping update
+        // would target the wrong path and re-parsing the same document would keep proposing it, tripping the indexing-time
+        // noop-mapping-update infinite-retry guard (BulkPrimaryExecutionContext#resetForNoopMappingUpdateRetry).
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService ms = createMapperService(settings, mapping(b -> {
+            b.startObject("n").field("type", "nested");
+            b.startObject("properties").startObject("leaf").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+        CheckedConsumer<XContentBuilder, IOException> docB = b -> {
+            b.startArray("n");
+            b.startObject().field("leaf", "y").field("ndyn", "p").endObject();
+            b.endArray();
+        };
+        ParsedDocument doc = ms.documentMapper().parse(source(docB));
+        CompressedXContent update = doc.dynamicMappingsUpdate();
+        assertNotNull("first parse proposes a dynamic update", update);
+        mergeDynamicUpdate(ms, update);
+        // the dynamic field landed inside the nested object, not as a flat field at the root
+        assertNotNull("dynamic field must be mapped inside the nested object", ms.mappingLookup().getMapper("n.ndyn"));
+        assertNull("dynamic field must not be mapped at the root", ms.mappingLookup().getMapper("ndyn"));
+        ParsedDocument doc2 = ms.documentMapper().parse(source(docB));
+        assertNull("dynamic mapping must converge (no infinite noop-update loop)", doc2.dynamicMappingsUpdate());
+    }
+
+    public void testStrictColumnarModesDynamicFieldInsideNestedInObjectConverges() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // Same as above but the nested object is declared inside a (flattened) object, so its full path is [obj.n]: the dynamic
+        // field must still land inside the nested mapper ([obj.n.ndyn]) rather than as a flat leaf, so the mapping converges.
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService ms = createMapperService(settings, mapping(b -> {
+            b.startObject("obj");
+            b.startObject("properties");
+            b.startObject("n").field("type", "nested");
+            b.startObject("properties").startObject("leaf").field("type", "keyword").endObject().endObject();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        CheckedConsumer<XContentBuilder, IOException> docB = b -> {
+            b.startObject("obj");
+            b.startArray("n");
+            b.startObject().field("leaf", "y").field("ndyn", "p").endObject();
+            b.endArray();
+            b.endObject();
+        };
+        ParsedDocument doc = ms.documentMapper().parse(source(docB));
+        CompressedXContent update = doc.dynamicMappingsUpdate();
+        assertNotNull("first parse proposes a dynamic update", update);
+        mergeDynamicUpdate(ms, update);
+        assertNotNull("dynamic field must be mapped inside the nested object", ms.mappingLookup().getMapper("obj.n.ndyn"));
+        ParsedDocument doc2 = ms.documentMapper().parse(source(docB));
+        assertNull("dynamic mapping must converge (no infinite noop-update loop)", doc2.dynamicMappingsUpdate());
+    }
+
+    public void testDynamicFieldInsideNestedInsideNestedConverges() throws Exception {
+        // Outside columnar, multiple nested levels are allowed under subobjects:false. A dynamic field at the deepest level must
+        // descend through both nested boundaries and be mapped inside the innermost nested ([n1.n2.ndyn]). This exercises the
+        // recursive descent of addDynamic and the nested-ancestor lookup at depth (a non-columnar index, so no feature flag).
+        MapperService ms = createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties");
+            b.startObject("n1").field("type", "nested").field("subobjects", false);
+            b.startObject("properties");
+            b.startObject("n2").field("type", "nested");
+            b.startObject("properties").startObject("leaf").field("type", "keyword").endObject().endObject();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        CheckedConsumer<XContentBuilder, IOException> docB = b -> {
+            b.startObject("n1");
+            b.startArray("n2");
+            b.startObject().field("leaf", "y").field("ndyn", "p").endObject();
+            b.endArray();
+            b.endObject();
+        };
+        ParsedDocument doc = ms.documentMapper().parse(source(docB));
+        CompressedXContent update = doc.dynamicMappingsUpdate();
+        assertNotNull("first parse proposes a dynamic update", update);
+        mergeDynamicUpdate(ms, update);
+        assertNotNull("dynamic field must be mapped inside the innermost nested object", ms.mappingLookup().getMapper("n1.n2.ndyn"));
+        ParsedDocument doc2 = ms.documentMapper().parse(source(docB));
+        assertNull("dynamic mapping must converge (no infinite noop-update loop)", doc2.dynamicMappingsUpdate());
+    }
+
     public void testStrictColumnarModesNestedLeafArrayRoundTrip() throws Exception {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();

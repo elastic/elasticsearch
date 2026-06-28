@@ -671,9 +671,6 @@ tests:
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceIT
   method: testCreateIndexBatching
   issue: https://github.com/elastic/elasticsearch/issues/152041
-- class: org.elasticsearch.ingest.iplocation.IngestEnterpriseGeoIpDownloaderIT
-  method: testEnterpriseDownloaderWithIngestPipeline
-  issue: https://github.com/elastic/elasticsearch/issues/152042
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
   method: testMergingFallsBehindAndThenCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/152045

@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -514,30 +515,20 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         );
     }
 
-    // ---- negative tests: LOOKUP JOIN inside WHERE IN subquery body (issue #149877) ----
+    // ---- LOOKUP JOIN inside WHERE IN subquery body (issue #149877) ----
 
     /**
-     * Negative test tracking https://github.com/elastic/elasticsearch/issues/149877.
-     *
-     * <p>A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index
-     * currently errors in pre-analysis when {@code skipUnavailable=false}. The lookup index
-     * ({@code values_lookup}) exists only on {@code remote-b}, which is the cluster targeted by
-     * the subquery, but field resolution incorrectly contacts other remote clusters and fails when
-     * those clusters do not host the lookup index.
-     *
-     * <p>The correct result (once the bug is fixed) is 1 row with {@code v=4} from
-     * {@code cluster-a}: the subquery filters {@code remote-b:logs-2} to {@code v=4} via the
-     * lookup join, and the outer query selects that value from {@code cluster-a:logs-2}.
-     *
-     * <p>TODO: when issue #149877 is fixed, replace {@code expectThrows} with a positive
-     * assertion: {@code assertThat(values, hasSize(1)); assertEquals(4L, values.get(0).get(0))}.
+     * A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index.
+     * The lookup index ({@code values_lookup}) exists only on {@code remote-b}, which is the
+     * cluster targeted by the subquery. The subquery filters {@code remote-b:logs-2} to {@code v=4}
+     * via the lookup join, and the outer query selects that value from {@code cluster-a:logs-2}.
      */
     public void testInSubqueryWithLookupJoinInSubqueryBodySkipUnavailableFalse() {
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
         try {
-            expectThrows(Exception.class, () -> runQuery("""
+            try (EsqlQueryResponse resp = runQuery("""
                 FROM cluster-a:logs-*
                 | WHERE v IN (
                     FROM remote-b:logs-*
@@ -546,25 +537,19 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                     | KEEP v
                   )
                 | KEEP v
-                """, false));
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
         } finally {
             clearSkipUnavailable(3);
         }
     }
 
     /**
-     * Negative test tracking https://github.com/elastic/elasticsearch/issues/149877.
-     *
-     * <p>A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index
-     * returns wrong results when {@code skipUnavailable=true}. The cluster hosting the lookup
-     * index ({@code remote-b}) is silently skipped during field resolution, so the inner subquery
-     * yields an empty set and the outer WHERE IN matches no rows.
-     *
-     * <p>The correct result (once the bug is fixed) is 1 row with {@code v=4} from
-     * {@code cluster-a}.
-     *
-     * <p>TODO: when issue #149877 is fixed, replace the {@code assertNotEquals} with:
-     * {@code assertThat(values, hasSize(1)); assertEquals(4L, values.get(0).get(0))}.
+     * A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index,
+     * with {@code skipUnavailable=true}. The subquery filters {@code remote-b:logs-2} to
+     * {@code v=4} via the lookup join, and the outer query selects that value from
+     * {@code cluster-a:logs-2}.
      */
     public void testInSubqueryWithLookupJoinInSubqueryBodySkipUnavailableTrue() {
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
@@ -581,10 +566,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                   )
                 | KEEP v
                 """, true)) {
-                List<List<Object>> values = getValuesList(resp);
-                // Bug: the correct result is List.of(List.of(4L)), but due to #149877 the
-                // lookup resolution fails silently and the inner subquery returns no values.
-                assertNotEquals(List.of(List.of(4L)), values);
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
             }
         } finally {
             clearSkipUnavailable(3);

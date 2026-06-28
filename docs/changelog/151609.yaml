@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 151609
+summary: "[Encryption] Move PEK password wrap/unwrap to disk write/read only"
+type: enhancement

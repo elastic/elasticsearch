@@ -50,6 +50,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -4098,6 +4099,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ProjectResolver projectResolver = new ProjectResolver() {
             @Override
             public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Releasable storeContextForProject(ProjectId projectId) {
                 throw new UnsupportedOperationException();
             }
 

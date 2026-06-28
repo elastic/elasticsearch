@@ -53,6 +53,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
@@ -143,6 +144,11 @@ public class TransportBulkActionTests extends ESTestCase {
                 new ProjectResolver() {
                     @Override
                     public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                        throw new UnsupportedOperationException("");
+                    }
+
+                    @Override
+                    public Releasable storeContextForProject(ProjectId projectId) {
                         throw new UnsupportedOperationException("");
                     }
 

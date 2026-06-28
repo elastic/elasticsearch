@@ -84,6 +84,21 @@ public abstract class AbstractProjectResolver implements ProjectResolver {
     }
 
     @Override
+    public ThreadContext.StoredContext storeContextForProject(ProjectId projectId) {
+        final ThreadContext threadContext = this.threadContext.get();
+        final String existingProjectId = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
+        if (existingProjectId != null) {
+            // We intentionally do not allow callers to override an existing project-id
+            throw new IllegalStateException(
+                "There is already a project-id [" + existingProjectId + "] in the thread-context, cannot set it to [" + projectId + "]"
+            );
+        }
+        final var stored = threadContext.newStoredContext();
+        threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
+        return stored;
+    }
+
+    @Override
     public boolean supportsMultipleProjects() {
         return true;
     }

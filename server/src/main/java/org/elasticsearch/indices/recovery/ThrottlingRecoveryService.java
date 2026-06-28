@@ -9,11 +9,15 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -25,7 +29,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -51,6 +54,7 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     private final Executor executor;
     private final ThreadContext threadContext;
+    private final ProjectResolver projectResolver;
     private final CompositeRecoverySchedulingListener schedulingListeners;
 
     private int maxConcurrentRecoveries;
@@ -61,11 +65,13 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     public ThrottlingRecoveryService(
         ThreadPool threadPool,
+        ProjectResolver projectResolver,
         ClusterService clusterService,
         CompositeRecoverySchedulingListener schedulingListeners
     ) {
         this.executor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
+        this.projectResolver = projectResolver;
         this.schedulingListeners = schedulingListeners;
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
@@ -73,6 +79,7 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
     public void enqueue(
+        ProjectId projectId,
         RecoveryListener recoveryListener,
         RecoveryState recoveryState,
         RecoveryStats stats,
@@ -81,7 +88,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         final PendingRecovery pendingRecovery;
         synchronized (this) {
             if (closed == false) {
-                pendingRecovery = new PendingRecovery(recoveryState, stats, task, recoveryListener);
+                pendingRecovery = new PendingRecovery(projectId, recoveryState, stats, task, recoveryListener);
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             } else {
@@ -146,14 +153,8 @@ public final class ThrottlingRecoveryService implements Closeable {
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            assert Set.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER).containsAll(threadContext.getRequestHeadersOnly().keySet())
-                : "unexpected headers in thread context when dispatching recovery: " + threadContext.getRequestHeadersOnly();
 
-            // Wipe the projectId header between recoveries.
-            // TODO: Add instead a new `storeContextForProject` method for async code: https://github.com/elastic/elasticsearch/pull/152107
-            try (ThreadContext.StoredContext ignored = threadContext.newEmptySystemContext()) {
-                executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
-            }
+            executor.execute(new RecoveryRunnable(recovery));
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
@@ -188,23 +189,33 @@ public final class ThrottlingRecoveryService implements Closeable {
     /// The `listener` is the one passed in to [#enqueue] by indicesServices. Slot-release and other wrappers are added
     /// at dispatch time, such that aborting a queued-but-never-dispatched task does not decrement a slot that was never taken
     private record PendingRecovery(
+        ProjectId projectId,
         RecoveryState recoveryState,
         RecoveryStats stats,
         Consumer<RecoveryListener> task,
         RecoveryListener listener
     ) {}
 
-    /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
-    /// with `runAfter` (to release a recovery slot on completion) and `assertOnce` (to ensure there is only one terminal callback).
-    private static class RecoveryRunnable extends AbstractRunnable {
+    /// Executable wrapper for a dispatched recovery.
+    /// The provided recovery listener (from [PendingRecovery]) is wrapped with `runAfter` (to restore the original
+    /// thread context and remove the projectId header before we then release a recovery slot on completion)
+    /// and `assertOnce` (to ensure there is only one terminal callback).
+    private class RecoveryRunnable extends AbstractRunnable {
+        private final ProjectId projectId;
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
         private final RecoveryListener listener;
+        private final SetOnce<Releasable> storedContext = new SetOnce<>();
 
-        private RecoveryRunnable(PendingRecovery pending, Runnable runAfter) {
+        private RecoveryRunnable(PendingRecovery pending) {
+            this.projectId = pending.projectId;
             this.recoveryState = pending.recoveryState;
             this.task = pending.task;
-            this.listener = RecoveryListener.assertOnce(RecoveryListener.runAfter(pending.listener, runAfter));
+            this.listener = RecoveryListener.assertOnce(RecoveryListener.runAfter(RecoveryListener.runAfter(pending.listener, () -> {
+                if (storedContext.get() != null) {
+                    storedContext.get().close();
+                }
+            }), () -> releaseSlot(pending)));
         }
 
         @Override
@@ -214,6 +225,11 @@ public final class ThrottlingRecoveryService implements Closeable {
 
         @Override
         protected void doRun() {
+            assert threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER) == null
+                : "unexpected project header in RecoveryRunnable#doRun" + threadContext.getRequestHeadersOnly();
+
+            // Adds project id header to the thread context (removed on listener completion)
+            storedContext.set(projectResolver.storeContextForProject(projectId));
             task.accept(listener);
         }
     }

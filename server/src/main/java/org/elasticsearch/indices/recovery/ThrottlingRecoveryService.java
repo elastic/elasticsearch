@@ -153,7 +153,6 @@ public final class ThrottlingRecoveryService implements Closeable {
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-
             executor.execute(new RecoveryRunnable(recovery));
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
@@ -211,11 +210,9 @@ public final class ThrottlingRecoveryService implements Closeable {
             this.projectId = pending.projectId;
             this.recoveryState = pending.recoveryState;
             this.task = pending.task;
-            this.listener = RecoveryListener.assertOnce(RecoveryListener.runAfter(RecoveryListener.runAfter(pending.listener, () -> {
-                if (storedContext.get() != null) {
-                    storedContext.get().close();
-                }
-            }), () -> releaseSlot(pending)));
+            this.listener = RecoveryListener.assertOnce(
+                RecoveryListener.runAfter(RecoveryListener.runAfter(pending.listener, this::restoreContext), () -> releaseSlot(pending))
+            );
         }
 
         @Override
@@ -225,12 +222,22 @@ public final class ThrottlingRecoveryService implements Closeable {
 
         @Override
         protected void doRun() {
+            storeProjectContext();
+            task.accept(listener);
+        }
+
+        private void storeProjectContext() {
             assert threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER) == null
                 : "unexpected project header in RecoveryRunnable#doRun" + threadContext.getRequestHeadersOnly();
 
             // Adds project id header to the thread context (removed on listener completion)
             storedContext.set(projectResolver.storeContextForProject(projectId));
-            task.accept(listener);
+        }
+
+        private void restoreContext() {
+            if (storedContext.get() != null) {
+                storedContext.get().close();
+            }
         }
     }
 }

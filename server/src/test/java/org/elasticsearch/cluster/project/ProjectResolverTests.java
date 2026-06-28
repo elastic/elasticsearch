@@ -236,7 +236,7 @@ public class ProjectResolverTests extends ESTestCase {
         assertNull(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
         assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
 
-        // Can store a new project after closing
+        // Can store a new project-id after closing
         try (var ignored = resolver.storeContextForProject(projectId2)) {
             assertThat(resolver.getProjectId(), equalTo(projectId2));
             assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));

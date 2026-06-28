@@ -89,6 +89,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         };
         final var projectId1 = randomUniqueProjectId();
         final var projectId2 = randomUniqueProjectId();
+        final var projectId3 = randomUniqueProjectId();
 
         final var service = new ThrottlingRecoveryService(
             threadPool,
@@ -99,7 +100,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         final var firstRecoveryRunning = new CountDownLatch(1);
         final var firstRecoveryProceed = new CountDownLatch(1);
-        final var secondRecoveryDone = new CountDownLatch(1);
+        final var thirdRecoveryDone = new CountDownLatch(1);
 
         service.enqueue(projectId1, RecoveryListener.NOOP, newRecoveryState(), stats, listener -> {
             assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId1.id()));
@@ -110,8 +111,29 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         safeAwait(firstRecoveryRunning);
 
-        // Enqueue recovery 2 while the slot is held. It will be dispatched by recovery 1's releasing thread
+        // Test the failure path
         final var secondListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange t, ShardLongFieldRange e) {
+                fail("unexpected success");
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {}
+
+            @Override
+            public void onRecoveryAborted() {
+                fail("recovery aborted");
+            }
+        };
+
+        service.enqueue(projectId2, secondListener, newRecoveryState(), stats, listener -> {
+            assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
+            throw new RuntimeException("test simulated failure");
+        });
+
+        // Test the success path
+        final var thirdListener = new RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state, ShardLongFieldRange t, ShardLongFieldRange e) {}
 
@@ -125,15 +147,15 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 fail("recovery aborted");
             }
         };
-        service.enqueue(projectId2, secondListener, newRecoveryState(), stats, listener -> {
-            assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
+        service.enqueue(projectId3, thirdListener, newRecoveryState(), stats, listener -> {
+            assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId3.id()));
             listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            secondRecoveryDone.countDown();
+            thirdRecoveryDone.countDown();
         });
-        assertThat(service.currentQueueSize(), equalTo(1));
 
+        assertThat(service.currentQueueSize(), equalTo(2));
         firstRecoveryProceed.countDown();
-        safeAwait(secondRecoveryDone);
+        safeAwait(thirdRecoveryDone);
     }
 
     public void testSynchronousTaskRunsOnProvidedThreadPoolAndNotifiesUserListener() {

@@ -608,9 +608,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/152027
-- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
-  method: testExplicitMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/152030
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/152037
@@ -626,9 +623,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
   method: testMergingFallsBehindAndThenCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/152045
-- class: org.elasticsearch.search.simple.SimpleSearchIT
-  method: testIpCidrHighCardinality
-  issue: https://github.com/elastic/elasticsearch/issues/152049
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testDownsampling
   issue: https://github.com/elastic/elasticsearch/issues/152060
@@ -641,18 +635,9 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleRound
   issue: https://github.com/elastic/elasticsearch/issues/152063
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testOutageBuffersToDiskAndDrainsOnRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/152087
 - class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
   method: testGenerateDefinitions
   issue: https://github.com/elastic/elasticsearch/issues/152095
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
-  methods:
-  - testEvaluate {TestCase=geo_shape and geo_shape}
-  - testCrankyEvaluateBlockWithoutNulls {TestCase=geo_shape and geo_shape}
-  - testEvaluateInManyThreads {TestCase=geo_shape and geo_shape}
-  issue: https://github.com/elastic/elasticsearch/issues/152108
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/152113
@@ -713,3 +698,69 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDifferenceTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152281
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testWriteFileMultipleOfChunkSize
+  issue: https://github.com/elastic/elasticsearch/issues/152286
+- class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
+  method: testCancelAllReindexTasksByActionWithMixedRelocationState
+  issue: https://github.com/elastic/elasticsearch/issues/152291
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationCompletesWithMultipleHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/152292
+- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
+  method: testProviderIsDiscoveredAndHandlerIsInvoked
+  issue: https://github.com/elastic/elasticsearch/issues/152303
+- class: org.elasticsearch.xpack.stateless.StatelessConcurrentRefreshIT
+  method: testWaitUntilShouldNotWaitForUpload
+  issue: https://github.com/elastic/elasticsearch/issues/152304
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testThreadSafety
+  issue: https://github.com/elastic/elasticsearch/issues/152305
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSymDifferenceTests
+  method: testFold {TestCase=geo_shape and geo_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152306
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
+  method: testFold {TestCase=cartesian_shape and cartesian_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152308
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersectionTests
+  method: testFold {TestCase=cartesian_shape and cartesian_point}
+  issue: https://github.com/elastic/elasticsearch/issues/152309
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:approximation.No confidence intervals}
+  issue: https://github.com/elastic/elasticsearch/issues/152310
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
+  issue: https://github.com/elastic/elasticsearch/issues/152311
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:folding.dateNanos_GreaterThan_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/152314
+- class: org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapperTests
+  method: testExponentialHistogramValuesReader
+  issue: https://github.com/elastic/elasticsearch/issues/152318
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnionTests
+  method: testFold {TestCase=geo_shape and geo_shape}
+  issue: https://github.com/elastic/elasticsearch/issues/152323
+- class: org.elasticsearch.gradle.internal.archunit.IsolatedProjectsArchUnitSpec
+  method: the getRootProject baseline contains no stale entries
+  issue: https://github.com/elastic/elasticsearch/issues/152341
+- class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
+  method: testGetAndGetBasicStats
+  issue: https://github.com/elastic/elasticsearch/issues/152351
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/152355
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
+  method: testExplicitMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/152356
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/21_synthetic_source_stored/index param - field ordering}
+  issue: https://github.com/elastic/elasticsearch/issues/152364
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=update/100_synthetic_source/stored text}
+  issue: https://github.com/elastic/elasticsearch/issues/152365
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/152366
+- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
+  method: testExplicitMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/152379

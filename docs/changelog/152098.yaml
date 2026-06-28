@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 152271
+pr: 152098
+summary: Treat empty list query parameters as null
+type: bug

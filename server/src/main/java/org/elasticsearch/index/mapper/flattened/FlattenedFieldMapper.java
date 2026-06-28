@@ -87,6 +87,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -704,7 +705,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
+            String prefix = FlattenedFieldParser.createKeyedValue(key, "");
+            Term term = new Term(name(), prefix);
+            if (indexType.hasOnlyDocValues()) {
+                if (usesBinaryDocValues) {
+                    return new ScanningBinaryDocValuesPrefixQuery(name(), prefix, false);
+                }
+                return new PrefixQuery(term, MultiTermQuery.DOC_VALUES_REWRITE);
+            }
             return new PrefixQuery(term);
         }
 

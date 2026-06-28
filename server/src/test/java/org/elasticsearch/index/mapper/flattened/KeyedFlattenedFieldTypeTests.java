@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -45,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
+import static org.apache.lucene.search.MultiTermQuery.DOC_VALUES_REWRITE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -210,6 +212,46 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         KeyedFlattenedFieldType ft = createFieldType();
 
         Query expected = new PrefixQuery(new Term(ft.name(), "key\0"));
+        assertEquals(expected, ft.existsQuery(null));
+    }
+
+    public void testExistsQueryWithBinaryDocValuesOnly() {
+        KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            true,
+            false,
+            null,
+            IndexVersion.current(),
+            false
+        );
+
+        Query expected = new ScanningBinaryDocValuesPrefixQuery(ft.name(), "key\0", false);
+        assertEquals(expected, ft.existsQuery(null));
+    }
+
+    public void testExistsQueryWithSortedSetDocValuesOnly() {
+        KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            false,
+            false,
+            null,
+            IndexVersion.current(),
+            false
+        );
+
+        Query expected = new PrefixQuery(new Term(ft.name(), "key\0"), DOC_VALUES_REWRITE);
         assertEquals(expected, ft.existsQuery(null));
     }
 

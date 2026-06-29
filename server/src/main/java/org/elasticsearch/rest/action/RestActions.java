@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -19,10 +20,12 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -37,6 +40,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
@@ -49,6 +54,8 @@ public class RestActions {
     public static final ParseField FAILED_FIELD = new ParseField("failed");
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
     public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
+
+    public static final String SEARCH_METRICS_RESPONSE_HEADER = "X-Elasticsearch-Search-Metrics";
 
     public static long parseVersion(RestRequest request) {
         if (request.hasParam("version")) {
@@ -303,4 +310,34 @@ public class RestActions {
         }
     }
 
+    /**
+     * Wraps listener to expose the {@link DirectoryMetrics} from the response to the client via HTTP response
+     * header. The header is only added when the extracted metrics are non-empty.
+     * <p>
+     * In case requests fan out into several internal searches; the {@code metricsExtractor} function
+     * is responsible for returning the single, already-merged {@link DirectoryMetrics} for the whole response so that a
+     * single accumulated header is emitted to the client rather than one per search.
+     *
+     * @param threadContext    the thread context the response header is registered on
+     * @param metricsExtractor extracts the (already merged) directory metrics from the response
+     * @param delegate         the listener the response is forwarded to after setting the header
+     */
+    public static <Response> ActionListener<Response> wrapWithSearchMetricsHeader(
+        ThreadContext threadContext,
+        Function<Response, DirectoryMetrics> metricsExtractor,
+        ActionListener<Response> delegate
+    ) {
+        return delegate.delegateFailureAndWrap((l, response) -> {
+            DirectoryMetrics metrics = metricsExtractor.apply(response);
+            if (metrics.isEmpty() == false) {
+                String value = metrics.entries()
+                    .entrySet()
+                    .stream()
+                    .map(e -> e.getKey() + "=" + e.getValue())
+                    .collect(Collectors.joining(","));
+                threadContext.addResponseHeader(SEARCH_METRICS_RESPONSE_HEADER, value);
+            }
+            l.onResponse(response);
+        });
+    }
 }

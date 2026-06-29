@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152391
+summary: Make external split discovery cancellable
+type: enhancement

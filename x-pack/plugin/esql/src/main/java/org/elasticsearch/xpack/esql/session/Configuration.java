@@ -49,6 +49,8 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_EXPLAIN_ONLY = TransportVersion.fromName("esql_explain_only");
 
+    private static final TransportVersion ESQL_GROK_WATCHDOG = TransportVersion.fromName("esql_grok_watchdog");
+
     private final String clusterName;
     private final String username;
     private final Instant now;
@@ -80,6 +82,8 @@ public class Configuration implements Writeable {
      */
     private final Map<String, String> viewQueries;
 
+    private final long grokMatcherWatchdogMs;
+
     public Configuration(
         ZoneId zi,
         Instant now,
@@ -99,6 +103,102 @@ public class Configuration implements Writeable {
         String projectRouting,
         ApproximationSettings approximationSettings,
         Map<String, String> viewQueries
+    ) {
+        this(
+            zi,
+            now,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting,
+            approximationSettings,
+            viewQueries,
+            false,
+            1000
+        );
+    }
+
+    // Full constructor with explainOnly parameter (used by serialization tests and builders)
+    public Configuration(
+        ZoneId zi,
+        Instant now,
+        Locale locale,
+        String username,
+        String clusterName,
+        QueryPragmas pragmas,
+        int resultTruncationMaxSizeRegular,
+        int resultTruncationDefaultSizeRegular,
+        @Nullable String query,
+        boolean profile,
+        Map<String, Map<String, Column>> tables,
+        long queryStartTimeNanos,
+        boolean allowPartialResults,
+        int resultTruncationMaxSizeTimeseries,
+        int resultTruncationDefaultSizeTimeseries,
+        String projectRouting,
+        ApproximationSettings approximationSettings,
+        Map<String, String> viewQueries,
+        boolean explainOnly
+    ) {
+        this(
+            zi,
+            now,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting,
+            approximationSettings,
+            viewQueries,
+            explainOnly,
+            1000
+        );
+    }
+
+    /**
+     * Canonical constructor — every field is a parameter. {@link ConfigurationBuilder#build()} calls this
+     * directly, so any new field added here must also be added to {@link ConfigurationBuilder}.
+     */
+    Configuration(
+        ZoneId zi,
+        Instant now,
+        Locale locale,
+        String username,
+        String clusterName,
+        QueryPragmas pragmas,
+        int resultTruncationMaxSizeRegular,
+        int resultTruncationDefaultSizeRegular,
+        @Nullable String query,
+        boolean profile,
+        Map<String, Map<String, Column>> tables,
+        long queryStartTimeNanos,
+        boolean allowPartialResults,
+        int resultTruncationMaxSizeTimeseries,
+        int resultTruncationDefaultSizeTimeseries,
+        String projectRouting,
+        ApproximationSettings approximationSettings,
+        Map<String, String> viewQueries,
+        boolean explainOnly,
+        long grokMatcherWatchdogMs
     ) {
         this.zoneId = zi.normalized();
         this.now = now;
@@ -120,7 +220,8 @@ public class Configuration implements Writeable {
         this.approximationSettings = approximationSettings;
         this.viewQueries = viewQueries;
         assert viewQueries != null;
-        this.explainOnly = false;
+        this.explainOnly = explainOnly;
+        this.grokMatcherWatchdogMs = grokMatcherWatchdogMs;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -163,6 +264,11 @@ public class Configuration implements Writeable {
         } else {
             this.explainOnly = false;
         }
+        if (in.getTransportVersion().supports(ESQL_GROK_WATCHDOG)) {
+            this.grokMatcherWatchdogMs = in.readVLong();
+        } else {
+            this.grokMatcherWatchdogMs = 1000;
+        }
 
         // not needed on the data nodes for now
         this.projectRouting = null;
@@ -198,6 +304,9 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().supports(ESQL_EXPLAIN_ONLY)) {
             out.writeBoolean(explainOnly);
+        }
+        if (out.getTransportVersion().supports(ESQL_GROK_WATCHDOG)) {
+            out.writeVLong(grokMatcherWatchdogMs);
         }
     }
 
@@ -273,27 +382,7 @@ public class Configuration implements Writeable {
     }
 
     public Configuration withoutTables() {
-        return new Configuration(
-            zoneId,
-            now,
-            locale,
-            username,
-            clusterName,
-            pragmas,
-            resultTruncationMaxSizeRegular,
-            resultTruncationDefaultSizeRegular,
-            query,
-            profile,
-            Map.of(),
-            queryStartTimeNanos,
-            allowPartialResults,
-            resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            approximationSettings,
-            viewQueries,
-            explainOnly
-        );
+        return new ConfigurationBuilder(this).tables(Map.of()).build();
     }
 
     /**
@@ -325,72 +414,7 @@ public class Configuration implements Writeable {
      * Used for EXPLAIN queries that need to capture plan information.
      */
     public Configuration withExplainOnly() {
-        return new Configuration(
-            zoneId,
-            now,
-            locale,
-            username,
-            clusterName,
-            pragmas,
-            resultTruncationMaxSizeRegular,
-            resultTruncationDefaultSizeRegular,
-            query,
-            true, // profile enabled to capture plans
-            tables,
-            queryStartTimeNanos,
-            allowPartialResults,
-            resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            approximationSettings,
-            viewQueries,
-            true // explainOnly
-        );
-    }
-
-    // Full constructor with explainOnly parameter (used by serialization tests and builders)
-    public Configuration(
-        ZoneId zi,
-        Instant now,
-        Locale locale,
-        String username,
-        String clusterName,
-        QueryPragmas pragmas,
-        int resultTruncationMaxSizeRegular,
-        int resultTruncationDefaultSizeRegular,
-        @Nullable String query,
-        boolean profile,
-        Map<String, Map<String, Column>> tables,
-        long queryStartTimeNanos,
-        boolean allowPartialResults,
-        int resultTruncationMaxSizeTimeseries,
-        int resultTruncationDefaultSizeTimeseries,
-        String projectRouting,
-        ApproximationSettings approximationSettings,
-        Map<String, String> viewQueries,
-        boolean explainOnly
-    ) {
-        this.zoneId = zi.normalized();
-        this.now = now;
-        this.username = username;
-        this.clusterName = clusterName;
-        this.locale = locale;
-        this.pragmas = pragmas;
-        this.resultTruncationMaxSizeRegular = resultTruncationMaxSizeRegular;
-        this.resultTruncationDefaultSizeRegular = resultTruncationDefaultSizeRegular;
-        this.resultTruncationMaxSizeTimeseries = resultTruncationMaxSizeTimeseries;
-        this.resultTruncationDefaultSizeTimeseries = resultTruncationDefaultSizeTimeseries;
-        this.query = query != null ? query : "";
-        this.profile = profile;
-        this.tables = tables;
-        assert tables != null;
-        this.queryStartTimeNanos = queryStartTimeNanos;
-        this.allowPartialResults = allowPartialResults;
-        this.projectRouting = projectRouting;
-        this.approximationSettings = approximationSettings;
-        this.viewQueries = viewQueries;
-        assert viewQueries != null;
-        this.explainOnly = explainOnly;
+        return new ConfigurationBuilder(this).profile(true).explainOnly(true).build();
     }
 
     public String projectRouting() {
@@ -409,57 +433,24 @@ public class Configuration implements Writeable {
     }
 
     /**
+     * Returns the grok MatcherWatchdog timeout in milliseconds.
+     */
+    public long grokMatcherWatchdogMs() {
+        return grokMatcherWatchdogMs;
+    }
+
+    /**
      * Returns a new Configuration with the given zone id.
      */
     public Configuration withZoneId(ZoneId newZoneId) {
-        return new Configuration(
-            newZoneId,
-            now,
-            locale,
-            username,
-            clusterName,
-            pragmas,
-            resultTruncationMaxSizeRegular,
-            resultTruncationDefaultSizeRegular,
-            query,
-            profile,
-            tables,
-            queryStartTimeNanos,
-            allowPartialResults,
-            resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            approximationSettings,
-            viewQueries,
-            explainOnly
-        );
+        return new ConfigurationBuilder(this).zoneId(newZoneId).build();
     }
 
     /**
      * Returns a new Configuration with the given view queries added.
      */
     public Configuration withViewQueries(Map<String, String> viewQueries) {
-        return new Configuration(
-            zoneId,
-            now,
-            locale,
-            username,
-            clusterName,
-            pragmas,
-            resultTruncationMaxSizeRegular,
-            resultTruncationDefaultSizeRegular,
-            query,
-            profile,
-            tables,
-            queryStartTimeNanos,
-            allowPartialResults,
-            resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            approximationSettings,
-            viewQueries,
-            explainOnly
-        );
+        return new ConfigurationBuilder(this).viewQueries(viewQueries).build();
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
@@ -504,7 +495,8 @@ public class Configuration implements Writeable {
             && allowPartialResults == that.allowPartialResults
             && Objects.equals(approximationSettings, that.approximationSettings)
             && viewQueries.equals(that.viewQueries)
-            && explainOnly == that.explainOnly;
+            && explainOnly == that.explainOnly
+            && grokMatcherWatchdogMs == that.grokMatcherWatchdogMs;
     }
 
     @Override
@@ -526,7 +518,8 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             approximationSettings,
             viewQueries,
-            explainOnly
+            explainOnly,
+            grokMatcherWatchdogMs
         );
     }
 

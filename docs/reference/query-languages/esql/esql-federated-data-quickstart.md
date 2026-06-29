@@ -69,6 +69,14 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/ookla_speedtest" \
 
 ::::
 
+A successful request returns:
+
+```json
+{
+  "acknowledged": true
+}
+```
+
 Confirm that the data source was created by retrieving it:
 
 ::::{tab-set}
@@ -148,6 +156,14 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/speedtest_fixed" \
 :::
 
 ::::
+
+A successful request returns:
+
+```json
+{
+  "acknowledged": true
+}
+```
 
 Confirm that the dataset was created:
 
@@ -233,6 +249,34 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
 
 ::::
 
+The response includes execution metadata, followed by the result columns and values. Execution metadata is omitted here because it varies by cluster:
+
+```json
+{
+  "columns": [
+    {
+      "name": "avg_download_mbps",
+      "type": "double"
+    },
+    {
+      "name": "avg_upload_mbps",
+      "type": "double"
+    },
+    {
+      "name": "avg_latency",
+      "type": "double"
+    },
+    {
+      "name": "total_tests",
+      "type": "long"
+    }
+  ],
+  "values": [
+    [156.4, 78.3, 23.8, 118589626]
+  ]
+}
+```
+
 If the query returns results, your data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
 ::::::
 
@@ -254,6 +298,37 @@ POST /_bulk
 {"quadkey":"1202032","type":"degradation","duration_min":12}
 {"index":{"_index":"network_incidents"}}
 {"quadkey":"0320101","type":"degradation","duration_min":8}
+```
+
+The response confirms that all three documents were created. Generated document IDs and shard metadata are omitted here:
+
+```json
+{
+  "errors": false,
+  "items": [
+    {
+      "index": {
+        "_index": "network_incidents",
+        "result": "created",
+        "status": 201
+      }
+    },
+    {
+      "index": {
+        "_index": "network_incidents",
+        "result": "created",
+        "status": 201
+      }
+    },
+    {
+      "index": {
+        "_index": "network_incidents",
+        "result": "created",
+        "status": 201
+      }
+    }
+  ]
+}
 ```
 
 Now query both sources together. `FROM` resolves each name independently, whether it is an index (or index abstraction such as a data stream, alias, etc.) or a dataset:
@@ -283,6 +358,14 @@ PUT /_query/data_source/my_s3_logs
     "access_key": "<AWS_ACCESS_KEY_ID>",
     "secret_key": "<AWS_SECRET_ACCESS_KEY>"
   }
+}
+```
+
+When credential encryption is configured, a successful request returns:
+
+```json
+{
+  "acknowledged": true
 }
 ```
 

@@ -412,6 +412,41 @@ public class VerifierTests extends ESTestCase {
             "from test* METADATA _id, _index, _score | FORK (where true) (where true) | FUSE",
             equalTo("1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.")
         );
+
+        // Testing the combo of FORK w/ an unsupported and multi-typed field
+        analyzer.error(
+            "from test* | FORK (where true) | eval x = multi_typed",
+            equalTo(
+                "1:43: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
+            )
+        );
+    }
+
+    public void testForkUnsupportedFields() {
+        // After FORK, unsupported-type fields should still produce "Cannot use field [...] with unsupported type [...]",
+        // not the degraded "found value [...] type [unsupported]" message (#147603).
+        TestAnalyzer agesAnalyzer = analyzer().addIndex("ages", "mapping-ages.json").stripErrorPrefix(true);
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | eval x = concat(age_range, \"abc\")",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | eval x = mv_slice(age_range, 2, 3)",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | eval x = age_range",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | sort age_range asc",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | where age_range is null",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
     }
 
     public void testRoundFunctionInvalidInputs() {

@@ -3238,6 +3238,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
                         DataType mappedType = tcf.types().iterator().next();
 
+                        if (mappedType == DENSE_VECTOR) {
+                            // The KEYWORD->DENSE_VECTOR converter reads hexadecimal strings, but an unmapped dense_vector loads from
+                            // _source as an array of numbers, so implicitly casting it would produce garbage (#152184).
+                            return fa;
+                        }
+
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         if (convertFactory == null) {
                             // Skip implicit casting: no such converter function exists

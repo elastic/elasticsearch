@@ -252,7 +252,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 // as multiple invalid patterns could be combined to form a valid one
                 // see https://github.com/elastic/elasticsearch/issues/136750
                 try {
-                    Grok.pattern(source, pattern);
+                    Grok.pattern(source, pattern, context.grokMatcherWatchdog());
                 } catch (SyntaxException e) {
                     throw new ParsingException(source(ctx.string(i)), "Invalid GROK pattern [{}]: [{}]", pattern, e.getMessage());
                 }
@@ -260,7 +260,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             String combinePattern = org.elasticsearch.grok.Grok.combinePatterns(patterns);
 
-            Grok.Parser grokParser = Grok.pattern(source, combinePattern);
+            Grok.Parser grokParser = Grok.pattern(source, combinePattern, context.grokMatcherWatchdog());
 
             validateGrokPattern(source, grokParser, combinePattern, patterns);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);

@@ -227,7 +227,7 @@ public final class SourceStatisticsSerializer {
             return single != null && single.get(STATS_ROW_COUNT) instanceof Number ? single : null;
         }
 
-        // One accumulator over the foldable statistics, combined by each key's Fold law (selected by
+        // One accumulator over the foldable statistics, combined by each key's StatFold law (selected by
         // StatFolds.foldFor) instead of four per-stat maps and inline merge lambdas. A key whose fold
         // yields POISON (incompatible inputs, e.g. a cross-type extremum) is dropped and pinned, so a
         // later compatible file cannot resurrect a subset value.

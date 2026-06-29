@@ -1441,11 +1441,7 @@ public class EsqlSession {
      * For example for a query like `FROM (FROM cluster-1:index-1 | LOOKUP JOIN dictionary-1),(FROM cluster-2:index-2)`
      * `dictionary-1` must be found only on `cluster-1` as joining is not performed on `cluster-2`.
      * <p>
-     * Each index source on the left contributes the clusters its pattern resolved to. In addition, a local-only source on
-     * the left (e.g. a {@code ROW} branch, which produces data on the coordinator but carries no index relation) feeds data
-     * from the local cluster into the join, so the local cluster is added to the scope as well. These two contributions are
-     * independent and can both apply, e.g. `FROM cluster-1:index-1,(ROW ...) | LOOKUP JOIN dictionary-1` requires
-     * `dictionary-1` on both `cluster-1` and the local cluster.
+     * Only the data-bearing left subtree of each matching LOOKUP JOIN is considered, see {@link #collectLookupJoinLeftScope}.
      */
     static Set<String> computeLookupJoinIndexScope(
         LogicalPlan plan,
@@ -1455,21 +1451,46 @@ public class EsqlSession {
         Set<String> scope = new LinkedHashSet<>();
         plan.forEachUp(LookupJoin.class, lj -> {
             if (lj.right() instanceof UnresolvedRelation ur && ur.indexPattern().indexPattern().equals(lookupPattern)) {
-                lj.left().forEachDown(UnresolvedRelation.class, source -> {
-                    IndexResolution resolution = indexResolution.get(source.indexPattern());
-                    if (resolution != null && resolution.isValid()) {
-                        scope.addAll(resolution.get().originalIndices().keySet());
-                    }
-                });
-                // A ROW on the left has no index relation but still feeds local-cluster data into the join, so the lookup index must also
-                // be resolvable locally. The tests that validate this behavior is in
-                // CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery
-                if (lj.left().anyMatch(Row.class::isInstance)) {
-                    scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                }
+                collectLookupJoinLeftScope(lj.left(), scope, indexResolution);
             }
         });
         return scope;
+    }
+
+    /**
+     * Collects the clusters that feed rows into a LOOKUP JOIN by walking only the data-bearing spine of its left subtree.
+     * <p>
+     * For any {@link AbstractSubqueryJoin} (SEMI/ANTI/MARK) that {@code InSubqueryResolver} produces for {@code field IN (subquery)}, only
+     * the left child carries rows into the subsequent plan; the right child does not contribute source clusters to this join.
+     * So {@code ... | WHERE x IN (FROM remote:idx) | LOOKUP JOIN ...} scopes the lookup to the outer source only, not to {@code remote}.
+     * A {@code FROM a, b} union ({@code Fork}/{@code UnionAll}) instead reads from every branch, so all of its children are followed.
+     * The behavior is validated by {@code CrossClusterInSubqueryIT.testMissingLookupIndexAfterWhereInSubquery}
+     * <p>
+     * Each index source contributes the clusters its pattern resolved to; a {@link Row} - a coordinator-only source carrying no index
+     * relation - contributes the local cluster. The behavior is validated by
+     * {@code CrossClusterInSubqueryIT.testMissingLookupIndexInsideWhereInSubquery} and
+     * {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery}.
+     */
+    private static void collectLookupJoinLeftScope(
+        LogicalPlan plan,
+        Set<String> scope,
+        Map<IndexPattern, IndexResolution> indexResolution
+    ) {
+        switch (plan) {
+            case UnresolvedRelation source -> {
+                IndexResolution resolution = indexResolution.get(source.indexPattern());
+                if (resolution != null && resolution.isValid()) {
+                    scope.addAll(resolution.get().originalIndices().keySet());
+                }
+            }
+            case Row row -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            case AbstractSubqueryJoin subqueryJoin -> collectLookupJoinLeftScope(subqueryJoin.left(), scope, indexResolution);
+            default -> {
+                for (LogicalPlan child : plan.children()) {
+                    collectLookupJoinLeftScope(child, scope, indexResolution);
+                }
+            }
+        }
     }
 
     /**

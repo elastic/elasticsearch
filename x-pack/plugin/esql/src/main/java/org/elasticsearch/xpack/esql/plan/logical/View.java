@@ -30,26 +30,81 @@ import java.util.function.BiConsumer;
  * (its schema). This is Spark Catalyst's {@code View} + {@code EliminateView} shape. A <b>remote</b> or
  * <b>materialized</b> view — which has no local child to wrap — is a later variant (a handle in place of the child).
  * <p>
- * The view is opaque to the optimizer only after analysis: {@code InlineView} folds it into its body (the peer-through
- * strategy) before the pushdown rules run, reproducing today's behaviour; the keep-opaque alternative is the
- * boundary-aware phase.
+ * The view is opaque to the optimizer only after analysis: the boundary-aware {@code InlineView} rule decides <em>how</em>
+ * to lower it based on its {@link Boundary}. A {@link Boundary#LOCAL} view (the default, today's behaviour) is folded into
+ * its body (the peer-through strategy) before the pushdown rules run; a {@link Boundary#REMOTE} or
+ * {@link Boundary#MATERIALIZED} view keeps its boundary and is lowered to a first-class source node instead.
  * <p>
- * <b>Transient:</b> every {@code View} is inlined before physical mapping, so it never crosses the wire —
+ * <b>Transient:</b> every {@code View} is lowered before physical mapping, so it never crosses the wire —
  * {@link #writeTo} throws and the node is not registered in {@code PlanWritables}. Wire-serialization (with a
- * {@code TransportVersion} gate), the contract/rights-mode fields, and the remote handle land in later phases.
+ * {@code TransportVersion} gate) and the contract/rights-mode fields land in later phases.
  */
 public class View extends UnaryPlan implements PostOptimizationPlanVerificationAware {
 
-    private final String name;
+    /**
+     * Where a view's body executes — the execution-shape decision the view carries as a first-class logical node into the
+     * optimizer, which lowers it differently per boundary. The model is additive: a 4th boundary slots in by adding an
+     * enum constant, a {@link LoweringTarget} field for its per-mode data, a branch in {@code InlineView}, and a
+     * {@code Mapper} case for its lowered node — no change to the existing three.
+     */
+    public enum Boundary {
+        /** Body executes locally — folded into its body by {@code InlineView}, exactly today's behaviour. */
+        LOCAL,
+        /** Body executes on a remote cluster — must NOT inline locally; lowered to {@code RemoteViewSource}. */
+        REMOTE,
+        /** Results live in a precomputed backing store — lowered to {@code MaterializedReadSource}. */
+        MATERIALIZED
+    }
 
+    /**
+     * The per-mode data a non-{@link Boundary#LOCAL} view needs to be lowered. {@code LOCAL} carries no target (its data
+     * is its body child). {@code REMOTE} carries the {@code handle} (home cluster from the federation {@code resolve_schema}
+     * seam); {@code MATERIALIZED} carries the {@code backingIndex} ref. Kept as one carrier so a 4th boundary adds a field
+     * here rather than another constructor parameter on {@code View}.
+     */
+    public record LoweringTarget(String handle, String backingIndex) {
+        public static LoweringTarget remote(String handle) {
+            return new LoweringTarget(handle, null);
+        }
+
+        public static LoweringTarget materialized(String backingIndex) {
+            return new LoweringTarget(null, backingIndex);
+        }
+    }
+
+    private final String name;
+    private final Boundary boundary;
+    private final LoweringTarget loweringTarget;
+
+    /** Creates a {@link Boundary#LOCAL} view — the default everywhere current views are created, preserving behaviour. */
     public View(Source source, String name, LogicalPlan body) {
+        this(source, name, body, Boundary.LOCAL, null);
+    }
+
+    /**
+     * @param boundary       where the view's body executes; {@link Boundary#LOCAL} reproduces today's inline behaviour
+     * @param loweringTarget per-mode lowering data ({@code null} for {@code LOCAL}; required for {@code REMOTE}/{@code MATERIALIZED})
+     */
+    public View(Source source, String name, LogicalPlan body, Boundary boundary, LoweringTarget loweringTarget) {
         super(source, body);
         this.name = name;
+        this.boundary = boundary;
+        this.loweringTarget = loweringTarget;
     }
 
     /** The view name as written in the query (its identity). */
     public String viewName() {
         return name;
+    }
+
+    /** Where this view's body executes — drives how {@code InlineView} lowers it. */
+    public Boundary boundary() {
+        return boundary;
+    }
+
+    /** The per-mode lowering data, or {@code null} for a {@link Boundary#LOCAL} view. */
+    public LoweringTarget loweringTarget() {
+        return loweringTarget;
     }
 
     /** The resolved plan of the view's stored query — the implementation the {@code InlineView} rule folds in. */
@@ -59,7 +114,7 @@ public class View extends UnaryPlan implements PostOptimizationPlanVerificationA
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new View(source(), name, newChild);
+        return new View(source(), name, newChild, boundary, loweringTarget);
     }
 
     @Override
@@ -71,7 +126,7 @@ public class View extends UnaryPlan implements PostOptimizationPlanVerificationA
 
     @Override
     protected NodeInfo<View> info() {
-        return NodeInfo.create(this, View::new, name, child());
+        return NodeInfo.create(this, View::new, name, child(), boundary, loweringTarget);
     }
 
     @Override
@@ -98,21 +153,22 @@ public class View extends UnaryPlan implements PostOptimizationPlanVerificationA
     }
 
     /**
-     * A {@code View} is transient: {@code InlineView} must fold every one into its body during logical optimization,
-     * so none may survive into physical mapping. The only other backstop is {@link #writeTo} throwing, which fires far
-     * later (at serialization) and with a less actionable message. Fail loud here, mirroring
-     * {@code UnionAll#checkNestedUnionAlls}, if a {@code View} reaches post-optimization verification — that means
-     * {@code InlineView} was not wired or did not fire, which is a planner bug, not a user error.
+     * A {@code View} is transient: the boundary-aware {@code InlineView} rule must lower every one during logical
+     * optimization (LOCAL folds into its body; REMOTE/MATERIALIZED lower to a first-class source node), so none may
+     * survive into physical mapping. The only other backstop is {@link #writeTo} throwing, which fires far later (at
+     * serialization) and with a less actionable message. Fail loud here, mirroring {@code UnionAll#checkNestedUnionAlls},
+     * if a {@code View} reaches post-optimization verification — that means {@code InlineView} was not wired or did not
+     * fire, which is a planner bug, not a user error.
      */
     private static void checkViewFolded(LogicalPlan plan, Failures failures) {
         if (plan instanceof View view) {
-            failures.add(Failure.fail(view, "View [{}] was not folded by InlineView before physical mapping", view.viewName()));
+            failures.add(Failure.fail(view, "View [{}] was not lowered by InlineView before physical mapping", view.viewName()));
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, child());
+        return Objects.hash(name, child(), boundary, loweringTarget);
     }
 
     @Override
@@ -124,6 +180,9 @@ public class View extends UnaryPlan implements PostOptimizationPlanVerificationA
             return false;
         }
         View other = (View) obj;
-        return Objects.equals(name, other.name) && Objects.equals(child(), other.child());
+        return Objects.equals(name, other.name)
+            && Objects.equals(child(), other.child())
+            && boundary == other.boundary
+            && Objects.equals(loweringTarget, other.loweringTarget);
     }
 }

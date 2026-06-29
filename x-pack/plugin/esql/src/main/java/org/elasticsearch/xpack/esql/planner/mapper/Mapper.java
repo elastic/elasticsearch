@@ -23,8 +23,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MaterializedReadSource;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteViewSource;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -39,9 +41,11 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MaterializedReadExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteViewExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -93,6 +97,23 @@ public class Mapper {
 
         if (leaf instanceof ExternalRelation external) {
             return new FragmentExec(external);
+        }
+
+        // Boundary-aware view lowering: a REMOTE / MATERIALIZED view kept its boundary through the optimizer (the
+        // InlineView rule lowered it to a first-class source leaf instead of folding it). Lower it the rest of the way to
+        // its physical exec. The execution operator behind each exec is a POC stub — the decision + node + lowering path
+        // are real, the cross-cluster / backing-store source operators are not built yet.
+        if (leaf instanceof RemoteViewSource remote) {
+            return new RemoteViewExec(remote.source(), remote.viewName(), remote.handle(), remote.output());
+        }
+
+        if (leaf instanceof MaterializedReadSource materialized) {
+            return new MaterializedReadExec(
+                materialized.source(),
+                materialized.viewName(),
+                materialized.backingIndex(),
+                materialized.output()
+            );
         }
 
         return MapperUtils.mapLeaf(leaf);

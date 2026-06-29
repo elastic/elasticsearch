@@ -110,6 +110,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private final List<String> indices;
     private final String matchField;
     private final List<String> enrichFields;
+    // Lazily-computed serialized size. This class is immutable, so the size is stable once computed. Memoized because the size is summed
+    // across all policies on every policy creation, and recomputing it (which walks every field) on each request would burden the master.
+    private volatile long serializedSize = -1;
 
     public EnrichPolicy(StreamInput in) throws IOException {
         this.type = in.readString();
@@ -215,16 +218,22 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     /**
      * Returns the number of bytes this policy occupies when serialized. The size is measured without materializing the serialized form,
-     * so that even an oversized policy does not cause a large allocation here. Used to bound both a single policy and the aggregate size
-     * of all stored policies.
+     * so that even an oversized policy does not cause a large allocation here. The result is memoized (this class is immutable) so that
+     * summing the size across all policies on every policy creation does not repeatedly walk every field on the master. Used to bound both
+     * a single policy and the aggregate size of all stored policies.
      */
     public long serializedSizeInBytes() {
-        try (CountingStreamOutput out = new CountingStreamOutput()) {
-            writeTo(out);
-            return out.position();
-        } catch (IOException e) {
-            throw new IllegalStateException("unable to compute the size of enrich policy", e);
+        long size = serializedSize;
+        if (size == -1) {
+            try (CountingStreamOutput out = new CountingStreamOutput()) {
+                writeTo(out);
+                size = out.position();
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to compute the size of enrich policy", e);
+            }
+            serializedSize = size;
         }
+        return size;
     }
 
     public static String getBaseName(String policyName) {

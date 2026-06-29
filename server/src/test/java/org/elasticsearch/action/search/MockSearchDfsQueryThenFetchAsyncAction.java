@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,10 +58,18 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
     final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
 
     public MockSearchDfsQueryThenFetchAsyncAction(int numShards) {
-        this(numShards, new SearchRequest().allowPartialSearchResults(true));
+        this(numShards, new SearchRequest().allowPartialSearchResults(true), Optional.empty());
     }
 
     public MockSearchDfsQueryThenFetchAsyncAction(int numShards, SearchRequest searchRequest) {
+        this(numShards, searchRequest, Optional.empty());
+    }
+
+    public MockSearchDfsQueryThenFetchAsyncAction(
+        int numShards,
+        SearchRequest searchRequest,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
+    ) {
         super(
             logger,
             new NamedWriteableRegistry(List.of()),
@@ -82,7 +91,8 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
             null,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of(),
-            false
+            false,
+            cpsMetrics
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);

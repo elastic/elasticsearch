@@ -34,9 +34,8 @@ public class SearchParamsParser {
     public static boolean parseCcsMinimizeRoundtrips(Optional<Boolean> crossProjectEnabled, RestRequest request, boolean defaultValue) {
         if (crossProjectEnabled.orElse(false)) {
             if (request.hasParam("ccs_minimize_roundtrips")) {
-                request.param("ccs_minimize_roundtrips");
                 HeaderWarning.addWarning(MRT_SET_IN_CPS_WARN);
-                return true;
+                return request.paramAsBoolean("ccs_minimize_roundtrips", defaultValue);
             }
 
             // MRT was not provided; default to true.

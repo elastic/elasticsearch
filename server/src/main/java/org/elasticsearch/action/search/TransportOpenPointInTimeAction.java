@@ -68,6 +68,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -321,7 +322,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,
-            Map<String, Object> searchRequestAttributes
+            Map<String, Object> searchRequestAttributes,
+            Optional<CrossProjectSearchMetrics> cpsMetrics
         ) {
             // Note: remote shards are prefiltered via can match as part of search shards. They don't need additional pre-filtering and
             // that is signaled to the local can match through the SearchShardIterator#prefiltered flag. Local shards do need to go
@@ -360,7 +362,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                         aliasFilter,
                         concreteIndexBoosts,
                         clusters,
-                        searchRequestAttributes
+                        searchRequestAttributes,
+                        cpsMetrics
                     );
                 }));
             } else {
@@ -376,7 +379,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     aliasFilter,
                     concreteIndexBoosts,
                     clusters,
-                    searchRequestAttributes
+                    searchRequestAttributes,
+                    cpsMetrics
                 );
             }
         }
@@ -393,7 +397,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             Map<String, AliasFilter> aliasFilter,
             Map<String, Float> concreteIndexBoosts,
             SearchResponse.Clusters clusters,
-            Map<String, Object> searchRequestAttributes
+            Map<String, Object> searchRequestAttributes,
+            Optional<CrossProjectSearchMetrics> cpsMetrics
         ) {
             assert searchRequest.getMaxConcurrentShardRequests() == pitRequest.maxConcurrentShardRequests()
                 : searchRequest.getMaxConcurrentShardRequests() + " != " + pitRequest.maxConcurrentShardRequests();
@@ -420,7 +425,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 clusters,
                 searchResponseMetrics,
                 searchRequestAttributes,
-                false
+                false,
+                cpsMetrics
             ) {
                 @Override
                 public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {

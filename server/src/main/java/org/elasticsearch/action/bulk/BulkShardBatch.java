@@ -14,7 +14,7 @@ import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.eirf.SourceBatches;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ public class BulkShardBatch implements Writeable {
     }
 
     public BulkShardBatch(StreamInput in) throws IOException {
-        this.batch = SourceBatches.fromBytes(in.readBytesReference(), () -> {});
+        this.batch = new EirfBatch(in.readBytesReference(), () -> {});
     }
 
     @Override

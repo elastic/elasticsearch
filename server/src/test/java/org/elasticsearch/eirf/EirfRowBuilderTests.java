@@ -11,6 +11,7 @@ package org.elasticsearch.eirf;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -55,7 +56,7 @@ public class EirfRowBuilderTests extends ESTestCase {
             builder.endDocument();
 
             EirfBatch batch = builder.build();
-            EirfSchema schema = batch.schema();
+            SourceSchema schema = batch.schema();
             assertEquals("user.name", schema.getFullPath(0));
             assertEquals("user.age", schema.getFullPath(1));
 

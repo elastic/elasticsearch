@@ -34,9 +34,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.eirf.EirfRowXContentParser;
-import org.elasticsearch.eirf.SourceBatches;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
@@ -1964,7 +1964,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * {@link XContentType}. {@link NoOpOp} entries decode to {@link NoOp} records.
          */
         public List<Operation> explode() throws IOException {
-            try (SourceBatch eirf = SourceBatches.fromBytes(batchData, () -> {})) {
+            try (SourceBatch eirf = new EirfBatch(batchData, () -> {})) {
                 EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(eirf.schema());
                 List<Operation> out = new ArrayList<>(ops.size());
                 for (int i = 0; i < ops.size(); i++) {

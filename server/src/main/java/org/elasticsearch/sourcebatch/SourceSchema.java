@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.eirf;
+package org.elasticsearch.sourcebatch;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
@@ -17,12 +17,13 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Schema for the Elastic Internal Row Format (EIRF).
+ * The field schema shared by every row in a {@link SourceBatch}, independent of the physical layout
+ * (row-major or column-major) the batch is stored in.
  *
  * <p>Uses a parent-pointer structure with two levels:
  * <ul>
  *   <li><b>Non-leaf fields</b> (objects/containers) form a tree. Index 0 is always the root.</li>
- *   <li><b>Leaf fields</b> (columns in row data) each point to a parent non-leaf field.</li>
+ *   <li><b>Leaf fields</b> (columns in the batch) each point to a parent non-leaf field.</li>
  * </ul>
  *
  * <p>Example for {@code {"user": {"name": "alice"}, "status": "active"}}:
@@ -31,7 +32,7 @@ import java.util.List;
  * Leaf:     ["name"(parent:1), "status"(parent:0)]
  * </pre>
  */
-public final class EirfSchema {
+public final class SourceSchema {
 
     private static final int INITIAL_CAPACITY = 8;
     /** Maximum number of fields per level, constrained by u16 encoding in the batch header. */
@@ -43,7 +44,7 @@ public final class EirfSchema {
     /**
      * Creates a new schema with root automatically added as non-leaf index 0.
      */
-    public EirfSchema() {
+    public SourceSchema() {
         this.nonLeaves = new FieldLevel(INITIAL_CAPACITY);
         this.leaves = new FieldLevel(INITIAL_CAPACITY);
 
@@ -54,7 +55,7 @@ public final class EirfSchema {
     /**
      * Constructor for reading: builds from pre-parsed non-leaf and leaf arrays.
      */
-    EirfSchema(List<String> nonLeafNames, int[] nonLeafParents, List<String> leafNames, int[] leafParents) {
+    public SourceSchema(List<String> nonLeafNames, int[] nonLeafParents, List<String> leafNames, int[] leafParents) {
         this.nonLeaves = new FieldLevel(nonLeafNames, nonLeafParents);
         this.leaves = new FieldLevel(leafNames, leafParents);
     }
@@ -211,8 +212,9 @@ public final class EirfSchema {
         }
 
         int append(String name, int parentIdx) {
-            FieldKey key = new FieldKey(parentIdx, name);
-            int existing = lookup.getOrDefault(key, MISSING);
+            // Use a transient key for the lookup so it never escapes this method and stays eligible for scalar
+            // replacement on the common hit path.
+            int existing = lookup.getOrDefault(new FieldKey(parentIdx, name), MISSING);
             if (existing != MISSING) {
                 return existing;
             }
@@ -225,7 +227,7 @@ public final class EirfSchema {
                 parents = Arrays.copyOf(parents, parents.length << 1);
             }
             parents[index] = parentIdx;
-            lookup.put(key, index);
+            lookup.put(new FieldKey(parentIdx, name), index);
             return index;
         }
     }

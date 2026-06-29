@@ -12,28 +12,23 @@ package org.elasticsearch.sourcebatch;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.eirf.EirfSchema;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
- * An immutable, format-agnostic batch of source documents carrying a shared {@link EirfSchema}.
+ * An immutable, format-agnostic batch of source documents carrying a shared {@link SourceSchema}.
  *
  * <p>Implementations may store documents in row-major (EIRF) or column-major layout. The schema,
  * type model ({@link org.elasticsearch.eirf.EirfType}), and compound-value readers
  * ({@link org.elasticsearch.eirf.EirfArrayReader} / {@link org.elasticsearch.eirf.EirfKeyValueReader})
  * are shared across all implementations.
  *
- * <p>Both access modes are first-class: callers pick the one that fits the task, independent of the
- * physical layout. {@link #column(int)} exposes a field's values across every document (the path
- * mapping uses), while {@link #row(int)} exposes a single document's fields (needed for source
- * reconstruction and row-oriented consumers). Each format serves one of these natively and
- * transposes for the other.
- *
- * <p>To create a batch from serialised bytes use
- * {@link org.elasticsearch.eirf.SourceBatches#fromBytes(BytesReference, Releasable)} — the single
- * construction swap point for switching the underlying format.
+ * <p>This abstraction is intended to support both row-major and column-major access as first-class
+ * modes, so callers can pick the one that fits the task independent of the physical layout. Today
+ * only {@link #row(int)} (a single document's fields, needed for source reconstruction and
+ * row-oriented consumers) is exposed; column-major access will be added alongside its first
+ * consumer, when the column-major format lands and can drive the shape of that API.
  *
  * <p>Batches are {@link Releasable}; callers that own the batch must close it when done.
  * Slices produced by {@link #slice(int, int)} do not own the underlying buffers and their
@@ -45,7 +40,7 @@ public interface SourceBatch extends Releasable, Accountable {
     int docCount();
 
     /** The schema shared by every row in this batch. */
-    EirfSchema schema();
+    SourceSchema schema();
 
     /** The number of leaf columns in the schema ({@code schema().leafCount()}). */
     int columnCount();
@@ -62,13 +57,6 @@ public interface SourceBatch extends Releasable, Accountable {
      * @throws IndexOutOfBoundsException if {@code docIndex} is out of {@code [0, docCount())}.
      */
     SourceRow row(int docIndex);
-
-    /**
-     * Returns a view of column {@code columnIndex} across all rows.
-     *
-     * @throws IndexOutOfBoundsException if {@code columnIndex} is out of {@code [0, columnCount())}.
-     */
-    SourceColumn column(int columnIndex);
 
     /**
      * Returns an {@link Iterable} over all rows in order. Convenience wrapper around

@@ -11,6 +11,7 @@ package org.elasticsearch.eirf;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -26,7 +27,7 @@ public final class EirfRowToXContent {
      * Writes a single row as a nested JSON object to the given builder.
      * The builder should not have startObject called yet - this method handles it.
      */
-    public static void writeRow(SourceRow row, EirfSchema schema, XContentBuilder builder) throws IOException {
+    public static void writeRow(SourceRow row, SourceSchema schema, XContentBuilder builder) throws IOException {
         // Walk the schema tree depth-first so children of the same non-leaf are emitted contiguously, even when
         // heterogeneous documents caused their leaves to be interleaved in schema leaf order.
         EirfRowXContentParser.SchemaNode root = EirfRowXContentParser.buildSchemaTree(schema);

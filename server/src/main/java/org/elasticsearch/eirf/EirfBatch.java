@@ -14,8 +14,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.SourceBatch;
-import org.elasticsearch.sourcebatch.SourceColumn;
 import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceSchema;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -41,7 +41,7 @@ public final class EirfBatch implements SourceBatch {
     private final BytesReference data;
     private final Releasable releasable;
     private final int docCount;
-    private final EirfSchema schema;
+    private final SourceSchema schema;
     private final int docIndexOffset;
     private final int dataOffset;
 
@@ -73,7 +73,7 @@ public final class EirfBatch implements SourceBatch {
     }
 
     /** Internal constructor used by {@link #slice(int, int)} to avoid re-parsing the header/schema. */
-    private EirfBatch(BytesReference data, Releasable releasable, EirfSchema schema, int docCount, int docIndexOffset, int dataOffset) {
+    private EirfBatch(BytesReference data, Releasable releasable, SourceSchema schema, int docCount, int docIndexOffset, int dataOffset) {
         this.data = data;
         this.releasable = releasable;
         this.schema = schema;
@@ -82,7 +82,7 @@ public final class EirfBatch implements SourceBatch {
         this.dataOffset = dataOffset;
     }
 
-    private static EirfSchema parseSchema(BytesReference data, int offset) {
+    private static SourceSchema parseSchema(BytesReference data, int offset) {
         // Non-leaf fields (all u16 LE)
         int nonLeafCount = readU16LE(data, offset);
         offset += 2;
@@ -117,7 +117,7 @@ public final class EirfBatch implements SourceBatch {
             offset += nameLen;
         }
 
-        return new EirfSchema(nonLeafNames, nonLeafParents, leafNames, leafParents);
+        return new SourceSchema(nonLeafNames, nonLeafParents, leafNames, leafParents);
     }
 
     // TODO: Move directly to bytes reference
@@ -131,7 +131,7 @@ public final class EirfBatch implements SourceBatch {
     }
 
     @Override
-    public EirfSchema schema() {
+    public SourceSchema schema() {
         return schema;
     }
 
@@ -148,14 +148,6 @@ public final class EirfBatch implements SourceBatch {
     @Override
     public SourceRow row(int docIndex) {
         return getRowReader(docIndex);
-    }
-
-    @Override
-    public SourceColumn column(int columnIndex) {
-        if (columnIndex < 0 || columnIndex >= columnCount()) {
-            throw new IndexOutOfBoundsException("columnIndex " + columnIndex + " out of range [0, " + columnCount() + ")");
-        }
-        return new EirfColumn(this, columnIndex);
     }
 
     public EirfRowReader getRowReader(int docIndex) {

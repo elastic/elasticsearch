@@ -12,14 +12,13 @@ package org.elasticsearch.sourcebatch;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.eirf.EirfArrayReader;
 import org.elasticsearch.eirf.EirfKeyValueReader;
-import org.elasticsearch.eirf.EirfSchema;
 import org.elasticsearch.xcontent.Text;
 
 /**
  * A single row in a {@link SourceBatch}, providing typed random-access to column values by
  * column index.
  *
- * <p>Column indices match the leaf indices of the batch's {@link EirfSchema}: column {@code i}
+ * <p>Column indices match the leaf indices of the batch's {@link SourceSchema}: column {@code i}
  * is the leaf at position {@code i}. Columns not present in this row report type
  * {@link org.elasticsearch.eirf.EirfType#ABSENT}.
  *
@@ -30,7 +29,7 @@ import org.elasticsearch.xcontent.Text;
 public interface SourceRow {
 
     /** The schema describing the columns in this batch. */
-    EirfSchema schema();
+    SourceSchema schema();
 
     /**
      * The number of columns recorded in this row's header. Columns at indices

@@ -12,6 +12,7 @@ package org.elasticsearch.eirf;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -35,7 +36,7 @@ public final class EirfRowReader implements SourceRow {
     // Var section offset is i32 so + 4
     private static final int ROW_TYPE_BYTES_OFFSET = ROW_VAR_SECTION_OFFSET_OFFSET + 4;
 
-    private final EirfSchema schema;
+    private final SourceSchema schema;
     private final BytesReference rowData;
     private final boolean smallRow;
     private final int rowColumnCount;
@@ -45,7 +46,7 @@ public final class EirfRowReader implements SourceRow {
 
     // TODO: This class currently does a scan to read every value. We will eventually want to optimize this for sequentially reading over a
     // row with some type of cursor.
-    public EirfRowReader(BytesReference rowData, EirfSchema schema) {
+    public EirfRowReader(BytesReference rowData, SourceSchema schema) {
         this.rowData = rowData;
         this.schema = schema;
 
@@ -81,7 +82,7 @@ public final class EirfRowReader implements SourceRow {
         return smallRow;
     }
 
-    public EirfSchema schema() {
+    public SourceSchema schema() {
         return schema;
     }
 

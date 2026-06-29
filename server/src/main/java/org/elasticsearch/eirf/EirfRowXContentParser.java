@@ -12,6 +12,7 @@ package org.elasticsearch.eirf;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.Text;
@@ -29,7 +30,7 @@ import java.util.List;
  * An {@link org.elasticsearch.xcontent.XContentParser} that walks a pre-built {@link SchemaNode} tree,
  * reading values directly from a {@link SourceRow} without intermediate allocations.
  *
- * <p>The {@link SchemaNode} tree is built once per batch from the {@link EirfSchema} and reused
+ * <p>The {@link SchemaNode} tree is built once per batch from the {@link SourceSchema} and reused
  * across all rows. Each parser instance holds a reference to a specific row's data.
  *
  * <p>The parser emits tokens by walking the tree depth-first: for each object node it emits
@@ -39,7 +40,7 @@ import java.util.List;
 public final class EirfRowXContentParser extends AbstractXContentParser {
 
     /**
-     * A node in the schema tree. Built once per batch from {@link EirfSchema}.
+     * A node in the schema tree. Built once per batch from {@link SourceSchema}.
      * Object nodes have children; leaf nodes have a column index into the row data.
      */
     public static final class SchemaNode {
@@ -79,9 +80,9 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     }
 
     /**
-     * Builds a schema tree from an {@link EirfSchema}. Call once per batch, reuse across rows.
+     * Builds a schema tree from an {@link SourceSchema}. Call once per batch, reuse across rows.
      */
-    public static SchemaNode buildSchemaTree(EirfSchema schema) {
+    public static SchemaNode buildSchemaTree(SourceSchema schema) {
         // Group children by parent index in a single pass over each level
         int nonLeafCount = schema.nonLeafCount();
         int leafCount = schema.leafCount();
@@ -112,7 +113,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     private static SchemaNode buildObjectNode(
         String name,
         int nonLeafIdx,
-        EirfSchema schema,
+        SourceSchema schema,
         List<Integer>[] nonLeafChildren,
         List<Integer>[] leafChildren
     ) {

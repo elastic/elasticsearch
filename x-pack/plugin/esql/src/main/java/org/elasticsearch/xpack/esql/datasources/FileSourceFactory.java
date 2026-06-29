@@ -263,10 +263,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 ? format.filterPushdownSupport()
                 : null;
 
-            // No per-query concurrency wrap here. Storage already carries the node-level guardrail and reactive
-            // retry/backoff from the registry (see StorageProviderRegistry#wrapProvider). The old per-query budget
-            // self-throttled a single query against its own shrunk share and failed it on a 60s timeout; removed in
-            // favor of a blocking guardrail + reactive backoff.
+            // No per-query concurrency wrap here. Storage already carries reactive retry/backoff (per-store 503
+            // backoff) from the registry (see StorageProviderRegistry#wrapProvider). Per-node read concurrency is
+            // bounded by the dedicated esql_external_blocking_io thread pool (blocking backends — GCS/local, via
+            // fileReadExecutor) and by the S3/Azure SDK connection pools — not by any per-read permit. The old
+            // per-query budget self-throttled a single query against its own shrunk share and failed it on a 60s
+            // timeout; removed in favor of these standing bounds plus reactive backoff.
             Closeable onClose = null;
 
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();

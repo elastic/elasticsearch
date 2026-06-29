@@ -7,10 +7,69 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.List;
 
 public class StorageProviderRegistryTests extends ESTestCase {
+
+    /**
+     * After the concurrency-semaphore removal, the registry wraps each provider only with the retry layer — no
+     * concurrency-limiting decorator. The {@code ConcurrencyLimited*} classes are gone, so the only structural
+     * guard we can assert is that the outermost wrapper is still {@link RetryableStorageProvider} and nothing else.
+     */
+    public void testWrapsWithRetryableOnly() {
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY)) {
+            registry.registerFactory("stub", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
+            StorageProvider wrapped = registry.provider(StoragePath.of("stub://bucket/file.csv"));
+            assertThat(wrapped, org.hamcrest.Matchers.instanceOf(RetryableStorageProvider.class));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /** Minimal no-op storage provider; only the scheme + lifecycle matter for the wrap-order assertion. */
+    private static final class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("stub");
+        }
+
+        @Override
+        public void close() {}
+    }
 
     public void testThrottleScopeIsPerBucketNotPerScheme() {
         // The adaptive-backoff scope is the store's hot unit (per-bucket), not per-scheme: two buckets on the same

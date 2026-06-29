@@ -40,8 +40,8 @@ import java.util.Set;
  *     this covers the {@link ExternalException} family (400/500/503) raised at the reader/storage
  *     boundary, as well as {@code CircuitBreakingException} (429) and {@code TaskCancelledException}
  *     (400).</li>
- *     <li>An {@link EsRejectedExecutionException} is load-shed backpressure — a saturated thread pool or the
- *     storage concurrency guardrail rejecting work — not a server fault. It already maps to 429
+ *     <li>An {@link EsRejectedExecutionException} signals a thread pool shutting down — the esql_external_blocking_io pool is a
+ *     scaling pool with an unbounded force-queue, so it rejects on node/pool shutdown, not at capacity — not a server fault. It already maps to 429
  *     (TOO_MANY_REQUESTS) via {@code ExceptionsHelper.status}, so it is returned unchanged rather than
  *     mistaken for a broken invariant and reported as 500.</li>
  *     <li>An {@link IllegalArgumentException} already maps to 400; it is returned as-is.</li>
@@ -90,9 +90,10 @@ public final class ExternalFailures {
             return ese;
         }
         if (t instanceof EsRejectedExecutionException rejected) {
-            // Load-shed backpressure: a saturated thread pool or the storage concurrency guardrail rejecting work,
-            // not a server fault. The type already maps to 429 (TOO_MANY_REQUESTS) via ExceptionsHelper.status, so
-            // it is returned unchanged rather than falling through to the 500 ExternalServerException below.
+            // Thread-pool shutdown: the esql_external_blocking_io pool is a scaling pool with an unbounded
+            // force-queue, so it rejects on node/pool shutdown, not at capacity — not a server fault. The type
+            // already maps to 429 (TOO_MANY_REQUESTS) via ExceptionsHelper.status, so it is returned unchanged
+            // rather than falling through to the 500 ExternalServerException below.
             return rejected;
         }
         if (t instanceof IllegalArgumentException iae) {

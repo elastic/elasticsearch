@@ -17,7 +17,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testDefaults() {
         Settings settings = Settings.EMPTY;
-        assertEquals(256, (int) ExternalSourceSettings.MAX_CONNECTIONS.get(settings));
+        assertEquals(512, (int) ExternalSourceSettings.MAX_CONNECTIONS.get(settings));
         assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
     }
 
@@ -31,14 +31,17 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(60, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
     }
 
-    public void testZeroConcurrencyDisablesLimiting() {
-        Settings settings = Settings.builder().put("esql.external.max_connections", 0).build();
-        assertEquals(0, (int) ExternalSourceSettings.MAX_CONNECTIONS.get(settings));
+    public void testConcurrencyLowerBound() {
+        // The minimum is 1: the connection bound also sizes thread/SDK pools, which cannot be zero-width.
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put("esql.external.max_connections", 0).build();
+            ExternalSourceSettings.MAX_CONNECTIONS.get(settings);
+        });
     }
 
     public void testConcurrencyUpperBound() {
         expectThrows(IllegalArgumentException.class, () -> {
-            Settings settings = Settings.builder().put("esql.external.max_connections", 501).build();
+            Settings settings = Settings.builder().put("esql.external.max_connections", 4097).build();
             ExternalSourceSettings.MAX_CONNECTIONS.get(settings);
         });
     }

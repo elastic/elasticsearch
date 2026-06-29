@@ -29,22 +29,20 @@ import java.util.zip.GZIPOutputStream;
  * propagating through the full decorator chain used in production:
  * <pre>
  *     RetryableStorageObject
- *       -> ConcurrencyLimitedStorageObject
- *         -> DecompressingStorageObject (gzip)
- *           -> S3-like drain-on-close raw stream
+ *       -> DecompressingStorageObject (gzip)
+ *         -> S3-like drain-on-close raw stream
  * </pre>
  * <p>
  * The original bug was a single decorator in the chain silently swallowing the abort signal
  * (falling back to a {@code close()} which on S3 drains the entire response body). With every
- * layer correctly overriding {@code abortStream}, partial reads must (a) not drain the raw
- * stream and (b) release every layer's resource accounting (the concurrency guardrail's permits).
+ * layer correctly overriding {@code abortStream}, partial reads must not drain the raw stream.
  */
 public class StorageObjectAbortChainTests extends ESTestCase {
 
     /**
      * Builds the production stack of decorators over a drain-simulating raw storage object,
      * reads a small prefix of a multi-MB gzipped payload, then aborts. Asserts the raw stream
-     * was not drained and that every decorator released its accounting.
+     * was not drained through any layer of the chain.
      */
     public void testAbortPropagatesThroughDecoratorChainWithoutDrain() throws IOException {
         StringBuilder csv = new StringBuilder();
@@ -58,17 +56,15 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject raw = DrainSimulatingStorageObject.create(compressed, tracking);
 
-        // Production order (inner-to-outer): decompressing wraps the S3-like raw, then the
-        // node concurrency guardrail, then retry. Outer decorators delegate their abort through
-        // to the inner ones; if any layer regresses to a draining close() the assertions below trip.
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(4);
+        // Production order (inner-to-outer): decompressing wraps the S3-like raw, then retry. Outer decorators
+        // delegate their abort through to the inner ones; if any layer regresses to a draining close() the
+        // assertions below trip.
         StorageObject chain = new RetryableStorageObject(
-            new ConcurrencyLimitedStorageObject(new DecompressingStorageObject(raw, new GzipDecompressionCodec()), limiter),
+            new DecompressingStorageObject(raw, new GzipDecompressionCodec()),
             new RetryPolicy(3, 1, 10)
         );
 
         InputStream stream = chain.newStream();
-        assertEquals("guardrail permit must be acquired by newStream()", 3, limiter.availablePermits());
 
         try {
             byte[] prefix = new byte[4096];
@@ -88,7 +84,6 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan((long) compressed.length / 2)
         );
-        assertEquals("guardrail permit must be released by abortStream", 4, limiter.availablePermits());
     }
 
     /**
@@ -109,8 +104,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject raw = DrainSimulatingStorageObject.create(payload, tracking);
 
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(4);
-        StorageObject chain = new RetryableStorageObject(new ConcurrencyLimitedStorageObject(raw, limiter), new RetryPolicy(3, 1, 10));
+        StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
@@ -137,7 +131,6 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
         );
-        assertEquals("guardrail permits must be released after split discovery", 4, limiter.availablePermits());
     }
 
     /**
@@ -156,8 +149,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject raw = DrainSimulatingStorageObject.create(payload, tracking);
 
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(4);
-        StorageObject chain = new RetryableStorageObject(new ConcurrencyLimitedStorageObject(raw, limiter), new RetryPolicy(3, 1, 10));
+        StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
@@ -177,7 +169,6 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
         );
-        assertEquals("guardrail permits must be released after segment discovery", 4, limiter.availablePermits());
     }
 
     private static byte[] gzip(byte[] input) throws IOException {

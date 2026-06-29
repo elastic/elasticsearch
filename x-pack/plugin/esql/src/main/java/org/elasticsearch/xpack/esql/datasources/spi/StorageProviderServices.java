@@ -24,7 +24,8 @@ import java.util.concurrent.ExecutorService;
  * SPI-discovery instance is the one whose {@code storageProviders} actually runs.
  *
  * @param settings              node settings
- * @param executor              executor for plugins that need async I/O (typically the {@code generic} pool)
+ * @param executor              executor for plugins that offload blocking I/O (the dedicated
+ *                              {@code esql_external_blocking_io} pool)
  * @param environment           node {@link Environment}; {@code null} in tests that do not supply one
  * @param resourceWatcherService node {@link ResourceWatcherService}; {@code null} in tests that do not supply one
  */

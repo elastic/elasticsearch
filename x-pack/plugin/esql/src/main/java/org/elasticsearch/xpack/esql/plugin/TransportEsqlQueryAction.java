@@ -220,7 +220,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         var dataSourceModule = planExecutor.dataSourceModule();
         OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
             externalSourceExecutor(),
-            threadPool.executor(ThreadPool.Names.GENERIC)
+            threadPool.executor(EsqlPlugin.EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME)
         );
         this.computeService = new ComputeService(
             services,
@@ -267,8 +267,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     /**
      * Returns the executor used for external source coordination (e.g. connector handshakes and registry wiring).
-     * File-based async reads and slice-queue drain use {@link ThreadPool.Names#GENERIC} via
-     * {@link OperatorFactoryRegistry#fileReadExecutor} so they do not share the same pool as compute drivers.
+     * File-based async reads and slice-queue drain use the dedicated {@code esql_external_blocking_io} pool
+     * ({@link EsqlPlugin#EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME}) via {@link OperatorFactoryRegistry#fileReadExecutor},
+     * so blocking external reads share neither the compute-driver pool nor the shared {@link ThreadPool.Names#GENERIC} pool.
      * Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries from starving regular ES operations.
      */
     protected Executor externalSourceExecutor() {

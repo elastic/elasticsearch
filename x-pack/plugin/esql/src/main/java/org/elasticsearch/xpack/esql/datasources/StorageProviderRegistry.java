@@ -39,14 +39,13 @@ import java.util.function.BooleanSupplier;
  * so heavy dependencies (S3 client, HTTP client, etc.) are only loaded when
  * an EXTERNAL query actually targets that backend.
  *
- * <p>All providers are automatically wrapped with concurrency limiting and retry
- * logic for transient storage failures (503, 429, connection resets, timeouts)
- * unless the scheme is "file" (local filesystem). Wrap order:
- * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}
+ * <p>All providers are automatically wrapped with retry logic for transient storage
+ * failures (503, 429, connection resets, timeouts). Wrap order:
+ * {@code caller → Retryable(with adaptive backoff) → raw provider}
  *
- * <p>Concurrency limiters and adaptive backoff state are shared per-scheme across
- * all providers (including per-query config providers), because cloud API rate limits
- * are per account/IP, not per client instance.
+ * <p>Adaptive backoff state is shared per-throttle-scope across all providers
+ * (including per-query config providers), because cloud API rate limits are per
+ * account/IP, not per client instance.
  *
  * <p>Registration methods are intended for single-threaded initialization only
  * (called from the {@link DataSourceModule} constructor).
@@ -59,7 +58,6 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, StorageProvider> providers = new ConcurrentHashMap<>();
     private final List<StorageProvider> createdProviders = new ArrayList<>();
 
-    private final Map<String, ConcurrencyLimiter> limiters = new ConcurrentHashMap<>();
     private final Map<String, RetryPolicy> scopedPolicies = new ConcurrentHashMap<>();
 
     // Cache for providers created with a non-empty per-query configuration map.
@@ -71,7 +69,6 @@ public class StorageProviderRegistry implements Closeable {
     /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
     @Nullable
     private final DataSourceCredentials credentials;
-    private final int maxConnections;
     private final int throttleMaxRetryDurationSeconds;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
@@ -105,7 +102,6 @@ public class StorageProviderRegistry implements Closeable {
         this.credentials = credentials;
         this.workloadIdentityEnabled = workloadIdentityEnabled;
         this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
-        this.maxConnections = ExternalSourceSettings.MAX_CONNECTIONS.get(this.settings);
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
     }
 
@@ -199,7 +195,7 @@ public class StorageProviderRegistry implements Closeable {
         try {
             return configuredProviderCache.getOrCreate(cacheKey, () -> {
                 Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, storageConfig);
-                return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
+                return new Configured<>(wrapProvider(raw.value()), raw.consumedKeys());
             });
         } catch (RuntimeException e) {
             throw e;
@@ -231,32 +227,18 @@ public class StorageProviderRegistry implements Closeable {
         if (factory == null) {
             throw new IllegalArgumentException("No storage provider registered for scheme: " + normalizedScheme);
         }
-        provider = wrapProvider(factory.create(settings), normalizedScheme);
+        provider = wrapProvider(factory.create(settings));
         providers.put(normalizedScheme, provider);
         createdProviders.add(provider);
         return provider;
     }
 
-    private StorageProvider wrapProvider(StorageProvider provider, String scheme) {
-        // Every scheme — including file:// — gets the node concurrency guardrail. The local filesystem cannot
-        // signal backpressure the way object stores do (no 503 to react to); it just degrades under unbounded
-        // concurrent IO, so it needs the guardrail most. The retry/backoff layer is inert for file:// (local
-        // reads raise plain IOExceptions, never the throttling-typed ExternalUnavailableException it retries on).
-        ConcurrencyLimiter limiter = limiterForScheme(scheme);
-        StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
+    private StorageProvider wrapProvider(StorageProvider provider) {
         // The adaptive backoff is selected per throttle scope (per-bucket/account) at read time, not baked in here:
-        // a hot bucket backs off only its own traffic, not every read on the same store.
-        return new RetryableStorageProvider(limited, retryScheduler, this::retryPolicyForScope);
-    }
-
-    private ConcurrencyLimiter limiterForScheme(String scheme) {
-        return limiters.computeIfAbsent(scheme, k -> {
-            int permits = maxConnections;
-            if (permits <= 0) {
-                return ConcurrencyLimiter.UNLIMITED;
-            }
-            return new ConcurrencyLimiter(permits);
-        });
+        // a hot bucket backs off only its own traffic, not every read on the same store. The retry/backoff layer is
+        // inert for file:// (local reads raise plain IOExceptions, never the throttling-typed
+        // ExternalUnavailableException it retries on).
+        return new RetryableStorageProvider(provider, retryScheduler, this::retryPolicyForScope);
     }
 
     private RetryPolicy retryPolicyForScope(StoragePath path) {

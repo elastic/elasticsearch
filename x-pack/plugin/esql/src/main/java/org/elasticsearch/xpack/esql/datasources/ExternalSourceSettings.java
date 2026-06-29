@@ -12,36 +12,30 @@ import org.elasticsearch.common.settings.Setting;
 import java.util.List;
 
 /**
- * Cluster settings for controlling ESQL external source behavior; all node-scoped. The concurrency guardrail
- * ({@link #MAX_CONNECTIONS}) and the throttle retry budget are read when the storage-provider registry initializes
- * on a node, so a change to them takes effect after a node restart, not on already-built providers.
+ * Cluster settings for controlling ESQL external source behavior; all node-scoped. The connection bound
+ * ({@link #MAX_CONNECTIONS}) and the throttle retry budget are read at node startup — the former sizes the SDK
+ * connection pools and the blocking-read thread pool when they are built, the latter is read when the
+ * storage-provider registry initializes — so a change to either takes effect after a node restart.
  * <p>
- * Covers three areas: a local-resource concurrency guardrail ({@link #MAX_CONNECTIONS}); reactive throttle
- * handling for object stores (the retry duration budget — throttling is handled by backoff, not a concurrency
- * cap); and glob/listing safety limits (max discovered files, max brace expansion) to prevent degenerate queries
- * from overwhelming storage backends.
+ * Covers three areas: the per-backend external-read concurrency bound ({@link #MAX_CONNECTIONS}); reactive
+ * throttle handling for object stores (the retry duration budget — throttling is handled by backoff, not a
+ * concurrency cap); and glob/listing safety limits (max discovered files, max brace expansion) to prevent
+ * degenerate queries from overwhelming storage backends.
  */
 public final class ExternalSourceSettings {
 
     private ExternalSourceSettings() {}
 
     /**
-     * Maximum number of concurrent in-flight storage reads per storage scheme per node — a deliberate
-     * local-resource guardrail (connections, buffers, file handles), not a throttle defense. Object-store
-     * throttling is handled reactively by retry + adaptive backoff on 503/SlowDown; this bound exists to protect
-     * our own node and backends that cannot signal backpressure (the local filesystem). It blocks (queues) when
-     * reached rather than failing a query. Set to 0 to disable the guardrail entirely.
-     * <p>
-     * Default: 256 — sized to local resources, generous enough that S3/GCS/Azure parallelism is not artificially
-     * capped (the old default of 50 mirrored the AWS SDK's connection-pool default and throttled throughput). The
-     * S3 async client's connection pool is sized above this setting's maximum so the guardrail, not the SDK pool,
-     * is always the binding constraint.
+     * Maximum concurrent in-flight external-storage reads per backend, per node. Sizes the S3/Azure SDK connection
+     * pools and the {@code esql_external_blocking_io} thread pool. Static (NodeScope): thread pools and SDK pools
+     * are fixed at startup.
      */
     public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
         "esql.external.max_connections",
-        256,
-        0,
-        500,
+        512,
+        1,
+        4096,
         Setting.Property.NodeScope
     );
 

@@ -14,11 +14,17 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -36,23 +42,46 @@ import java.util.Set;
  * (heterogeneous FROM) into per-branch partial aggregates combined by a final
  * merge aggregate.
  *
- * <p>Only decomposable aggregates are rewritten:
- * {@code COUNT}, {@code SUM}, {@code MIN}, and {@code MAX}.
+ * <p>Two kinds of aggregate are decomposed, via two combine strategies:
+ * <ul>
+ *   <li><b>Algebraic</b> ({@code COUNT}, {@code SUM}, {@code MIN}, {@code MAX}): each branch emits the
+ *   aggregate's partial final value and the coordinator merges them with another plain aggregate
+ *   ({@code COUNT}&rarr;{@code SUM}, {@code SUM}&rarr;{@code SUM}, {@code MIN}&rarr;{@code MIN},
+ *   {@code MAX}&rarr;{@code MAX}).</li>
+ *   <li><b>Intermediate-state</b> ({@code COUNT_DISTINCT}, {@code PERCENTILE}, {@code STDDEV}): these are not
+ *   algebraically decomposable, so each branch emits its mergeable intermediate state (HLL sketch, t-digest,
+ *   Welford state) as a {@code PARTIAL_AGG} column via {@link ToPartial}, and the coordinator merges those with
+ *   {@link FromPartial}.</li>
+ * </ul>
  *
- * <p>Transformation sketch (two-branch case):
+ * <p>{@code MEDIAN} and {@code AVG} are not handled here: they are surrogates rewritten before this rule runs
+ * ({@code MEDIAN}&rarr;{@code PERCENTILE}, {@code AVG}&rarr;{@code SUM}/{@code COUNT}), so they decompose
+ * transitively through the cases above.
+ *
+ * <p><b>Filters:</b> a filtered algebraic aggregate ({@code SUM(x) WHERE ...}) pushes normally. A filtered
+ * intermediate-state aggregate is left to aggregate on the coordinator: {@link ToPartial} cannot carry a
+ * per-aggregate filter through the grouping execution path, so the whole {@code STATS} is not decomposed when
+ * a heavy aggregate has a filter.
+ *
+ * <p>Transformation sketch (two-branch case). {@code c}/{@code s} take the algebraic path; {@code d} (a heavy
+ * aggregate) takes the intermediate-state path, so its partial column is typed {@code PARTIAL_AGG} and is
+ * produced by {@code ToPartial} per branch and merged by {@code FromPartial} on the coordinator:
  * <pre>{@code
  * -- Before:
- * Aggregate[c = COUNT(*), s = SUM(salary), dep] BY [dep]
+ * Aggregate[c = COUNT(*), s = SUM(salary), d = COUNT_DISTINCT(salary), dep] BY [dep]
  *   UnionAll[[dep{r1}, salary{r2}]]
  *     EsRelation[[dep{f1}, salary{f2}]]
  *     ExternalRelation[[dep{f3}, salary{f4}]]
  *
  * -- After:
- * Aggregate[c = SUM($$partial$$c), s = SUM($$partial$$s), dep = Alias($$g_dep)] BY [$$g_dep]
- *   UnionAll[[$$partial$$c, $$partial$$s, $$g_dep]]
- *     Aggregate[$$partial$$c = COUNT(*), $$partial$$s = SUM(salary{f2}), Alias(dep{f1})] BY [Alias(dep{f1})]
+ * Aggregate[c = SUM($$partial$$c), s = SUM($$partial$$s), d = FromPartial($$partial$$d, COUNT_DISTINCT),
+ *           dep = Alias($$g_dep)] BY [$$g_dep]
+ *   UnionAll[[$$partial$$c, $$partial$$s, $$partial$$d{PARTIAL_AGG}, $$g_dep]]
+ *     Aggregate[$$partial$$c = COUNT(*), $$partial$$s = SUM(salary{f2}),
+ *               $$partial$$d = ToPartial(COUNT_DISTINCT(salary{f2})), Alias(dep{f1})] BY [Alias(dep{f1})]
  *       EsRelation[[dep{f1}, salary{f2}]]
- *     Aggregate[$$partial$$c = COUNT(*), $$partial$$s = SUM(salary{f4}), Alias(dep{f3})] BY [Alias(dep{f3})]
+ *     Aggregate[$$partial$$c = COUNT(*), $$partial$$s = SUM(salary{f4}),
+ *               $$partial$$d = ToPartial(COUNT_DISTINCT(salary{f4})), Alias(dep{f3})] BY [Alias(dep{f3})]
  *       ExternalRelation[[dep{f3}, salary{f4}]]
  * }</pre>
  *
@@ -155,7 +184,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                     NameId partialId = aggAliasIdToPartialId.get(alias.id());
                     String partialName = aggAliasIdToPartialName.get(alias.id());
                     AggregateFunction resolvedAggFn = resolveAggFn(aggFn, unionToBranch);
-                    branchAggs.add(new Alias(alias.source(), partialName, resolvedAggFn, partialId, true));
+                    branchAggs.add(new Alias(alias.source(), partialName, buildBranchPartial(resolvedAggFn), partialId, true));
                 }
             }
             for (Expression g : groupings) {
@@ -177,12 +206,11 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
             if (ne instanceof Attribute attr && groupingAttrIds.contains(attr.id())) {
                 NameId sharedId = groupingIdToSharedId.get(attr.id());
                 unionOutput.add(new ReferenceAttribute(attr.source(), null, attr.name(), attr.dataType(), attr.nullable(), sharedId, true));
-            } else if (ne instanceof Alias alias) {
+            } else if (ne instanceof Alias alias && alias.child() instanceof AggregateFunction aggFn) {
                 NameId partialId = aggAliasIdToPartialId.get(alias.id());
                 String partialName = aggAliasIdToPartialName.get(alias.id());
-                unionOutput.add(
-                    new ReferenceAttribute(alias.source(), null, partialName, alias.dataType(), alias.nullable(), partialId, true)
-                );
+                DataType partialType = partialDataType(aggFn, alias);
+                unionOutput.add(new ReferenceAttribute(alias.source(), null, partialName, partialType, alias.nullable(), partialId, true));
             }
         }
         for (Expression g : groupings) {
@@ -233,7 +261,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                     alias.source(),
                     null,
                     partialName,
-                    alias.dataType(),
+                    partialDataType(aggFn, alias),
                     alias.nullable(),
                     partialId,
                     true
@@ -248,15 +276,70 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
 
     /**
      * Returns true when {@code aggFn} can be decomposed across independent partitions.
-     * COUNT, SUM, MIN, and MAX are decomposable; windowed aggregates are never decomposable.
+     * Windowed aggregates are never decomposable. Two families qualify: those with a trivial
+     * algebraic combiner ({@link #isAlgebraicDecomposable}) and those that merge via intermediate
+     * state ({@link #isIntermediateDecomposable}).
+     *
+     * <p>A filtered intermediate-state aggregate is <b>not</b> decomposed: the branch would emit a
+     * {@link ToPartial}, but {@link ToPartial} cannot carry a per-aggregate filter through the grouping
+     * execution path (its supplier only implements the {@code *Factory} methods, while the filter wrapper
+     * delegates to the direct {@code groupingAggregator}). Such aggregates fall back to coordinator-side
+     * aggregation over the UnionAll output. Filtered <em>algebraic</em> aggregates push normally.
      */
     private static boolean isDecomposable(AggregateFunction aggFn) {
         if (AggregateFunction.NO_WINDOW.equals(aggFn.window()) == false) {
             return false;
         }
-        // Note: AVG could also be decomposed, but being a surrogate already decomposed in Sum/Count
-        // brings significant additional complexity.
+        if (isAlgebraicDecomposable(aggFn)) {
+            return true;
+        }
+        return isIntermediateDecomposable(aggFn) && aggFn.hasFilter() == false;
+    }
+
+    /**
+     * Aggregates whose per-branch partial final value can be merged by another plain aggregate:
+     * COUNT&rarr;SUM, SUM&rarr;SUM, MIN&rarr;MIN, MAX&rarr;MAX.
+     *
+     * <p>AVG is intentionally absent: it is a surrogate already rewritten to SUM/COUNT before this rule runs.
+     */
+    private static boolean isAlgebraicDecomposable(AggregateFunction aggFn) {
         return aggFn instanceof Count || aggFn instanceof Sum || aggFn instanceof Min || aggFn instanceof Max;
+    }
+
+    /**
+     * Aggregates that are not algebraically decomposable but expose mergeable intermediate state
+     * (HLL sketch, t-digest, Welford state). They are pushed by emitting {@link ToPartial} in each branch
+     * and merging via {@link FromPartial} on the coordinator.
+     *
+     * <p>All are {@link org.elasticsearch.xpack.esql.planner.ToAggregator}s (required by {@link ToPartial}),
+     * but ToAggregator alone is too broad (e.g. VALUES, TOP, SAMPLE), so this is an explicit whitelist.
+     * MEDIAN and the histogram/foldable forms of PERCENTILE and COUNT_DISTINCT are rewritten to surrogates
+     * before this rule runs and never reach it.
+     */
+    private static boolean isIntermediateDecomposable(AggregateFunction aggFn) {
+        return aggFn instanceof CountDistinct || aggFn instanceof Percentile || aggFn instanceof StdDev;
+    }
+
+    /**
+     * The data type of the partial column a branch emits for {@code aggFn}: {@code PARTIAL_AGG} for the
+     * intermediate-state path (a {@link ToPartial} composite block), otherwise the aggregate's own type.
+     */
+    private static DataType partialDataType(AggregateFunction aggFn, Alias alias) {
+        return isIntermediateDecomposable(aggFn) ? DataType.PARTIAL_AGG : alias.dataType();
+    }
+
+    /**
+     * Builds the expression a branch emits for a single aggregate. For the algebraic path this is the
+     * branch-resolved aggregate itself; for the intermediate-state path it is a {@link ToPartial} wrapping it.
+     *
+     * <p>Intermediate-state aggregates reaching this point are unfiltered ({@link #isDecomposable} rejects
+     * filtered ones), so the {@link ToPartial} carries no filter.
+     */
+    private static Expression buildBranchPartial(AggregateFunction resolvedAggFn) {
+        if (isIntermediateDecomposable(resolvedAggFn) == false) {
+            return resolvedAggFn;
+        }
+        return new ToPartial(resolvedAggFn.source(), resolvedAggFn, resolvedAggFn);
     }
 
     /**
@@ -300,16 +383,26 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
     }
 
     /**
-     * Returns the combiner aggregate function that merges the partial results from each branch:
+     * Returns the combiner aggregate function that merges the per-branch partials referenced by
+     * {@code partialRef}:
      * <ul>
      *   <li>COUNT → SUM (sum the per-branch counts)</li>
      *   <li>SUM   → SUM (sum the per-branch sums)</li>
      *   <li>MIN   → MIN (minimum of per-branch minima)</li>
      *   <li>MAX   → MAX (maximum of per-branch maxima)</li>
+     *   <li>intermediate-state aggregates → {@link FromPartial} (merge the per-branch {@code PARTIAL_AGG}
+     *   states and produce the final value)</li>
      * </ul>
+     *
+     * <p>The {@link FromPartial} carries the original {@code aggFn} only to select the aggregator supplier;
+     * {@link FromPartial#references()} excludes it, so its (now-absent) UnionAll-level attribute references
+     * are not part of the combiner's reference set.
      */
     private static AggregateFunction buildCombinerFn(AggregateFunction aggFn, ReferenceAttribute partialRef) {
         Source src = aggFn.source();
+        if (isIntermediateDecomposable(aggFn)) {
+            return new FromPartial(src, partialRef, aggFn);
+        }
         if (aggFn instanceof Count) {
             return new Sum(src, partialRef);
         } else if (aggFn instanceof Sum) {

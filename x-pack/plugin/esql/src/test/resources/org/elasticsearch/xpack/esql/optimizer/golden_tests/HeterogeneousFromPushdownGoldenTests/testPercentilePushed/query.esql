@@ -1,0 +1,1 @@
+FROM heavy_a, heavy_b | STATS p = PERCENTILE(salary, 50)

@@ -1,0 +1,1 @@
+FROM heavy_a, heavy_b | STATS d1 = COUNT_DISTINCT(emp_no), d2 = COUNT_DISTINCT(emp_no)

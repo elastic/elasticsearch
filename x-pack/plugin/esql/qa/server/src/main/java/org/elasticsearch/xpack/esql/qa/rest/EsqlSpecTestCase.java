@@ -411,23 +411,21 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      * by every EXTERNAL-capable test family; {@code AbstractExternalSourceSpecTestCase} overrides the
      * execution path to register and run the {@code FROM} form directly on dataset-capable backends.
      *
-     * <p>Specs without a {@code dataset:} directive are returned unchanged. EXTERNAL is single-source
-     * today, so a spec declaring more than one source has no EXTERNAL equivalent and fails fast (rather
-     * than silently mis-running); the guard is removed once EXTERNAL gains multi-source support.
+     * <p>Specs without a {@code dataset:} directive are returned unchanged. EXTERNAL is single-source today and is
+     * being retired in favour of {@code FROM <dataset>}, so a spec declaring more than one source (a heterogeneous or
+     * multi-dataset {@code FROM}) has no EXTERNAL equivalent. Such specs run natively on dataset-mode backends (see
+     * {@code AbstractExternalSourceSpecTestCase#runDatasetMode}); on the EXTERNAL-rebuild backends there is nothing to
+     * run, so the test is skipped rather than failed.
      */
     protected final String rebuildExternalFromDatasets(String query) {
         List<DatasetSource> sources = testCase.datasetSources;
         if (sources.isEmpty()) {
             return query;
         }
-        if (sources.size() > 1) {
-            throw new AssertionError(
-                "Cannot rebuild a single EXTERNAL query for ["
-                    + sources.size()
-                    + "] dataset sources; multi-source FROM <dataset> has no EXTERNAL equivalent yet: "
-                    + query
-            );
-        }
+        assumeFalseLogging(
+            "multi-source FROM <dataset> has no EXTERNAL equivalent; runs only on dataset-mode backends: " + query,
+            sources.size() > 1
+        );
         DatasetSource source = sources.get(0);
         int pipe = FixtureUtils.findFirstPipeAfterExternal(query);
         String tail = pipe < 0 ? "" : " " + query.substring(pipe);

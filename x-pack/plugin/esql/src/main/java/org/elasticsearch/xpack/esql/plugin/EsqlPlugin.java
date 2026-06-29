@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -169,11 +168,6 @@ import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
-    // Data sources store credentials encrypted under the project encryption key, so the feature requires it
-    // (enforced in createComponents). The PEK flag lives in the encryption impl plugin, not the SPI we
-    // compile against, so we reference it by name — FeatureFlag resolves identically off the build flag.
-    private static final FeatureFlag PROJECT_ENCRYPTION_KEY_FEATURE_FLAG = new FeatureFlag("project_encryption_key");
-
     private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
@@ -297,15 +291,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        // Refuse to start with data sources on but encryption off — the CRUD layer could never store a
-        // secret. Coupling the flags here lets the feature rely on an EncryptionService always being bound.
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            && PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalStateException(
-                "ES|QL external data sources require the project encryption key feature; enable the "
-                    + "[project_encryption_key] feature flag, or disable [esql_external_datasources]"
-            );
-        }
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(

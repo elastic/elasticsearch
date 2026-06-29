@@ -816,23 +816,18 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertTrue("Should have a doc_values field in columnar mode by default", hasDocValuesField);
     }
 
-    public void testDocValuesDedupedAgainstPlainKeywordDelegateInColumnarMode() throws IOException {
+    public void testKeepsOwnDocValuesInColumnarMode() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
-        // A plain keyword multi-field (dv-backed, no normalizer/ignore_above/null_value) is a complete copy of the raw values, so the field
-        // skips its own doc values and loads through the delegate; the keyword's doc values are the only copy that is written. When the
-        // field instead keeps its own doc values, in strict columnar mode it stores them in document order (no offsets sidecar).
-        assertDocValuesDedup(b -> {}, false);
-        // null_value on the keyword delegate substitutes values, so the keyword copy is not byte-identical and the field keeps its own.
-        assertDocValuesDedup(b -> b.field("null_value", "NULL"), true);
-        // ignore_above on the keyword delegate omits long values, so the keyword copy is incomplete and the field keeps its own.
-        assertDocValuesDedup(b -> b.field("ignore_above", 10), true);
-        // A keyword delegate with doc values disabled is not a copy at all, so the field keeps its own doc values.
-        assertDocValuesDedup(b -> b.field("doc_values", false), true);
+        // In columnar mode a match_only_text field always keeps its own doc values and reconstructs _source from them,
+        // regardless of any keyword multi-field. A keyword multi-field is never used as a doc-values delegate.
+        assertKeepsOwnDocValues(b -> {});
+        assertKeepsOwnDocValues(b -> b.field("null_value", "NULL"));
+        assertKeepsOwnDocValues(b -> b.field("ignore_above", 10));
+        assertKeepsOwnDocValues(b -> b.field("doc_values", false));
     }
 
-    private void assertDocValuesDedup(CheckedConsumer<XContentBuilder, IOException> keywordConfig, boolean expectsOwnDocValues)
-        throws IOException {
+    private void assertKeepsOwnDocValues(CheckedConsumer<XContentBuilder, IOException> keywordConfig) throws IOException {
         var indexSettingsBuilder = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
         Settings indexSettings = indexSettingsBuilder.build();
 
@@ -849,7 +844,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         })).documentMapper();
 
         MatchOnlyTextFieldMapper fieldMapper = (MatchOnlyTextFieldMapper) mapper.mappers().getMapper("field");
-        assertThat(fieldMapper.fieldType().hasDocValues(), equalTo(expectsOwnDocValues));
+        assertTrue("field keeps its own doc values in columnar mode", fieldMapper.fieldType().hasDocValues());
 
         ParsedDocument doc = mapper.parse(source(b -> {
             b.field("@timestamp", "2024-01-01T00:00:00Z");
@@ -866,11 +861,11 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
                 hasOwnOffsets = true;
             }
         }
-        assertThat("field's own binary doc values", hasOwnBinaryDocValues, equalTo(expectsOwnDocValues));
+        assertTrue("field's own binary doc values", hasOwnBinaryDocValues);
         // High-cardinality columnar fields store values in document order in their own binary doc values, never via a sidecar offsets
         // field.
         assertFalse("field's own offsets sidecar", hasOwnOffsets);
-        assertThat("field stores array values in order", fieldMapper.storesArrayValuesInOrder(), equalTo(expectsOwnDocValues));
+        assertTrue("field stores array values in order", fieldMapper.storesArrayValuesInOrder());
     }
 
     public void testDocValuesExplicitlyDisabled() throws IOException {

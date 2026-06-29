@@ -606,7 +606,7 @@ public class SharedBlobCacheWarmingService {
         @Nullable Map<BlobFile, Long> endOffsetsToWarm,
         ActionListener<Void> listener
     ) {
-        warmCache(type, indexShard, commit, directory, endOffsetsToWarm, null, false, listener);
+        warmCache(type, indexShard, commit, directory, endOffsetsToWarm, BlobFileTimestampResolver.ALL_UNKNOWN, false, listener);
     }
 
     public void warmCacheForShardRecoveryOrUnhollowing(
@@ -618,7 +618,16 @@ public class SharedBlobCacheWarmingService {
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmCache(type, indexShard, commit, directory, endOffsetsToWarm, null, preWarmForIdLookup, listener);
+        warmCache(
+            type,
+            indexShard,
+            commit,
+            directory,
+            endOffsetsToWarm,
+            BlobFileTimestampResolver.ALL_UNKNOWN,
+            preWarmForIdLookup,
+            listener
+        );
     }
 
     /**
@@ -626,7 +635,10 @@ public class SharedBlobCacheWarmingService {
      * may proceed. When {@code endOffsetsToWarm} is non-null (internal replicated-files path), {@link #searchRecoveryTimeout} decides
      * whether to race warming against a timeout; otherwise recovery resumes as soon as warming has been scheduled (fire-and-forget via
      * {@link ActionListener#noop()}).
-     *
+     * <p>
+     * Callers on the internal replicated-files path must update the search directory (so the cache-boost preference can resolve per-file
+     * timestamps via {@link BlobStoreCacheDirectory#getTimestampMillis}) <em>before</em> invoking this method.
+     * </p>
      * Notice that this may synchronously invoke the listener.
      */
     public void warmCacheForSearchShardRecovery(
@@ -635,7 +647,7 @@ public class SharedBlobCacheWarmingService {
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
         @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-        @Nullable Map<BlobFile, Long> timestampsPerBlob,
+        BlobFileTimestampResolver timestampResolver,
         ActionListener<Void> resumeRecoveryListener
     ) {
         SearchRecoveryTimeout plan = endOffsetsToWarm != null
@@ -648,12 +660,12 @@ public class SharedBlobCacheWarmingService {
                 commit,
                 directory,
                 endOffsetsToWarm,
-                timestampsPerBlob,
+                timestampResolver,
                 false,
                 searchRecoveryWarmingListener(plan.timeout(), plan.timeoutContext(), indexShard, resumeRecoveryListener)
             );
         } else {
-            warmCache(Type.SEARCH, indexShard, commit, directory, endOffsetsToWarm, timestampsPerBlob, false, ActionListener.noop());
+            warmCache(Type.SEARCH, indexShard, commit, directory, endOffsetsToWarm, timestampResolver, false, ActionListener.noop());
             resumeRecoveryListener.onResponse(null);
         }
     }
@@ -664,7 +676,7 @@ public class SharedBlobCacheWarmingService {
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
         @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-        @Nullable Map<BlobFile, Long> timestampsPerBlob,
+        BlobFileTimestampResolver timestampResolver,
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
@@ -713,7 +725,7 @@ public class SharedBlobCacheWarmingService {
                         }
                     }).<Void>andThen((l2, offsetsToWarmFinal) -> {
                         if (searchOfflineWarmingEnabled) {
-                            warmBlobOffsets(indexShard, directory, offsetsToWarmFinal, timestampsPerBlob, l2);
+                            warmBlobOffsets(indexShard, directory, offsetsToWarmFinal, timestampResolver, l2);
                         } else {
                             l2.onResponse(null);
                         }
@@ -753,6 +765,31 @@ public class SharedBlobCacheWarmingService {
             } finally {
                 store.decRef();
             }
+        }
+    }
+
+    /**
+     * Resolves a single representative timestamp (millis) for a given {@link BlobFile}, used to stamp cache regions populated during
+     * warming so the eviction policy can use it.
+     */
+    @FunctionalInterface
+    public interface BlobFileTimestampResolver {
+
+        /**
+         * Resolver that returns {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} for every blob.
+         */
+        BlobFileTimestampResolver ALL_UNKNOWN = blobFile -> SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+
+        long getTimestampMillis(BlobFile blobFile);
+
+        /**
+         * Adapts a {@code Map<BlobFile, Long>} into a resolver. Missing entries resolve to {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP}.
+         */
+        static BlobFileTimestampResolver fromMap(@Nullable Map<BlobFile, Long> map) {
+            if (map == null || map.isEmpty()) {
+                return ALL_UNKNOWN;
+            }
+            return blobFile -> map.getOrDefault(blobFile, SharedBlobCacheService.UNKNOWN_TIMESTAMP);
         }
     }
 
@@ -931,7 +968,7 @@ public class SharedBlobCacheWarmingService {
         IndexShard indexShard,
         BlobStoreCacheDirectory directory,
         Map<BlobFile, Long> offsetsToWarmPerBlobFile,
-        @Nullable Map<BlobFile, Long> timestampsPerBlobFile,
+        BlobFileTimestampResolver timestampResolver,
         ActionListener<Void> listener
     ) {
         try (RefCountingListener listeners = new RefCountingListener(listener)) {
@@ -940,17 +977,12 @@ public class SharedBlobCacheWarmingService {
                 // readReferencedCompoundCommitsUsingCache had fully populated it; header-sized reads can leave gaps in that region,
                 // so searches can miss until the full range is forced into cache (see RecoveryWarmer#shouldSkipLocationWarming for SEARCH).
                 if (offsetsToWarm.getValue() > 0) {
-                    // Offline byte-range warming resolves the timestamp at the blob level (an approximation): we stamp the warmed range
-                    // with the most recent timestamp among the compound commits that contribute to this blob.
-                    long timestampMillis = timestampsPerBlobFile == null || cacheService.isCacheBoostPreferenceEnabled() == false
-                        ? SharedBlobCacheService.UNKNOWN_TIMESTAMP
-                        : timestampsPerBlobFile.getOrDefault(offsetsToWarm.getKey(), SharedBlobCacheService.UNKNOWN_TIMESTAMP);
                     warmBlobByteRange(
                         Type.SEARCH,
                         indexShard,
                         offsetsToWarm.getKey(),
                         ByteRange.of(0, offsetsToWarm.getValue()),
-                        timestampMillis,
+                        timestampResolver.getTimestampMillis(offsetsToWarm.getKey()),
                         directory,
                         listeners.acquire()
                     );
@@ -1137,6 +1169,9 @@ public class SharedBlobCacheWarmingService {
             final int regionSize = cacheService.getRegionSize();
             final int startRegion = cacheService.getRegion(start);
             final int endRegion = cacheService.getEndingRegion(end);
+            assert warmingRun.type() != Type.SEARCH
+                || cacheService.isCacheBoostPreferenceEnabled() == false
+                || directory.knowsFile(fileName) : "search directory does not yet know file [" + fileName + "] during warming";
             final long timestampMillis = cacheService.isCacheBoostPreferenceEnabled()
                 ? directory.getTimestampMillis(fileName)
                 : SharedBlobCacheService.UNKNOWN_TIMESTAMP;

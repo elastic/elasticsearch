@@ -516,7 +516,9 @@ class StatelessIndexEventListener implements IndexEventListener {
                         compoundCommit,
                         searchDirectory,
                         warmingInputs != null ? warmingInputs.offsetsToWarm() : null,
-                        warmingInputs != null ? warmingInputs.timestampsPerBlob() : null,
+                        warmingInputs != null
+                            ? SharedBlobCacheWarmingService.BlobFileTimestampResolver.fromMap(warmingInputs.timestampsPerBlob())
+                            : SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
                         resumeRecovery
                     );
                 }));

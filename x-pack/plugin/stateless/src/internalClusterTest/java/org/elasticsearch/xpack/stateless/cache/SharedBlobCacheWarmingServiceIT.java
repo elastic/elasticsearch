@@ -1546,7 +1546,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-            @Nullable Map<BlobFile, Long> timestampsPerBlob,
+            BlobFileTimestampResolver timestampResolver,
             ActionListener<Void> resumeRecoveryListener
         ) {
             if (awaitWarmingForSearchRecovery) {
@@ -1559,7 +1559,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     commit,
                     directory,
                     endOffsetsToWarm,
-                    timestampsPerBlob,
+                    timestampResolver,
                     false,
                     searchRecoveryWarmingListener(
                         TimeValue.timeValueMinutes(1),
@@ -1575,7 +1575,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     commit,
                     directory,
                     endOffsetsToWarm,
-                    timestampsPerBlob,
+                    timestampResolver,
                     resumeRecoveryListener
                 );
             }
@@ -1666,7 +1666,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-            @Nullable Map<BlobFile, Long> timestampsPerBlob,
+            BlobFileTimestampResolver timestampResolver,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
@@ -1679,7 +1679,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(type);
             }
-            super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampsPerBlob, preWarmForIdLookup, wrappedListener);
+            super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampResolver, preWarmForIdLookup, wrappedListener);
             var callback = warmCacheReturnedCallback;
             if (callback != null) {
                 callback.run();

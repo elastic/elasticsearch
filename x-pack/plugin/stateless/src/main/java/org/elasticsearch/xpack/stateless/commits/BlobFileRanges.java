@@ -188,6 +188,10 @@ public class BlobFileRanges {
         return range.midpointMillis();
     }
 
+    /**
+     * Returns the most recent known timestamp between two timestamps, treating {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} as the
+     * lesser-known value so any known timestamp wins.
+     */
     public static long mostRecentKnownTimestamp(long a, long b) {
         if (a == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
             return b;

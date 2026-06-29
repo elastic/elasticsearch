@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -46,7 +45,6 @@ import java.util.concurrent.Executor;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.computeTimestampPerBlob;
 import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.getPendingRangesToPrefetch;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -178,9 +176,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         );
     }
 
-    public void testComputeTimestampPerBlobAttributesInternalAndReferencedFiles() {
-        final ShardId shardId = new ShardId("index", "_na_", 0);
-
+    public void testGetPendingRangesToPrefetchAttributesInternalAndReferencedFiles() {
         final BlobFile referencedBlobA = blobFile(1);
         final BlobFile referencedBlobB = blobFile(2);
         final BlobFile referencedBlobC = blobFile(3);
@@ -197,31 +193,24 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         commitFiles.put("referenced_c", new BlobLocation(referencedBlobC, 0, 10));
 
         final var notificationRange = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 3000L); // midpoint 2000
-        final StatelessCompoundCommit commit = new StatelessCompoundCommit(
-            shardId,
-            new PrimaryTermAndGeneration(1L, 4),
-            1L,
-            "_na_",
-            commitFiles,
-            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
-            Set.of("internal_1", "internal_2"),
-            0L,
-            InternalFilesReplicatedRanges.EMPTY,
-            Map.of(),
-            notificationRange
-        );
-
         final Map<String, Long> resolvedTimestamps = Map.of("referenced_a", 500L, "referenced_b1", 1500L, "referenced_b2", 2500L);
         final SearchCommitPrefetcher.FileTimestampResolver resolver = fileName -> resolvedTimestamps.getOrDefault(
             fileName,
             UNKNOWN_TIMESTAMP
         );
 
-        final Map<BlobFile, Long> timestampPerBlob = computeTimestampPerBlob(
-            commit,
-            Set.of(internalBlob, referencedBlobA, referencedBlobB, referencedBlobC),
-            resolver
+        // Drive the combined method with a fresh prefetch state so every blob ends up in `ranges` and contributes timestamps.
+        final SearchCommitPrefetcher.PendingPrefetchDetails pending = getPendingRangesToPrefetch(
+            SearchCommitPrefetcher.BCCPreFetchedOffset.ZERO,
+            Long.MAX_VALUE,
+            commitFiles,
+            Set.of("internal_1", "internal_2"),
+            notificationRange.midpointMillis(),
+            resolver,
+            true
         );
+
+        final Map<BlobFile, Long> timestampPerBlob = pending.timestampPerBlob();
 
         assertThat(
             "internal blob takes the notification commit midpoint",
@@ -379,7 +368,19 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         BlobLocation... blobLocations
     ) {
         assertThat(blobLocations.length, greaterThan(0));
-        return getPendingRangesToPrefetch(bccPreFetchedOffset, maxBCCGenerationToPrefetch, Arrays.asList(blobLocations));
+        final Map<String, BlobLocation> commitFiles = new HashMap<>();
+        for (int i = 0; i < blobLocations.length; i++) {
+            commitFiles.put("file_" + i, blobLocations[i]);
+        }
+        return getPendingRangesToPrefetch(
+            bccPreFetchedOffset,
+            maxBCCGenerationToPrefetch,
+            commitFiles,
+            Set.of(),
+            randomLongBetween(1, Long.MAX_VALUE),
+            fileName -> randomLongBetween(1, Long.MAX_VALUE),
+            true
+        ).ranges();
     }
 
     private BlobLocation luceneFile(long generation, long offset, long length) {

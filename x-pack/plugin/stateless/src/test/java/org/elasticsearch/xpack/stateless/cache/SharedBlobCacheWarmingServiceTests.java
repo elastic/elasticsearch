@@ -632,7 +632,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     indexShard,
                     fakeNode.searchDirectory,
                     Map.of(new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()), endOffset),
-                    null,
+                    SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
                     warmListener
                 );
                 safeGet(warmListener);
@@ -820,7 +820,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 fakeNode.searchDirectory,
                 Map.of(blobFile, vbcc.getTotalSizeInBytes()),
-                null,
+                SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
                 warmListener
             );
             safeGet(warmListener);
@@ -1556,7 +1556,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 fakeNode.searchDirectory,
                 Map.of(blobFile, vbcc.getTotalSizeInBytes()),
-                Map.of(blobFile, knownTimestamp),
+                boostEnabled
+                    ? SharedBlobCacheWarmingService.BlobFileTimestampResolver.fromMap(Map.of(blobFile, knownTimestamp))
+                    : SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
                 warmListener
             );
             safeGet(warmListener);
@@ -1622,7 +1624,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
             // Offline warming is disabled in the node settings, so SEARCH warmCache runs only the ShardWarmer recovery prewarming, which
             // warms region 0 of every segment via maybeFetchRange (the call we capture).
-            fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, null, false, warmListener);
+            fakeNode.warmingService.warmCache(
+                SEARCH,
+                indexShard,
+                lastCommit,
+                fakeNode.searchDirectory,
+                null,
+                SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
+                false,
+                warmListener
+            );
             safeGet(warmListener);
 
             assertFalse("ShardWarmer recovery prewarming should have warmed at least one region", capturedTimestamps.isEmpty());

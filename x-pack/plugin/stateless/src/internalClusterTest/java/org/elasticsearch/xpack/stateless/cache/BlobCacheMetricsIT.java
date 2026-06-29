@@ -330,7 +330,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-                    @Nullable Map<BlobFile, Long> timestampsPerBlob,
+                    BlobFileTimestampResolver timestampResolver,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
@@ -341,7 +341,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
                         commit,
                         directory,
                         endOffsetsToWarm,
-                        timestampsPerBlob,
+                        timestampResolver,
                         preWarmForIdLookup,
                         subscribableListener
                     );

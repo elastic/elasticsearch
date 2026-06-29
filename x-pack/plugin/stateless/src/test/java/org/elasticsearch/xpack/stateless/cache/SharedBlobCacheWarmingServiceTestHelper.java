@@ -65,10 +65,10 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
         @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-        @Nullable Map<BlobFile, Long> timestampsPerBlob,
+        SharedBlobCacheWarmingService.BlobFileTimestampResolver timestampResolver,
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmingService.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampsPerBlob, preWarmForIdLookup, listener);
+        warmingService.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampResolver, preWarmForIdLookup, listener);
     }
 }

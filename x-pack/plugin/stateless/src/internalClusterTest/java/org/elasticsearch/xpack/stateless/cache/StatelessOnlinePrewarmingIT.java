@@ -362,7 +362,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-                    @Nullable Map<BlobFile, Long> timestampsPerBlob,
+                    BlobFileTimestampResolver timestampResolver,
                     boolean preWarmForIdLookup,
                     org.elasticsearch.action.ActionListener<Void> listener
                 ) {

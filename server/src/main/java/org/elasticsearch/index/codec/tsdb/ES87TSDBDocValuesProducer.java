@@ -906,7 +906,7 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
         int docCount = meta.readInt();
         int maxDocID = meta.readInt();
         int maxValueCount = docCount == 0 ? 0 : -1;
-        if (version >= ES87TSDBDocValuesFormat.VERSION_CURRENT) {
+        if (version >= ES87TSDBDocValuesFormat.VERSION_SKIPPER_MAX_VALUE_COUNT) {
             maxValueCount = meta.readInt();
         }
 

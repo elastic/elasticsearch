@@ -149,6 +149,11 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode());
+    }
+
+    @Override
     public AmazonBedrockChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
             return Update.PARSER.apply(xParser, null).mergeInto(this);

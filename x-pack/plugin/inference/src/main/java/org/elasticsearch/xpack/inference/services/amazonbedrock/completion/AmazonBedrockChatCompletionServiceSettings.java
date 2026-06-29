@@ -21,10 +21,9 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
 /**
- * Represents the settings for a Amazon Bedrock chat completion service. Extends {@link AmazonBedrockChatCompletionServiceSettings}, which
+ * Represents the settings for an Amazon Bedrock chat completion service. Extends {@link AmazonBedrockChatCompletionServiceSettings}, which
  * carries the model ID, region, provider, and rate limit settings shared across all Bedrock tasks. Chat completion adds no settings of its
  * own.
  */
@@ -85,7 +84,7 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
 
     /**
      * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
-     * {@code model}, {@code region} or {@code provider} causes the strict parser to reject the request.
+     * {@code model}, {@code region} or {@code provider}) causes the strict parser to reject the request.
      */
     private static class Update extends AmazonBedrockServiceSettings.CommonUpdate {
         private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
@@ -134,23 +133,6 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         super.addXContentFragmentOfExposedFields(builder, params);
         return builder;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AmazonBedrockChatCompletionServiceSettings that = (AmazonBedrockChatCompletionServiceSettings) o;
-
-        return Objects.equals(region, that.region)
-            && Objects.equals(provider, that.provider)
-            && Objects.equals(model, that.model)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode());
     }
 
     @Override

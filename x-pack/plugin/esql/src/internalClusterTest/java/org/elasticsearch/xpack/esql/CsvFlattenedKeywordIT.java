@@ -1310,7 +1310,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "LESS_THAN_OR_EQUAL:rhs is missing",
         "LIKE:pattern is missing",
         "LOCATE:substring is missing",
-        "LTRIM:string is missing",
         "MATCH:field is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
@@ -1344,7 +1343,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "REPLACE:newString is missing",
         "REPLACE:regex is missing",
         "RLIKE:pattern is missing",
-        "RTRIM:string is missing",
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
         "SPLIT:string is missing",
@@ -1369,7 +1367,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "TO_VERSION:field is missing",
         "TRANGE:end_time is missing",
         "TRANGE:start_time_or_offset is missing",
-        "TRIM:string is missing",
         "TSTEP:from is missing",
         "TSTEP:to is missing",
         "WITHOUT:dimension is missing"

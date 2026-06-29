@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -37,7 +38,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayDeque;
@@ -50,6 +50,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -80,6 +81,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private final TransportService transportService;
+    private final Executor executor;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final RecoverySettings recoverySettings;
@@ -97,6 +99,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         CompositeRecoverySchedulingListener schedulingListeners
     ) {
         this.transportService = transportService;
+        this.executor = transportService.getThreadPool().generic();
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
@@ -111,7 +114,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
             Actions.START_RECOVERY,
-            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
+            executor,
             StartRecoveryRequest::new,
             (request, channel, task) -> recover(request, task, new ChannelActionListener<>(channel))
         );
@@ -121,7 +124,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         // action will fail and the target node will send a new START_RECOVERY request.
         transportService.registerRequestHandler(
             Actions.REESTABLISH_RECOVERY,
-            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
+            executor,
             ReestablishRecoveryRequest::new,
             (request, channel, task) -> reestablish(request, new ChannelActionListener<>(channel))
         );
@@ -178,7 +181,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
             clusterService,
-            transportService.getThreadPool().generic(),
+            executor,
             transportService.getThreadPool().getThreadContext(),
             listener,
             new Consumer<>() {
@@ -414,8 +417,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     nextRecovery.request().shardId().id(),
                     nextRecovery.request().targetNode()
                 );
-                nextHandler.recoverToTarget(
-                    ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler))
+                executor.execute(
+                    ActionRunnable.wrap(
+                        ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler)),
+                        nextHandler::recoverToTarget
+                    )
                 );
             }
         }

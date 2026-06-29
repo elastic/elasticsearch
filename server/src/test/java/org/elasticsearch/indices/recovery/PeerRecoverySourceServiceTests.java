@@ -28,6 +28,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -938,42 +939,55 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         closeShards(primary1, primary2, primary3, primary4, primary5);
     }
 
+    // See: https://github.com/elastic/elasticsearch-team/issues/4353
     public void testStartRecoveriesUpToLimitHandlesSynchronousFailures() throws Exception {
-        final int queuedRecoveryCount = 10000;
-        final IndexShard queuedShard = newStartedShard(true);
+        try (var threadPool = new TestThreadPool("testStartRecoveriesUpToLimitHandlesSynchronousFailures")) {
+            final var transportService = mock(TransportService.class);
+            when(transportService.getThreadPool()).thenReturn(threadPool);
 
-        final PeerRecoverySourceService service = newPeerRecoverySourceService(1);
-        service.start();
-        final var task = newRecoveryTask();
+            final var schedulingListeners = new CompositeRecoverySchedulingListener();
+            final var service = newPeerRecoverySourceService(1, schedulingListeners, transportService);
+            final var task = newRecoveryTask();
 
-        final var runningShard = newStartedShard(true);
-        final var handler = service.ongoingRecoveries.addOrEnqueueNewRecovery(
-            newStartRecoveryRequest(runningShard),
-            task,
-            runningShard,
-            ActionListener.noop()
-        );
+            final int queuedRecoveryCount = 1000;
+            final var recoveriesCompleted = new CountDownLatch(queuedRecoveryCount);
 
-        for (int i = 0; i < queuedRecoveryCount; i++) {
-            service.ongoingRecoveries.addOrEnqueueNewRecovery(
-                newStartRecoveryRequest(queuedShard),
+            schedulingListeners.addListener(new RecoverySchedulingListener() {
+                @Override
+                public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                    recoveriesCompleted.countDown();
+                }
+            });
+
+            service.start();
+
+            final var shard = newStartedShard(true);
+
+            final var runningShard = newStartedShard(true);
+            final var handler = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+                newStartRecoveryRequest(runningShard),
                 task,
-                queuedShard,
+                runningShard,
                 ActionListener.noop()
             );
+
+            for (int i = 0; i < queuedRecoveryCount; i++) {
+                service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(shard), task, shard, ActionListener.noop());
+            }
+
+            assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
+            assertEquals(queuedRecoveryCount, service.ongoingRecoveries.queuedRecoveryCount());
+
+            // Close queued shard so recoveries fail synchronously in recoverToTarget
+            closeShards(shard);
+
+            // Trigger cascading failures
+            service.ongoingRecoveries.onRecoveryComplete(runningShard, handler);
+
+            safeAwait(recoveriesCompleted);
+            assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+            closeShards(runningShard);
         }
-
-        assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
-        assertEquals(queuedRecoveryCount, service.ongoingRecoveries.queuedRecoveryCount());
-
-        // Close queued shard so recoveries fail synchronously in recoverToTarget
-        closeShards(queuedShard);
-
-        // Trigger cascading failures
-        service.ongoingRecoveries.onRecoveryComplete(runningShard, handler);
-
-        assertBusy(() -> assertEquals(0, service.ongoingRecoveries.activeRecoveryCount()));
-        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
     }
 
     private PeerRecoverySourceService newPeerRecoverySourceService() {
@@ -981,7 +995,28 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     }
 
     private PeerRecoverySourceService newPeerRecoverySourceService(int limit) {
-        return newPeerRecoverySourceService(limit, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        return newPeerRecoverySourceService(
+            limit,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+            MockUtils.setupTransportServiceWithThreadpoolExecutor()
+        );
+    }
+
+    private PeerRecoverySourceService newPeerRecoverySourceService(
+        int limit,
+        CompositeRecoverySchedulingListener schedulingListeners,
+        TransportService transportService
+    ) {
+        final var settings = Settings.builder()
+            .put(NodeRoles.dataNode())
+            .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
+            .build();
+        return newPeerRecoverySourceService(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            schedulingListeners,
+            transportService
+        );
     }
 
     private Tuple<PeerRecoverySourceService, ClusterSettings> newPeerRecoverySourceServiceWithDynamicLimit(int limit) {
@@ -999,10 +1034,22 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
             .build();
         final var clusterSettings = new ClusterSettings(settings, registeredSettings);
-        return Tuple.tuple(newPeerRecoverySourceService(settings, clusterSettings, schedulingListeners), clusterSettings);
+        return Tuple.tuple(
+            newPeerRecoverySourceService(
+                settings,
+                clusterSettings,
+                schedulingListeners,
+                MockUtils.setupTransportServiceWithThreadpoolExecutor()
+            ),
+            clusterSettings
+        );
     }
 
-    private PeerRecoverySourceService newPeerRecoverySourceService(int limit, Set<Setting<?>> registeredSettings) {
+    private PeerRecoverySourceService newPeerRecoverySourceService(
+        int limit,
+        Set<Setting<?>> registeredSettings,
+        TransportService transportService
+    ) {
         final var settings = Settings.builder()
             .put(NodeRoles.dataNode())
             .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
@@ -1010,21 +1057,22 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         return newPeerRecoverySourceService(
             settings,
             new ClusterSettings(settings, registeredSettings),
-            new CompositeRecoverySchedulingListener()
+            new CompositeRecoverySchedulingListener(),
+            transportService
         );
     }
 
     private PeerRecoverySourceService newPeerRecoverySourceService(
         Settings settings,
         ClusterSettings clusterSettings,
-        CompositeRecoverySchedulingListener schedulingListeners
+        CompositeRecoverySchedulingListener schedulingListeners,
+        TransportService transportService
     ) {
         final var indicesService = mock(IndicesService.class);
         final var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(indicesService.clusterService()).thenReturn(clusterService);
-        final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         return new PeerRecoverySourceService(
             transportService,
             indicesService,

@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -37,10 +38,14 @@ import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.MappedFieldType;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.List;
 import java.util.Locale;
 
@@ -50,6 +55,8 @@ import static org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat.NU
 import static org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL;
 
 public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTests {
+
+    private static final Logger logger = LogManager.getLogger(ES95TSDBDocValuesFormatTests.class);
 
     private final Codec codec = new Elasticsearch93Lucene104Codec() {
 
@@ -834,7 +841,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             } else {
                 blockSize = defaultBlockSize;
             }
-            return new FieldContext(blockSize, fieldName, null, null);
+            return new FieldContext(blockSize, fieldName, null, null, null, false);
         };
         return new ES95TSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
@@ -860,6 +867,131 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     private static final String CUSTOM_BS_SORTED_FIELD = "custom_bs_sorted";
     private static final String DEFAULT_BS_SORTED_FIELD = "default_bs_sorted";
     private static final String DEMOTED_BS_SORTED_FIELD = "demoted_bs_sorted";
+
+    /**
+     * Compares on-disk doc-values storage for a repeating sequence of real-world IPs under
+     * ES819 (ordinal block size 512) versus the ES95 IP dimension routing (block size 1024).
+     *
+     * <p>The IP sequence is a fixed mix of IPv4 and IPv6 addresses that cycles with period 12.
+     * Both block sizes satisfy {@code cycleLength <= maxCycleLength} (12 &lt;= 128 for 512,
+     * 12 &lt;= 256 for 1024), so both codecs encode each block as a single cycle header plus
+     * 12 ordinal values. With {@code numDocs=65536}, ES819 needs 128 blocks and ES95 needs 64,
+     * so ES95 saves 64 blocks' worth of metadata overhead.
+     */
+    public void testIpDimensionRealIpSequenceStorageComparison() throws IOException {
+        final String[] ipStrings = {
+            "19.91.28.118",
+            "36.133.89.196",
+            "81.20.243.145",
+            "153.128.232.73",
+            "180.255.13.202",
+            "211.56.102.171",
+            "4a41:bd7b:f3b8:d570:976d:2d87:9a39:6069",
+            "7566:2659:f32a:7052:bc15:fe24:7440:1d74",
+            "7ad8:54a9:4dc1:682f:61f6:16f6:e7f6:3bda",
+            "80cf:68bd:ea74:b16:9e2b:f871:17ba:3f3e",
+            "b21f:6144:6d7:2ef4:651:7415:98a6:3b30",
+            "bf04:8864:8513:5322:7509:6b3:d779:35b7" };
+
+        // Encode IPs to 16-byte IPv6 BytesRefs as IpFieldMapper does via InetAddressPoint.
+        final BytesRef[] ipValues = new BytesRef[ipStrings.length];
+        for (int i = 0; i < ipStrings.length; i++) {
+            ipValues[i] = new BytesRef(InetAddressPoint.encode(InetAddress.getByName(ipStrings[i])));
+        }
+
+        final int numDocs = 65536;
+        final int cyclePeriod = ipValues.length;
+        final String fieldName = "client.ip";
+
+        // ES819 with block size 512 (NUMERIC_LARGE_BLOCK_SHIFT=9): 2 blocks of 512.
+        long es819Size;
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(new ES819TSDBDocValuesFormat(NUMERIC_LARGE_BLOCK_SHIFT)))) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    doc.add(new SortedDocValuesField(fieldName, ipValues[i % cyclePeriod]));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            es819Size = docValuesSize(dir);
+        }
+
+        // ES95 with IP dimension routing to block size 1024: 1 block of 1024.
+        long es95Size;
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(buildIpDimensionFormat(fieldName)))) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    doc.add(new SortedDocValuesField(fieldName, ipValues[i % cyclePeriod]));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            es95Size = docValuesSize(dir);
+        }
+
+        logger.info(
+            "IP sequence (period={}) over {} docs: ES819 block=512: {} bytes, ES95 block=1024: {} bytes (ratio={})",
+            cyclePeriod,
+            numDocs,
+            es819Size,
+            es95Size,
+            String.format(Locale.ROOT, "%.2f", (double) es819Size / es95Size)
+        );
+
+        assertTrue(
+            "ES95 (block 1024) size "
+                + es95Size
+                + " should be smaller than ES819 (block 512) size "
+                + es819Size
+                + " for a repeating IP cycle of period "
+                + cyclePeriod,
+            es95Size < es819Size
+        );
+    }
+
+    /**
+     * Builds an ES95 format whose {@link FieldContextResolver} marks {@code ipFieldName} as an
+     * IP dimension, routing it to the 1024-value ordinal block size via
+     * {@link org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver}.
+     */
+    private static DocValuesFormat buildIpDimensionFormat(final String ipFieldName) {
+        final FieldContextResolver ipDimensionResolver = (fieldName, defaultBlockSize) -> {
+            if (ipFieldName.equals(fieldName)) {
+                return new FieldContext(defaultBlockSize, fieldName, null, null, MappedFieldType.IP, true);
+            }
+            return new FieldContext(defaultBlockSize, fieldName, null, null, null, false);
+        };
+        return new ES95TSDBDocValuesFormat(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            true,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            NUMERIC_BLOCK_SHIFT,
+            false,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+            NumericCodecFactory.DEFAULT,
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            ipDimensionResolver
+        );
+    }
+
+    /**
+     * Returns the total byte size of doc-values files ({@code .dvd} and {@code .dvm}) in the
+     * directory — the on-disk footprint of encoded doc values for a single-segment index.
+     */
+    private static long docValuesSize(final Directory dir) throws IOException {
+        long total = 0;
+        for (final String file : dir.listAll()) {
+            if (file.endsWith(".dvd") || file.endsWith(".dvm")) {
+                total += dir.fileLength(file);
+            }
+        }
+        return total;
+    }
 
     private static IndexWriterConfig writerConfig(final DocValuesFormat format) {
         final IndexWriterConfig config = new IndexWriterConfig();

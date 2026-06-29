@@ -117,6 +117,11 @@ public class StatelessMergeAbortIT extends AbstractStatelessPluginIntegTestCase 
         }
         assertNoFailures(indicesAdmin().prepareFlush(indexName).execute().get());
 
+        indexDirectory.setMergeReadCallback(() -> {
+            plugin.mergeReadStartedLatch.countDown();
+            safeAwait(plugin.resumeMergeReadsLatch);
+        });
+
         var mergeThread = new Thread(() -> {
             try {
                 indexShard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));

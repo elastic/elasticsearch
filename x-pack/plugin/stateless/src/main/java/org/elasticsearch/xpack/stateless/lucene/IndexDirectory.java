@@ -110,6 +110,7 @@ public class IndexDirectory extends ByteSizeDirectory {
     private final AtomicLong estimatedSize = new AtomicLong();
 
     private final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+    private volatile Runnable mergeReadCallback;
 
     private final SetOnce<String> recoveryCommitMetadataNodeEphemeralId = new SetOnce<>();
     private final SetOnce<Long> recoveryCommitTranslogRecoveryStartFile = new SetOnce<>();
@@ -497,9 +498,20 @@ public class IndexDirectory extends ByteSizeDirectory {
     }
 
     private void checkMergeReadAborted(IOContext context) throws IOException {
-        if (shouldAbortMergeReads() && context.context() == IOContext.Context.MERGE) {
-            throw new MergePolicy.MergeAbortedException("shard is closing");
+        if (context.context() == IOContext.Context.MERGE) {
+            Runnable callback = mergeReadCallback;
+            if (callback != null) {
+                callback.run();
+            }
+            if (shouldAbortMergeReads()) {
+                throw new MergePolicy.MergeAbortedException("shard is closing");
+            }
         }
+    }
+
+    /** Package-private for tests only — fires {@code callback} at the start of every merge read. */
+    void setMergeReadCallback(Runnable callback) {
+        this.mergeReadCallback = callback;
     }
 
     /**

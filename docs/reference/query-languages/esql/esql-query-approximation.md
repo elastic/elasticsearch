@@ -1,7 +1,7 @@
 ---
 applies_to:
-   stack: preview 9.4+
-   serverless: preview
+   stack: preview 9.4, ga 9.5+
+   serverless: ga
 navigation_title: "Approximate STATS queries"
 mapped_pages:
  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-query-approximation.html
@@ -125,7 +125,7 @@ Some of these (such as `MIN` and `MAX`) are intrinsically difficult to estimate 
 The following query patterns are not currently supported for approximation and fall back to exact execution:
 
 ::::{applies-switch}
-:::{applies-item} { "stack": "preview 9.5", "serverless": "preview" }
+:::{applies-item} { "stack": "ga 9.5+", "serverless": "ga" }
 - Queries using the `TS` and `PROMQL` source command
 - Pipelines containing two or more `STATS` commands
 :::

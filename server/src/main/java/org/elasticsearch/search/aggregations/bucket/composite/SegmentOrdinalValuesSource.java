@@ -64,6 +64,10 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     // Only prune when the competitive ordinal range is narrow enough to enumerate into a postings disjunction.
     static final int MAX_TERMS_FOR_DYNAMIC_PRUNING = 128;
 
+    // ...and only when the field has at least this many distinct values per competitive term. Otherwise most values stay
+    // competitive, so the disjunction covers most documents and pruning is pure overhead rather than a saving.
+    static final int MIN_DISTINCT_VALUES_PER_COMPETITIVE_TERM = 2;
+
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
     private final LongConsumer breakerConsumer;
     private LongArray values;                            // per-slot encoded ordinal in the current segment
@@ -490,6 +494,13 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             }
             if (maxOrd - minOrd + 1 > MAX_TERMS_FOR_DYNAMIC_PRUNING) {
                 disjunction = null; // too wide to enumerate; fall back to a full pass
+                return;
+            }
+            if ((maxOrd - minOrd + 1) * MIN_DISTINCT_VALUES_PER_COMPETITIVE_TERM >= lookup.getValueCount()) {
+                // The competitive range covers most of the segment's distinct values, so the disjunction would span most
+                // documents and skip too little to be worth its overhead. Pruning only pays off when the field's
+                // cardinality dwarfs the competitive range.
+                disjunction = null;
                 return;
             }
             if (disjunction != null && minOrd == disjunctionMinOrd && maxOrd == disjunctionMaxOrd) {

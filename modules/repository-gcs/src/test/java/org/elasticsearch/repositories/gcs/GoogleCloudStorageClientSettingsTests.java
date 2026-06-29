@@ -209,21 +209,21 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
     }
 
     public void testResumableWriteBufferSizeSetting() {
-        final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final String clientName = randomIdentifier("client");
         final Setting<ByteSizeValue> concreteSetting = RESUMABLE_WRITE_BUFFER_SIZE_SETTING.getConcreteSettingForNamespace(clientName);
 
-        // default: not configured → OptionalInt.empty()
+        // default: not configured is empty
         assertFalse(concreteSetting.exists(Settings.EMPTY));
         assertTrue(getClientSettings(Settings.EMPTY, clientName).getResumableWriteBufferSize().isEmpty());
 
-        // when explicitly set: value is loaded correctly
+        // explicitly configuration is respected
         final int sizeMb = randomIntBetween(1, 100);
         final Settings withBuffer = Settings.builder().put(concreteSetting.getKey(), sizeMb + "mb").build();
         final OptionalInt loaded = getClientSettings(withBuffer, clientName).getResumableWriteBufferSize();
         assertFalse(loaded.isEmpty());
         assertEquals(ByteSizeValue.ofMb(sizeMb).getBytes(), loaded.getAsInt());
 
-        // below min (256 KiB) — validation happens on setting.get(), not Settings.builder()
+        // below min (256 KiB)
         final IllegalArgumentException belowMin = expectThrows(
             IllegalArgumentException.class,
             () -> concreteSetting.get(
@@ -233,7 +233,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         assertThat(belowMin.getMessage(), containsString("resumable_write_buffer_size"));
         assertThat(belowMin.getMessage(), containsString("must be >= [256kb]"));
 
-        // above max (100 MiB) — validation happens on setting.get(), not Settings.builder()
+        // above max (100 MiB)
         final IllegalArgumentException aboveMax = expectThrows(
             IllegalArgumentException.class,
             () -> concreteSetting.get(

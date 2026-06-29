@@ -5,12 +5,9 @@
 * `changes`
 * `count_values`
 * `group`
-* `histogram_avg`
-* `histogram_count`
 * `histogram_fraction`
 * `histogram_stddev`
 * `histogram_stdvar`
-* `histogram_sum`
 * `holt_winters`
 * `label_join`
 * `label_replace`

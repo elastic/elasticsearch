@@ -434,6 +434,13 @@ toc:
           - file: promql/functions/math.md
           - file: promql/functions/date-time.md
           - file: promql/functions/conversion.md
+      - file: promql/operators.md
+        children:
+          - file: promql/operators/arithmetic.md
+          - file: promql/operators/comparison.md
+          - file: promql/operators/logical-set.md
+          - file: promql/operators/unary.md
+          - file: promql/operators/label-matching.md
       - file: promql/promql-limitations.md
   - file: sql.md
     children:

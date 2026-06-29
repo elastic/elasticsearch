@@ -34,166 +34,11 @@ import java.util.stream.Collectors;
  */
 public final class PromqlDocsSupport {
 
-    static final List<OperatorDefinition> OPERATOR_DEFS = List.of(
-        // Arithmetic binary operators
-        new OperatorDefinition(
-            "add",
-            "+",
-            OperatorKind.BINARY,
-            "Adds the two operands element-wise. For vector–vector operations, the metric name is dropped.",
-            "requests_total + requests_errors"
-        ),
-        new OperatorDefinition(
-            "sub",
-            "-",
-            OperatorKind.BINARY,
-            "Subtracts the right operand from the left operand element-wise. For vector–vector operations, the metric name is dropped.",
-            "requests_total - requests_errors"
-        ),
-        new OperatorDefinition(
-            "mul",
-            "*",
-            OperatorKind.BINARY,
-            "Multiplies the two operands element-wise. For vector–vector operations, the metric name is dropped.",
-            "100 * rate(requests_total[5m])"
-        ),
-        new OperatorDefinition(
-            "div",
-            "/",
-            OperatorKind.BINARY,
-            "Divides the left operand by the right operand element-wise. For vector–vector operations, the metric name is dropped.",
-            "requests_errors / requests_total"
-        ),
-        new OperatorDefinition(
-            "mod",
-            "%",
-            OperatorKind.BINARY,
-            "Returns the remainder of dividing the left operand by the right operand element-wise. "
-                + "For vector\u2013vector operations, the metric name is dropped.",
-            "metric % 10"
-        ),
-        new OperatorDefinition(
-            "pow",
-            "^",
-            OperatorKind.BINARY,
-            "Raises the left operand to the power of the right operand element-wise. "
-                + "For vector\u2013vector operations, the metric name is dropped.",
-            "metric ^ 2"
-        ),
-
-        // Comparison binary operators
-        new OperatorDefinition(
-            "eq",
-            "==",
-            OperatorKind.BINARY,
-            "Compares elements for equality. By default, acts as a filter. With the bool modifier, returns 0 or 1.",
-            "requests_total == 256"
-        ),
-        new OperatorDefinition(
-            "neq",
-            "!=",
-            OperatorKind.BINARY,
-            "Compares elements for inequality. By default, acts as a filter. With the bool modifier, returns 0 or 1.",
-            "requests_error != 0"
-        ),
-        new OperatorDefinition(
-            "gt",
-            ">",
-            OperatorKind.BINARY,
-            "Compares elements where the left operand is greater than the right. "
-                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
-            "requests_total > 256"
-        ),
-        new OperatorDefinition(
-            "gte",
-            ">=",
-            OperatorKind.BINARY,
-            "Compares elements where the left operand is greater than or equal to the right. "
-                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
-            "requests_total >= 256"
-        ),
-        new OperatorDefinition(
-            "lt",
-            "<",
-            OperatorKind.BINARY,
-            "Compares elements where the left operand is less than the right. "
-                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
-            "requests_total < 256"
-        ),
-        new OperatorDefinition(
-            "lte",
-            "<=",
-            OperatorKind.BINARY,
-            "Compares elements where the left operand is less than or equal to the right. "
-                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
-            "requests_total <= 256"
-        ),
-
-        // Set binary operators
-        new OperatorDefinition(
-            "and",
-            "and",
-            OperatorKind.SET_BINARY,
-            "Returns elements from the left vector that have matching label sets in the right vector. "
-                + "Values and metric name come from the left-hand side.",
-            "vector1 and vector2"
-        ),
-        new OperatorDefinition(
-            "or",
-            "or",
-            OperatorKind.SET_BINARY,
-            "Returns all elements from the left vector plus elements from the right vector that have no matching label sets in the left.",
-            "vector1 or vector2"
-        ),
-        new OperatorDefinition(
-            "unless",
-            "unless",
-            OperatorKind.SET_BINARY,
-            "Returns elements from the left vector that have no matching label sets in the right vector.",
-            "vector1 unless vector2"
-        ),
-
-        // Unary operator
-        new OperatorDefinition(
-            "neg",
-            "-",
-            OperatorKind.UNARY,
-            "Negates the instant vector or scalar by inverting the sign of each sample value.",
-            "-requests_total"
-        ),
-
-        // Label matching operators
-        new OperatorDefinition(
-            "label_eq",
-            "=",
-            OperatorKind.LABEL_MATCHING,
-            "Matches labels exactly equal to the provided string.",
-            "requests_total{method=\"GET\"}"
-        ),
-        new OperatorDefinition(
-            "label_neq",
-            "!=",
-            OperatorKind.LABEL_MATCHING,
-            "Matches labels not equal to the provided string.",
-            "requests_total{method!=\"DELETE\"}"
-        ),
-        new OperatorDefinition(
-            "label_re",
-            "=~",
-            OperatorKind.LABEL_MATCHING,
-            "Matches labels whose value satisfies the provided regular expression.",
-            "requests_total{method=~\"GET|POST\"}"
-        ),
-        new OperatorDefinition(
-            "label_nre",
-            "!~",
-            OperatorKind.LABEL_MATCHING,
-            "Matches labels whose value does not satisfy the provided regular expression.",
-            "requests_total{method!~\"DELETE|PUT\"}"
-        )
-    );
     private static final Logger logger = LogManager.getLogger(PromqlDocsSupport.class);
     private static final String SPEC_SITE = "https://prometheus.io/docs/prometheus/latest/querying";
+    private static final String COMMENT_HEADER = "PromQL function definition for Kibana";
+    private static final String COMMENT_FUNCTION = COMMENT_HEADER + ". See " + SPEC_SITE + "/functions/";
+    private static final String COMMENT_OPERATOR = COMMENT_HEADER + ". See " + SPEC_SITE + "/operators/";
 
     /**
      * Docs-root path of the PromQL reference pages. Cross-page links are built as absolute paths from this root,
@@ -201,9 +46,6 @@ public final class PromqlDocsSupport {
      * where the including snippet lives.
      */
     private static final String DOCS_ROOT = "/reference/query-languages/promql";
-    private static final String COMMENT_HEADER = "PromQL function definition for Kibana";
-    private static final String COMMENT_FUNCTION = COMMENT_HEADER + ". See " + SPEC_SITE + "/functions/";
-    private static final String COMMENT_OPERATOR = COMMENT_HEADER + ". See " + SPEC_SITE + "/operators/";
 
     /**
      * First line of every generated markdown snippet, matching the ES|QL generated-snippet convention so the files are
@@ -212,6 +54,269 @@ public final class PromqlDocsSupport {
     private static final String MD_WARNING = "% This is generated by ESQL's PromqlKibanaDefinitionGeneratorTests. "
         + "Do not edit it. See docs/reference/query-languages/esql/README.md for how to regenerate it.";
 
+    /** Docs link to the unsupported-constructs section of the limitations page, reused by operator caveats. */
+    private static final String UNSUPPORTED_CONSTRUCTS_LINK = "[Unsupported PromQL constructs]("
+        + DOCS_ROOT
+        + "/promql-limitations.md#promql-limitations-unsupported-constructs)";
+
+    private static final String OR_CAVEAT = "{{es}} evaluates `or` only at the top level of an expression, and a "
+        + "top-level `or` chain supports at most 8 operands. A nested `or`, or a chain of more than 8 operands, "
+        + "returns a client error (4xx). See "
+        + UNSUPPORTED_CONSTRUCTS_LINK
+        + ".";
+
+    static final List<OperatorDefinition> OPERATOR_DEFS = List.of(
+        // Arithmetic binary operators
+        new OperatorDefinition(
+            "add",
+            "+",
+            OperatorKind.BINARY,
+            OperatorDocCategory.ARITHMETIC,
+            "Adds the two operands element-wise. For vector–vector operations, the metric name is dropped.",
+            "requests_total + requests_errors",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "sub",
+            "-",
+            OperatorKind.BINARY,
+            OperatorDocCategory.ARITHMETIC,
+            "Subtracts the right operand from the left operand element-wise. For vector–vector operations, the metric name is dropped.",
+            "requests_total - requests_errors",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "mul",
+            "*",
+            OperatorKind.BINARY,
+            OperatorDocCategory.ARITHMETIC,
+            "Multiplies the two operands element-wise. For vector–vector operations, the metric name is dropped.",
+            "100 * rate(requests_total[5m])",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "div",
+            "/",
+            OperatorKind.BINARY,
+            OperatorDocCategory.ARITHMETIC,
+            "Divides the left operand by the right operand element-wise. For vector–vector operations, the metric name is dropped.",
+            "requests_errors / requests_total",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "mod",
+            "%",
+            OperatorKind.BINARY,
+            OperatorDocCategory.ARITHMETIC,
+            "Returns the remainder of dividing the left operand by the right operand element-wise. "
+                + "For vector\u2013vector operations, the metric name is dropped.",
+            "metric % 10",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "pow",
+            "^",
+            OperatorKind.BINARY,
+            OperatorDocCategory.ARITHMETIC,
+            "Raises the left operand to the power of the right operand element-wise. "
+                + "For vector\u2013vector operations, the metric name is dropped.",
+            "metric ^ 2",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+
+        // Comparison binary operators
+        new OperatorDefinition(
+            "eq",
+            "==",
+            OperatorKind.BINARY,
+            OperatorDocCategory.COMPARISON,
+            "Compares elements for equality. By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+            "requests_total == 256",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "neq",
+            "!=",
+            OperatorKind.BINARY,
+            OperatorDocCategory.COMPARISON,
+            "Compares elements for inequality. By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+            "requests_error != 0",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "gt",
+            ">",
+            OperatorKind.BINARY,
+            OperatorDocCategory.COMPARISON,
+            "Compares elements where the left operand is greater than the right. "
+                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+            "requests_total > 256",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "gte",
+            ">=",
+            OperatorKind.BINARY,
+            OperatorDocCategory.COMPARISON,
+            "Compares elements where the left operand is greater than or equal to the right. "
+                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+            "requests_total >= 256",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "lt",
+            "<",
+            OperatorKind.BINARY,
+            OperatorDocCategory.COMPARISON,
+            "Compares elements where the left operand is less than the right. "
+                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+            "requests_total < 256",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "lte",
+            "<=",
+            OperatorKind.BINARY,
+            OperatorDocCategory.COMPARISON,
+            "Compares elements where the left operand is less than or equal to the right. "
+                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+            "requests_total <= 256",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+
+        // Set binary operators. Only `or` is evaluated; `and` and `unless` parse but are rejected at evaluation, so
+        // they keep their pre-existing Kibana definition (evaluated == false) and appear under "Not yet supported".
+        new OperatorDefinition(
+            "and",
+            "and",
+            OperatorKind.SET_BINARY,
+            OperatorDocCategory.LOGICAL_SET,
+            "Returns elements from the left vector that have matching label sets in the right vector. "
+                + "Values and metric name come from the left-hand side.",
+            "vector1 and vector2",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5,
+            false
+        ),
+        new OperatorDefinition(
+            "or",
+            "or",
+            OperatorKind.SET_BINARY,
+            OperatorDocCategory.LOGICAL_SET,
+            "Returns all elements from the left vector plus elements from the right vector that have no matching label sets in the left.",
+            "vector1 or vector2",
+            null,
+            OR_CAVEAT,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "unless",
+            "unless",
+            OperatorKind.SET_BINARY,
+            OperatorDocCategory.LOGICAL_SET,
+            "Returns elements from the left vector that have no matching label sets in the right vector.",
+            "vector1 unless vector2",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5,
+            false
+        ),
+
+        // Unary operator
+        new OperatorDefinition(
+            "neg",
+            "-",
+            OperatorKind.UNARY,
+            OperatorDocCategory.UNARY,
+            "Negates the instant vector or scalar by inverting the sign of each sample value.",
+            "-requests_total",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+
+        // Label matching operators
+        new OperatorDefinition(
+            "label_eq",
+            "=",
+            OperatorKind.LABEL_MATCHING,
+            OperatorDocCategory.LABEL_MATCHING,
+            "Matches labels exactly equal to the provided string.",
+            "requests_total{method=\"GET\"}",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "label_neq",
+            "!=",
+            OperatorKind.LABEL_MATCHING,
+            OperatorDocCategory.LABEL_MATCHING,
+            "Matches labels not equal to the provided string.",
+            "requests_total{method!=\"DELETE\"}",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "label_re",
+            "=~",
+            OperatorKind.LABEL_MATCHING,
+            OperatorDocCategory.LABEL_MATCHING,
+            "Matches labels whose value satisfies the provided regular expression.",
+            "requests_total{method=~\"GET|POST\"}",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        ),
+        new OperatorDefinition(
+            "label_nre",
+            "!~",
+            OperatorKind.LABEL_MATCHING,
+            OperatorDocCategory.LABEL_MATCHING,
+            "Matches labels whose value does not satisfy the provided regular expression.",
+            "requests_total{method!~\"DELETE|PUT\"}",
+            null,
+            null,
+            PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5
+        )
+    );
+
+    /**
+     * Prometheus operators that have no corresponding PromQL operator in {{es}} at all, listed on the operators hub as
+     * "not yet supported": the trigonometric binary operator {@code atan2} and the native-histogram trim operators
+     * {@code </} and {@code >/}. Operators that {{es}} parses but does not evaluate (such as {@code and} and
+     * {@code unless}) are not listed here; they are declared in {@link #OPERATOR_DEFS} with {@code evaluated == false}
+     * and folded into the not-supported list by {@link #genOperatorsNotSupported}. Hand-maintained because operators
+     * have no runtime registry to read from; a {@link TreeSet} keeps output deterministic.
+     */
+    private static final SortedSet<String> NOT_IMPLEMENTED_OPERATORS = new TreeSet<>(List.of("</", ">/", "atan2"));
+
     private PromqlDocsSupport() {}
 
     public static void entrypoint(DocsV3Support.Callbacks callbacks) throws Exception {
@@ -219,21 +324,35 @@ public final class PromqlDocsSupport {
         Map<FunctionDocCategory, SortedSet<String>> byCategory = new EnumMap<>(FunctionDocCategory.class);
         Map<String, PromqlFunctionDefinition> byName = new HashMap<>();
         for (var def : functions) {
-            genFunctionDocs(def, callbacks);
+            genFunctionKibanaDefinition(def, callbacks);
             genFunctionMarkdown(def, callbacks);
             genBriefSummary(def, callbacks);
             byCategory.computeIfAbsent(categoryOf(def), k -> new TreeSet<>()).add(def.name());
             byName.put(def.name(), def);
         }
-        for (var opDef : OPERATOR_DEFS) {
-            genOperatorDocs(opDef, callbacks);
-        }
         genCategoryLists(functions.size(), byCategory, callbacks);
         genFunctionOverviewLists(byCategory, byName, callbacks);
         genNotSupported(callbacks);
+
+        Map<OperatorDocCategory, SortedSet<String>> opByCategory = new EnumMap<>(OperatorDocCategory.class);
+        Map<String, OperatorDefinition> opByName = new HashMap<>();
+        for (var opDef : OPERATOR_DEFS) {
+            // Every operator, including ones {{es}} does not evaluate yet, keeps its pre-existing Kibana definition.
+            genOperatorKibanaDefinition(opDef, callbacks);
+            // Only evaluated operators get human-readable docs; the rest are folded into "Not yet supported" below.
+            if (opDef.evaluated()) {
+                genOperatorMarkdown(opDef, callbacks);
+                genOperatorBriefSummary(opDef, callbacks);
+                opByCategory.computeIfAbsent(opDef.category(), k -> new TreeSet<>()).add(opDef.name());
+                opByName.put(opDef.name(), opDef);
+            }
+        }
+        genOperatorCategoryLists(opByCategory, callbacks);
+        genOperatorOverviewLists(opByCategory, opByName, callbacks);
+        genOperatorsNotSupported(callbacks);
     }
 
-    private static void genFunctionDocs(PromqlFunctionDefinition def, DocsV3Support.Callbacks callbacks) throws Exception {
+    private static void genFunctionKibanaDefinition(PromqlFunctionDefinition def, DocsV3Support.Callbacks callbacks) throws Exception {
         List<ParamDef> params = def.params()
             .stream()
             .map(p -> new ParamDef(p.name(), mapDataType(p.type()), p.optional(), p.description()))
@@ -241,7 +360,7 @@ public final class PromqlDocsSupport {
 
         List<SignatureDef> signatures = List.of(new SignatureDef(params, false, mapDataType(def.functionType().outputType())));
 
-        genDocs(
+        genKibanaDefinition(
             "definition/functions",
             COMMENT_FUNCTION,
             mapFunctionType(def.functionType()),
@@ -312,8 +431,29 @@ public final class PromqlDocsSupport {
                     + "] is registered but declares no stack availability for docs; add a stack(...) entry to its PROMQL_DEFINITION"
             );
         }
-        String stack = def.stack().stream().map(PromqlFunctionDefinition.StackAvailability::appliesTo).collect(Collectors.joining(", "));
-        return "{applies_to}`stack: " + stack + "`";
+        return stackBadge(def.stack());
+    }
+
+    /**
+     * Builds the per-operator {@code applies_to} badge from the operator's declared stack availability, mirroring
+     * {@link #appliesToBadge(PromqlFunctionDefinition)}. Fails fast if an operator declares no availability.
+     */
+    private static String operatorAppliesToBadge(OperatorDefinition opDef) {
+        if (opDef.stack().isEmpty()) {
+            throw new IllegalStateException(
+                "PromQL operator ["
+                    + opDef.name()
+                    + "] declares no stack availability for docs; add a stack entry to its OPERATOR_DEFS entry"
+            );
+        }
+        return stackBadge(opDef.stack());
+    }
+
+    /** Renders a {@code stack:} {@code applies_to} badge from a list of stack-availability entries. */
+    private static String stackBadge(List<PromqlFunctionDefinition.StackAvailability> stack) {
+        return "{applies_to}`stack: "
+            + stack.stream().map(PromqlFunctionDefinition.StackAvailability::appliesTo).collect(Collectors.joining(", "))
+            + "`";
     }
 
     /**
@@ -470,8 +610,8 @@ public final class PromqlDocsSupport {
         };
     }
 
-    private static void genOperatorDocs(OperatorDefinition opDef, DocsV3Support.Callbacks callbacks) throws Exception {
-        genDocs(
+    private static void genOperatorKibanaDefinition(OperatorDefinition opDef, DocsV3Support.Callbacks callbacks) throws Exception {
+        genKibanaDefinition(
             "definition/operators",
             COMMENT_OPERATOR,
             opDef.kind().typeName,
@@ -484,7 +624,154 @@ public final class PromqlDocsSupport {
         );
     }
 
-    private static void genDocs(
+    /**
+     * Renders the self-contained markdown reference snippet for a single operator, mirroring {@link
+     * #genFunctionMarkdown}. The file is byte-for-byte asserted in CI and is the source of truth for the committed
+     * snippet under {@code docs/.../promql/_snippets/generated/x-pack-esql/operators/<name>.md}.
+     */
+    private static void genOperatorMarkdown(OperatorDefinition opDef, DocsV3Support.Callbacks callbacks) throws Exception {
+        List<String> blocks = new ArrayList<>();
+        blocks.add(MD_WARNING);
+        blocks.add("## " + operatorDisplay(opDef) + " [" + operatorAnchor(opDef.name()) + "]");
+        blocks.add(operatorAppliesToBadge(opDef));
+        blocks.add(include("brief-summary/" + opDef.name() + ".md"));
+        if (opDef.extendedDescription() != null) {
+            blocks.add(opDef.extendedDescription());
+        }
+        blocks.add(opDef.kind().operandsBlock());
+        // docs-builder has no `promql` highlighter (see elastic/docs-builder hljs.ts), so a bare fence avoids
+        // "Unknown language" warnings. These examples are bare PromQL expressions, not ES|QL.
+        blocks.add("**Example**\n\n```\n" + opDef.example() + "\n```");
+        if (opDef.differenceFromPrometheus() != null) {
+            blocks.add("**Differences from Prometheus**\n\n" + opDef.differenceFromPrometheus());
+        }
+        String rendered = String.join("\n\n", blocks) + "\n";
+        callbacks.write(snippetsOperatorsDir(), opDef.name(), "md", rendered, false);
+    }
+
+    /**
+     * Emits the generated one-line brief-summary snippet for a single operator, mirroring {@link #genBriefSummary}. It
+     * is included both by the operator's own page snippet and by the per-category overview lists, so the description is
+     * never duplicated across generated files.
+     */
+    private static void genOperatorBriefSummary(OperatorDefinition opDef, DocsV3Support.Callbacks callbacks) throws Exception {
+        String summary = opDef.description().replaceAll("\\s+", " ").strip();
+        String rendered = MD_WARNING + "\n\n" + summary + "\n";
+        callbacks.write(snippetsOperatorsDir().resolve("brief-summary"), opDef.name(), "md", rendered, false);
+    }
+
+    /**
+     * Emits one generated list snippet per operator documentation category, mirroring {@link #genCategoryLists}. Each
+     * snippet includes its operators' snippets in alphabetical order; the category page includes only the matching
+     * list snippet. Fails fast if categorization does not cover every operator exactly once.
+     */
+    private static void genOperatorCategoryLists(Map<OperatorDocCategory, SortedSet<String>> byCategory, DocsV3Support.Callbacks callbacks)
+        throws Exception {
+        long expected = OPERATOR_DEFS.stream().filter(OperatorDefinition::evaluated).count();
+        int categorized = byCategory.values().stream().mapToInt(SortedSet::size).sum();
+        if (categorized != expected) {
+            throw new IllegalStateException(
+                "PromQL operator docs categorization mismatch: " + categorized + " categorized vs " + expected + " evaluated operators"
+            );
+        }
+        Path dir = snippetsOperatorsDir().resolve("lists");
+        for (OperatorDocCategory category : OperatorDocCategory.values()) {
+            SortedSet<String> names = byCategory.getOrDefault(category, new TreeSet<>());
+            List<String> blocks = new ArrayList<>();
+            blocks.add(MD_WARNING);
+            for (String name : names) {
+                blocks.add(include("../" + name + ".md"));
+            }
+            callbacks.write(dir, category.slug, "md", String.join("\n\n", blocks) + "\n", false);
+        }
+    }
+
+    /**
+     * Emits one generated overview-list snippet per operator documentation category, mirroring {@link
+     * #genFunctionOverviewLists}. Each entry links to the operator's section on its category page, shows the
+     * {@code applies_to} badge on the same line, and includes the operator's brief summary on the next line.
+     */
+    private static void genOperatorOverviewLists(
+        Map<OperatorDocCategory, SortedSet<String>> byCategory,
+        Map<String, OperatorDefinition> byName,
+        DocsV3Support.Callbacks callbacks
+    ) throws Exception {
+        Path dir = snippetsOperatorsDir().resolve("lists");
+        for (OperatorDocCategory category : OperatorDocCategory.values()) {
+            SortedSet<String> names = byCategory.getOrDefault(category, new TreeSet<>());
+            List<String> blocks = new ArrayList<>();
+            blocks.add(MD_WARNING);
+            StringBuilder list = new StringBuilder();
+            for (String name : names) {
+                OperatorDefinition opDef = byName.get(name);
+                list.append("* [")
+                    .append(operatorDisplay(opDef))
+                    .append("](")
+                    .append(operatorPageLink(category, name))
+                    .append(") ")
+                    .append(operatorAppliesToBadge(opDef))
+                    .append("\n  :::{include} ../brief-summary/")
+                    .append(name)
+                    .append(".md\n  :::\n");
+            }
+            if (list.isEmpty() == false) {
+                blocks.add(list.toString().stripTrailing());
+            }
+            callbacks.write(dir, category.slug + "-overview", "md", String.join("\n\n", blocks) + "\n", false);
+        }
+    }
+
+    /**
+     * Emits the generated "Not yet supported" snippet (body only, no heading) listing every operator that {{es}} does
+     * not evaluate yet: the {@link #NOT_IMPLEMENTED_OPERATORS} (which have no {{es}} representation at all) plus the
+     * {@link #OPERATOR_DEFS} entries flagged {@code evaluated == false} (which {{es}} parses but rejects). Mirrors
+     * {@link #genNotSupported}, but reads from these hand-maintained sources because operators have no runtime registry.
+     */
+    private static void genOperatorsNotSupported(DocsV3Support.Callbacks callbacks) throws Exception {
+        SortedSet<String> notSupported = new TreeSet<>(NOT_IMPLEMENTED_OPERATORS);
+        for (var opDef : OPERATOR_DEFS) {
+            if (opDef.evaluated() == false) {
+                notSupported.add(opDef.operator());
+            }
+        }
+        StringBuilder body = new StringBuilder();
+        for (String op : notSupported) {
+            body.append("* `").append(op).append("`\n");
+        }
+        String rendered = MD_WARNING + "\n\n" + body.toString().stripTrailing() + "\n";
+        callbacks.write(snippetsOperatorsDir(), "not-supported", "md", rendered, false);
+    }
+
+    private static Path snippetsOperatorsDir() {
+        return PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("promql").resolve("_snippets").resolve("operators");
+    }
+
+    /**
+     * The display label for an operator in headings and list links: the symbol in backticks, with the canonical name
+     * appended in parentheses only when it differs from the symbol (for example {@code `+` (add)} or {@code `==` (eq)},
+     * but just {@code `or`} for the set operators where the symbol is the name).
+     */
+    private static String operatorDisplay(OperatorDefinition opDef) {
+        if (opDef.name().equals(opDef.operator())) {
+            return "`" + opDef.operator() + "`";
+        }
+        return "`" + opDef.operator() + "` (" + opDef.name() + ")";
+    }
+
+    /** The stable docs anchor for an operator's section heading, for example {@code promql-op-add}. */
+    private static String operatorAnchor(String name) {
+        return "promql-op-" + name;
+    }
+
+    /**
+     * Absolute docs link to an operator's section on its category page, for example
+     * {@code /reference/query-languages/promql/operators/arithmetic.md#promql-op-add}.
+     */
+    private static String operatorPageLink(OperatorDocCategory category, String name) {
+        return DOCS_ROOT + "/operators/" + category.slug + ".md#" + operatorAnchor(name);
+    }
+
+    private static void genKibanaDefinition(
         String subdir,
         String comment,
         String type,
@@ -564,11 +851,42 @@ public final class PromqlDocsSupport {
                     binarySig(S, "Scalar.", S, "Scalar.", S)
                 );
             }
+
+            @Override
+            String operandsBlock() {
+                return "**Operands**\n\n"
+                    + "`lhs`, `rhs` (`"
+                    + V
+                    + "` or `"
+                    + S
+                    + "`)\n"
+                    + ":   The left and right operands. When one side is a scalar, the operator applies between the scalar "
+                    + "and each sample of the vector.\n\n"
+                    + "**Returns**\n\n"
+                    + "An `"
+                    + V
+                    + "`, or a `"
+                    + S
+                    + "` when both operands are scalars.";
+            }
         },
         SET_BINARY("operator") {
             @Override
             List<SignatureDef> signatures() {
                 return List.of(binarySig(V, "Instant vector.", V, "Instant vector.", V));
+            }
+
+            @Override
+            String operandsBlock() {
+                return "**Operands**\n\n"
+                    + "`lhs`, `rhs` (`"
+                    + V
+                    + "`)\n"
+                    + ":   The two instant vectors to combine by matching label sets.\n\n"
+                    + "**Returns**\n\n"
+                    + "An `"
+                    + V
+                    + "`.";
             }
         },
         UNARY("operator") {
@@ -578,6 +896,19 @@ public final class PromqlDocsSupport {
                     new SignatureDef(List.of(new ParamDef("field", V, false, "Instant vector.")), false, V),
                     new SignatureDef(List.of(new ParamDef("field", S, false, "Scalar.")), false, S)
                 );
+            }
+
+            @Override
+            String operandsBlock() {
+                return "**Operand**\n\n"
+                    + "`v` (`"
+                    + V
+                    + "` or `"
+                    + S
+                    + "`)\n"
+                    + ":   The value to negate.\n\n"
+                    + "**Returns**\n\n"
+                    + "The same type as the operand.";
             }
         },
         LABEL_MATCHING("label_matching_operator") {
@@ -593,6 +924,20 @@ public final class PromqlDocsSupport {
                         V
                     )
                 );
+            }
+
+            @Override
+            String operandsBlock() {
+                return "**Operands**\n\n"
+                    + "`label` (`string`)\n"
+                    + ":   The label name to match on, used inside a selector (`{...}`).\n\n"
+                    + "`value` (`string`)\n"
+                    + ":   The string or regular expression to compare the label value against.\n\n"
+                    + "**Returns**\n\n"
+                    + "Used inside an instant vector selector (`{...}`) to select an `"
+                    + V
+                    + "`, rather than as a "
+                    + "standalone expression.";
             }
         };
 
@@ -614,6 +959,12 @@ public final class PromqlDocsSupport {
         }
 
         abstract List<SignatureDef> signatures();
+
+        /**
+         * The human-readable "Operands"/"Returns" markdown block for the operator reference snippet, derived from the
+         * signature shape. Returns markdown without a trailing newline; the caller joins blocks with blank lines.
+         */
+        abstract String operandsBlock();
     }
 
     /**
@@ -635,9 +986,66 @@ public final class PromqlDocsSupport {
         }
     }
 
+    /**
+     * Documentation categories for grouping PromQL operators into reference pages, distinct from {@link OperatorKind}
+     * (which describes the signature shape; for example {@code BINARY} covers both arithmetic and comparison). The
+     * declaration order is the order categories appear in the docs; {@code slug} is both the list-snippet filename and
+     * the category page filename.
+     */
+    enum OperatorDocCategory {
+        ARITHMETIC("arithmetic"),
+        COMPARISON("comparison"),
+        LOGICAL_SET("logical-set"),
+        UNARY("unary"),
+        LABEL_MATCHING("label-matching");
+
+        final String slug;
+
+        OperatorDocCategory(String slug) {
+            this.slug = slug;
+        }
+    }
+
     record ParamDef(String name, String type, boolean optional, String description) {}
 
     record SignatureDef(List<ParamDef> params, boolean variadic, String returnType) {}
 
-    record OperatorDefinition(String name, String operator, OperatorKind kind, String description, String example) {}
+    /**
+     * Documentation metadata for one PromQL operator. {@code kind} drives the Kibana signature shape and the operands
+     * block; {@code category} drives the documentation page grouping. {@code extendedDescription} and
+     * {@code differenceFromPrometheus} are optional ({@code null} when absent), mirroring
+     * {@link PromqlFunctionDefinition}. {@code stack} is the per-operator availability used for the {@code applies_to}
+     * badge; unlike functions there is no operator registry, so availability is declared inline here. {@code evaluated}
+     * is {@code true} for operators {{es}} actually runs: they get a Kibana definition, a markdown snippet, and a
+     * category-list entry. When {@code false} (an operator {{es}} parses but rejects at evaluation, such as
+     * {@code and}/{@code unless}) only the pre-existing Kibana definition is generated and the operator is folded into
+     * the "Not yet supported" list instead of the category pages.
+     */
+    record OperatorDefinition(
+        String name,
+        String operator,
+        OperatorKind kind,
+        OperatorDocCategory category,
+        String description,
+        String example,
+        String extendedDescription,
+        String differenceFromPrometheus,
+        List<PromqlFunctionDefinition.StackAvailability> stack,
+        boolean evaluated
+    ) {
+        /** Convenience constructor for the common case of an operator {{es}} evaluates ({@code evaluated == true}). */
+        OperatorDefinition(
+            String name,
+            String operator,
+            OperatorKind kind,
+            OperatorDocCategory category,
+            String description,
+            String example,
+            String extendedDescription,
+            String differenceFromPrometheus,
+            List<PromqlFunctionDefinition.StackAvailability> stack
+        ) {
+            this(name, operator, kind, category, description, example, extendedDescription, differenceFromPrometheus, stack, true);
+        }
+    }
 }

@@ -105,12 +105,14 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // DateFormatter
                 List.of(attribute("k", DataType.KEYWORD)),
                 null,
                 10,
                 blockFactory,
                 ErrorPolicy.STRICT,
-                "test://growth"
+                "test://growth",
+                new NdJsonReaderCounters()
             )
         ) {
             try (Page page = decoder.decodePage()) {
@@ -170,12 +172,14 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // DateFormatter
                 List.of(attribute("i", DataType.INTEGER)),
                 null,
                 10,
                 blockFactory,
                 ErrorPolicy.STRICT,
-                "test://no-keyword"
+                "test://no-keyword",
+                new NdJsonReaderCounters()
             )
         ) {
             try (Page page = decoder.decodePage()) {
@@ -225,12 +229,14 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // DateFormatter
                 attributes,
                 null,
                 1024,
                 blockFactory,
                 ErrorPolicy.STRICT,
-                "test://decode"
+                "test://decode",
+                new NdJsonReaderCounters()
             )
         ) {
             return decoder.decodePage();

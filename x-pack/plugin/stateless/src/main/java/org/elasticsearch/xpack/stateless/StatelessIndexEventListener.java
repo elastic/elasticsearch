@@ -60,7 +60,7 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
-import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
@@ -99,7 +99,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final boolean useInternalFilesReplicatedContentForSearchShards;
     private final SnapshotsCommitService snapshotsCommitService;
     private final ClusterService clusterService;
-    private final RecoveryMetricsCollector recoveryMetricsCollector;
+    private final StatelessRecoveryMetricsCollector recoveryMetricsCollector;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -117,7 +117,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         StatelessSharedBlobCacheService cacheService,
         SnapshotsCommitService snapshotsCommitService,
         ClusterService clusterService,
-        RecoveryMetricsCollector recoveryMetricsCollector
+        StatelessRecoveryMetricsCollector recoveryMetricsCollector
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -272,15 +272,31 @@ class StatelessIndexEventListener implements IndexEventListener {
         assert indexShard.routingEntry().isPromotableToPrimary();
         final var recoveryInfoFromSource = statelessCommitService.getRecoveryInfoFromSourceEntry(indexShard.shardId());
         final var sourceBlobsInfo = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.sourceBlobsInfo();
-        final var hasRecentIdLookup = recoveryInfoFromSource == null ? false : recoveryInfoFromSource.hasRecentIdLookup();
+        final var lastCommitBlobs = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.lastCommitBlobs();
+        final var lastCommitIsHollow = recoveryInfoFromSource != null && recoveryInfoFromSource.lastCommitIsHollow();
+        final var hasRecentIdLookup = recoveryInfoFromSource != null && recoveryInfoFromSource.hasRecentIdLookup();
         final long readIndexingShardStateStartMillis = threadPool.relativeTimeInMillis();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
             if (shardContainer == null) {
                 ActionListener.completeWith(l, () -> ObjectStoreService.IndexingShardState.EMPTY);
                 return;
             }
+
+            final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
+            if (lastCommitBlobs != null && lastCommitIsHollow == false) {
+                warmingService.warmCacheForBCCHeadersRead(
+                    indexShard,
+                    directory,
+                    lastCommitBlobs,
+                    ActionListener.wrap(
+                        v -> {},
+                        e -> logger.warn("[{}] failed to pre-warm region 0 before BCC header reads", indexShard.shardId(), e)
+                    )
+                );
+            }
+
             ObjectStoreService.readIndexingShardState(
-                IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory()),
+                directory,
                 IOContext.DEFAULT,
                 shardContainer,
                 indexShard.getOperationPrimaryTerm(),
@@ -567,11 +583,6 @@ class StatelessIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
-        hollowShardsService.onMutableOperation(indexShard, permitAcquired, listener);
-    }
-
-    @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
         // Index shards only.
         if (indexShard.routingEntry().isPromotableToPrimary()) {
@@ -588,6 +599,12 @@ class StatelessIndexEventListener implements IndexEventListener {
         // Can be null if there was a problem creating the shard.
         if (indexShard != null) {
             splitTargetService.cancelSplits(indexShard);
+        }
+    }
+
+    @Override
+    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        if (indexShard != null) {
             splitSourceService.cancelSplits(indexShard);
         }
     }

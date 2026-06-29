@@ -7,36 +7,38 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 
 /**
  * Common service settings shared across all Cohere inference tasks.
@@ -75,70 +77,39 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     /**
-     * Creates {@link CohereCommonServiceSettings} from a map, parsing only the fields
-     * that are common across all Cohere tasks.
+     * Registers the common Cohere service-settings fields (model_id, url, api_version, rate_limit)
+     * onto the given parser. The deprecated {@code model} alias is also registered and emits a
+     * log warning when encountered in request context.
      */
-    public static CohereCommonServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        var uri = extractOptionalUri(map, URL, validationException);
-        var modelId = extractModelId(map, validationException, context);
-        var apiVersion = apiVersionFromMap(map, context, validationException);
-        if (apiVersion == CohereApiVersion.V2 && modelId == null) {
-            validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
+    public static <B extends Builder<? extends CohereServiceSettings>> void declareCommonFields(
+        AbstractObjectParser<B, ConfigurationParseContext> parser,
+        ConfigurationParseContext context
+    ) {
+        parser.declareString(Builder::setDeprecatedModelId, new ParseField(OLD_MODEL_ID_FIELD));
+        parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
+        parser.declareString(Builder::setUrl, new ParseField(URL));
+        if (context == ConfigurationParseContext.PERSISTENT) {
+            parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
         }
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new CohereCommonServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
+        parser.declareObject(
+            Builder::setRateLimitSettings,
+            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
+            new ParseField(RateLimitSettings.FIELD_NAME)
+        );
+        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
+        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
+        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     /**
-     * Extracts the Cohere API version from the provided map based on the given context.
+     * Resolves the API version from a raw string captured during parsing.
+     * REQUEST context always returns V2; PERSISTENT reads the stored value and defaults to V1.
      */
-    public static CohereApiVersion apiVersionFromMap(
-        Map<String, Object> map,
-        ConfigurationParseContext context,
-        ValidationException validationException
-    ) {
-        return switch (context) {
-            case REQUEST -> CohereApiVersion.V2;
-            case PERSISTENT -> {
-                var apiVersion = ServiceUtils.extractOptionalEnum(
-                    map,
-                    API_VERSION,
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    CohereApiVersion::fromString,
-                    EnumSet.allOf(CohereApiVersion.class),
-                    validationException
-                );
-                yield apiVersion == null ? CohereApiVersion.V1 : apiVersion;
-            }
-        };
-    }
-
-    private static String extractModelId(
-        Map<String, Object> serviceSettings,
-        ValidationException validationException,
-        ConfigurationParseContext context
-    ) {
-        var extractedOldModelId = extractOptionalString(
-            serviceSettings,
-            OLD_MODEL_ID_FIELD,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        if (context == ConfigurationParseContext.REQUEST && extractedOldModelId != null) {
-            logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
+    public static CohereApiVersion resolveApiVersion(String rawApiVersion, boolean isRequest) {
+        if (isRequest) {
+            return CohereApiVersion.V2;
         }
-        var extractedModelId = extractOptionalString(
-            serviceSettings,
-            ServiceFields.MODEL_ID,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        return extractedModelId != null ? extractedModelId : extractedOldModelId;
+        return rawApiVersion != null ? CohereApiVersion.fromString(rawApiVersion) : CohereApiVersion.V1;
     }
 
     @Nullable
@@ -194,14 +165,9 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         return modelId;
     }
 
-    public CohereCommonServiceSettings update(Map<String, Object> serviceSettings, ValidationException validationException) {
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings,
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-        return new CohereCommonServiceSettings(this.uri, this.modelId, extractedRateLimitSettings, this.apiVersion);
+    public CohereCommonServiceSettings update(CommonUpdate update) {
+        RateLimitSettings updatedRateLimitSettings = Objects.requireNonNullElse(update.rateLimitSettings, this.rateLimitSettings);
+        return new CohereCommonServiceSettings(this.uri, this.modelId, updatedRateLimitSettings, this.apiVersion);
     }
 
     @Override
@@ -223,6 +189,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         return builder;
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(uri != null ? uri.toString() : null);
         out.writeOptionalString(modelId);
@@ -249,5 +216,96 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     @Override
     public int hashCode() {
         return Objects.hash(uri, modelId, rateLimitSettings, apiVersion);
+    }
+
+    public abstract static class Builder<T> {
+        protected final ConfigurationParseContext context;
+
+        private String url;
+        private String modelId;
+        private String deprecatedModelId;
+        private String apiVersionRaw;
+        protected RateLimitSettings rateLimitSettings;
+
+        protected Builder(ConfigurationParseContext context) {
+            this.context = Objects.requireNonNull(context);
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public void setModelId(String modelId) {
+            this.modelId = modelId;
+        }
+
+        public void setDeprecatedModelId(String deprecatedModelId) {
+            this.deprecatedModelId = deprecatedModelId;
+            if (context == ConfigurationParseContext.REQUEST) {
+                logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
+            }
+        }
+
+        public void setApiVersion(String apiVersion) {
+            this.apiVersionRaw = apiVersion;
+        }
+
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        protected abstract T build(CohereCommonServiceSettings commonSettings);
+
+        public final T build() {
+            return build(buildCommonSettings());
+        }
+
+        private CohereCommonServiceSettings buildCommonSettings() {
+            boolean isRequest = context == ConfigurationParseContext.REQUEST;
+            var apiVersion = CohereCommonServiceSettings.resolveApiVersion(apiVersionRaw, isRequest);
+            String resolvedModelId = modelId != null ? modelId : deprecatedModelId;
+            if (apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2 && resolvedModelId == null) {
+                throw new IllegalArgumentException(CohereCommonServiceSettings.MODEL_REQUIRED_FOR_V2_API);
+            }
+            var uri = createOptionalUri(url);
+            return new CohereCommonServiceSettings(uri, resolvedModelId, rateLimitSettings, apiVersion);
+        }
+    }
+
+    /**
+     * Creates a {@link CohereServiceSettings} from a map of settings using the given parser.
+     *
+     * @param map     the map to parse
+     * @param context the context in which the parsing is done
+     * @param parser  the parser to use for parsing the settings.
+     * @return the created {@link CohereServiceSettings}
+     */
+    public static <T extends CohereServiceSettings> T fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser
+    ) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, context).build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+        }
+    }
+
+    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
+        parser.declareObject(
+            CommonUpdate::setRateLimitSettings,
+            (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
+            new ParseField(RateLimitSettings.FIELD_NAME)
+        );
+    }
+
+    public static class CommonUpdate {
+
+        protected RateLimitSettings rateLimitSettings;
+
+        private void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
     }
 }

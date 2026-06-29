@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
@@ -192,6 +194,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDi
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StBuffer;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
@@ -199,10 +202,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeometryType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIsEmpty;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopology;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSymDifference;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -517,8 +523,12 @@ public class EsqlFunctionRegistry {
                 StDistance.DEFINITION,
                 StEnvelope.DEFINITION,
                 StBuffer.DEFINITION,
+                StDifference.DEFINITION,
+                StIntersection.DEFINITION,
                 StSimplify.DEFINITION,
                 StSimplifyPreserveTopology.DEFINITION,
+                StSymDifference.DEFINITION,
+                StUnion.DEFINITION,
                 StGeohash.DEFINITION,
                 StGeotile.DEFINITION,
                 StGeohex.DEFINITION,
@@ -546,6 +556,7 @@ public class EsqlFunctionRegistry {
                 ToBoolean.DEFINITION,
                 ToCartesianPoint.DEFINITION,
                 ToCartesianShape.DEFINITION,
+                ToCounter.DEFINITION,
                 ToDatePeriod.DEFINITION,
                 ToDatetime.DEFINITION,
                 ToDateNanos.DEFINITION,
@@ -553,6 +564,7 @@ public class EsqlFunctionRegistry {
                 ToDenseVector.DEFINITION,
                 ToDouble.DEFINITION,
                 ToExponentialHistogram.DEFINITION,
+                ToGauge.DEFINITION,
                 ToGeohash.DEFINITION,
                 ToGeotile.DEFINITION,
                 ToGeohex.DEFINITION,
@@ -684,7 +696,7 @@ public class EsqlFunctionRegistry {
 
     public static class ArgSignature {
 
-        public record Hint(String entityType, String kind, Map<String, String> constraints) {}
+        public record Hint(String entityType, String kind, Map<String, String> constraints, List<String> allowedValues) {}
 
         protected final String name;
         protected final String[] type;
@@ -761,6 +773,10 @@ public class EsqlFunctionRegistry {
 
         public DataType targetDataType() {
             return targetDataType;
+        }
+
+        public Hint hint() {
+            return hint;
         }
 
         public Map<String, MapEntryArgSignature> mapParams() {
@@ -961,7 +977,8 @@ public class EsqlFunctionRegistry {
                 );
             }
             String kind = param.hint().kind() != Param.Hint.Kind.STANDARD ? param.hint().kind().name().toLowerCase(Locale.ROOT) : null;
-            hint = new ArgSignature.Hint(entityType, kind, constraints);
+            List<String> allowedValues = List.of(param.hint().allowedValues());
+            hint = new ArgSignature.Hint(entityType, kind, constraints, allowedValues);
         }
 
         return new EsqlFunctionRegistry.ArgSignature(

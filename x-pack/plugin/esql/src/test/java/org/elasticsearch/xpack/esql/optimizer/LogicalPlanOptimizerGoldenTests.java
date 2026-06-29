@@ -39,4 +39,23 @@ public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
             | INLINE STATS s = MAX(salary) BY does_not_exist
             """, STAGES);
     }
+
+    public void testDedupRewritesToLimitByOverAllColumns() throws Exception {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | KEEP first_name, last_name
+            | DEDUP
+            """, STAGES);
+    }
+
+    public void testDedupCombinedWithLimit() throws Exception {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | KEEP first_name, last_name
+            | DEDUP
+            | LIMIT 10
+            """, STAGES);
+    }
 }

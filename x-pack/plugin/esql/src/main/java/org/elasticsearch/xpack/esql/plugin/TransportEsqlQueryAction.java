@@ -33,6 +33,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -103,6 +105,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final Executor requestExecutor;
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
+    private final DatasetResolver datasetResolver;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
@@ -135,6 +138,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
         UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
@@ -146,6 +150,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.clusterService = clusterService;
         this.viewResolver = viewResolver;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.datasetResolver = new DatasetResolver(client, requestExecutor, crossProjectModeDecider);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(
@@ -207,6 +212,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             usageService,
             new InferenceService(client, clusterService),
             userAgentParserRegistry,
+            ipLocationService,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
             crossProjectModeDecider
@@ -345,10 +351,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ),
             enrichPolicyResolver,
             viewResolver,
+            datasetResolver,
             executionInfo,
             remoteClusterService,
             planRunner,
             services,
+            ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
@@ -484,6 +492,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.pages(),
                 result.completionInfo().documentsFound(),
                 result.completionInfo().valuesLoaded(),
+                result.completionInfo().rowsEmitted(),
+                result.completionInfo().bytesRead(),
+                result.completionInfo().readNanos(),
+                result.completionInfo().cpuNanos(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -500,8 +512,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             result.pages(),
             result.completionInfo().documentsFound(),
             result.completionInfo().valuesLoaded(),
+            result.completionInfo().rowsEmitted(),
+            result.completionInfo().bytesRead(),
+            result.completionInfo().readNanos(),
+            result.completionInfo().cpuNanos(),
             profile,
             request.columnar(),
+            null,
+            false,
             request.async(),
             QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
             task.getStartTime(),

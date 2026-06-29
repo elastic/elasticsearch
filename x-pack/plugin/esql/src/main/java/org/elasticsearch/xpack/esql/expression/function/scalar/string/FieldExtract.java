@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.ExtractFlattenedSubfieldConfig;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -76,6 +78,7 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FieldExtract.class)
         .binary(FieldExtract::new)
+        .capabilities("returns_multi_value")
         .name("field_extract");
 
     private final Expression field;
@@ -85,6 +88,7 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
         returnType = "keyword",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
+        briefSummary = "Extracts a sub-field value from a flattened field as a keyword.",
         description = """
             Extracts the value of a single sub-field from a [`flattened` field](/reference/elasticsearch/mapping-reference/flattened.md) \
             root as `keyword`.""",
@@ -102,9 +106,14 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             Returns `null` if either argument is `null`, if no sub-field with that name exists, or if the stored value
             is JSON `null`. Returns `null` and emits a warning if the root value is not valid JSON.
 
-            String values are returned without surrounding quotes, numbers and booleans as their string representation,
-            and objects and arrays as JSON strings. When the sub-field is multi-valued in the flattened field, the
-            result is a multi-valued `keyword` block.""",
+            String values are returned without surrounding quotes, and numbers and booleans as their string
+            representation. When the sub-field is multi-valued in the flattened field, the result is a multi-valued
+            `keyword` block. Because the underlying mapper flattens nested objects into dotted keys at index time,
+            a sub-field whose value is itself a JSON object has no leaf at the requested key in the flat storage and
+            the function returns `null`. The dotted child paths (`a.b`, `a.b.c`, ...) still address the leaves directly.
+            Inside a multi-value sub-field, JSON object elements are likewise absent from the flat storage and are
+            skipped; nested JSON arrays are flattened recursively so all scalar leaves end up in the resulting
+            multi-value block.""",
         examples = @Example(file = "field_extract", tag = "field_extract_host_name")
     )
     public FieldExtract(
@@ -221,9 +230,9 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String name = parser.currentName();
-                    parser.nextToken();
+                    parser.nextToken(); // advance to the value token
                     if (name.equals(key)) {
-                        builder.appendBytesRef(new BytesRef(parser.text()));
+                        appendValueAtCurrentToken(builder, parser, key);
                         return;
                     }
                     parser.skipChildren();
@@ -232,6 +241,96 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             throw new IllegalArgumentException("path [" + key + "] does not exist");
         } catch (IOException | XContentParseException e) {
             throw new IllegalArgumentException("invalid JSON input");
+        }
+    }
+
+    /**
+     * Emits the JSON value at the parser's current token to {@code builder}. Mirrors the
+     * keyed sub-field block-loader's per-cell shape so the parse-path output is interchangeable
+     * with the pushdown path's output for the same source: scalars produce a single-value
+     * position and JSON arrays produce a multi-value position with one keyword per scalar leaf.
+     * A nested JSON object at the requested key produces a {@code null} position because the
+     * flattened mapper indexes its leaves under dotted child keys ({@code key.a},
+     * {@code key.a.b}, ...) and therefore stores no value at {@code key} itself; the same
+     * dotted child paths still address the inner leaves directly. {@code VALUE_NULL} appends a
+     * null position.
+     */
+    private static void appendValueAtCurrentToken(BytesRefBlock.Builder builder, XContentParser parser, String key) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        switch (token) {
+            case VALUE_STRING, VALUE_NUMBER -> builder.appendBytesRef(new BytesRef(parser.text()));
+            case VALUE_BOOLEAN -> builder.appendBytesRef(parser.booleanValue() ? TRUE_BYTES : FALSE_BYTES);
+            case VALUE_NULL -> builder.appendNull();
+            case START_OBJECT -> {
+                parser.skipChildren();
+                builder.appendNull();
+            }
+            case START_ARRAY -> appendArrayAsMultiValue(builder, parser, key);
+            default -> throw new IllegalArgumentException("unexpected token [" + token + "] at path [" + key + "]");
+        }
+    }
+
+    /**
+     * Walks the current JSON array and emits the scalar leaves at the requested key as a
+     * single block-builder position. Mirrors how the flattened mapper iterates leaf-array
+     * elements without extending the storage key: nested arrays are walked recursively
+     * because their scalar contents would also be indexed under the outer key, while
+     * embedded objects are skipped because their leaves would be indexed under
+     * <em>extended</em> dotted keys ({@code key.a}, {@code key.a.b}, ...) and never under
+     * {@code key} itself. JSON null elements are dropped because a {@code BytesRefBlock}
+     * multi-value position cannot represent {@code null} as one of its elements, and
+     * dropping is the only representable option that does not silently substitute an empty
+     * {@link BytesRef} for a missing value.
+     * <p>
+     * Buffers the rendered scalars first so the choice between scalar position, multi-value
+     * position, and null can be made once the array is exhausted: an empty result (the
+     * source array was empty, held only JSON nulls, or held only embedded objects whose
+     * leaves live at extended keys) maps to a null position; a single-element result
+     * collapses to a scalar position so the block is shaped identically to a doc whose
+     * source already held a single value (symmetric to the single-element collapse
+     * {@code CsvTestsDataLoader.parseDocument} performs on the way in); multi-element
+     * results use a begin/end position-entry pair on the block builder.
+     */
+    private static void appendArrayAsMultiValue(BytesRefBlock.Builder builder, XContentParser parser, String key) throws IOException {
+        List<BytesRef> elements = new ArrayList<>();
+        collectScalarLeavesFromCurrentArray(parser, elements, key);
+        if (elements.isEmpty()) {
+            builder.appendNull();
+            return;
+        }
+        if (elements.size() == 1) {
+            builder.appendBytesRef(elements.get(0));
+            return;
+        }
+        builder.beginPositionEntry();
+        for (BytesRef e : elements) {
+            builder.appendBytesRef(e);
+        }
+        builder.endPositionEntry();
+    }
+
+    /**
+     * Consumes the parser's current array (up to and including the matching {@code END_ARRAY})
+     * and appends every scalar leaf in document order to {@code elements}. Recurses into
+     * nested arrays so their scalars are flattened into the same key (this matches how the
+     * flattened mapper iterates leaf-array elements without extending the storage key).
+     * Skips embedded JSON objects in full because their leaves live at extended dotted keys
+     * ({@code key.a}, {@code key.a.b}, ...) and are never indexed at {@code key} itself.
+     * Drops JSON nulls, as the caller's multi-value position cannot represent them.
+     */
+    private static void collectScalarLeavesFromCurrentArray(XContentParser parser, List<BytesRef> elements, String key) throws IOException {
+        XContentParser.Token elem;
+        while ((elem = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            switch (elem) {
+                case VALUE_STRING, VALUE_NUMBER -> elements.add(new BytesRef(parser.text()));
+                case VALUE_BOOLEAN -> elements.add(parser.booleanValue() ? TRUE_BYTES : FALSE_BYTES);
+                case VALUE_NULL -> {
+                    // see method-level Javadoc: drop nulls inside multi-value keyword positions.
+                }
+                case START_ARRAY -> collectScalarLeavesFromCurrentArray(parser, elements, key);
+                case START_OBJECT -> parser.skipChildren();
+                default -> throw new IllegalArgumentException("unexpected token [" + elem + "] inside array at path [" + key + "]");
+            }
         }
     }
 
@@ -295,12 +394,31 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
      * {@code KeyedFlattenedFieldType} which handles the key-prefix encoding in
      * {@code indexedValueForSearch}. The caller is responsible for wrapping the produced query
      * in a {@code SingleValueQuery} to preserve ES|QL's single-value comparison semantics.
+     * <p>
+     *     Explicitly mapped sub-fields are <strong>not</strong> pushed: for them the synthetic name
+     *     resolves to the real typed field (e.g. an {@code ip} or {@code long}), so a pushed query
+     *     would apply that field's typed comparison semantics while the per-row evaluator compares the
+     *     extracted value as a {@code keyword}. Keeping mapped sub-fields on the evaluator path makes
+     *     {@code field_extract}'s result independent of whether the optimizer pushed the call. That
+     *     rejection is delegated to the flattened field type's
+     *     {@link org.elasticsearch.index.mapper.MappedFieldType#supportsBlockLoaderConfig}, the same hook that
+     *     gates block-loader fusion, so both pushdown paths agree on which keys are pushable. The
+     *     mapped/unmapped decision needs the data-node mapping, so the stats-less {@code can_match} predicates
+     *     report no loader config as supported and push nothing.
+     * </p>
      */
     public Optional<String> tryAsKeyedSubfieldName(LucenePushdownPredicates pushdownPredicates) {
         if (EsqlCapabilities.Cap.FIELD_EXTRACT_FLATTENED_PUSHDOWN.isEnabled() == false) {
             return Optional.empty();
         }
         return foldedKeyForFlattenedRoot().filter(k -> pushdownPredicates.isIndexedAndHasDocValues(k.root()))
+            .filter(
+                k -> pushdownPredicates.supportsLoaderConfig(
+                    k.root(),
+                    new ExtractFlattenedSubfieldConfig(k.key()),
+                    MappedFieldType.FieldExtractPreference.NONE
+                )
+            )
             .map(k -> k.root().name() + "." + k.key());
     }
 

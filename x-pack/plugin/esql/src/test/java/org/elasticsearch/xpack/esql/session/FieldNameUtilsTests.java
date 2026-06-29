@@ -10,11 +10,27 @@ package org.elasticsearch.xpack.esql.session;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -22,6 +38,8 @@ import static org.elasticsearch.xpack.esql.session.FieldNameUtils.parentPrefixes
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class FieldNameUtilsTests extends ESTestCase {
 
@@ -3386,6 +3404,186 @@ public class FieldNameUtilsTests extends ESTestCase {
             | keep ua.name""", Set.of("_index", "first_name", "first_name.*"));
     }
 
+    // IN subquery tests
+
+    public void testInSubquery() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames(
+            "FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no) | KEEP emp_no, first_name",
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*")
+        );
+    }
+
+    public void testInSubqueryDifferentIndex() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // The subquery references a different index; field names from both should be collected
+        assertFieldNames(
+            "FROM employees | WHERE emp_no IN (FROM languages | KEEP language_id) | KEEP emp_no, first_name",
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "language_id", "language_id.*")
+        );
+    }
+
+    public void testInSubqueryWithMoreFields() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // The subquery references fields (salary) not used in the main query
+        assertFieldNames(
+            "FROM employees | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) | KEEP emp_no",
+            Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*")
+        );
+    }
+
+    public void testFromSubqueryInsideInSubquery() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE emp_no IN (
+                    FROM (FROM employees | KEEP emp_no), (FROM languages | KEEP language_id)
+                    | KEEP emp_no
+                  )
+                | KEEP emp_no, first_name""",
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "language_id", "language_id.*")
+        );
+    }
+
+    public void testInSubqueryInsideFromSubquery() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM
+                (FROM employees
+                 | SORT emp_no
+                 | LIMIT 3
+                 | KEEP emp_no ),
+                (FROM employees
+                 | WHERE languages IN (FROM languages | WHERE language_id < 5 | KEEP language_id)
+                 | SORT emp_no DESC | LIMIT 3 | KEEP emp_no)
+            """, Set.of("_index", "emp_no", "emp_no.*", "language_id", "language_id.*", "languages", "languages.*"));
+    }
+
+    public void testNestedInSubqueries() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // Nested IN subquery: the inner subquery references salary, the outer references emp_no and first_name
+        // The inner subquery's STATS alias (max_sal) is also visible in the plan tree after InSubqueryResolver
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE emp_no IN (
+                    FROM employees
+                    | WHERE salary IN (FROM employees | WHERE languages == 1 | STATS max_sal = MAX(salary) | KEEP max_sal)
+                    | KEEP emp_no
+                  )
+                | KEEP emp_no, first_name""",
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "first_name",
+                "first_name.*",
+                "salary",
+                "salary.*",
+                "languages",
+                "languages.*",
+                "max_sal",
+                "max_sal.*"
+            )
+        );
+    }
+
+    public void testNotInSubquery() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames(
+            "FROM employees | WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) | KEEP emp_no",
+            Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*")
+        );
+    }
+
+    public void testInSubqueryNoFieldReduction() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // Main query has no KEEP/PROJECT, so it returns ALL_FIELDS regardless of the subquery's KEEP
+        assertFieldNames("FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)", ALL_FIELDS);
+    }
+
+    public void testInSubqueryNoFieldReductionWithInlineStats() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | INLINE STATS max_sal = MAX(salary))
+            | KEEP emp_no
+            """, ALL_FIELDS);
+    }
+
+    public void testInSubqueryFieldReductionWithInlineStatsKeep() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | INLINE STATS max_sal = MAX(salary) | KEEP emp_no)
+            | KEEP emp_no
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*"));
+    }
+
+    public void testInSubqueryFieldReductionWithInlineStatsKeepBeforeAfter() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no, salary | INLINE STATS max_sal = MAX(salary) | KEEP emp_no)
+            | KEEP emp_no
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*"));
+    }
+
+    public void testInSubqueryWithDateComparison() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (
+                FROM employees
+                | WHERE hire_date >= "1989-01-01T00:00:00.000Z" AND hire_date < "1990-01-01T00:00:00.000Z"
+                | KEEP emp_no
+              )
+            | SORT emp_no
+            | KEEP emp_no, first_name
+            | LIMIT 5
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "hire_date", "hire_date.*"));
+    }
+
+    /**
+     * Both {@code FROM}-style source leaves are alias-safe: a source relation is a tree leaf and cannot shadow an
+     * alias defined above it, so {@link FieldNameUtils} must collect the same fields whether the leaf is an
+     * {@link UnresolvedRelation} or an {@link UnresolvedExternalRelation}. This pins the
+     * {@code couldOverrideAliases} marker switch: before it, an external leaf was treated as alias-overriding, which
+     * forced {@code canRemoveAliases=false} for the whole traversal and left the {@code EVAL}-defined alias {@code x}
+     * in the collected set — diverging from the index leaf. The two leaves must now produce an identical field set.
+     */
+    public void testExternalSourceLeafCollectsFieldsLikeIndexLeaf() {
+        Set<String> indexResult = collectFieldsAboveSourceLeaf(
+            new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, "idx"), false, List.of(), IndexMode.STANDARD, null)
+        );
+        Set<String> externalResult = collectFieldsAboveSourceLeaf(
+            new UnresolvedExternalRelation(Source.EMPTY, Literal.keyword(Source.EMPTY, "s3://bucket/table"), Map.of())
+        );
+
+        // Absolute golden set: only the real fields (plus their multifields and the _index metadata) survive; the
+        // EVAL-defined alias 'x' is removed. Asserting the exact set (not just parity) guarantees the parity check
+        // below cannot pass on a synchronized-wrong collection that drops a needed field for both leaves.
+        Set<String> expected = Set.of("gender", "gender.*", "salary", "salary.*", "_index");
+        assertThat("index leaf field collection", indexResult, equalTo(expected));
+        assertThat("external leaf must collect the same fields as the index leaf", externalResult, equalTo(indexResult));
+        assertThat(indexResult, not(hasItem("x")));
+    }
+
+    /**
+     * Builds {@code <leaf> | EVAL x = salary | STATS m = max(x) BY gender} and returns the collected field names. This
+     * mirrors the documented alias-removal example in {@link FieldNameUtils}.
+     */
+    private Set<String> collectFieldsAboveSourceLeaf(LogicalPlan leaf) {
+        UnresolvedAttribute gender = new UnresolvedAttribute(Source.EMPTY, "gender");
+        Eval eval = new Eval(Source.EMPTY, leaf, List.of(new Alias(Source.EMPTY, "x", new UnresolvedAttribute(Source.EMPTY, "salary"))));
+        UnresolvedFunction max = new UnresolvedFunction(Source.EMPTY, "max", List.of(new UnresolvedAttribute(Source.EMPTY, "x")));
+        List<Expression> groupings = List.of(gender);
+        List<NamedExpression> aggregates = List.of(new Alias(Source.EMPTY, "m", max), gender);
+        Aggregate agg = new Aggregate(Source.EMPTY, eval, groupings, aggregates);
+        return FieldNameUtils.resolveFieldNames(agg, false, includePrefixFields).fieldNames();
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, false, expected, Set.of());
     }
@@ -3395,7 +3593,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, boolean hasEnriches, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = FieldNameUtils.resolveFieldNames(TEST_PARSER.parseQuery(query), hasEnriches, includePrefixFields);
+        var parsed = InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query));
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parsed, hasEnriches, includePrefixFields);
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
     }

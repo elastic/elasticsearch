@@ -10,8 +10,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -45,8 +45,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
-        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-        if (Build.current().isSnapshot() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             if (allowIgnoredSource && ESTestCase.randomBoolean()) {
                 return FieldMapper.DocValuesParameter.Values.DISABLED;
             } else {
@@ -55,8 +54,16 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         }
 
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true);
+            case 0 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                ESTestCase.randomBoolean()
+            );
+            case 1 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                ESTestCase.randomBoolean()
+            );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };
@@ -65,6 +72,11 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     @Override
     public boolean ignoreAbove() {
         return ignoreAbove != null;
+    }
+
+    @Override
+    public boolean enforcesSingleValue() {
+        return docValues.multiValue() == false;
     }
 
     @Override
@@ -89,7 +101,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         boolean flipOrder,
         boolean ignoredValuesSorted
     ) {
-        if (ESTestCase.randomBoolean()) {
+        // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+        if (enforcesSingleValue() || ESTestCase.randomBoolean()) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
             return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, this::mapping);
@@ -155,15 +168,12 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
         if (docValues.enabled() == false) {
             b.field("doc_values", false);
+        } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && docValues.multiValue() == false) {
+            b.startObject("doc_values");
+            b.field("multi_value", false);
+            b.endObject();
         } else {
-            // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-            if (Build.current().isSnapshot() == false) {
-                b.field("doc_values", true);
-            } else {
-                b.startObject("doc_values");
-                b.field("cardinality", docValues.cardinality().toString());
-                b.endObject();
-            }
+            b.field("doc_values", true);
         }
     }
 

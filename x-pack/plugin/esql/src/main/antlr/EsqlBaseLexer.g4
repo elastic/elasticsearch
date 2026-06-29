@@ -55,12 +55,14 @@ options {
  * all other commands.
  */
 import ChangePoint,
+       Dedup,
        Enrich,
        Explain,
        Expression,
        From,
        Fork,
        Fuse,
+       Highlight,
        Inline,
        InExpression,
        Join,

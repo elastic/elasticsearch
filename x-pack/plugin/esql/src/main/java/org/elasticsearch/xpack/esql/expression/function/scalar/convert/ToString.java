@@ -115,6 +115,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Converts a value to a string.",
         description = "Converts an input value into a string.",
         examples = {
             @Example(file = "string", tag = "to_string"),
@@ -165,6 +166,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public String functionName() {
+        return "TO_STRING";
     }
 
     @Override

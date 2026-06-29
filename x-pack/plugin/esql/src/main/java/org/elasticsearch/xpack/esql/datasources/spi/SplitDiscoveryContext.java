@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 /**
  * Context passed to {@link SplitProvider#discoverSplits} containing all information
@@ -27,6 +28,10 @@ import java.util.Map;
  * @param unifiedSchema the pre-prune Unified schema, or {@code null} when not available. Together
  *        with {@code querySchema} and each file's schema this lets split providers narrow per-file
  *        {@link org.elasticsearch.xpack.esql.datasources.ColumnMapping}s on the coordinator.
+ * @param isCancelled polled during split discovery so a long-running enumeration (e.g. thousands of
+ *        Parquet footer reads) aborts promptly when the originating query is cancelled. Defaults to
+ *        {@code () -> false} ("never cancelled") for callers and SPI impls that do not carry a
+ *        {@code CancellableTask}.
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
@@ -36,7 +41,9 @@ public record SplitDiscoveryContext(
     PartitionMetadata partitionInfo,
     List<Expression> filterHints,
     ExternalSchema querySchema,
-    @Nullable ExternalSchema unifiedSchema
+    @Nullable ExternalSchema unifiedSchema,
+    int maxRecordBytes,
+    BooleanSupplier isCancelled
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -45,7 +52,18 @@ public record SplitDiscoveryContext(
         PartitionMetadata partitionInfo,
         List<Expression> filterHints
     ) {
-        this(metadata, fileList, Map.of(), config, partitionInfo, filterHints, ExternalSchema.EMPTY, null);
+        this(
+            metadata,
+            fileList,
+            Map.of(),
+            config,
+            partitionInfo,
+            filterHints,
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false
+        );
     }
 
     public SplitDiscoveryContext(
@@ -56,7 +74,18 @@ public record SplitDiscoveryContext(
         List<Expression> filterHints,
         ExternalSchema querySchema
     ) {
-        this(metadata, fileList, Map.of(), config, partitionInfo, filterHints, querySchema, null);
+        this(
+            metadata,
+            fileList,
+            Map.of(),
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false
+        );
     }
 
     public SplitDiscoveryContext(
@@ -68,7 +97,18 @@ public record SplitDiscoveryContext(
         List<Expression> filterHints,
         ExternalSchema querySchema
     ) {
-        this(metadata, fileList, schemaMap, config, partitionInfo, filterHints, querySchema, null);
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false
+        );
     }
 
     public SplitDiscoveryContext {
@@ -79,5 +119,9 @@ public record SplitDiscoveryContext(
         config = config != null ? Map.copyOf(config) : Map.of();
         filterHints = filterHints != null ? List.copyOf(filterHints) : List.of();
         querySchema = querySchema != null ? querySchema : ExternalSchema.EMPTY;
+        if (maxRecordBytes <= 0) {
+            throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
+        }
+        isCancelled = isCancelled != null ? isCancelled : () -> false;
     }
 }

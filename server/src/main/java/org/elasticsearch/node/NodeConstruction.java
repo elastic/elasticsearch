@@ -96,6 +96,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -143,16 +144,20 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
+import org.elasticsearch.indices.SystemIndexSettingsUpdateService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
@@ -315,7 +320,7 @@ class NodeConstruction {
 
             Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider, pluginsLoader);
             constructor.loadLoggingDataProviders();
-            TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(settings);
+            TelemetryProvider telemetryProvider = constructor.createTelemetryProvider();
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
 
             final SettingsModule settingsModule;
@@ -521,8 +526,8 @@ class NodeConstruction {
         DynamicContextDataProvider.setDataProviders(pluginsService.loadServiceProviders(LoggingDataProvider.class));
     }
 
-    private TelemetryProvider createTelemetryProvider(Settings settings) {
-        return getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings)).orElse(TelemetryProvider.NOOP);
+    private TelemetryProvider createTelemetryProvider() {
+        return getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(environment)).orElse(TelemetryProvider.NOOP);
     }
 
     private ThreadPool createThreadPool(Settings settings, MeterRegistry meterRegistry) throws IOException {
@@ -923,6 +928,13 @@ class NodeConstruction {
             }
         };
 
+        final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
+        final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
+            threadPool,
+            clusterService,
+            recoverySchedulingListeners
+        );
+
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
             .nodeEnvironment(nodeEnvironment)
@@ -946,6 +958,7 @@ class NodeConstruction {
             .mergeMetrics(mergeMetrics)
             .searchOperationListeners(searchOperationListeners)
             .loggingFieldsProvider(loggingFieldsProvider)
+            .throttlingRecoveryService(throttlingRecoveryService)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);
@@ -1037,6 +1050,11 @@ class NodeConstruction {
         final var taskLifecycleManager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
 
         final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
+        final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator = pluginsService.loadSingletonServiceProvider(
+            TimeSeriesEligibleWriteWindowLocator.class,
+            TimeSeriesEligibleWriteWindowLocator::new
+        );
+        modules.bindToInstance(TimeSeriesEligibleWriteWindowLocator.class, timeSeriesEligibleWriteWindowLocator);
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -1068,7 +1086,8 @@ class NodeConstruction {
             remoteTransportClient,
             crossProjectModeDecider,
             taskLifecycleManager,
-            dlmErrorStore
+            dlmErrorStore,
+            ipLocationService
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1104,7 +1123,10 @@ class NodeConstruction {
         final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(
             client,
             indexingLimits,
-            telemetryProvider.getMeterRegistry()
+            telemetryProvider.getMeterRegistry(),
+            taskManager,
+            threadPool,
+            clusterService.getClusterSettings()
         );
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -1176,6 +1198,7 @@ class NodeConstruction {
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             clusterService.addListener(new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders));
+            clusterService.addListener(new SystemIndexSettingsUpdateService(metadataUpdateSettingsService, systemIndices, settings));
         }
         final Transport transport = networkModule.getTransportSupplier().get();
         final TransportService transportService = serviceProvider.newTransportService(
@@ -1353,18 +1376,27 @@ class NodeConstruction {
             )
         );
 
-        RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoriesService);
+        final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoriesService);
         modules.add(b -> {
             serviceProvider.processRecoverySettings(pluginsService, settingsModule.getClusterSettings(), recoverySettings);
-            SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
-            var peerRecovery = new PeerRecoverySourceService(
+            final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
+            final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(telemetryProvider);
+            recoverySchedulingListeners.addListener(recoveryMetricsCollector);
+            final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(
                 transportService,
                 indicesService,
                 clusterService,
                 recoverySettings,
-                recoveryPlannerService
+                recoveryPlannerService,
+                recoverySchedulingListeners
             );
+
+            resourcesToClose.add(throttlingRecoveryService);
             resourcesToClose.add(peerRecovery);
+
+            b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
+            b.bind(CompositeRecoverySchedulingListener.class).toInstance(recoverySchedulingListeners);
+            b.bind(ThrottlingRecoveryService.class).toInstance(throttlingRecoveryService);
             b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
             b.bind(PeerRecoveryTargetService.class)
                 .toInstance(

@@ -11,13 +11,13 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 
 public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByPaginatedSearchActionMetadataTestCase<
     UpdateByQueryRequest,
-    BulkByScrollResponse> {
+    BulkByPaginatedSearchResponse> {
 
     public void testRoutingIsCopied() {
         IndexRequest index = new IndexRequest();

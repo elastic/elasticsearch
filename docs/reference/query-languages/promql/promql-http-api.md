@@ -2,18 +2,13 @@
 description: Prometheus-compatible HTTP endpoints for PromQL queries and metric discovery against time series data in Elasticsearch.
 navigation_title: HTTP API
 applies_to:
-  stack: preview 9.4.0
-  serverless: preview
+  stack: preview 9.4, ga 9.5
+  serverless: ga
 products:
   - id: elasticsearch
 ---
 
 # PromQL HTTP API [promql-http-api]
-
-::::{warning}
-This functionality is in technical preview and might be changed or removed in a future release.
-Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
 
 These endpoints run under the `/_prometheus/` prefix.
 They are intended for Prometheus-compatible tooling such as Grafana data sources, autocompletion, variable queries, and similar clients.
@@ -24,8 +19,8 @@ These APIs only consider metric data stored in [time series data streams](docs-c
 
 Every path has two forms:
 
-- Cluster default: `GET /_prometheus/api/v1/<path>`
-- Explicit index expression: `GET /_prometheus/{index}/api/v1/<path>`
+- Cluster default: `/_prometheus/api/v1/<path>`
+- Explicit index expression: `/_prometheus/{index}/api/v1/<path>`
 
 The `{index}` segment is an {{es}} index expression (for example, `metrics-generic.prometheus-*`) that restricts which indices are considered in the query.
 This can reduce latency on clusters that contain many large time series data streams when you query a subset of indices.
@@ -38,8 +33,10 @@ These endpoints mirror the Prometheus [range query](https://prometheus.io/docs/p
 
 ### Range query [promql-http-api-query-range]
 
-`GET /_prometheus/api/v1/query_range`\
-`GET /_prometheus/{index}/api/v1/query_range`
+`GET  /_prometheus/api/v1/query_range`\
+`POST /_prometheus/api/v1/query_range`\
+`GET  /_prometheus/{index}/api/v1/query_range`\
+`POST /_prometheus/{index}/api/v1/query_range`
 
 This endpoint evaluates a PromQL expression over a time window and returns matrix data (`resultType: "matrix"`).
 
@@ -55,8 +52,10 @@ The `timeout`, `lookback_delta`, and `stats` parameters are not supported yet (s
 
 ### Instant query [promql-http-api-query-instant]
 
-`GET /_prometheus/api/v1/query`\
-`GET /_prometheus/{index}/api/v1/query`
+`GET  /_prometheus/api/v1/query`\
+`POST /_prometheus/api/v1/query`\
+`GET  /_prometheus/{index}/api/v1/query`\
+`POST /_prometheus/{index}/api/v1/query`
 
 This endpoint evaluates at a single instant and returns vector data (`resultType: "vector"`).
 
@@ -74,8 +73,10 @@ These entrypoints mirror the Prometheus [metric metadata](https://prometheus.io/
 
 ### Label names [promql-http-api-labels]
 
-`GET /_prometheus/api/v1/labels`\
-`GET /_prometheus/{index}/api/v1/labels`
+`GET  /_prometheus/api/v1/labels`\
+`POST /_prometheus/api/v1/labels`\
+`GET  /_prometheus/{index}/api/v1/labels`\
+`POST /_prometheus/{index}/api/v1/labels`
 
 This endpoint returns sorted label names present on matching series.
 `match[]` is not required. If you omit every `match[]`, results are still limited to the `start` and `end` time range.
@@ -107,8 +108,10 @@ Unknown label names are returned as an empty successful result (`data: []`), mat
 
 ### Series [promql-http-api-series]
 
-`GET /_prometheus/api/v1/series`\
-`GET /_prometheus/{index}/api/v1/series`
+`GET  /_prometheus/api/v1/series`\
+`POST /_prometheus/api/v1/series`\
+`GET  /_prometheus/{index}/api/v1/series`\
+`POST /_prometheus/{index}/api/v1/series`
 
 This endpoint returns the set of series matching the given selectors.
 At least one `match[]` parameter is required.
@@ -122,7 +125,7 @@ At least one `match[]` parameter is required.
 
 ### Metric metadata [promql-http-api-metadata-endpoint]
 
-{applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.5` {applies_to}`stack: ga 9.5`
 
 `GET /_prometheus/api/v1/metadata`\
 `GET /_prometheus/{index}/api/v1/metadata`
@@ -140,9 +143,44 @@ The `help` field is always an empty string for now (see [Limitations](promql-lim
 The `metadata` route does not support `match[]`, `start`, or `end`.
 {{es}} discovers type and unit using the {{esql}} [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) command over [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS), with a fixed 24-hour lookback ending when the request runs.
 
+## Status endpoints [promql-http-api-status]
+
+### Build information [promql-http-api-buildinfo]
+
+{applies_to}`stack: preview 9.5` {applies_to}`stack: ga 9.5`
+
+`GET /_prometheus/api/v1/status/buildinfo`\
+`GET /_prometheus/{index}/api/v1/status/buildinfo`
+
+Returns build information about the {{es}} instance in the standard Prometheus buildinfo format.
+Grafana queries this endpoint to identify the backend type and determine available features.
+The `{index}` segment is accepted for datasource configurations that use a scoped base URL, but it does not affect the response.
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "application": "Elasticsearch",
+    "version": "9.5.0",
+    "revision": "af328d7d33ae419957d8e12beec76219710760fb",
+    "buildDate": "2026-05-27T22:17:45.329682193Z"
+  }
+}
+```
+
 ## Request parameter formats [promql-http-api-parameters]
 
 Parameter encodings match the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/). See the upstream [format overview](https://prometheus.io/docs/prometheus/latest/querying/api/#format-overview).
+
+For `GET` requests, send parameters in the query string.
+For endpoints that support `POST`, send parameters in an `application/x-www-form-urlencoded` request body.
+Do not repeat a parameter in both the URL and the form body.
+
+::::{note}
+Form-encoded `POST` requests are accepted only when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true` on the Elasticsearch HTTP interface, and the request is authenticated (not anonymous). The check uses Elasticsearch’s own HTTP TLS setting, so deployments that terminate TLS before Elasticsearch and expose plain HTTP to the node must use `GET` with query-string parameters instead. Unauthenticated or plain-HTTP `POST` requests with `application/x-www-form-urlencoded` bodies return HTTP `406 Not Acceptable`.
+::::
 
 ### Timestamps [promql-http-api-param-timestamp]
 

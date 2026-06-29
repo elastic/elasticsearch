@@ -7,27 +7,35 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -35,12 +43,16 @@ import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -49,12 +61,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -82,12 +97,12 @@ import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.
  *   <li>Backpressure via buffer - Uses {@link AsyncExternalSourceBuffer} with waitForSpace()</li>
  * </ul>
  * <p>
- * The {@code executor} passed in runs background file reads and async drain continuations: it is
- * typically the {@code generic} pool (via
- * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext#fileReadExecutor}, set in
- * {@code LocalExecutionPlanner}) so producer continuations do not starve {@code esql_worker} drivers that
- * {@link AsyncExternalSourceBuffer#pollPage()}. The drain is fully non-blocking: it runs synchronously
- * while the buffer has space and yields the thread when full, resuming via the executor when space is freed.
+ * The {@code executor} runs background file reads and async drain continuations off the
+ * {@code esql_worker} drivers that {@link AsyncExternalSourceBuffer#pollPage()}. It is sourced from
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext#fileReadExecutor}
+ * (typically the {@code generic} pool), falling back to {@code context.executor()} when unset. The
+ * drain is non-blocking: it runs synchronously while the buffer has space and yields when full,
+ * resuming via the executor when space is freed.
  *
  * @see AsyncExternalSourceBuffer
  * @see AsyncExternalSourceOperator
@@ -100,9 +115,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FormatReader formatReader;
     private final StoragePath path;
     private final List<Attribute> attributes;
-    // Data-attribute view of {@link #attributes} (metadata attributes stripped). Built once at
-    // construction; used to shape pages handed to SchemaAdaptingIterator and to scope filter
-    // adaptation in mapFilters.
+    // Data-attribute view of {@link #attributes} (virtual columns and Hive-style partition columns
+    // stripped). Built once at construction; used to shape pages handed to SchemaAdaptingIterator
+    // and to scope filter adaptation in mapFilters. Partition columns are excluded so this width
+    // matches the file-backed ColumnMapping even when a partition key shadows a same-named physical
+    // column (see ExternalSchema#dataAttributesOf(List, Set)).
     private final ExternalSchema queryDataSchema;
     /**
      * {@link #attributes} minus the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN}, used when
@@ -123,6 +140,44 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
     /**
+     * Standard ES metadata column names ({@code _index}, {@code _version}, ...) present in
+     * {@link #attributes} that the producer pipeline must materialise as per-file constants.
+     * Derived once from {@link #attributes} at construction. Names whose values require per-row
+     * composition ({@code _id}, {@code _source}) are not included here — they are handled by
+     * separate operator steps.
+     */
+    private final Set<String> standardMetadataPerFileNames;
+    /**
+     * Whether the bound attributes include an {@link ExternalMetadataAttribute} named {@code _id}.
+     * When true, the producer pipeline must compose {@code _id} per row via
+     * {@link ExternalRowIdentity#composePage} and the optimizer must have injected
+     * {@link ColumnExtractor#ROW_POSITION_COLUMN} into the source's projection so the iterator
+     * has the input it needs.
+     */
+    private final boolean idColumnRequested;
+    /**
+     * Dataset name threaded from the planner ({@code DatasetRewriter} attaches it to
+     * {@code UnresolvedExternalRelation}; {@code ExternalRelation} / {@code ExternalSourceExec} round-
+     * trip it on the wire under {@code ESQL_EXTERNAL_DATASET_NAME}; {@code LocalExecutionPlanner}
+     * sets it on the {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext}).
+     * Used for {@code _index} resolution: a bare-glob {@code FROM} query has no dataset identity, so
+     * the value is {@code null} and {@link VirtualColumnIterator} renders {@code _index} as
+     * SQL {@code NULL}.
+     */
+    @Nullable
+    private final String datasetName;
+    /**
+     * File last-modified epoch-millis used to materialise {@code _version} on the single-file
+     * producer paths ({@link #startSyncWrapperRead} / {@link #startNativeAsyncRead} /
+     * {@link #consumePagesInBackground}). {@code null} when the caller did not supply an mtime
+     * (test harnesses, paths whose backing storage has no mtime concept); {@code _version} then
+     * renders as SQL {@code NULL} per {@link ExternalMetadataColumns#extractPerFileConstants}.
+     * Not consulted on the slice-queue / multi-file paths — those carry per-file mtime via the
+     * {@code FileSplit} / {@code FileList} entries respectively.
+     */
+    @Nullable
+    private final Long lastModifiedMillis;
+    /**
      * {@link BlockFactory} used by producer-thread iterator wrappers ({@link VirtualColumnIterator}
      * for {@code _file.*} / Hive-style partition columns, {@link SchemaAdaptingIterator} for
      * null-fill and type-casting under UBN). When {@code null}, the per-driver factory from
@@ -140,6 +195,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final ExternalSliceQueue sliceQueue;
     private final ErrorPolicy errorPolicy;
     private final int parsingParallelism;
+    private final int maxConcurrentOpenSegments;
+    private final int maxRecordBytes;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
@@ -164,6 +221,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link RangeAwareFormatReader#readRange} calls.
      */
     private final boolean batchReadCapable;
+    @Nullable
+    private volatile SharedNumericThreshold.Supplier thresholdSupplier;
+    /**
+     * BytesRef competitive bound for a single keyword/text sort key, published by the generic
+     * {@code TopNOperator}. Mutually exclusive with {@link #thresholdSupplier} (a query's TopN over
+     * this source has a single sort key of one type).
+     */
+    @Nullable
+    private volatile SharedMinCompetitive.Supplier minCompetitiveSupplier;
+    @Nullable
+    private volatile String thresholdColumnName;
+    @Nullable
+    private volatile ElementType thresholdElementType;
+    private volatile boolean thresholdAscending;
+    private volatile boolean thresholdNullsFirst;
+    @Nullable
+    private volatile DynamicThreshold cachedThreshold;
 
     /**
      * When set, the producer paths request the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN}
@@ -199,10 +273,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
+        @Nullable String datasetName,
+        @Nullable Long lastModifiedMillis,
         @Nullable BlockFactory producerBlockFactory,
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
         int parsingParallelism,
+        int maxConcurrentOpenSegments,
+        int maxRecordBytes,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
@@ -235,7 +313,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.formatReader = formatReader;
         this.path = path;
         this.attributes = attributes;
-        this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes);
         this.readerResolvedAttributes = stripRowPosition(attributes);
         this.executor = executor;
         this.batchSize = batchSize;
@@ -243,12 +320,62 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
+        // Route requested standard metadata names (and _id when requested) through
+        // VirtualColumnIterator's materialization paths by unioning them into the partition-column
+        // set. Per-file constants take the constant-block path; _id takes the iterator's per-row
+        // composition path; _source is handled by a separate operator wrapper.
+        Set<String> stdMetaNames = new LinkedHashSet<>();
+        boolean idRequested = false;
+        boolean sourceRequested = false;
+        for (Attribute attr : attributes) {
+            if (attr instanceof ExternalMetadataAttribute) {
+                String n = attr.name();
+                if (ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(n)) {
+                    stdMetaNames.add(n);
+                } else if (ExternalMetadataColumns.ID.equals(n)) {
+                    idRequested = true;
+                } else if (ExternalMetadataColumns.SOURCE.equals(n)) {
+                    sourceRequested = true;
+                }
+            }
+        }
+        this.idColumnRequested = idRequested;
+        this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
+        if (stdMetaNames.isEmpty() && idRequested == false && sourceRequested == false) {
+            this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
+        } else {
+            // Union the standard metadata names (plus {@code _id} / {@code _source} when projected)
+            // into the effective partition-column set so VirtualColumnIterator routes them through
+            // its constant-block / id-composition / source-synthesis path. Hive partition columns
+            // and {@code _file.*} always take precedence on key collision (they overlay last in
+            // the per-file merge).
+            Set<String> union = new LinkedHashSet<>(stdMetaNames);
+            if (idRequested) {
+                union.add(ExternalMetadataColumns.ID);
+            }
+            if (sourceRequested) {
+                union.add(ExternalMetadataColumns.SOURCE);
+            }
+            if (partitionColumnNames != null) {
+                union.addAll(partitionColumnNames);
+            }
+            this.partitionColumnNames = Collections.unmodifiableSet(union);
+        }
+        // Resolve queryDataSchema AFTER the effective partitionColumnNames (including any standard
+        // metadata / _id / _source names unioned above) is final: the data-only schema must exclude
+        // partition and virtual/metadata columns so its width matches the file-backed ColumnMapping
+        // (a partition key may shadow a same-named physical column). See
+        // ExternalSchema#dataAttributesOf(List, Set).
+        this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes, this.partitionColumnNames);
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
+        this.datasetName = datasetName;
+        this.lastModifiedMillis = lastModifiedMillis;
         this.producerBlockFactory = producerBlockFactory;
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
+        this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
+        this.maxRecordBytes = maxRecordBytes;
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
@@ -272,6 +399,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             && formatReader instanceof RangeAwareFormatReader rr
             && rr.supportsBatchRead()
             && this.partitionColumnNames.isEmpty();
+    }
+
+    /**
+     * Test-only accessor for the {@code lastModifiedMillis} value wired in by the builder. Returned
+     * as-is ({@code null} when the caller did not supply an mtime) so regression tests can pin the
+     * single-file {@code _version} fallback wiring at the factory boundary without driving a full
+     * page-drain through the producer iterator stack.
+     */
+    @Nullable
+    Long lastModifiedMillis() {
+        return lastModifiedMillis;
     }
 
     public static Builder builder(
@@ -308,10 +446,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Set<String> partitionColumnNames;
         private Map<String, Object> partitionValues;
         @Nullable
+        private String datasetName;
+        @Nullable
+        private Long lastModifiedMillis;
+        @Nullable
         private BlockFactory producerBlockFactory;
         private ExternalSliceQueue sliceQueue;
         private ErrorPolicy errorPolicy;
         private int parsingParallelism = 1;
+        // Production sets this from the max_concurrent_open_segments pragma via LocalExecutionPlanner; this
+        // is the test/internal fallback, sourced from the single source of truth.
+        private int maxConcurrentOpenSegments = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -362,6 +508,31 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
 
         /**
+         * Sets the dataset name surfaced to query rows via the {@code _index} metadata column.
+         * {@code null} when the {@code FROM} did not resolve to a single registered dataset (e.g.
+         * bare-glob {@code FROM "s3://bucket/*.parquet"}); the {@code _index} column then renders
+         * as SQL {@code NULL}. Only consulted when the bound attributes include an
+         * {@code ExternalMetadataAttribute} named {@code _index}.
+         */
+        public Builder datasetName(@Nullable String datasetName) {
+            this.datasetName = datasetName;
+            return this;
+        }
+
+        /**
+         * Sets the file last-modified epoch-millis used to materialise {@code _version} on the
+         * single-file producer paths. {@code null} (the default) leaves {@code _version} as SQL
+         * {@code NULL} on those paths. Only consulted when the source has no per-file mtime
+         * source — the slice-queue path reads {@code _file.modified} out of the
+         * {@code FileSplit}'s partition values, and the multi-file path reads it off the
+         * {@code FileList} entry; both ignore this builder value.
+         */
+        public Builder lastModifiedMillis(@Nullable Long lastModifiedMillis) {
+            this.lastModifiedMillis = lastModifiedMillis;
+            return this;
+        }
+
+        /**
          * Sets the {@link BlockFactory} used by {@link VirtualColumnIterator} when materialising
          * constant blocks for virtual partition / {@code _file.*} columns. Production should pass the
          * node-level (root) factory so producer-thread allocations route through the global request
@@ -386,6 +557,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         public Builder parsingParallelism(int parsingParallelism) {
             this.parsingParallelism = parsingParallelism;
+            return this;
+        }
+
+        public Builder maxConcurrentOpenSegments(int maxConcurrentOpenSegments) {
+            this.maxConcurrentOpenSegments = maxConcurrentOpenSegments;
+            return this;
+        }
+
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
             return this;
         }
 
@@ -447,10 +628,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 schemaMap,
                 partitionColumnNames,
                 partitionValues,
+                datasetName,
+                lastModifiedMillis,
                 producerBlockFactory,
                 sliceQueue,
                 errorPolicy,
                 parsingParallelism,
+                maxConcurrentOpenSegments,
+                maxRecordBytes,
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
@@ -458,6 +643,57 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 deferredExtraction
             );
         }
+    }
+
+    /**
+     * Installs the shared numeric TopN threshold. Must be called during planning, before the
+     * first {@link #get(DriverContext)} call creates source operators from this factory.
+     */
+    public synchronized void setNumericThresholdSupplier(
+        SharedNumericThreshold.Supplier thresholdSupplier,
+        String columnName,
+        ElementType elementType,
+        boolean ascending,
+        boolean nullsFirst
+    ) {
+        if (operatorRefCount.get() != 0) {
+            throw new IllegalStateException("numeric threshold must be installed before source operators are created");
+        }
+        this.thresholdSupplier = thresholdSupplier;
+        // Numeric and BytesRef thresholds are mutually exclusive (one sort key, one type); clear the
+        // other so a stale supplier can never be picked up by dynamicThreshold().
+        this.minCompetitiveSupplier = null;
+        this.thresholdColumnName = columnName;
+        this.thresholdElementType = elementType;
+        this.thresholdAscending = ascending;
+        this.thresholdNullsFirst = nullsFirst;
+        closeDynamicThreshold();
+    }
+
+    /**
+     * Installs the shared {@code BYTES_REF} competitive threshold for a single keyword/text sort
+     * key, fed by the generic {@code TopNOperator}'s {@link SharedMinCompetitive} side-channel. Must
+     * be called during planning, before the first {@link #get(DriverContext)} call creates source
+     * operators from this factory.
+     */
+    public synchronized void setMinCompetitiveSupplier(
+        SharedMinCompetitive.Supplier minCompetitiveSupplier,
+        String columnName,
+        boolean ascending,
+        boolean nullsFirst
+    ) {
+        if (operatorRefCount.get() != 0) {
+            throw new IllegalStateException("min competitive threshold must be installed before source operators are created");
+        }
+        this.minCompetitiveSupplier = minCompetitiveSupplier;
+        // Mutually exclusive with the numeric threshold; clear it so a stale supplier can never be
+        // picked up by dynamicThreshold().
+        this.thresholdSupplier = null;
+        this.thresholdColumnName = columnName;
+        this.thresholdElementType = ElementType.BYTES_REF;
+        this.thresholdAscending = ascending;
+        this.thresholdNullsFirst = nullsFirst;
+        closeDynamicThreshold();
     }
 
     @Override
@@ -589,9 +825,53 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (partitionColumnNames.contains(attr.name())) {
                 continue;
             }
+            // Standard ES metadata names ({@code _id}, {@code _index}, ...) are not file-resident
+            // columns; the producer injects them later. {@code _index}, {@code _version}, etc. enter
+            // {@link VirtualColumnIterator}'s per-file constant path via the {@code partitionColumnNames}
+            // union above. {@code _id} and {@code _source} are handled by separate operator wrappers.
+            if (attr instanceof ExternalMetadataAttribute) {
+                continue;
+            }
             cols.add(attr.name());
         }
         return cols;
+    }
+
+    /**
+     * Merge standard ES metadata per-file constants ({@code _index}, {@code _version}, ...) into
+     * {@code basePartitionValues}. Returns {@code basePartitionValues} unchanged when no standard
+     * metadata names are bound. The {@code _version} value is sourced from the {@code _file.modified}
+     * entry already populated in {@code basePartitionValues} (slice-queue path); when absent
+     * (single-file paths) the factory's {@link #lastModifiedMillis} is used as a fallback. When
+     * neither is available {@code _version} renders as SQL {@code NULL}.
+     * <p>
+     * Standard metadata names win on key collision: they are dedicated (the spec defines what
+     * {@code _index} means; a layout cannot redefine it), so the constants overlay last.
+     * {@code HivePartitionDetector} already renames colliding partition columns to
+     * {@code _partition.*} upstream, so a collision here means a non-Hive path smuggled a
+     * reserved key into the partition-value map — the overlay keeps the spec honest regardless.
+     * {@code _file.*} keys cannot collide with standard names (disjoint namespace) and are
+     * unaffected by the overlay order.
+     */
+    private Map<String, Object> mergeStandardMetadata(Map<String, Object> basePartitionValues) {
+        // Any new standard-metadata name must also be added to
+        // {@link ExternalMetadataColumns#PER_FILE_CONSTANT_NAMES} or this gate silently skips it.
+        if (standardMetadataPerFileNames.isEmpty()) {
+            return basePartitionValues;
+        }
+        // Same key-present-vs-absent split as resolveMtimeMillis: a per-file extraction that
+        // reported no mtime must yield a null _version for that file, not the factory-level
+        // (first file's) mtime.
+        Long version;
+        if (basePartitionValues != null && basePartitionValues.containsKey(FileMetadataColumns.MODIFIED)) {
+            version = basePartitionValues.get(FileMetadataColumns.MODIFIED) instanceof Long longVersion ? longVersion : null;
+        } else {
+            version = lastModifiedMillis;
+        }
+        Map<String, Object> stdConstants = ExternalMetadataColumns.extractPerFileConstants(datasetName, version);
+        Map<String, Object> merged = basePartitionValues != null ? new HashMap<>(basePartitionValues) : new HashMap<>();
+        merged.putAll(stdConstants);
+        return merged;
     }
 
     /**
@@ -606,16 +886,54 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<String, Object> partitionValuesForFile,
         DriverContext driverContext
     ) {
+        return wrapWithVirtualColumns(pages, partitionValuesForFile, driverContext, this.path);
+    }
+
+    /**
+     * Variant that also wires the per-file {@code _id} prefix when {@code _id} is requested.
+     * Callers in multi-file paths pass the file's actual {@link StoragePath} so the rendered
+     * {@code _id} reflects which physical file each row came from. The prefix carries the file's
+     * mtime as an identity salt, resolved the same way {@link #mergeStandardMetadata} resolves
+     * {@code _version}: the per-file {@code _file.modified} value when the listing carried one,
+     * else the factory-level {@link #lastModifiedMillis}, else {@code 0} (unknown).
+     */
+    private CloseableIterator<Page> wrapWithVirtualColumns(
+        CloseableIterator<Page> pages,
+        Map<String, Object> partitionValuesForFile,
+        DriverContext driverContext,
+        StoragePath filePath
+    ) {
         if (partitionColumnNames.isEmpty()) {
             return pages;
         }
+        BytesRef idPrefix = idColumnRequested ? ExternalRowIdentity.prefix(filePath, resolveMtimeMillis(partitionValuesForFile)) : null;
         return new VirtualColumnIterator(
             pages,
             attributes,
             partitionColumnNames,
             partitionValuesForFile,
-            producerBlockFactory(driverContext)
+            producerBlockFactory(driverContext),
+            idPrefix
         );
+    }
+
+    /**
+     * Resolves the mtime salt for the {@code _id} prefix. The per-file {@code _file.modified}
+     * value wins (multi-file paths build it from the listing via
+     * {@link FileMetadataColumns#extractValues}); the factory-level {@link #lastModifiedMillis}
+     * covers the single-file path; {@code 0} means the storage layer reported no mtime, matching
+     * the {@link org.elasticsearch.xpack.esql.datasources.spi.FileList} missing-mtime convention.
+     */
+    private long resolveMtimeMillis(Map<String, Object> partitionValuesForFile) {
+        // Key present = a per-file extraction ran for THIS file: a Long is its mtime; null means
+        // the storage layer reported none for this file — return the 0 sentinel rather than fall
+        // through, or an unknown-mtime file in a multi-file glob would inherit the factory-level
+        // (first file's) mtime as its _id salt. The factory fallback serves single-file paths,
+        // where no per-file extraction populated the map.
+        if (partitionValuesForFile != null && partitionValuesForFile.containsKey(FileMetadataColumns.MODIFIED)) {
+            return partitionValuesForFile.get(FileMetadataColumns.MODIFIED) instanceof Long mtime ? mtime : 0L;
+        }
+        return lastModifiedMillis != null ? lastModifiedMillis : 0L;
     }
 
     /**
@@ -630,11 +948,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Index of {@link ColumnExtractor#ROW_POSITION_COLUMN} in {@code projectedColumns} (the
-     * post-projection, pre-injector channel layout); {@code -1} when the column is absent.
+     * post-projection, pre-virtual-column channel layout); {@code -1} when the column is absent.
      * Used by deferred-extraction wiring to know which channel the encoder must rewrite.
      */
     private static int rowPositionChannelIndex(List<String> projectedColumns) {
-        return projectedColumns == null ? -1 : projectedColumns.indexOf(ColumnExtractor.ROW_POSITION_COLUMN);
+        return SyntheticColumns.rowPositionIndexInNames(projectedColumns);
     }
 
     /**
@@ -657,6 +975,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext
     ) throws IOException {
         if (deferredExtraction == false) {
+            // No paired extract operator: no registry, no refcount, nothing to decode downstream.
+            // A ColumnExtractorAware reader's iterator still ORs the installed high bits into every
+            // _rowPosition value, so install zero — the unencoded form — whenever the channel is
+            // projected for plain _id / _file.record_ref composition (which masks high bits anyway).
+            // Gate on the READER capability, not the iterator: stats/schema wrappers implement
+            // ColumnExtractorProducer as blind pass-throughs that throw when the delegate isn't one.
+            if (formatReader instanceof ColumnExtractorAware
+                && rowPositionChannelIndex(projectedColumns) >= 0
+                && pages instanceof ColumnExtractorProducer producer) {
+                producer.setExtractorId(0);
+            }
             return pages;
         }
         int rpChannel = rowPositionChannelIndex(projectedColumns);
@@ -682,6 +1011,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 + pages.getClass().getName()
                 + "] does not implement ColumnExtractorProducer"
         );
+    }
+
+    /**
+     * Applies the reader's {@link RowPositionStrategy} to {@code pages}. The strategy decides whether
+     * the inner iterator already carries the {@code _rowPosition} column ({@link
+     * org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy} — no-op), needs a
+     * NULL splice ({@link org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy}),
+     * or some future shape. The dispatcher does not switch on reader type: it asks the reader for its
+     * strategy and invokes {@code apply} polymorphically.
+     */
+    private static CloseableIterator<Page> applyRowPositionStrategy(
+        FormatReader reader,
+        CloseableIterator<Page> pages,
+        List<String> projectedColumns
+    ) {
+        // Pre-compute the slot index once per reader.read() — strategies inspect a primitive
+        // instead of walking projectedColumns per apply(). Returns -1 when _rowPosition is not
+        // in the projection, which strategies short-circuit on.
+        int rowPositionSlot = SyntheticColumns.rowPositionIndexInNames(projectedColumns);
+        return reader.rowPositionStrategy().apply(pages, rowPositionSlot);
     }
 
     /**
@@ -765,15 +1114,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable List<Attribute> perFileReadSchema,
         @Nullable List<String> perFileCols
     ) {
-        if (mapping == null || mapping.isIdentity()) {
+        // Empty queryDataSchema = no data columns projected (COUNT(*), _file.*-only, or a TopN with
+        // all data columns deferred to _rowPosition): nothing to reshape, and the full-width mapping
+        // would trip SchemaAdaptingIterator's size-vs-width guard. Treat it like identity and pass the
+        // pages through (deferred extraction is handled in wrapWithEncoderIfNeeded).
+        if (mapping == null || mapping.isIdentity() || queryDataSchema.isEmpty()) {
             return pages;
         }
-        // When deferred extraction is enabled for this factory, the reader appends the synthetic
-        // {@link ColumnExtractor#ROW_POSITION_COLUMN} to the file's data columns (see
-        // {@link #perFileQueryProjection}). Tell the adapter where to find it so the block flows
-        // through to downstream operators unchanged. When deferred extraction is off, the
-        // reader's output has only data columns and the adapter ignores this slot.
-        int rowPositionInputIndex = deferredExtraction ? mapping.width() : -1;
+        // The reader appends the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} to the
+        // per-file projection whenever the query projection carries it — for deferred extraction
+        // AND for plain _id / _file.record_ref composition (see {@link #perFileQueryProjection}).
+        // Its input slot is its position in the per-file projection: the reader emits blocks in
+        // projection order, so this index addresses the reader's output page directly. Deriving
+        // the slot from the deferred flag or from {@code mapping.width()} is wrong on both arms:
+        // non-deferred readers also emit the channel (dropping it here starves the downstream
+        // VirtualColumnIterator of a block it counts on), and width() is the OUTPUT width, which
+        // diverges from the input slot whenever the file is missing query columns under UBN.
+        int rowPositionInputIndex = SyntheticColumns.rowPositionIndexInNames(perFileCols);
         // Per-file source types are only needed to disambiguate LongBlock under a KEYWORD cast.
         // Every other cast path is self-contained and ignores the array, so we skip the lookup
         // for mappings that have no KEYWORD slots — i.e. virtually every file split outside the
@@ -799,25 +1156,82 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * pushed expressions reference those columns.
      */
     private FormatReader readerForFile(FileSplit fileSplit) {
-        if (pushedExpressions.isEmpty() || pushdownSupport == null) {
-            return formatReader;
+        FormatReader reader = formatReader;
+        if (pushedExpressions.isEmpty() == false && pushdownSupport != null) {
+            ColumnMapping mapping = fileSplit.columnMapping();
+            if (mapping != null) {
+                List<Expression> adapted = mapping.mapFilters(pushedExpressions, queryDataSchema);
+                if (adapted != pushedExpressions) {
+                    if (adapted.isEmpty()) {
+                        reader = formatReader.withPushedFilter(null);
+                    } else {
+                        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(adapted);
+                        reader = result.hasPushedFilter()
+                            ? formatReader.withPushedFilter(result.pushedFilter())
+                            : formatReader.withPushedFilter(null);
+                    }
+                }
+            }
         }
-        ColumnMapping mapping = fileSplit.columnMapping();
-        if (mapping == null) {
-            return formatReader;
+        return readerWithDynamicThreshold(reader);
+    }
+
+    @Nullable
+    private DynamicThreshold dynamicThreshold() {
+        DynamicThreshold threshold = cachedThreshold;
+        if (threshold != null || (thresholdSupplier == null && minCompetitiveSupplier == null)) {
+            return threshold;
         }
-        List<Expression> adapted = mapping.mapFilters(pushedExpressions, queryDataSchema);
-        if (adapted == pushedExpressions) {
-            return formatReader;
+        synchronized (this) {
+            threshold = cachedThreshold;
+            if (threshold == null) {
+                if (thresholdColumnName == null) {
+                    throw new IllegalStateException("threshold descriptor is incomplete");
+                }
+                if (thresholdSupplier != null) {
+                    if (thresholdElementType == null) {
+                        throw new IllegalStateException("numeric threshold descriptor is incomplete");
+                    }
+                    threshold = new DynamicThreshold(
+                        thresholdColumnName,
+                        thresholdElementType,
+                        thresholdAscending,
+                        thresholdNullsFirst,
+                        thresholdSupplier.get()
+                    );
+                } else if (minCompetitiveSupplier != null) {
+                    threshold = new DynamicThreshold(
+                        thresholdColumnName,
+                        thresholdAscending,
+                        thresholdNullsFirst,
+                        minCompetitiveSupplier.get()
+                    );
+                }
+                cachedThreshold = threshold;
+            }
+            return threshold;
         }
-        if (adapted.isEmpty()) {
-            return formatReader.withPushedFilter(null);
+    }
+
+    private boolean noFurtherCandidates() {
+        DynamicThreshold threshold = dynamicThreshold();
+        return threshold != null && threshold.noFurtherCandidates();
+    }
+
+    private FormatReader readerWithDynamicThreshold(FormatReader reader) {
+        DynamicThreshold threshold = dynamicThreshold();
+        if (threshold != null && reader instanceof DynamicThresholdAware aware) {
+            return aware.withDynamicThreshold(threshold);
         }
-        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(adapted);
-        if (result.hasPushedFilter()) {
-            return formatReader.withPushedFilter(result.pushedFilter());
+        return reader;
+    }
+
+    private synchronized void closeDynamicThreshold() {
+        DynamicThreshold threshold = cachedThreshold;
+        cachedThreshold = null;
+        if (threshold != null) {
+            IOUtils.closeWhileHandlingException(threshold);
         }
-        return formatReader.withPushedFilter(null);
     }
 
     private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
@@ -830,7 +1244,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             driverContext.removeAsyncAction();
             releaseOperator();
         }));
-        ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, rowLimit);
+        buffer.setSplitsTotal(sliceQueue.totalSlices());
+        ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, rowLimit, formatReader);
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
@@ -853,7 +1268,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             driverContext.removeAsyncAction();
             releaseOperator();
         }));
-        ProducerState state = new ProducerState(null, fileList, projectedColumns, buffer, driverContext, rowLimit);
+        buffer.setSplitsTotal(fileList.fileCount());
+        ProducerState state = new ProducerState(null, fileList, projectedColumns, buffer, driverContext, rowLimit, formatReader);
         state.schemaInfo = schemaMap;
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
@@ -876,6 +1292,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         final List<String> projectedColumns;
         final AsyncExternalSourceBuffer buffer;
         final DriverContext driverContext;
+        @Nullable
+        final FormatReader formatReader;
 
         int fileIndex;
         @Nullable
@@ -894,6 +1312,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StoragePath lastSchemaPath;
         @Nullable
         List<Attribute> lastBoundSchema;
+        // Per-storage-object running tally for bytes_read deltas. Reset whenever a new
+        // StorageObject is opened so deltas are attributed to a single object's lifetime.
+        @Nullable
+        StorageObject currentObject;
+        long currentObjectBytesSnapshot;
+        // 1-based index of the split / file the producer is currently working on (0 = not started).
+        int currentSplitIndex;
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -901,7 +1326,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             @Nullable List<String> projectedColumns,
             AsyncExternalSourceBuffer buffer,
             DriverContext driverContext,
-            int rowsRemaining
+            int rowsRemaining,
+            @Nullable FormatReader formatReader
         ) {
             if ((queue == null) == (fileList == null)) {
                 throw new IllegalArgumentException("ProducerState requires exactly one of queue or fileList");
@@ -912,6 +1338,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             this.buffer = buffer;
             this.driverContext = driverContext;
             this.rowsRemaining = rowsRemaining;
+            this.formatReader = formatReader;
         }
     }
 
@@ -934,6 +1361,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // Open an iterator for the next unit if we don't have one.
             if (state.pages == null) {
                 if (advanceToNextUnit(state) == false) {
+                    snapshotBytesRead(state);
+                    snapshotFormatReaderStatus(state);
                     completionListener.onResponse(null);
                     return;
                 }
@@ -943,21 +1372,72 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 case DONE -> {
                     // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open:
                     // close it before reporting completion so no resources leak on cancellation paths.
+                    snapshotBytesRead(state);
+                    snapshotFormatReaderStatus(state);
                     clearCurrentIterator(state);
                     completionListener.onResponse(null);
                 }
                 case EOF -> {
+                    // Finished consuming this unit: capture deltas, count the split as processed,
+                    // and resubmit to advance to the next unit.
+                    snapshotBytesRead(state);
+                    snapshotFormatReaderStatus(state);
+                    state.buffer.incSplitsProcessed();
                     clearCurrentIterator(state);
+                    state.currentObject = null;
+                    state.currentObjectBytesSnapshot = 0L;
                     // Re-submit to avoid unbounded recursion between units and to stay off the Driver thread.
                     executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
                 }
                 case BLOCKED -> {
                     // A listener has been registered on waitForSpace that will re-submit runProducerLoop.
+                    snapshotBytesRead(state);
+                    snapshotFormatReaderStatus(state);
                 }
             }
         } catch (Exception e) {
             clearCurrentIterator(state);
             completionListener.onFailure(e);
+        }
+    }
+
+    /**
+     * Captures the delta in {@code StorageObject.metrics().bytesRead()} since the last snapshot
+     * for the currently-active object and forwards it to the buffer. Safe no-op when no object
+     * is active. Best-effort: telemetry must never break the producer lifecycle.
+     */
+    private static void snapshotBytesRead(ProducerState state) {
+        StorageObject obj = state.currentObject;
+        if (obj == null) {
+            return;
+        }
+        try {
+            StorageObjectMetrics metrics = obj.metrics();
+            if (metrics == null) {
+                return;
+            }
+            long current = metrics.bytesRead();
+            long delta = current - state.currentObjectBytesSnapshot;
+            if (delta > 0) {
+                state.buffer.addBytesRead(delta);
+                state.currentObjectBytesSnapshot = current;
+            }
+        } catch (Exception e) {
+            // metrics() is opt-in; never let an instrumentation accessor break the producer lifecycle.
+            // TRACE so on-call has a breadcrumb if telemetry counters silently flatline.
+            logger.trace(() -> "telemetry: bytesRead snapshot failed for " + state.currentObject, e);
+        }
+    }
+
+    /** Refreshes the buffer's view of the format reader's counter snapshot; best-effort. */
+    private static void snapshotFormatReaderStatus(ProducerState state) {
+        if (state.formatReader == null) {
+            return;
+        }
+        try {
+            state.buffer.recordFormatReaderStatus(state.formatReader.statusSnapshot());
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + state.formatReader, e);
         }
     }
 
@@ -979,6 +1459,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = state.pages;
         AsyncExternalSourceBuffer buffer = state.buffer;
         while (true) {
+            if (noFurtherCandidates()) {
+                return DrainResult.DONE;
+            }
             if (buffer.noMoreInputs()) {
                 return DrainResult.DONE;
             }
@@ -1074,6 +1557,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     private boolean advanceToNextUnit(ProducerState state) throws IOException {
         while (true) {
+            if (noFurtherCandidates()) {
+                return false;
+            }
             if (state.buffer.noMoreInputs()) {
                 return false;
             }
@@ -1108,6 +1594,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * process multiple splits at once via {@link RangeAwareFormatReader#readAll}.
      */
     private boolean openNextSliceQueueLeaf(ProducerState state) throws IOException {
+        if (noFurtherCandidates()) {
+            return false;
+        }
         if (batchReadCapable && state.leaves == null) {
             return openNextBatch(state);
         }
@@ -1118,6 +1607,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             state.leaves = flattenToLeaves(split);
             state.leafIndex = 0;
+            state.currentSplitIndex++;
+            state.buffer.setCurrentSplit(state.currentSplitIndex);
         }
         ExternalSplit leaf = state.leaves.get(state.leafIndex++);
         if (leaf instanceof FileSplit == false) {
@@ -1154,6 +1645,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pages = rangeReader.readRange(fullObj, rangeCtx);
                 state.lastRangeFilePath = fileSplit.path();
                 state.lastFileContext = rangeCtx.fileContext();
+                state.currentObject = fullObj;
+                state.currentObjectBytesSnapshot = readBytesOrZero(fullObj);
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
                 boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
@@ -1182,7 +1675,29 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Under UBN, the query projection may include columns missing from this file; the adapter
                 // (SchemaAdaptingIterator wrapping the reader output below) null-fills those.
                 List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
-                pages = openWithParallelism(fileReader, obj, perFileCols, errorPolicy, recordAlignedMacro, firstSplit, perFileReadSchema);
+                // Compressed-offset splits (bzip2 block-aligned / zstd-indexed): splitStartByte is a
+                // COMPRESSED position while text readers anchor _rowPosition in decompressed bytes —
+                // composing _id from that mix yields non-split-invariant, collision-prone tokens. Take
+                // the slot out of the reader's projection and null-splice it instead: null _id over
+                // these layouts, same honest carve-out parquet-rs gets.
+                boolean compressedOffsetSplit = "true".equals(fileSplit.config().get(FileSplitProvider.COMPRESSED_OFFSET_SPLIT_KEY));
+                int compressedRowPosSlot = compressedOffsetSplit ? SyntheticColumns.rowPositionIndexInNames(perFileCols) : -1;
+                if (compressedRowPosSlot >= 0) {
+                    List<String> withoutRowPosition = new ArrayList<>(perFileCols);
+                    withoutRowPosition.remove(compressedRowPosSlot);
+                    perFileCols = withoutRowPosition;
+                }
+                pages = openWithParallelism(
+                    fileReader,
+                    obj,
+                    perFileCols,
+                    errorPolicy,
+                    recordAlignedMacro,
+                    firstSplit,
+                    perFileReadSchema,
+                    fileSplit.offset(),
+                    state.buffer.capturedSourceMetadataSink()
+                );
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
@@ -1194,9 +1709,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .lastSplit(lastSplit)
                         .recordAligned(recordAlignedMacro)
                         .readSchema(perFileReadSchema)
+                        .splitStartByte(fileSplit.offset())
+                        .maxRecordBytes(maxRecordBytes)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
+                if (compressedRowPosSlot >= 0) {
+                    pages = new NullSpliceRowPositionStrategy(
+                        producerBlockFactory(state.driverContext),
+                        "compressed-offset split has no decompressed _rowPosition anchor"
+                    ).apply(pages, compressedRowPosSlot);
+                } else {
+                    pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
+                }
+                state.currentObject = obj;
+                state.currentObjectBytesSnapshot = readBytesOrZero(obj);
+                pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
             }
             // Resolve the file's read schema and the reader's projected column order so the
             // adapter can disambiguate LongBlock sources when stringifying under UBN. Pulled
@@ -1219,7 +1747,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, cols, state.driverContext);
             // Per-split virtual-column iterator: each slice-queue leaf has its own _file.* values
             // (different path/name/dir/size/mtime), so the wrapper is bound to *this* iterator's pages.
-            state.pages = wrapWithVirtualColumns(withEncoder, fileSplit.partitionValues(), state.driverContext);
+            state.pages = wrapWithVirtualColumns(
+                withEncoder,
+                mergeStandardMetadata(fileSplit.partitionValues()),
+                state.driverContext,
+                fileSplit.path()
+            );
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
@@ -1239,6 +1772,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * injection (incompatible with a unified batch iterator).
      */
     private boolean openNextBatch(ProducerState state) throws IOException {
+        if (noFurtherCandidates()) {
+            return false;
+        }
         int remaining = state.queue.remaining();
         if (remaining == 0) {
             return false;
@@ -1270,10 +1806,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // so dataProjectedColumns() returns the full attribute list and no virtual-column wrapping
         // is needed.
         List<String> cols = dataProjectedColumns();
-        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) formatReader;
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) readerWithDynamicThreshold(formatReader);
         CloseableIterator<Page> pages = null;
         try {
             pages = rangeReader.readAll(splitRefs, cols, batchSize);
+            pages = applyRowPositionStrategy(rangeReader, pages, cols);
             state.pages = pages;
             return true;
         } catch (Exception e) {
@@ -1289,29 +1826,37 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * have been processed.
      */
     private boolean openNextMultiFile(ProducerState state) throws IOException {
+        if (noFurtherCandidates()) {
+            return false;
+        }
         FileList files = state.fileList;
         assert files != null;
         if (state.fileIndex >= files.fileCount()) {
             return false;
         }
         int fileIndex = state.fileIndex++;
+        state.currentSplitIndex = fileIndex + 1;
+        state.buffer.setCurrentSplit(state.currentSplitIndex);
         List<String> cols = state.projectedColumns;
 
-        // Per-file partition values so {@code _file.path/name/directory/size/modified} reflect
-        // *this* file rather than the factory's pre-resolution values. Hive-style partition values
-        // (carried in {@code partitionValues}) overlay on top — they are constant across all files
-        // in this unit-of-resolution; per-file metadata values from
-        // {@code FileMetadataColumns.extractValues} override on key collision so a hand-rolled
-        // "_file.size" column never leaks the factory value.
+        // Per-file partition values so _file.path/name/directory/size/modified reflect *this*
+        // file rather than the factory's pre-resolution values. Merge precedence (base -> top):
+        // Hive partition values, then standard ES metadata constants (dedicated names win on a
+        // smuggled-key collision — same order mergeStandardMetadata applies on the slice-queue
+        // and single-file paths), then _file.* values (disjoint namespace, must reflect this file).
         Map<String, Object> perFileValues = partitionValues;
         if (partitionColumnNames.isEmpty() == false) {
             perFileValues = new HashMap<>(partitionValues);
+            if (standardMetadataPerFileNames.isEmpty() == false) {
+                perFileValues.putAll(ExternalMetadataColumns.extractPerFileConstants(datasetName, files, fileIndex));
+            }
             perFileValues.putAll(FileMetadataColumns.extractValues(files, fileIndex));
         }
 
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
+            FormatReader fileReader = readerWithDynamicThreshold(formatReader);
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.
             ColumnMapping mapping = null;
@@ -1324,7 +1869,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
             List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
-            pages = openWithParallelism(formatReader, obj, perFileCols, errorPolicy, false, true, perFileReadSchema);
+            pages = openWithParallelism(
+                fileReader,
+                obj,
+                perFileCols,
+                errorPolicy,
+                false,
+                true,
+                perFileReadSchema,
+                0L,
+                state.buffer.capturedSourceMetadataSink()
+            );
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -1333,14 +1888,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .rowLimit(fileBudget)
                     .errorPolicy(errorPolicy)
                     .readSchema(perFileReadSchema)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
-                pages = formatReader.read(obj, ctx);
+                pages = fileReader.read(obj, ctx);
             }
+            pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
+            pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
             CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext, perFileReadSchema, perFileCols);
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
-            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext);
+            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, files.path(fileIndex));
+            state.currentObject = obj;
+            state.currentObjectBytesSnapshot = readBytesOrZero(obj);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
@@ -1350,20 +1910,42 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
     }
 
+    /** Best-effort read of {@code obj.metrics().bytesRead()}; returns 0 on null/throw so test mocks don't break the producer. */
+    private static long readBytesOrZero(StorageObject obj) {
+        try {
+            StorageObjectMetrics m = obj.metrics();
+            return m == null ? 0L : m.bytesRead();
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: bytesRead baseline read failed for " + obj, e);
+            return 0L;
+        }
+    }
+
     private void startNativeAsyncRead(
         StorageObject storageObject,
         List<String> projectedColumns,
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext
     ) {
+        if (noFurtherCandidates()) {
+            buffer.finish(false);
+            driverContext.removeAsyncAction();
+            releaseOperator();
+            return;
+        }
+        buffer.setSplitsTotal(1);
+        buffer.setCurrentSplit(1);
         FormatReadContext ctx = FormatReadContext.builder()
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)
             .rowLimit(rowLimit)
             .errorPolicy(errorPolicy)
+            .maxRecordBytes(maxRecordBytes)
             .build();
-        formatReader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
-            consumePagesInBackground(iterator, buffer, driverContext, storageObject, projectedColumns);
+        FormatReader reader = readerWithDynamicThreshold(formatReader);
+        reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
+            CloseableIterator<Page> wrapped = applyRowPositionStrategy(reader, iterator, projectedColumns);
+            consumePagesInBackground(wrapped, buffer, driverContext, storageObject, projectedColumns);
         }, e -> {
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
@@ -1377,16 +1959,27 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext
     ) {
+        if (noFurtherCandidates()) {
+            buffer.finish(false);
+            driverContext.removeAsyncAction();
+            releaseOperator();
+            return;
+        }
+        buffer.setSplitsTotal(1);
+        buffer.setCurrentSplit(1);
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
+            FormatReader reader = readerWithDynamicThreshold(formatReader);
             CloseableIterator<Page> pages = openWithParallelism(
-                formatReader,
+                reader,
                 storageObject,
                 projectedColumns,
                 errorPolicy,
                 false,
                 true,
-                null
+                null,
+                0L,
+                buffer.capturedSourceMetadataSink()
             );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -1394,16 +1987,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .batchSize(batchSize)
                     .rowLimit(rowLimit)
                     .errorPolicy(errorPolicy)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
-                pages = formatReader.read(storageObject, ctx);
+                pages = reader.read(storageObject, ctx);
             }
+            pages = applyRowPositionStrategy(reader, pages, projectedColumns);
+            pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
             // Wrap with the deferred-extraction encoder (no-op when not enabled), then with the
             // virtual-column iterator so {@code _file.*} columns flow through the producer pipeline
             // alongside the data columns.
             final CloseableIterator<Page> finalPages;
             try {
                 CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
-                finalPages = wrapWithVirtualColumns(withEncoder, partitionValues, driverContext);
+                finalPages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
             } catch (Exception e) {
                 closeQuietly(pages);
                 throw e;
@@ -1412,8 +2008,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 finalPages,
                 buffer,
                 executor,
-                ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
+                // Close the iterator chain and record telemetry BEFORE notifying the buffer:
+                // closing publishes the finalize marker into the capture sink (via
+                // StatsCapturingIterator and the parallel coordinators' finalize hook), and
+                // recordSingleFileTelemetry writes the splits_processed / bytes_read /
+                // format-reader status counters that the operator status snapshot reads. The
+                // Driver may snapshot status() synchronously the moment buffer.finish(false)
+                // flips isFinished() to true; notifying the buffer first opens a window where
+                // the snapshot lacks the marker (reconciler discards the partial contributions)
+                // and the telemetry counters (profile shows zeros for an operator that did
+                // real work). Telemetry runs on both success and failure to match the previous
+                // runAfter semantics.
+                ActionListener.runAfter(ActionListener.wrap(v -> {
                     closeQuietly(finalPages);
+                    recordSingleFileTelemetry(storageObject, buffer);
+                    buffer.finish(false);
+                }, e -> {
+                    closeQuietly(finalPages);
+                    recordSingleFileTelemetry(storageObject, buffer);
+                    buffer.onFailure(e);
+                }), () -> {
                     driverContext.removeAsyncAction();
                     releaseOperator();
                 })
@@ -1428,26 +2042,67 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StorageObject storageObject,
         List<String> projectedColumns
     ) {
+        final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
         ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
-            closeQuietly(pages);
+            closeQuietly(capturing);
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
             releaseOperator();
         });
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
-            CloseableIterator<Page> wrapped = wrapWithVirtualColumns(withEncoder, partitionValues, driverContext);
+            CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(capturing, projectedColumns, driverContext);
+            CloseableIterator<Page> wrapped = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
             drainPagesAsync(
                 wrapped,
                 buffer,
                 executor,
-                ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
+                // See startSyncWrapperRead: close the iterator chain and record telemetry
+                // before notifying the buffer so the finalize marker and the telemetry
+                // counters reach the operator status snapshot before isFinished() flips.
+                ActionListener.runAfter(ActionListener.wrap(v -> {
                     closeQuietly(wrapped);
+                    recordSingleFileTelemetry(storageObject, buffer);
+                    buffer.finish(false);
+                }, e -> {
+                    closeQuietly(wrapped);
+                    recordSingleFileTelemetry(storageObject, buffer);
+                    buffer.onFailure(e);
+                }), () -> {
                     driverContext.removeAsyncAction();
                     releaseOperator();
                 })
             );
         }));
+    }
+
+    /**
+     * Records final telemetry for the single-file producer paths
+     * ({@link #startNativeAsyncRead}, {@link #startSyncWrapperRead}): increments
+     * splits_processed, captures the storage object's cumulative bytes_read, and
+     * forwards the latest format-reader counter snapshot. Best-effort: any
+     * accessor that misbehaves (e.g. returns {@code null} from a test mock) is
+     * tolerated so telemetry can never short-circuit the lifecycle callbacks.
+     */
+    private void recordSingleFileTelemetry(StorageObject storageObject, AsyncExternalSourceBuffer buffer) {
+        buffer.incSplitsProcessed();
+        try {
+            if (storageObject != null) {
+                StorageObjectMetrics metrics = storageObject.metrics();
+                if (metrics != null) {
+                    long bytes = metrics.bytesRead();
+                    if (bytes > 0) {
+                        buffer.addBytesRead(bytes);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: bytesRead snapshot failed for " + storageObject, e);
+        }
+        try {
+            buffer.recordFormatReaderStatus(formatReader.statusSnapshot());
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + formatReader, e);
+        }
     }
 
     private static List<ExternalSplit> flattenToLeaves(ExternalSplit split) {
@@ -1485,15 +2140,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void releaseOperator() {
-        if (operatorRefCount.decrementAndGet() == 0 && onClose != null) {
-            if (deferredExtraction) {
-                // Don't close onClose here — the deferred extraction path keeps using the storage
-                // (and thus the per-query budget) after the last source operator finishes
-                // producing. Release the factory's ref instead; the budget closes once every
-                // SourceExtractors registry has also been closed.
-                releaseDeferredCloseRef();
-            } else {
-                closeQuietly(onClose);
+        if (operatorRefCount.decrementAndGet() == 0) {
+            closeDynamicThreshold();
+            if (onClose != null) {
+                if (deferredExtraction) {
+                    // Don't close onClose here — the deferred extraction path keeps using the storage
+                    // (and thus the per-query budget) after the last source operator finishes
+                    // producing. Release the factory's ref instead; the budget closes once every
+                    // SourceExtractors registry has also been closed.
+                    releaseDeferredCloseRef();
+                } else {
+                    closeQuietly(onClose);
+                }
             }
         }
     }
@@ -1562,7 +2220,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ErrorPolicy policy,
         boolean recordAlignedMacroSplit,
         boolean splitIncludesFileLeader,
-        @Nullable List<Attribute> perFileReadSchema
+        @Nullable List<Attribute> perFileReadSchema,
+        long baseFileOffset,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -1584,10 +2244,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     policy,
                     recordAlignedMacroSplit,
                     splitIncludesFileLeader,
-                    perFileReadSchema
+                    perFileReadSchema,
+                    baseFileOffset,
+                    maxConcurrentOpenSegments,
+                    captureSink,
+                    maxRecordBytes
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
+                // No open-segment cap here, unlike SEGMENTABLE_UNCOMPRESSED: a compressed file is read as a
+                // single serial decompressing stream in bounded (~1 MiB) chunks, so it has natural
+                // back-pressure and never fans out into many concurrent per-segment streams/buffers.
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);
                 DecompressionCodec codec = cdr.codec();
@@ -1611,12 +2278,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     return StreamingParallelParsingCoordinator.parallelRead(
                         seg,
                         decompressed,
+                        obj,
                         cols,
                         batchSize,
                         parsingParallelism,
                         executor,
                         policy,
-                        perFileReadSchema
+                        perFileReadSchema,
+                        baseFileOffset,
+                        maxRecordBytes,
+                        captureSink
                     );
                 } catch (Exception e) {
                     try {
@@ -1665,7 +2336,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         } else {
             asyncMode = "sync-wrapper";
         }
-        return "AsyncExternalSourceOperator["
+        return "ExternalDataSourceOperator["
             + "storage="
             + storageProvider.getClass().getSimpleName()
             + ", format="

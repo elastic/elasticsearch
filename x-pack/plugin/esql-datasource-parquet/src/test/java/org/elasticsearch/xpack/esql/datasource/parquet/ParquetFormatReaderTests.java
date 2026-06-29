@@ -449,18 +449,18 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * The optimized iterator is page-at-a-time and does not bulk-allocate row groups. The only
-     * tracked allocation that can trip the breaker mid-iteration is the per-row-group prefetch
-     * reservation, but that path catches the {@link CircuitBreakingException} and falls back to
-     * sync I/O (see {@code OptimizedParquetColumnIterator#triggerNextRowGroupPrefetch}). So a
-     * mid-iteration trip is only observable through the parquet-mr footer/index allocator.
+     * tracked allocation that can trip the breaker mid-iteration is the per-row-group prefetch,
+     * whose bytes are accounted via the Arrow allocator on the REQUEST breaker. If the breaker
+     * trips during a prefetch, the future fails and {@code takePendingPrefetch} falls back to
+     * sync I/O for that row group (see {@code OptimizedParquetColumnIterator}).
      *
      * <p>This test verifies two related properties:
      * <ul>
      *   <li>A breaker too tight to accommodate the file footer trips on file-open and releases
      *       all reserved bytes.</li>
-     *   <li>A breaker tight enough that the prefetcher cannot reserve, but large enough for the
-     *       footer, still produces correct results via the sync fallback and releases all bytes
-     *       on close.</li>
+     *   <li>A breaker tight enough that the per-row-group prefetch cannot fit, but large enough
+     *       for the footer and the sliding window, still produces correct results via the sync
+     *       fallback and releases all bytes on close.</li>
      * </ul>
      */
     public void testCircuitBreakerTripsOnLargerRowGroup() throws Exception {
@@ -508,14 +508,16 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(0, tinyBreaker.getUsed());
         }
 
-        // 2. Breaker fits the footer but cannot accommodate the prefetcher reservation →
-        // iterator falls back to sync I/O, still produces all rows, releases all bytes on close.
+        // 2. Breaker fits the footer and the sliding window but leaves only modest headroom.
+        // Per-row-group prefetches that exceed the headroom trip the Arrow allocator, fail their
+        // future, and trigger the sync-I/O fallback in {@code takePendingPrefetch}. The iteration
+        // still produces all rows and releases every byte on close. Exact prefetch-vs-fallback
+        // mix depends on row-group size and codec, which is fine — the regression we care about
+        // here is "no leaks and no errors under a tight allocator budget".
         {
-            // The window buffer is now tracked by the circuit breaker; add DEFAULT_WINDOW_SIZE so the
-            // window fits and the remaining 32 KB budget still cannot accommodate the prefetcher reservation.
             var smallBreaker = new LimitedBreaker(
                 "test",
-                ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 32 * 1024)
+                ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 64 * 1024)
             );
             var smallFactory = new BlockFactory(smallBreaker, this.blockFactory.bigArrays());
             var pageCount = new AtomicInteger();
@@ -1188,6 +1190,240 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- TIME logical type tests (PARQUET-6) ---
+    // Storage rule: TIME_MILLIS (INT32) → DataType.LONG, raw ms value in LongBlock (no conversion);
+    // TIME_MICROS (INT64) → DataType.LONG, converted to nanoseconds (×1_000);
+    // TIME_NANOS (INT64) → DataType.LONG, raw ns value in LongBlock (no conversion).
+
+    public void testTimeMillisLogicalType() throws Exception {
+        // 12:00:00 encoded as TIME_MILLIS (INT32): 43_200_000 ms since midnight.
+        // TIME_MILLIS maps to LONG; raw ms value is widened to long and stored as-is.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("start_time")
+            .named("test_schema");
+
+        int rawMillis = 43_200_000; // 12:00:00 in ms since midnight
+
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("start_time", rawMillis)));
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("TIME_MILLIS should map to LONG", DataType.LONG, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals("TIME_MILLIS: raw ms value widened to long", (long) rawMillis, block.getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testTimeMicrosLogicalType() throws Exception {
+        // 12:00:00 encoded as TIME_MICROS (INT64): 43_200_000_000 µs since midnight.
+        // Expected in LongBlock: 43_200_000_000 * 1_000 = 43_200_000_000_000 ns.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("start_time")
+            .named("test_schema");
+
+        long rawMicros = 43_200_000_000L; // 12:00:00 in µs since midnight
+        long expectedNanos = rawMicros * 1_000L;
+
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("start_time", rawMicros)));
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("TIME_MICROS should map to LONG", DataType.LONG, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals("TIME_MICROS must be converted to nanoseconds (×1_000)", expectedNanos, block.getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testTimeNanosLogicalType() throws Exception {
+        // 12:00:00 encoded as TIME_NANOS (INT64): 43_200_000_000_000 ns since midnight.
+        // Expected in LongBlock: same raw value — already nanoseconds, no conversion.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("start_time")
+            .named("test_schema");
+
+        long rawNanos = 43_200_000_000_000L; // 12:00:00 in ns since midnight
+
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("start_time", rawNanos)));
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("TIME_NANOS should map to LONG", DataType.LONG, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals("TIME_NANOS value is already nanoseconds, stored as-is", rawNanos, block.getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testTimeMillisNullableLogicalType() throws Exception {
+        // Nullable TIME_MILLIS column: one null row, one value row.
+        // TIME_MILLIS maps to LONG; the block is a LongBlock with the raw ms value.
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("start_time")
+            .named("test_schema");
+
+        int rawMillis = 3_600_000; // 01:00:00 in ms
+
+        byte[] data = createParquetFile(schema, f -> {
+            Group g1 = f.newGroup(); // null row
+            Group g2 = f.newGroup().append("start_time", rawMillis);
+            return List.of(g1, g2);
+        });
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertTrue("first row should be null", block.isNull(0));
+            assertEquals("second row: raw ms value widened to long", (long) rawMillis, block.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testTimeMicrosNullableLogicalType() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("start_time")
+            .named("test_schema");
+
+        long rawMicros = 3_600_000_000L; // 01:00:00 in µs
+        long expectedNanos = rawMicros * 1_000L;
+
+        byte[] data = createParquetFile(schema, f -> {
+            Group g1 = f.newGroup(); // null row
+            Group g2 = f.newGroup().append("start_time", rawMicros);
+            return List.of(g1, g2);
+        });
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertTrue("first row should be null", block.isNull(0));
+            assertEquals("TIME_MICROS must be converted to nanoseconds (×1_000)", expectedNanos, block.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testTimeNanosNullableLogicalType() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("start_time")
+            .named("test_schema");
+
+        long rawNanos = 3_600_000_000_000L; // 01:00:00 in ns
+
+        byte[] data = createParquetFile(schema, f -> {
+            Group g1 = f.newGroup(); // null row
+            Group g2 = f.newGroup().append("start_time", rawNanos);
+            return List.of(g1, g2);
+        });
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertTrue("first row should be null", block.isNull(0));
+            assertEquals("TIME_NANOS value is already nanoseconds, stored as-is", rawNanos, block.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    // --- JSON/BSON logical type tests ---
+
+    public void testJsonLogicalType() throws Exception {
+        // BINARY + JSON annotation: UTF-8 encoded JSON string, maps to KEYWORD.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.jsonType())
+            .named("payload")
+            .named("test_schema");
+
+        byte[] jsonBytes = "{\"x\":1}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("payload", Binary.fromConstantByteArray(jsonBytes))));
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("JSON annotation should map to KEYWORD", DataType.KEYWORD, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef(jsonBytes), block.getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testBsonLogicalType() throws Exception {
+        // BINARY + BSON annotation: opaque binary, not human-readable — maps to UNSUPPORTED.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.bsonType())
+            .named("doc")
+            .named("test_schema");
+
+        StorageObject so = createStorageObject(
+            createParquetFile(schema, f -> List.of(f.newGroup().append("doc", Binary.fromConstantByteArray(new byte[] { 0x05, 0x00 }))))
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("BSON annotation should map to UNSUPPORTED", DataType.UNSUPPORTED, metadata.schema().get(0).dataType());
+    }
+
+    public void testIntervalLogicalType() throws Exception {
+        // FIXED_LEN_BYTE_ARRAY(12) + INTERVAL annotation: months+days+ms has no single ESQL equivalent;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(12)
+            .as(LogicalTypeAnnotation.IntervalLogicalTypeAnnotation.getInstance())
+            .named("duration")
+            .named("test_schema");
+
+        StorageObject so = createStorageObject(
+            createParquetFile(schema, f -> List.of(f.newGroup().append("duration", Binary.fromConstantByteArray(new byte[12]))))
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("INTERVAL annotation should map to UNSUPPORTED", DataType.UNSUPPORTED, metadata.schema().get(0).dataType());
+    }
+
     // --- INT96 timestamp tests ---
 
     public void testReadInt96TimestampColumn() throws Exception {
@@ -1643,7 +1879,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         Arrays.fill(garbage, (byte) 0x5a);
         StorageObject storageObject = createStorageObject(garbage, "s3://bucket/path/file.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertThat(
             ex.getMessage(),
             allOf(
@@ -1656,7 +1892,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testInvalidParquetOpenEmptyFile() throws Exception {
         StorageObject storageObject = createStorageObject(new byte[0], "memory://empty.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertThat(
             ex.getMessage(),
             allOf(
@@ -1676,8 +1912,131 @@ public class ParquetFormatReaderTests extends ESTestCase {
         byte[] truncated = Arrays.copyOf(full, Math.max(1, full.length / 8));
         StorageObject storageObject = createStorageObject(truncated, "https://host/obj.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
+    }
+
+    public void testCorruptDataPageProducesIllegalArgumentException() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        // Overwrite every byte in the data area (between PAR1 header and footer) so that column
+        // data is completely garbled, triggering a decoding error on read(). The footer at the
+        // end of the file stays intact so metadata() still succeeds.
+        int footerLenOffset = parquetData.length - 8;
+        int footerLen = ((parquetData[footerLenOffset] & 0xFF)) | ((parquetData[footerLenOffset + 1] & 0xFF) << 8)
+            | ((parquetData[footerLenOffset + 2] & 0xFF) << 16) | ((parquetData[footerLenOffset + 3] & 0xFF) << 24);
+        int footerStart = parquetData.length - 8 - footerLen;
+        Arrays.fill(parquetData, 4, footerStart, (byte) 0xFF);
+
+        StorageObject storageObject = createStorageObject(parquetData, "https://host/corrupt.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        // metadata() should still succeed (footer is intact)
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertNotNull(metadata);
+        // read() should fail with IllegalArgumentException (not ElasticsearchException/500)
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(ex.getMessage(), containsString("id"));
+    }
+
+    public void testValidateFooterIntegrityRejectsNullsInRequiredColumn() {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(5);
+        PrimitiveType type = Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            org.apache.parquet.hadoop.metadata.CompressionCodecName.UNCOMPRESSED,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ParquetFormatReader.validateFooterIntegrity("https://example.com/bad.parquet", schema, List.of(block))
+        );
+        assertThat(ex.getMessage(), containsString("https://example.com/bad.parquet"));
+        assertThat(ex.getMessage(), containsString("column [id] is declared required but row group reports 5 null(s)"));
+    }
+
+    public void testValidateFooterIntegrityPassesForOptionalColumnWithNulls() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(5);
+        PrimitiveType type = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            org.apache.parquet.hadoop.metadata.CompressionCodecName.UNCOMPRESSED,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
+    }
+
+    public void testValidateFooterIntegrityPassesForRequiredColumnWithZeroNulls() {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(0);
+        PrimitiveType type = Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            org.apache.parquet.hadoop.metadata.CompressionCodecName.UNCOMPRESSED,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
     }
 
     public void testValidParquetZeroRowsMetadata() throws Exception {
@@ -3100,4 +3459,123 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertFalse(iterator.hasNext());
         }
     }
+
+    private static MessageType threeColumnSchema() {
+        return Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("a")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("b")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("c")
+            .named("schema");
+    }
+
+    /**
+     * Full scan: no filter (filteringRequired == false) and no threshold must emit zero index
+     * paths. Regression guard — an earlier version keyed gating off {@code recordFilter == null},
+     * but the production record filter is {@code FilterCompat.NOOP} (never null) for an unfiltered
+     * read, which silently disabled the gating and fetched every page index.
+     */
+    public void testComputeIndexColumnPathsFullScanEmitsNothing() {
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            false,
+            false,
+            null,
+            null,
+            threeColumnSchema()
+        );
+        assertNotNull("full scan must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
+        assertNotNull(paths.offsetIndexPaths());
+        assertTrue("full scan must not fetch any column index", paths.columnIndexPaths().isEmpty());
+        assertTrue("full scan must not fetch any offset index", paths.offsetIndexPaths().isEmpty());
+    }
+
+    /**
+     * Filtered read: predicate columns get both indexes; projected columns get the offset index
+     * (to skip non-surviving pages); non-predicate columns get no column index.
+     */
+    public void testComputeIndexColumnPathsFilteredQuery() {
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            true,
+            true,
+            Set.of("a"),
+            null,
+            threeColumnSchema()
+        );
+        assertEquals("only the predicate column needs a column index", Set.of("a"), paths.columnIndexPaths());
+        assertEquals(
+            "every projected column (plus the predicate column) needs an offset index",
+            Set.of("a", "b", "c"),
+            paths.offsetIndexPaths()
+        );
+    }
+
+    /**
+     * A predicate column that is not projected must still carry both indexes so
+     * {@code ColumnIndexRowRangesComputer} can evaluate the predicate against it.
+     */
+    public void testComputeIndexColumnPathsNonProjectedPredicateColumn() {
+        MessageType projected = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("b").named("schema");
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(true, true, Set.of("a"), null, projected);
+        assertEquals(Set.of("a"), paths.columnIndexPaths());
+        assertEquals(
+            "predicate column a (not projected) and projected column b both need offset index",
+            Set.of("a", "b"),
+            paths.offsetIndexPaths()
+        );
+    }
+
+    /**
+     * Threshold-only top-N (no filter): only the sort column needs both indexes; projected columns
+     * are not added because, without a filter, reads are sequential and need no offset index.
+     */
+    public void testComputeIndexColumnPathsThresholdOnly() {
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            false,
+            false,
+            null,
+            "a",
+            threeColumnSchema()
+        );
+        assertEquals(Set.of("a"), paths.columnIndexPaths());
+        assertEquals(Set.of("a"), paths.offsetIndexPaths());
+    }
+
+    /**
+     * Legacy FilterPredicateCompat path: a filter is active but its predicate columns cannot be
+     * enumerated, so gating is unsafe and both sets must be null (unrestricted preload).
+     */
+    public void testComputeIndexColumnPathsLegacyFilterIsUnrestricted() {
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            true,
+            true,
+            null,
+            null,
+            threeColumnSchema()
+        );
+        assertNull("legacy filter path must not gate", paths.columnIndexPaths());
+        assertNull("legacy filter path must not gate", paths.offsetIndexPaths());
+    }
+
+    /**
+     * Pushdown that yields no Parquet {@code FilterPredicate} (e.g. a pure {@code WildcardLike}):
+     * predicate columns are enumerable but {@code pageRangeFilterActive} is false, so no page-level
+     * {@code RowRanges} are ever computed. The predicate-column page indexes must not be fetched -
+     * they would be fetched and discarded.
+     */
+    public void testComputeIndexColumnPathsPushdownWithoutFilterPredicate() {
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            false,
+            false,
+            Set.of("a"),
+            null,
+            threeColumnSchema()
+        );
+        assertNotNull("must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
+        assertNotNull(paths.offsetIndexPaths());
+        assertTrue("no FilterPredicate -> predicate column index must not be fetched", paths.columnIndexPaths().isEmpty());
+        assertTrue("no FilterPredicate -> no offset index must be fetched", paths.offsetIndexPaths().isEmpty());
+    }
+
 }

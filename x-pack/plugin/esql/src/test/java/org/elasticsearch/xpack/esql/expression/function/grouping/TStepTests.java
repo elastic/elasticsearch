@@ -169,17 +169,14 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
             args.add(new TestCaseSupplier.TypedData(step, DataType.TIME_DURATION, "step").forceLiteral());
             args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
-            return new TestCaseSupplier.TestCase(
-                args,
-                timestampType == DataType.DATE_NANOS
-                    ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
-                    : Matchers.startsWith("DateTruncDatetimeEvaluator["),
-                timestampType,
-                matcher(args, step.toMillis(), now)
-            ).withConfiguration(
-                TEST_SOURCE,
-                tStepConfig(now, timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5))
-            );
+            return new TestCaseSupplier.TestCase(args, Matchers.startsWith("DateTrunc"), timestampType, matcher(args, step.toMillis(), now))
+                .withConfiguration(
+                    TEST_SOURCE,
+                    randomConfigurationBuilder().query(TEST_SOURCE.text())
+                        .now(now)
+                        .zoneId(timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5))
+                        .build()
+                );
         }));
     }
 
@@ -207,9 +204,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                     );
                     return new TestCaseSupplier.TestCase(
                         args,
-                        timestampType == DataType.DATE_NANOS
-                            ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
-                            : Matchers.startsWith("DateTruncDatetimeEvaluator["),
+                        Matchers.startsWith("DateTrunc"),
                         timestampType,
                         equalTo(encodedTimestamp(expectedMillis, timestampType))
                     ).withConfiguration(TEST_SOURCE, tStepConfig(end, ZoneOffset.UTC));
@@ -240,9 +235,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                         args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
                         return new TestCaseSupplier.TestCase(
                             args,
-                            timestampType == DataType.DATE_NANOS
-                                ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
-                                : Matchers.startsWith("DateTruncDatetimeEvaluator["),
+                            Matchers.startsWith("DateTrunc"),
                             timestampType,
                             equalTo(encodedTimestamp(expectedBucket.toEpochMilli(), timestampType))
                         ).withConfiguration(TEST_SOURCE, tStepConfig(end, ZoneOffset.UTC));
@@ -299,6 +292,17 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         assertThat(params.size(), anyOf(equalTo(2), equalTo(4)));
         int tsIndex = params.size() - 1;
         assertThat(params.get(tsIndex).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+        return params.subList(0, tsIndex);
+    }
+
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params.size(), anyOf(equalTo(2), equalTo(4)));
+        int tsIndex = params.size() - 1;
+        assertThat(params.get(tsIndex).type(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
         return params.subList(0, tsIndex);
     }
 

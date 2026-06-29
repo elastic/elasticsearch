@@ -87,7 +87,8 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 4),
             between(10, 100),
-            between(1, 100)
+            between(1, 100),
+            () -> 0L
         );
     }
 

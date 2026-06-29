@@ -21,8 +21,8 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- *  Doc values loader for UTF-8 multivalued fields with offset reconstruction, used by
- * {@link SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer} and {@link BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer}.
+ * Doc values loader for UTF-8 multivalued fields with offset reconstruction, used by
+ * {@link SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer}.
  */
 final class ValuesWithOffsetsDocValuesLoader implements SourceLoader.SyntheticFieldLoader.DocValuesLoader {
 
@@ -178,6 +178,9 @@ final class ValuesWithOffsetsDocValuesLoader implements SourceLoader.SyntheticFi
                 var encodedValue = offsetDocValues.lookupOrd(offsetOrd);
                 scratch.reset(encodedValue.bytes, encodedValue.offset, encodedValue.length);
                 offsetToOrd = FieldArrayContext.parseOffsetArray(scratch);
+                if (offsetToOrd.length == 0 && hasValue) {
+                    offsetToOrd = null;
+                }
             } else {
                 offsetToOrd = null;
             }

@@ -17,12 +17,17 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.LeaderBulkByPaginatedSearchTaskState;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
@@ -65,8 +70,8 @@ class BulkByPaginatedSearchParallelizationHelper {
     static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void startSlicedAction(
         Request request,
         BulkByPaginatedSearchTask task,
-        ActionType<BulkByScrollResponse> action,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionType<BulkByPaginatedSearchResponse> action,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         Client client,
         DiscoveryNode node,
         Runnable workerAction
@@ -97,8 +102,8 @@ class BulkByPaginatedSearchParallelizationHelper {
     static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void executeSlicedAction(
         BulkByPaginatedSearchTask task,
         Request request,
-        ActionType<BulkByScrollResponse> action,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionType<BulkByPaginatedSearchResponse> action,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         Client client,
         DiscoveryNode node,
         @Nullable Version remoteVersion,
@@ -132,9 +137,11 @@ class BulkByPaginatedSearchParallelizationHelper {
         int configuredSlices = request.getResumeInfo().map(ResumeInfo::getTotalSlices).orElse(request.getSlices());
         assert request.getResumeInfo().isEmpty() || configuredSlices != AUTO_SLICES : "Resumed tasks can't have auto slices";
         if (configuredSlices == AUTO_SLICES) {
+            SearchRequest searchRequest = request.getSearchRequest();
             client.execute(
                 TransportClusterSearchShardsAction.TYPE,
-                new ClusterSearchShardsRequest(request.getTimeout(), request.getSearchRequest().indices()),
+                new ClusterSearchShardsRequest(request.getTimeout(), searchRequest.indices()).routing(searchRequest.routing())
+                    .searchSlice(searchRequest.searchSlice()),
                 listener.safeMap(response -> {
                     setWorkerCount(request, task, countSlicesBasedOnShards(response));
                     return null;
@@ -170,11 +177,11 @@ class BulkByPaginatedSearchParallelizationHelper {
 
     private static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void sendSubRequests(
         Client client,
-        ActionType<BulkByScrollResponse> action,
+        ActionType<BulkByPaginatedSearchResponse> action,
         String localNodeId,
         BulkByPaginatedSearchTask task,
         Request request,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
         LeaderBulkByPaginatedSearchTaskState leader = task.getLeaderState();
         int totalSlices = leader.getSlices();
@@ -206,7 +213,7 @@ class BulkByPaginatedSearchParallelizationHelper {
             TaskId parentTaskId = new TaskId(localNodeId, task.getId());
             SearchRequest searchRequest = searchRequests[sliceId];
             Request requestForSlice = request.forSlice(parentTaskId, searchRequest, totalSlices, activeSlices);
-            ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
+            ActionListener<BulkByPaginatedSearchResponse> sliceListener = ActionListener.wrap(
                 r -> leader.onSliceResponse(listener, searchRequest.source().slice().getId(), r),
                 e -> leader.onSliceFailure(listener, searchRequest.source().slice().getId(), e)
             );
@@ -234,5 +241,44 @@ class BulkByPaginatedSearchParallelizationHelper {
             slices[slice] = searchRequest;
         }
         return slices;
+    }
+
+    /**
+     * Validates that {@code _slice} is provided when any non-wildcard target index has
+     * {@code index.slice.enabled=true}. Unlike pure search requests (which default to {@code _slice=_all}),
+     * write-backed operations such as update-by-query and delete-by-query require {@code _slice} because
+     * the write phase always fails without it.
+     */
+    static void validateSliceRoutingForWriteBackedSearch(
+        AbstractBulkByPaginatedSearchRequest<?> request,
+        ProjectMetadata projectMetadata,
+        String requestDescription
+    ) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        if (request.getSearchRequest().isRoutingFromSlice() == false) {
+            var indicesLookup = projectMetadata.getIndicesLookup();
+            for (String indexName : request.getSearchRequest().indices()) {
+                IndexAbstraction abstraction = indicesLookup.get(indexName);
+                if (abstraction == null) {
+                    continue;
+                }
+                for (Index index : abstraction.getIndices()) {
+                    IndexMetadata meta = projectMetadata.index(index);
+                    if (meta != null && IndexSettings.SLICE_ENABLED.get(meta.getSettings())) {
+                        throw new IllegalArgumentException(
+                            "[_slice] is required when [index.slice.enabled] is true for "
+                                + requestDescription
+                                + " targeting ["
+                                + indexName
+                                + "]"
+                        );
+                    }
+                }
+            }
+        } else {
+            SliceIndexing.validateUserSliceValue(request.getSearchRequest().searchSlice());
+        }
     }
 }

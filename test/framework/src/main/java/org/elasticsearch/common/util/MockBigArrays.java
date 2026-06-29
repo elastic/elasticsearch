@@ -185,6 +185,7 @@ public class MockBigArrays extends BigArrays {
      * Create {@linkplain BigArrays} with a provided breaker service. The breaker can be enabled with the
      * {@code checkBreaker} flag.
      */
+    @SuppressWarnings("this-escape")
     public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
         super(MockPageCacheRecycler.wrap(recycler), breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.breakerService = breakerService;

@@ -74,9 +74,10 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         String fieldName,
         NumberType numberType,
         int limit,
-        long initialResult
+        long initialResult,
+        java.util.function.LongSupplier directoryBytesRead
     ) {
-        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue);
+        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue, directoryBytesRead);
         this.remainingDocs = limit;
         this.numberType = numberType;
         this.fieldName = fieldName;
@@ -85,7 +86,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
 
     @Override
     public boolean isFinished() {
-        return doneCollecting || remainingDocs == 0;
+        return doneCollecting || remainingDocs <= 0;
     }
 
     @Override
@@ -95,17 +96,11 @@ final class LuceneMinMaxOperator extends LuceneOperator {
 
     @Override
     public Page getCheckedOutput() throws IOException {
-        if (isFinished()) {
-            assert remainingDocs <= 0 : remainingDocs;
-            return null;
-        }
         final long start = System.nanoTime();
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             // no scorer means no more docs
-            if (scorer == null) {
-                remainingDocs = 0;
-            } else {
+            if (scorer != null) {
                 if (scorer.tags().isEmpty() == false) {
                     throw new UnsupportedOperationException("tags not supported by " + getClass());
                 }
@@ -157,7 +152,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
 
             Page page = null;
             // emit only one page
-            if (remainingDocs <= 0 && pagesEmitted == 0) {
+            if (isFinished() && pagesEmitted == 0) {
                 Block result = null;
                 BooleanBlock seen = null;
                 try {

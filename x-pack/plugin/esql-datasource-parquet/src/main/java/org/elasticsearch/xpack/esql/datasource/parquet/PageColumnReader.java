@@ -30,7 +30,6 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -154,12 +153,19 @@ final class PageColumnReader implements Releasable {
             case BOOLEAN -> readBooleanBatch(maxRows, blockFactory);
             case INTEGER -> readIntBatch(maxRows, blockFactory);
             case LONG, UNSIGNED_LONG -> {
+                if (info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+                    if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                        // TIME_MILLIS: physical INT32, widen to long (raw ms value, no unit conversion)
+                        yield readInt32AsLongBatch(maxRows, blockFactory, true);
+                    }
+                    yield readLongBatch(maxRows, blockFactory, ParquetColumnDecoding.timeNanoMultiplier(time));
+                }
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                     var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     // A plain INT32 with no logical-type annotation is historically "signed"
                     yield readInt32AsLongBatch(maxRows, blockFactory, logicalType == null || logicalType.isSigned());
                 }
-                yield readLongBatch(maxRows, blockFactory);
+                yield readLongBatch(maxRows, blockFactory, 1L);
             }
             case DOUBLE -> readDoubleBatch(maxRows, blockFactory);
             case KEYWORD, TEXT -> readBytesBatch(maxRows, blockFactory);
@@ -414,7 +420,7 @@ final class PageColumnReader implements Releasable {
                 currentEncoding = v2.getDataEncoding();
                 splitV2Page(v2);
             } else {
-                throw new QlIllegalArgumentException("Unexpected page type: " + page.getClass().getName());
+                throw new IllegalArgumentException("Unexpected page type: " + page.getClass().getName());
             }
 
             initDecoders();
@@ -439,7 +445,7 @@ final class PageColumnReader implements Releasable {
                 currentValueBytes = pageBytes;
             }
         } catch (IOException e) {
-            throw new QlIllegalArgumentException("Failed to read V1 page bytes: " + e.getMessage(), e);
+            throw new IllegalArgumentException("Failed to read V1 page bytes: " + e.getMessage(), e);
         }
     }
 
@@ -453,7 +459,7 @@ final class PageColumnReader implements Releasable {
             }
             currentValueBytes = v2.getData().toByteBuffer();
         } catch (IOException e) {
-            throw new QlIllegalArgumentException("Failed to read V2 page bytes: " + e.getMessage(), e);
+            throw new IllegalArgumentException("Failed to read V2 page bytes: " + e.getMessage(), e);
         }
     }
 
@@ -478,7 +484,7 @@ final class PageColumnReader implements Releasable {
                 currentValueBytes.duplicate().get(bytes);
                 fallbackReader.initFromPage(currentPageValueCount, bytes, 0);
             } catch (IOException e) {
-                throw new QlIllegalArgumentException(
+                throw new IllegalArgumentException(
                     "Failed to init fallback decoder for encoding " + currentEncoding + ": " + e.getMessage(),
                     e
                 );
@@ -496,16 +502,22 @@ final class PageColumnReader implements Releasable {
     }
 
     void skipRows(int count) {
-        int remaining = count;
-        while (remaining > 0) {
+        long target = rowPositionInRowGroup + count;
+        while (rowPositionInRowGroup < target) {
             if (ensurePage() == false) {
                 break;
             }
-            int fromPage = Math.min(remaining, availableInPage());
+            if (rowPositionInRowGroup >= target) {
+                // ensurePage advanced past target via a firstRowIndex jump in loadNextPage
+                // (page-filtered prefetch with a survivor-range gap wider than `count`).
+                // Falling through would compute a negative fromPage and corrupt decoder /
+                // page-consumed state.
+                break;
+            }
+            int fromPage = (int) Math.min(target - rowPositionInRowGroup, availableInPage());
             int nonNullSkipped = defDecoder.skip(fromPage);
             skipValues(nonNullSkipped);
             advancePosition(fromPage);
-            remaining -= fromPage;
         }
     }
 
@@ -532,7 +544,7 @@ final class PageColumnReader implements Releasable {
             case BINARY -> plainDecoder.skipBinaries(count);
             case FIXED_LEN_BYTE_ARRAY -> plainDecoder.skipFixedBinaries(count, descriptor.getPrimitiveType().getTypeLength());
             case INT96 -> plainDecoder.skipFixedBinaries(count, 12);
-            default -> throw new QlIllegalArgumentException("Unsupported Parquet type for skip: " + info.parquetType());
+            default -> throw new IllegalArgumentException("Unsupported Parquet type for skip: " + info.parquetType());
         }
     }
 
@@ -738,10 +750,15 @@ final class PageColumnReader implements Releasable {
 
     // --- Long ---
 
-    private Block readLongBatch(int maxRows, BlockFactory blockFactory) {
+    private Block readLongBatch(int maxRows, BlockFactory blockFactory, long multiplier) {
         long[] values = UninitializedArrays.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = readNonNullLongs(values, 0, maxRows);
+            if (multiplier != 1) {
+                for (int i = 0; i < produced; i++) {
+                    values[i] *= multiplier;
+                }
+            }
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
             if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
@@ -757,6 +774,11 @@ final class PageColumnReader implements Releasable {
             advancePosition(fromPage);
             produced += fromPage;
             remaining -= fromPage;
+        }
+        if (multiplier != 1) {
+            for (int i = 0; i < produced; i++) {
+                values[i] *= multiplier;
+            }
         }
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
@@ -873,7 +895,8 @@ final class PageColumnReader implements Releasable {
             int pi = 0;
             for (int i = 0; i < totalRows; i++) {
                 if (nulls.get(offset + i) == false) {
-                    values[offset + i] = signed ? intPacked[i] : Integer.toUnsignedLong(intPacked[pi++]);
+                    int packed = intPacked[pi++];
+                    values[offset + i] = signed ? packed : Integer.toUnsignedLong(packed);
                 }
             }
         }
@@ -1029,7 +1052,7 @@ final class PageColumnReader implements Releasable {
                     readBinariesDispatch(binScratch, 0, 1);
                     yield new BigInteger(binScratch[0].bytes, binScratch[0].offset, binScratch[0].length);
                 }
-                default -> throw new QlIllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
+                default -> throw new IllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
             };
             values[offset + i] = new BigDecimal(unscaled, scale).doubleValue();
         }
@@ -1126,12 +1149,7 @@ final class PageColumnReader implements Releasable {
             if (constant != null) {
                 return constant;
             }
-            try (var builder = blockFactory.newBytesRefBlockBuilder(produced)) {
-                for (int i = 0; i < produced; i++) {
-                    builder.appendBytesRef(allValues[i]);
-                }
-                return builder.build();
-            }
+            return buildBytesRefBlock(allValues, null, produced, blockFactory);
         }
         BytesRef[] allValues = new BytesRef[maxRows];
         WordMask allNulls = buffers.nullsMask(maxRows);
@@ -1163,12 +1181,28 @@ final class PageColumnReader implements Releasable {
                 return allNull;
             }
         }
-        try (var builder = blockFactory.newBytesRefBlockBuilder(produced)) {
-            for (int i = 0; i < produced; i++) {
-                if (allNulls.get(i)) {
+        return buildBytesRefBlock(allValues, allNulls, produced, blockFactory);
+    }
+
+    /**
+     * Builds a {@code BytesRefBlock} from already-materialized values, pre-sizing the byte storage to
+     * the exact total byte size so the backing {@code BytesRefArray} does not regrow as values are
+     * appended. {@code nulls} may be {@code null} when no position is null; otherwise a set bit marks a
+     * null position that is skipped when sizing and appended as null.
+     */
+    private static Block buildBytesRefBlock(BytesRef[] values, WordMask nulls, int count, BlockFactory blockFactory) {
+        long byteHint = 0;
+        for (int i = 0; i < count; i++) {
+            if (nulls == null || nulls.get(i) == false) {
+                byteHint += values[i].length;
+            }
+        }
+        try (var builder = blockFactory.newBytesRefBlockBuilder(count, byteHint)) {
+            for (int i = 0; i < count; i++) {
+                if (nulls != null && nulls.get(i)) {
                     builder.appendNull();
                 } else {
-                    builder.appendBytesRef(allValues[i]);
+                    builder.appendBytesRef(values[i]);
                 }
             }
             return builder.build();
@@ -1372,16 +1406,7 @@ final class PageColumnReader implements Releasable {
                 return allNull;
             }
         }
-        try (var builder = blockFactory.newBytesRefBlockBuilder(filled)) {
-            for (int i = 0; i < filled; i++) {
-                if (combinedNulls != null && combinedNulls.get(i)) {
-                    builder.appendNull();
-                } else {
-                    builder.appendBytesRef(all[i]);
-                }
-            }
-            return builder.build();
-        }
+        return buildBytesRefBlock(all, combinedNulls, filled, blockFactory);
     }
 
     // --- Datetime ---

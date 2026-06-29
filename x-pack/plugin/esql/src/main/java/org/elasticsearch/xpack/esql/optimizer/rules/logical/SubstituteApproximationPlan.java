@@ -25,13 +25,20 @@ public final class SubstituteApproximationPlan extends ParameterizedRule<Logical
         if (QuerySettings.APPROXIMATION.get(context.configuration().resolvedSettings()) == null) {
             // Approximation is not enabled
             return logicalPlan;
-        } else if (ApproximationVerifier.verifyPlan(logicalPlan, context.minimumVersion()) == null) {
-            // Plan is not suitable for approximation
-            return logicalPlan;
         } else {
-            // Returns an approximation plan with placeholders for the sample probabilities.
-            // This placeholder will be replaced after executing the corresponding subplans.
-            return ApproximationPlan.get(logicalPlan, QuerySettings.APPROXIMATION.get(context.configuration().resolvedSettings()));
+            ApproximationVerifier.QueryProperties queryProperties = ApproximationVerifier.verifyPlan(logicalPlan, context.minimumVersion());
+            if (queryProperties == null) {
+                // Plan is not suitable for approximation
+                return logicalPlan;
+            } else {
+                // Returns an approximation plan with placeholders for the sample probabilities.
+                // This placeholder will be replaced after executing the corresponding subplans.
+                return ApproximationPlan.get(
+                    logicalPlan,
+                    queryProperties,
+                    QuerySettings.APPROXIMATION.get(context.configuration().resolvedSettings())
+                );
+            }
         }
     }
 }

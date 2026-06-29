@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -53,6 +54,7 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
      */
     static final Set<String> FORMAT_CONFIG_KEYS = Set.of(
         "delimiter",
+        "mode",
         "quote",
         "escape",
         "comment",
@@ -79,5 +81,11 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
             "tsv",
             (s, blockFactory) -> new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))
         );
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        // One entry serves both csv and tsv — the format (csv/tsv) is carried in CsvReaderStatus.format().
+        return List.of(CsvReaderStatus.ENTRY);
     }
 }

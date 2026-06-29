@@ -122,13 +122,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             MappedFieldType.FieldExtractPreference.NONE,
             MappedFieldType.FieldExtractPreference.STORED
         )) {
-            for (IndexMode indexMode : IndexMode.values()) {
-                // TODO: Support COLUMNAR and LOGSDB_COLUMNAR modes in BWC tests
-                // These modes are currently skipped to avoid "No enum constant" errors in mixed-version clusters
-                // where older nodes don't have these enum values yet.
-                if (indexMode.isStrictColumnar()) {
-                    continue;
-                }
+            for (IndexMode indexMode : IndexMode.availableModes()) {
                 args.add(new Object[] { extractPreference, indexMode });
             }
         }
@@ -189,15 +183,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected boolean fetchDenseVectorAggMetricDoubleIfVersion() throws IOException {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
-    }
-
-    private static Boolean vectordbDocumentIndexModeSupported;
-
-    private boolean vectordbDocumentIndexModeSupported() throws IOException {
-        if (vectordbDocumentIndexModeSupported == null) {
-            vectordbDocumentIndexModeSupported = fetchVectordbDocumentIndexModeSupported();
-        }
-        return vectordbDocumentIndexModeSupported;
     }
 
     protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
@@ -286,7 +271,25 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @Before
     public void createIndices() throws IOException {
         if (indexMode == IndexMode.VECTORDB_DOCUMENT) {
-            assumeTrue("Cluster has nodes that do not support index.mode=vectordb_document", vectordbDocumentIndexModeSupported());
+            assumeTrue(
+                "Cluster has nodes that do not support index.mode=vectordb_document",
+                minVersion().supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
+            );
+        }
+        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
+            assumeTrue("Columnar index modes require a snapshot build", Build.current().isSnapshot());
+            assumeTrue(
+                "Cluster has nodes that do not support columnar index modes",
+                minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+            );
+            assumeTrue(
+                "Cluster has nodes that default to low-cardinality doc values in columnar index modes",
+                clusterHasFeature("mapper.keyword.columnar_default_high_cardinality")
+            );
+            assumeTrue(
+                "Cluster has nodes that do not default to doc values for text fields in columnar index modes",
+                clusterHasFeature("mapper.text_fields.enable_doc_values_by_default_in_columnar_mode")
+            );
         }
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {
@@ -300,7 +303,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         // We create both only when we're testing LOOKUP mode.
         if (indexExists(LOOKUP_INDEX_NAME) == false && indexMode == IndexMode.LOOKUP) {
             createAllTypesIndex(client(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode);
-            createAllTypesDoc(client(), minVersion(), LOOKUP_INDEX_NAME);
+            createAllTypesDoc(client(), minVersion(), LOOKUP_INDEX_NAME, indexMode);
             createEnrichPolicy(client(), minVersion(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }
     }
@@ -441,6 +444,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
+            if (excludedInColumnar(type, indexMode)) {
+                continue;
+            }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
                 continue;
             }
@@ -476,6 +482,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
+                continue;
+            }
+            if (excludedInColumnar(type, indexMode)) {
                 continue;
             }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
@@ -665,6 +674,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     protected String allIndexPattern() {
+        if (indexMode == IndexMode.LOGSDB) {
+            // logsdb* would also match logsdb_columnar* indices created by the LOGSDB_COLUMNAR test setup
+            return "%mode%*,-" + IndexMode.LOGSDB_COLUMNAR.getName() + "*";
+        }
         return "%mode%*";
     }
 
@@ -842,7 +855,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         String indexName = indexName(mode, nodeName);
         if (false == indexExists(client, indexName)) {
             createAllTypesIndex(client, minimumVersionAcrossAllNodes, indexName, nodeId, mode);
-            createAllTypesDoc(client, minimumVersionAcrossAllNodes, indexName);
+            createAllTypesDoc(client, minimumVersionAcrossAllNodes, indexName, mode);
         }
     }
 
@@ -888,6 +901,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                     continue;
                 }
+                if (excludedInColumnar(type, mode)) {
+                    continue;
+                }
                 config.startObject(fieldName(type));
                 typeMapping(mode, config, type);
                 config.endObject();
@@ -899,6 +915,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
         request.setJsonEntity(Strings.toString(config));
         client.performRequest(request);
+    }
+
+    private static boolean excludedInColumnar(DataType type, IndexMode mode) {
+        // geo_shape/cartesian_shape are reconstructable in columnar only on nodes that have the feature, so exclude them
+        // during a rolling upgrade where an older node would reject them in a columnar index.
+        return mode.isStrictColumnar()
+            && (type == DataType.GEO_SHAPE || type == DataType.CARTESIAN_SHAPE)
+            && clusterHasFeature("mapper.columnar.supports_shape_fields") == false;
     }
 
     private static String fieldName(DataType type) {
@@ -924,13 +948,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    protected static void createAllTypesDoc(RestClient client, TransportVersion minimumVersionAcrossAllNodes, String indexName)
-        throws IOException {
+    protected static void createAllTypesDoc(
+        RestClient client,
+        TransportVersion minimumVersionAcrossAllNodes,
+        String indexName,
+        IndexMode mode
+    ) throws IOException {
         XContentBuilder doc = JsonXContent.contentBuilder().startObject();
         doc.field(LOOKUP_ID_FIELD);
         doc.value(123);
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
+                continue;
+            }
+            if (excludedInColumnar(type, mode)) {
                 continue;
             }
             doc.field(fieldName(type));
@@ -1470,14 +1501,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, TransportVersion.current()) == false) {
                 continue;
             }
+            if (excludedInColumnar(type, indexMode)) {
+                continue;
+            }
 
             expected = expected.entry(fieldName(type), loadersFor(type));
         }
 
         expected = expected.entry(
             "_id",
-            indexMode == IndexMode.TIME_SERIES
-                ? matchesList().item("column_at_a_time:TsIdFieldReader")
+            indexMode == IndexMode.TIME_SERIES ? matchesList().item("column_at_a_time:TsIdFieldReader")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:IdDocValuesReader")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Id")
         )
             .entry("_ignored", matchesList().item("column_at_a_time:constant_nulls"))
@@ -1501,30 +1535,32 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case FLATTENED -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                 : matchesList().item("column_at_a_time:");
-            case DENSE_VECTOR -> matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
+            case DENSE_VECTOR -> indexMode.isStrictColumnar()
+                ? matchesList().item("column_at_a_time:FloatDenseVectorFromBinary.Bytes")
+                : matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")
                 : matchesList().item("column_at_a_time:BlockDocValuesReader.BytesRefsFromLong");
             case GEO_SHAPE -> {
-                String last;
-                if (syntheticSourceByDefault()) {
-                    last = "row_stride:FallbackToSource[Geometry]";
-                } else if (extractPreference == MappedFieldType.FieldExtractPreference.STORED) {
-                    last = "row_stride:BlockSourceReader.Geometries";
-                } else {
-                    last = "row_stride:BlockSourceReader.Geometries";
+                // In columnar, geo_shape is native and reads its WKB value straight from its own doc value; other
+                // synthetic-source modes fall back to loading the value from source.
+                if (indexMode.isStrictColumnar()) {
+                    yield matchesList().item("column_at_a_time:GeometrySource");
                 }
+                String last = syntheticSourceByDefault()
+                    ? "row_stride:FallbackToSource[Geometry]"
+                    : "row_stride:BlockSourceReader.Geometries";
                 yield matchesList().item("column_at_a_time:null").item(last);
             }
             case HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes");
             case INTEGER, COUNTER_INTEGER, SHORT, BYTE -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ints")
                 : matchesList().item("column_at_a_time:IntsFromDocValues.Singleton");
-            case IP -> useStoredLoader()
-                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ips")
+            case IP -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ips")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
-            case KEYWORD -> useStoredLoader()
-                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+            case KEYWORD -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case LONG, COUNTER_LONG, UNSIGNED_LONG -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")
@@ -1535,7 +1571,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
-            case TEXT -> syntheticSourceByDefault()
+            case TEXT -> indexMode.isStrictColumnar() || syntheticSourceByDefault()
                 ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");

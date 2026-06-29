@@ -35,6 +35,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.iplocation.api.IpDataLookupInfo;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -52,7 +55,8 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.PreAnalysisVerifier;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -68,14 +72,17 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -89,6 +96,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
@@ -97,9 +105,15 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -108,6 +122,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -125,6 +140,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -173,6 +189,7 @@ public class EsqlSession {
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
+    private final DatasetResolver datasetResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
     private final EsqlParser parser;
@@ -180,6 +197,7 @@ public class EsqlSession {
     private final Verifier verifier;
     private final Metrics metrics;
     private final EsqlFunctionRegistry functionRegistry;
+    private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final PreMapper preMapper;
 
     private final Mapper mapper;
@@ -193,6 +211,7 @@ public class EsqlSession {
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
     private final String clusterUuid;
+    private final IpLocationService ipLocationService;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -207,6 +226,7 @@ public class EsqlSession {
      * failure listener an atomic, all-or-nothing view of the snapshot.
      */
     private record PlanSnapshot(LogicalPlan parsed, LogicalPlan analyzed, LogicalPlan optimized, PhysicalPlan physical) {
+
         static final PlanSnapshot EMPTY = new PlanSnapshot(null, null, null, null);
 
         PlanSnapshot withParsed(LogicalPlan p) {
@@ -235,10 +255,12 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
+        DatasetResolver datasetResolver,
         ExternalSourceResolver externalSourceResolver,
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         Mapper mapper,
         Verifier verifier,
         Metrics metrics,
@@ -254,12 +276,14 @@ public class EsqlSession {
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
+        this.datasetResolver = datasetResolver;
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
         this.metrics = metrics;
         this.functionRegistry = functionRegistry;
+        this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.mapper = mapper;
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
@@ -273,6 +297,7 @@ public class EsqlSession {
         this.clusterName = services.clusterService().getClusterName().value();
         this.clusterUuid = resolveClusterUuid(services.clusterService());
         this.projectMetadata = projectMetadata;
+        this.ipLocationService = services.ipLocationService();
     }
 
     public String sessionId() {
@@ -306,6 +331,10 @@ public class EsqlSession {
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
+        // View and IN subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
+        // once resolution succeeds, because IN subqueries can be hidden inside view definitions and only become visible — and are
+        // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
+        // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
         viewResolver.replaceViews(
             statement.plan(),
             projectRouting(request, statement),
@@ -317,6 +346,8 @@ public class EsqlSession {
                 viewName
             ).plan(),
             listener.delegateFailureAndWrap((l, viewResolution) -> {
+                // Validate: no InSubquery expressions should survive view and subquery resolution.
+                InSubqueryResolver.verify(viewResolution.plan());
                 viewResolutionProfile.stop();
                 analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
             })
@@ -335,9 +366,13 @@ public class EsqlSession {
 
         // this is stack telemetry
         gatherViewMetrics(viewResolution);
+        gatherInSubqueryMetrics(viewResolution);
 
         // this is APM
         gatherPlanTelemetry(viewResolution.plan(), statement.settings());
+
+        // Trigger IP location database downloads for any IP_LOCATION command
+        requestIpLocationDownloads(viewResolution.plan());
 
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
@@ -352,25 +387,27 @@ public class EsqlSession {
         }
 
         ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
-        Configuration configuration = new Configuration(
-            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
-            request.locale() != null ? request.locale() : Locale.US,
-            // TODO: plug-in security
-            null,
-            clusterName,
-            request.pragmas(),
-            analyzerSettings.resultTruncationMaxSize(),
-            analyzerSettings.resultTruncationDefaultSize(),
-            request.query(),
-            request.profile(),
-            request.tables(),
-            System.nanoTime(),
-            request.allowPartialResults(),
-            analyzerSettings.timeseriesResultTruncationMaxSize(),
-            analyzerSettings.timeseriesResultTruncationDefaultSize(),
-            resolved,
-            viewResolution.viewQueries()
-        );
+        Configuration configuration = new ConfigurationBuilder(
+            new Configuration(
+                Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
+                request.locale() != null ? request.locale() : Locale.US,
+                // TODO: plug-in security
+                null,
+                clusterName,
+                request.pragmas(),
+                analyzerSettings.resultTruncationMaxSize(),
+                analyzerSettings.resultTruncationDefaultSize(),
+                request.query(),
+                request.profile(),
+                request.tables(),
+                System.nanoTime(),
+                request.allowPartialResults(),
+                analyzerSettings.timeseriesResultTruncationMaxSize(),
+                analyzerSettings.timeseriesResultTruncationDefaultSize(),
+                resolved,
+                viewResolution.viewQueries()
+            )
+        ).grokMatcherWatchdogMs(parser.grokMatcherWatchdog().maxExecutionTimeInMillis()).build();
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into ViewUnionAll. ViewShadowRelation siblings and nested
@@ -381,7 +418,6 @@ public class EsqlSession {
         // Run structural checks that don't need analysis or index resolution. Doing this here
         // (after view resolution, before pre-analysis) lets a malformed query fail-fast without
         // paying for field-caps round trips.
-        PreAnalysisVerifier.verify(plan);
         Configuration configurationToUse = configuration;
         if (plan instanceof Explain explain) {
             explainMode = true;
@@ -519,7 +555,7 @@ public class EsqlSession {
             // Only log on internal server errors. User-facing failures (verification errors, parse
             // errors, type mismatches) return a 4xx with a useful message and don't need the plan.
             if (ExceptionsHelper.status(err) == RestStatus.INTERNAL_SERVER_ERROR) {
-                logAnonymizedPlans(planSnapshot);
+                logAnonymizedPlans(planSnapshot, err);
             }
             next.onFailure(err);
         });
@@ -692,11 +728,36 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
+            // execute main plan. Wrap the listener so the coordinator reconciles any data-node-captured
+            // source stats into ExternalSourceCacheService before delivering Result.
+            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
+                reconcileCapturedSourceStats(result.completionInfo());
+                next.onResponse(result);
+            }));
         }
     }
 
-    private void logAnonymizedPlans(PlanSnapshot snap) {
+    /**
+     * Pushes data-node-captured per-file source stats (carried by {@link DriverCompletionInfo#capturedSourceMetadata})
+     * into the coordinator's {@code ExternalSourceCacheService}, so the next query's planning-time
+     * lookup finds the {@code _stats.*} keys embedded in the matching {@code SchemaCacheEntry}'s
+     * {@code safeMetadata} — same shape Parquet's footer-derived stats already use.
+     */
+    private void reconcileCapturedSourceStats(DriverCompletionInfo info) {
+        if (info == null) {
+            return;
+        }
+        Map<String, List<Map<String, Object>>> captured = info.capturedSourceMetadata();
+        if (captured == null || captured.isEmpty()) {
+            return;
+        }
+        ExternalSourceCacheService cache = externalSourceResolver.cacheService();
+        if (cache != null) {
+            cache.reconcileSourceStatsFromContributions(captured);
+        }
+    }
+
+    private void logAnonymizedPlans(PlanSnapshot snap, Exception err) {
         if (LOGGER.isErrorEnabled() == false) {
             return;
         }
@@ -709,18 +770,28 @@ public class EsqlSession {
             var anonymized = PlanAnonymizer.forSubmission(clusterUuid)
                 .anonymize(snap.parsed(), snap.analyzed(), snap.optimized(), snap.physical());
             LOGGER.error(
-                "ESQL anonymized plans for failed session [{}]\n"
-                    + "schema:\n{}\n"
-                    + "parsed:\n{}\n"
-                    + "analyzed:\n{}\n"
-                    + "optimized:\n{}\n"
-                    + "physical:\n{}",
+                """
+                    ES|QL query failed in session [{}]
+                    failure:
+                    {}
+                    parsed:
+                    {}
+                    analyzed:
+                    {}
+                    optimized:
+                    {}
+                    physical:
+                    {}
+                    schema:
+                    {}""".stripIndent(),
                 sessionId,
-                anonymized.schema(),
+                err.getMessage(),
                 anonymized.parsed(),
                 anonymized.analyzed(),
                 anonymized.optimized(),
-                anonymized.physical()
+                anonymized.physical(),
+                anonymized.schema(),
+                err
             );
         } catch (Exception e) {
             LOGGER.warn("Plan anonymization failed for session [{}]", sessionId, e);
@@ -736,7 +807,8 @@ public class EsqlSession {
     private record SubPlanAndCallback(
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
-        Runnable cleanup
+        Runnable cleanup,
+        boolean isSubqueryJoinSubPlan
     ) {};
 
     private SubPlanAndCallback firstSubPlan(
@@ -747,31 +819,93 @@ public class EsqlSession {
     ) {
         SubPlanAndCallback subPlanAndCallback = null;
 
-        // InlineJoin must be first, because approximation may need to approximate a subplan of it.
-        InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
-        if (subPlans != null) {
-            AtomicReference<Page> localRelationPage = new AtomicReference<>();
-            subPlanAndCallback = new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
-                // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
-                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
-                localRelationPage.set(resultWrapper.supplier().get());
-                subPlansResults.add(resultWrapper);
-                return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-            }, () -> releaseLocalRelationBlocks(localRelationPage));
+        // Find the first (bottom-up) SemiJoin or InlineJoin that needs subplan execution.
+        // Processing bottom-up ensures inner subplans (e.g. INLINE STATS inside IN subquery)
+        // are resolved before outer ones that depend on them.
+        LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
+
+        if (firstJoin instanceof AbstractSubqueryJoin) {
+            AbstractSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractSubqueryJoin.firstSubPlan(mainPlan, subPlansResults);
+            if (semiJoinTuple != null) {
+                AtomicReference<Page> localRelationPage = new AtomicReference<>();
+                subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
+                    LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
+                    // AbstractSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
+                    // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
+                    // below releases the right one at end of main plan execution.
+                    localRelationPage.set(resultWrapper.supplier().get());
+                    subPlansResults.add(resultWrapper);
+                    return AbstractSubqueryJoin.newMainPlan(
+                        mainPlan,
+                        semiJoinTuple,
+                        resultWrapper,
+                        resolveInSubqueryHashJoinThreshold(configuration),
+                        blockFactory,
+                        localRelationPage
+                    );
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true);
+            }
+        } else if (firstJoin instanceof InlineJoin) {
+            InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
+            if (subPlans != null) {
+                AtomicReference<Page> localRelationPage = new AtomicReference<>();
+                subPlanAndCallback = new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
+                    LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
+                    localRelationPage.set(resultWrapper.supplier().get());
+                    subPlansResults.add(resultWrapper);
+                    return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), false);
+            }
         }
 
-        LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan : mainPlan;
+        LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan() : mainPlan;
         if (ApproximationPlan.is(plan)) {
             if (approximation.get() == null) {
                 approximation.set(ApproximationDriver.create(plan, QuerySettings.APPROXIMATION.get(configuration.resolvedSettings())));
             }
             LogicalPlan subPlan = approximation.get().firstSubPlan();
             if (subPlan != null) {
-                subPlanAndCallback = new SubPlanAndCallback(subPlan, result -> approximation.get().newMainPlan(mainPlan, result), () -> {});
+                subPlanAndCallback = new SubPlanAndCallback(
+                    subPlan,
+                    result -> approximation.get().newMainPlan(mainPlan, result),
+                    () -> {},
+                    false
+                );
             }
         }
 
         return subPlanAndCallback;
+    }
+
+    /**
+     * Finds the first (bottom-up) SemiJoin or InlineJoin in the plan that has an unresolved subplan.
+     * Returns the join node itself, or null if none found.
+     */
+    private static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults) {
+        Holder<LogicalPlan> result = new Holder<>();
+        // Evaluate the right hand side of a SemiJoin or InlineJoin, unless it is a LocalRelation and registered in subPlansResults already
+        plan.forEachUp(p -> {
+            if (result.get() != null) {
+                return;
+            }
+            // Whether checking the subquery join or InlineJoin first does not matter, the plan is processed bottom up, looking for
+            // joins whose right child haven't been evaluated yet
+            if (p instanceof AbstractSubqueryJoin sj) {
+                if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
+                    return; // already processed
+                }
+                result.set(sj);
+            } else if (p instanceof InlineJoin ij) {
+                if (ij.right().anyMatch(r -> r instanceof StubRelation)) {
+                    result.set(ij);
+                } else if (ij.right() instanceof LocalRelation lr && (subPlansResults.isEmpty() || subPlansResults.contains(lr) == false)) {
+                    result.set(ij);
+                } else if (ij.right() instanceof LocalRelation == false && ij.right().anyMatch(r -> r instanceof LocalRelation)) {
+                    result.set(ij);
+                }
+            }
+        });
+        return result.get();
     }
 
     private void executeSubPlan(
@@ -791,19 +925,27 @@ public class EsqlSession {
         LOGGER.debug("Executing subplan:\n{}", subPlan.subPlan);
         // Create a physical plan out of the logical sub-plan
         var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, request, physicalPlanOptimizer, planTimeProfile);
+        // An IN subquery may not have a pipeline breaker inside it, and mapper does not receive the SemiJoin node because only the right
+        // hand side plans are sent to mapper. Ensure there is an ExchangeExec on top of it, so that the intermediate results can be sent
+        // back to the coordinator
+        if (subPlan.isSubqueryJoinSubPlan()) {
+            physicalSubPlan = Mapper.ensureExchangeForSubPlan(physicalSubPlan);
+        }
 
-        executionInfo.startSubPlans();
+        executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
 
         runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
             completionInfoAccumulator.accumulate(result.completionInfo());
             try {
                 var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
                 LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
+                LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
 
                 // look for the next inlinejoin plan
                 var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
+                LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
 
-                if (newSubPlan == null) {// run the final "main" plan
+                if (newSubPlan == null) {
                     executionInfo.finishSubPlans();
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
                     runner.run(
@@ -813,19 +955,15 @@ public class EsqlSession {
                         planTimeProfile,
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                            DriverCompletionInfo merged = completionInfoAccumulator.finish();
+                            reconcileCapturedSourceStats(merged);
+                            EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                             finalListener.onResponse(
-                                new Result(
-                                    finalResult.schema(),
-                                    finalResult.pages(),
-                                    null,
-                                    configuration,
-                                    completionInfoAccumulator.finish(),
-                                    executionInfo
-                                )
+                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
                             );
                         })
                     );
-                } else {// continue executing the subplans
+                } else {
                     executeSubPlan(
                         completionInfoAccumulator,
                         newSubPlan,
@@ -866,6 +1004,14 @@ public class EsqlSession {
 
         Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
         return new LocalRelation(planSource, schema, LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
+    }
+
+    /**
+     * Resolves the IN subquery hash join threshold: query pragma overrides the cluster setting.
+     */
+    private int resolveInSubqueryHashJoinThreshold(Configuration configuration) {
+        int pragmaValue = QueryPragmas.IN_SUBQUERY_HASH_JOIN_THRESHOLD.get(configuration.pragmas().getSettings());
+        return pragmaValue >= 0 ? pragmaValue : plannerSettings.inSubqueryHashJoinThreshold();
     }
 
     private static void releaseLocalRelationBlocks(AtomicReference<Page> localRelationPage) {
@@ -932,6 +1078,40 @@ public class EsqlSession {
         }
     }
 
+    /**
+     * Requests the download of the IP location databases referenced by any {@code IP_LOCATION} command in the plan.
+     * This is a fire-and-forget side-effect (the actual download is asynchronous) and is intentionally performed here, on the
+     * coordinator before analysis, rather than inside the analyzer rule that resolves the command's output columns.
+     */
+    private void requestIpLocationDownloads(LogicalPlan plan) {
+        if (ipLocationService == null || projectMetadata == null) {
+            return;
+        }
+        if (plan.anyMatch(UnresolvedIpLocation.class::isInstance)) {
+            ipLocationService.requestDownloads(projectMetadata.id().id(), IpLocationConsumer.ESQL);
+        }
+    }
+
+    /**
+     * Pre-fetches the IP database metadata for every {@code IP_LOCATION} command in the plan and bundles it into an
+     * {@link IpLocationResolution} for the analyzer.
+     * The lookup is a synchronous, side-effect-free metadata read keyed by database file name; an unrecognized database
+     * yields no entry, which the analyzer rule reports as an unresolved command.
+     */
+    private IpLocationResolution resolveIpLocations(LogicalPlan plan) {
+        if (ipLocationService == null) {
+            return IpLocationResolution.SERVICE_UNAVAILABLE;
+        }
+        Map<String, IpDataLookupInfo> databaseInfo = new HashMap<>();
+        plan.forEachDown(UnresolvedIpLocation.class, ip -> {
+            IpDataLookupInfo info = ipLocationService.getIpDataLookupInfo(ip.databaseFile());
+            if (info != null) {
+                databaseInfo.put(ip.databaseFile(), info);
+            }
+        });
+        return IpLocationResolution.fromPrefetched(databaseInfo);
+    }
+
     private void gatherSettingsMetrics(EsqlStatement statement) {
         if (metrics == null || statement.settings() == null) {
             return;
@@ -949,6 +1129,24 @@ public class EsqlSession {
             return;
         }
         metrics.inc(FeatureMetric.VIEW);
+    }
+
+    /**
+     * Increments the {@code IN_SUBQUERY} counter once per query when view + subquery resolution rewrote any
+     * {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery} into a
+     * {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin}.
+     * <p>
+     * The decision comes from {@link ViewResolver.ViewResolutionResult#hasInSubquery()} rather than the pre-resolution plan,
+     * because an IN subquery may live only inside a view definition: it is not visible in the original plan and is rewritten away
+     * during resolution. Mirrors {@link #gatherViewMetrics}: direct increment, once per query, on successful resolution. The
+     * {@code WHERE} counter is handled by the analyzer/verifier plan walk via {@code FeatureMetric#WHERE} matching
+     * SemiJoin/AntiJoin/MarkJoin.
+     */
+    private void gatherInSubqueryMetrics(ViewResolver.ViewResolutionResult viewResolution) {
+        if (metrics == null || viewResolution.hasInSubquery() == false) {
+            return;
+        }
+        metrics.inc(FeatureMetric.IN_SUBQUERY);
     }
 
     /**
@@ -1016,19 +1214,35 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
+        TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
+        datasetResolutionProfile.start();
+        // Rewrite FROM <dataset> targets into UnresolvedExternalRelation so analysis treats them like the inline
+        // EXTERNAL command. The resolver first read-authorizes the names through the security filter — they are
+        // stripped from the plan here and would otherwise never reach authorization. Completes synchronously when
+        // no FROM pattern can match a registered dataset.
+        datasetResolver.replaceDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
+            datasetResolutionProfile.stop();
+            analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+        }));
+    }
+
+    private void analyzedPlanAfterDatasetResolution(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
+    ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
-        // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
-        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
-        // expansion (wildcards, exclusions, date math, etc.) flows through the same
-        // IndexNameExpressionResolver path indices use. The rewriter bails internally when there are
-        // no datasets registered (the feature flag gates the CRUD layer that puts datasets there).
-        parsed = DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         preAnalysisProfile.stop();
-        // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
-        // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
-        // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
+        // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also
+        // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
+        // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
+        // cause bugs.
         PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
             parsed,
             preAnalysis.enriches().isEmpty() == false,
@@ -1073,6 +1287,7 @@ public class EsqlSession {
         // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A btter
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
         boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD || parsed.anyMatch(p -> p instanceof Insist);
+        boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
         ).andThenApply(r -> {
@@ -1121,12 +1336,14 @@ public class EsqlSession {
             }
             return r;
         })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
+            .<PreAnalysisResult>andThen(
+                (l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), parsed, r, executionInfo, l)
+            )
             .andThenApply(r -> {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
                 return r;
             })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(parsed, preAnalysis, r, l))
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
                 executionInfo.queryProfile().enrichResolutionMarker().start();
@@ -1142,16 +1359,15 @@ public class EsqlSession {
             })
             .<PreAnalysisResult>andThen((l, r) -> {
                 executionInfo.queryProfile().inferenceResolutionMarker().start();
-                inferenceService.inferenceResolver(functionRegistry)
-                    .resolveInferenceIds(parsed, l.delegateFailureAndWrap((ll, inferenceResolution) -> {
-                        executionInfo.queryProfile().inferenceResolutionMarker().stop();
-                        ll.onResponse(r.withInferenceResolution(inferenceResolution));
-                    }));
+                inferenceService.resolveInferenceIds(preAnalysis.inferenceIds(), l.delegateFailureAndWrap((ll, inferenceResolution) -> {
+                    executionInfo.queryProfile().inferenceResolutionMarker().stop();
+                    ll.onResponse(r.withInferenceResolution(inferenceResolution));
+                }));
             })
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
                 analyzeWithRetry(
                     parsed,
-                    unmappedResolution,
+                    nullify ? UnmappedResolution.NULLIFY : unmappedResolution,
                     configuration,
                     executionInfo,
                     description,
@@ -1170,15 +1386,22 @@ public class EsqlSession {
      */
     private void preAnalyzeLookupIndices(
         Iterator<IndexPattern> lookupIndices,
+        LogicalPlan plan,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        forAll(lookupIndices, preAnalysisResult, (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, r, executionInfo, l), listener);
+        forAll(
+            lookupIndices,
+            preAnalysisResult,
+            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, r, executionInfo, l),
+            listener
+        );
     }
 
     private void preAnalyzeLookupIndex(
         IndexPattern lookupIndexPattern,
+        LogicalPlan plan,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -1194,16 +1417,46 @@ public class EsqlSession {
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
         executionInfo.queryProfile().incFieldCapsCalls();
+        var lookupIndexScope = EsqlCCSUtils.onlyRunning(
+            executionInfo,
+            computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
+        );
         indexResolver.resolveLookupIndices(
-            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
+            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
             // be reflected in result.minimumTransportVersion().
             result.minimumTransportVersion(),
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
+            listener.map(
+                indexResolution -> receiveLookupIndexResolution(result, lookupIndexScope, localPattern, executionInfo, indexResolution)
+            )
         );
+    }
+
+    /**
+     * Derives the scope (set of clusters) where the lookup join index needs to be found.
+     * For example for a query like `FROM (FROM cluster-1:index-1 | LOOKUP JOIN dictionary-1),(FROM cluster-2:index-2)`
+     * `dictionary-1` must be found only on `cluster-1` as joining is not performed on `cluster-2`.
+     */
+    static Set<String> computeLookupJoinIndexScope(
+        LogicalPlan plan,
+        String lookupPattern,
+        Map<IndexPattern, IndexResolution> indexResolution
+    ) {
+        Set<String> scope = new LinkedHashSet<>();
+        plan.forEachUp(LookupJoin.class, lj -> {
+            if (lj.right() instanceof UnresolvedRelation ur && ur.indexPattern().indexPattern().equals(lookupPattern)) {
+                lj.left().forEachDown(UnresolvedRelation.class, source -> {
+                    IndexResolution resolution = indexResolution.get(source.indexPattern());
+                    if (resolution != null && resolution.isValid()) {
+                        scope.addAll(resolution.get().originalIndices().keySet());
+                    }
+                });
+            }
+        });
+        return scope;
     }
 
     /**
@@ -1211,7 +1464,10 @@ public class EsqlSession {
      * This runs in parallel with other resolution steps to avoid blocking.
      * Extracts partition filter hints from the WHERE clause for partition-aware glob rewriting.
      */
-    private void preAnalyzeExternalSources(
+    // package-private static so EsqlSessionTests can drive the wiring with a capturing
+    // ExternalSourceResolver and assert that the computed pathsRequiringStats set is forwarded.
+    static void preAnalyzeExternalSources(
+        ExternalSourceResolver externalSourceResolver,
         LogicalPlan plan,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
@@ -1226,10 +1482,16 @@ public class EsqlSession {
 
         var filterHints = PartitionFilterHintExtractor.extract(plan);
 
+        // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
+        // resolver to selective eager stats: only the listed paths read every file's footer at
+        // planning time; the rest defer (see ExternalStatsRequirementExtractor).
+        Set<String> pathsRequiringStats = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
+
         externalSourceResolver.resolve(
             preAnalysis.icebergPaths(),
             pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
+            pathsRequiringStats,
             listener.map(result::withExternalSourceResolution)
         );
     }
@@ -1281,6 +1543,7 @@ public class EsqlSession {
      */
     private PreAnalysisResult receiveLookupIndexResolution(
         PreAnalysisResult result,
+        Set<String> lookupIndexScope,
         String index,
         EsqlExecutionInfo executionInfo,
         IndexResolution lookupIndexResolution
@@ -1330,7 +1593,7 @@ public class EsqlSession {
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
         lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
-            String clusterAlias = RemoteClusterAware.parseClusterAlias(indexName);
+            String clusterAlias = RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey();
             // Check that all indices are in lookup mode
             if (indexMode != IndexMode.LOOKUP) {
                 skipClusterOrError(
@@ -1362,7 +1625,7 @@ public class EsqlSession {
 
         // These are clusters that are still in the running, we need to have the index on all of them
         // Verify that all active clusters have the lookup index resolved
-        executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
+        lookupIndexScope.forEach(clusterAlias -> {
             if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
                 // Missing cluster resolution
                 skipClusterOrError(clusterAlias, executionInfo, findFailure(lookupIndexResolution.failures(), index, clusterAlias));
@@ -1404,7 +1667,7 @@ public class EsqlSession {
     ) {
         // If all indices resolve to the same name, we can use that for BWC
         // Older clusters only can handle one name in LOOKUP JOIN
-        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(toSet());
+        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n).indexExpression()).collect(toSet());
         if (localIndexNames.size() == 1) {
             String indexName = localIndexNames.iterator().next();
             EsIndex newIndex = new EsIndex(
@@ -1510,9 +1773,9 @@ public class EsqlSession {
                 ),
                 listener.delegateFailureAndWrap(
                     (l, strictResult) -> forAll(
-                        preAnalysis.optionalLinkedIndices().iterator(),
+                        preAnalysis.linkedIndices().iterator(),
                         strictResult,
-                        (sp, r, ll) -> preAnalyzeOptionalLinkedIndices(
+                        (sp, r, ll) -> preAnalyzeLinkedIndices(
                             sp,
                             QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
                             preAnalysis,
@@ -1589,11 +1852,11 @@ public class EsqlSession {
     }
 
     /**
-     * This performs lenient field caps resolutions for linkedOptionalPatterns
-     * in order to resolve optional linked indices (if exist) shadowed by local views.
+     * This performs field caps resolutions for linkedIndexPatterns
+     * in order to resolve optional and required linked indices shadowed by local views.
      */
-    private void preAnalyzeOptionalLinkedIndices(
-        IndexPattern indexPattern,
+    private void preAnalyzeLinkedIndices(
+        LinkedIndexPattern linkedIndexPattern,
         String projectRouting,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
@@ -1604,8 +1867,8 @@ public class EsqlSession {
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveFlatIndicesVersioned(
-            true /* lenient */,
-            indexPattern.indexPattern(),
+            linkedIndexPattern.kind() == LinkedIndexPattern.Kind.OPTIONAL,
+            linkedIndexPattern.pattern().indexPattern(),
             projectRouting,
             result.fieldNames,
             createQueryFilter(IndexMode.STANDARD, requestFilter),
@@ -1621,7 +1884,7 @@ public class EsqlSession {
                 EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 // TODO count distinct linked projects
-                l.onResponse(result.withWithOptionalLinkedIndices(indexPattern, indexResolution.inner()));
+                l.onResponse(result.withWithLinkedIndices(linkedIndexPattern, indexResolution.inner()));
             })
         );
     }
@@ -1760,7 +2023,7 @@ public class EsqlSession {
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
                     executionInfo,
                     result.indexResolution.values(),
-                    result.optionalLinkedResolution.values(),
+                    result.linkedResolution.values(),
                     requestFilter != null
                 );
             }
@@ -1827,10 +2090,12 @@ public class EsqlSession {
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,
+            promqlFunctionRegistry,
             unmappedResolution,
             projectMetadata,
             r,
-            timestampBounds
+            timestampBounds,
+            resolveIpLocations(parsed)
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
@@ -1911,8 +2176,8 @@ public class EsqlSession {
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupIndices,
-        // CPS specific optionalLinkedPatterns. Such patterns references indices (if present) shadowing views resolved on origin
-        Map<IndexPattern, IndexResolution> optionalLinkedResolution,
+        // CPS specific linkedIndexPatterns. Such patterns references indices (if present) shadowing views resolved on origin
+        Map<LinkedIndexPattern, IndexResolution> linkedResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
@@ -1943,8 +2208,8 @@ public class EsqlSession {
             return this;
         }
 
-        PreAnalysisResult withWithOptionalLinkedIndices(IndexPattern indexPattern, IndexResolution indices) {
-            optionalLinkedResolution.put(indexPattern, indices);
+        PreAnalysisResult withWithLinkedIndices(LinkedIndexPattern indexPattern, IndexResolution indices) {
+            linkedResolution.put(indexPattern, indices);
             return this;
         }
 
@@ -1954,7 +2219,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                optionalLinkedResolution,
+                linkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1968,7 +2233,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                optionalLinkedResolution,
+                linkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1982,7 +2247,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                optionalLinkedResolution,
+                linkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -2002,7 +2267,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                optionalLinkedResolution,
+                linkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,

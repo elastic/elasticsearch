@@ -14,16 +14,19 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
@@ -57,8 +60,9 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     }
 
     @Override
-    public TelemetryProvider getTelemetryProvider(Settings settings) {
-        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(settings);
+    public TelemetryProvider getTelemetryProvider(Environment environment) {
+        Path diskBufferPath = environment.dataDirs()[0].resolve("telemetry-buffer");
+        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(environment.settings(), diskBufferPath);
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;
     }
@@ -77,7 +81,10 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
         logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
-        return List.of(apmTracer, apmMeter);
+        final APMLoggingService loggingService = telemetryProvider.get().getLoggingService();
+        logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_LOGS_ENABLED.get(settings) ? "enabled" : "disabled");
+
+        return List.of(apmTracer, apmMeter, loggingService);
     }
 
     @Override
@@ -87,20 +94,30 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             APMAgentSettings.APM_AGENT_SETTINGS,
             APMAgentSettings.TELEMETRY_SECRET_TOKEN_SETTING,
             APMAgentSettings.TELEMETRY_API_KEY_SETTING,
+            // Resource attributes (all signals)
+            OtelSdkSettings.TELEMETRY_RESOURCE_ATTRIBUTES,
+            // Shared OTLP export transport (metrics + traces)
+            OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT,
+            OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL,
+            OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT,
+            OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT,
             // Metrics
             APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_INTERVAL,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED,
+            OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE,
+            OtelSdkSettings.TELEMETRY_METRICS_BUFFER_TTL,
             // Tracing
             APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH,
-            OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT
+            OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH,
+            OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE,
+            OtelSdkSettings.TELEMETRY_TRACING_MAX_QUEUE_SIZE,
+            OtelSdkSettings.TELEMETRY_TRACING_MAX_BATCH_SIZE,
+            OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
+            // Logs
+            OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT,
+            OtelSdkSettings.TELEMETRY_LOGS_ENABLED
         );
     }
 }

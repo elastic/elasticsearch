@@ -22,13 +22,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 
@@ -36,7 +38,7 @@ import java.util.concurrent.Executor;
  * StorageObject implementation for S3 using AWS SDK v2.
  * Supports full and range reads, metadata retrieval, and optional native async via S3AsyncClient.
  */
-public final class S3StorageObject implements StorageObject {
+public final class S3StorageObject extends AbstractMeteredStorageObject {
     private static final Logger logger = LogManager.getLogger(S3StorageObject.class);
 
     private final S3Client s3Client;
@@ -48,6 +50,10 @@ public final class S3StorageObject implements StorageObject {
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
+
+    // Retries: the SDK RetryStrategy at the S3Client layer handles them (pinned to Standard in
+    // S3StorageProvider#configureCommon). The provider-agnostic RetryPolicy + ResumingInputStream layer that
+    // wraps this object adds cross-provider retry/resume on top.
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, bucket, key, path);
@@ -103,6 +109,8 @@ public final class S3StorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
+        long startNanos = System.nanoTime();
+        long bytes = 0L;
         try {
             GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).build();
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
@@ -114,13 +122,51 @@ public final class S3StorageObject implements StorageObject {
             if (cachedLastModified == null) {
                 cachedLastModified = metadata.lastModified();
             }
-
-            return response;
-        } catch (NoSuchKeyException e) {
-            throw new IOException("Object not found: " + path, e);
+            bytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
+            // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
+            // resume loop can act on; the SDK throws a raw (unchecked) S3Exception/SdkException mid-body.
+            return new TransientTypingInputStream(response, path);
         } catch (Exception e) {
-            throw new IOException("Failed to read object from " + path, e);
+            throw throwReadFailure("Failed to read object from", e);
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
+    }
+
+    /**
+     * Maps a failure from the S3 client into the exception to surface to ES|QL. A retryable transport
+     * status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on
+     * retry); a missing object or any other failure becomes an {@link IOException}, which the external
+     * source operator classifies as a client-class 400. Returns the exception (never throws) so both
+     * the synchronous and async read paths can route it.
+     */
+    private Exception mapReadFailure(String context, Throwable cause) {
+        if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
+            boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
+            return new ExternalUnavailableException(
+                throttling,
+                cause,
+                "S3 store unavailable reading [{}] (HTTP {})",
+                path,
+                s3.statusCode()
+            );
+        }
+        if (cause instanceof NoSuchKeyException) {
+            return new IOException("Object not found: " + path, cause);
+        }
+        return new IOException(context + " " + path, cause);
+    }
+
+    /**
+     * Synchronous-path bridge for {@link #mapReadFailure}: rethrows the mapped exception. The return
+     * type lets callers write {@code throw throwReadFailure(...)} so the compiler sees an exit.
+     */
+    private RuntimeException throwReadFailure(String context, Throwable cause) throws IOException {
+        Exception mapped = mapReadFailure(context, cause);
+        if (mapped instanceof RuntimeException re) {
+            throw re;
+        }
+        throw (IOException) mapped;
     }
 
     @Override
@@ -128,13 +174,16 @@ public final class S3StorageObject implements StorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length <= 0) {
-            throw new IllegalArgumentException("length must be positive, got: " + length);
+        boolean toEnd = length == READ_TO_END;
+        if (toEnd == false && length <= 0) {
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
 
-        long endPosition = position + length - 1;
-        String rangeHeader = Strings.format("bytes=%d-%d", position, endPosition);
+        // READ_TO_END -> open-ended "bytes=position-" (no up-front length() lookup); otherwise a closed range.
+        String rangeHeader = toEnd ? Strings.format("bytes=%d-", position) : Strings.format("bytes=%d-%d", position, position + length - 1);
 
+        long startNanos = System.nanoTime();
+        long requestedBytes = toEnd ? 0L : length;
         try {
             GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
@@ -149,12 +198,19 @@ public final class S3StorageObject implements StorageObject {
             if (cachedLastModified == null) {
                 cachedLastModified = metadata.lastModified();
             }
-
-            return response;
-        } catch (NoSuchKeyException e) {
-            throw new IOException("Object not found: " + path, e);
+            if (toEnd) {
+                requestedBytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
+            }
+            return new TransientTypingInputStream(response, path);
         } catch (Exception e) {
-            throw new IOException("Range request failed for " + path, e);
+            if (toEnd && e instanceof S3Exception s3e && s3e.statusCode() == 416) {
+                // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
+                // contract for an open-ended read past the end is an empty stream.
+                return InputStream.nullInputStream();
+            }
+            throw throwReadFailure("Range request failed for", e);
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, requestedBytes);
         }
     }
 
@@ -304,9 +360,15 @@ public final class S3StorageObject implements StorageObject {
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (s3AsyncClient == null) {
-            StorageObject.super.readBytesAsync(position, length, executor, listener);
+            super.readBytesAsync(position, length, factory, executor, listener);
             return;
         }
 
@@ -319,7 +381,7 @@ public final class S3StorageObject implements StorageObject {
             return;
         }
         if (length > Integer.MAX_VALUE) {
-            // The async path materializes the response into a single byte[]; ranges larger than 2 GiB
+            // The async path materializes the response into a single direct ByteBuffer; ranges larger than 2 GiB
             // are not supportable here. Callers needing larger reads must split the range or fall
             // back to the streaming sync path via newStream(position, length).
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
@@ -332,22 +394,24 @@ public final class S3StorageObject implements StorageObject {
         GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
 
         // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
-        // copied straight into the final pre-sized byte[] (single chunk-to-destination copy),
+        // copied straight into a pre-sized direct ByteBuffer (single chunk-to-destination copy),
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
         // See KnownLengthAsyncResponseTransformer for the full rationale.
-        s3AsyncClient.getObject(request, new KnownLengthAsyncResponseTransformer<>((int) length))
-            .whenComplete((responseBytes, throwable) -> {
-                if (throwable != null) {
-                    Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
-                    if (cause instanceof NoSuchKeyException) {
-                        listener.onFailure(new IOException("Object not found: " + path, cause));
-                    } else {
-                        listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
-                    }
-                    return;
-                }
+        long startNanos = System.nanoTime();
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            (int) length,
+            factory
+        );
+        onReadComplete(s3AsyncClient.getObject(request, transformer), (buffer, throwable) -> {
+            if (throwable != null) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
+                listener.onFailure(mapReadFailure("Failed to read object from", cause));
+                return;
+            }
 
-                GetObjectResponse response = responseBytes.response();
+            GetObjectResponse response = transformer.response();
+            if (response != null) {
                 if (cachedLastModified == null) {
                     cachedLastModified = response.lastModified();
                 }
@@ -357,17 +421,10 @@ public final class S3StorageObject implements StorageObject {
                         cachedLength = total;
                     }
                 }
+            }
 
-                // Copy into a direct ByteBuffer so both the input and output sides of decompression
-                // are direct — enabling the JNI-free direct-to-direct fast path in PlainCompressionCodecFactory
-                // and avoiding GetPrimitiveArrayCritical heap-region pinning during G1GC.
-                // Use asByteArrayUnsafe() to skip the SDK's defensive Arrays.copyOf; safe because the byte[]
-                // was allocated by our KnownLengthAsyncResponseTransformer above and is not retained elsewhere.
-                byte[] data = responseBytes.asByteArrayUnsafe();
-                ByteBuffer direct = ByteBuffer.allocateDirect(data.length);
-                direct.put(data).flip();
-                listener.onResponse(direct);
-            });
+            deliverRead(listener, buffer, startNanos);
+        });
     }
 
     @Override

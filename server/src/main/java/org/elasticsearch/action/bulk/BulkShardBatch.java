@@ -69,7 +69,7 @@ public class BulkShardBatch implements Writeable {
             assert indexSource.bytes().length() == 0 : indexSource.bytes().length();
             // TODO: At the moment this is just implicit. However, we may need to eventually add the row serialized directly in the
             // source.
-            indexSource.setEirfRow(batch, rowNumber++);
+            indexSource.setSourceRow(batch, rowNumber++);
         }
         assert rowNumber == batch.docCount();
     }

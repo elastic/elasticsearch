@@ -99,7 +99,7 @@ public class IndexSource implements Writeable, Releasable {
         return rowIndex;
     }
 
-    public boolean hasEirfRow() {
+    public boolean hasSourceRow() {
         assert isClosed == false;
         return rowIndex >= 0;
     }
@@ -108,7 +108,7 @@ public class IndexSource implements Writeable, Releasable {
      * Replaces the inline source bytes with an empty reference and records the row index into the shard-level batch.
      * The {@link XContentType} is preserved so downstream code can still identify the original content type.
      */
-    public void setEirfRow(SourceBatch batch, int rowIndex) {
+    public void setSourceRow(SourceBatch batch, int rowIndex) {
         assert isClosed == false;
         assert rowIndex >= 0;
         assert batch != null;

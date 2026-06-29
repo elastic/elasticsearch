@@ -108,7 +108,7 @@ final class BulkBatchEncoders implements Releasable {
      * pre-scan logic can be exercised in isolation.
      */
     static boolean isItemBatchEligible(IndexRequest request) {
-        return request.indexSource().hasSource() && request.getContentType() != null && request.indexSource().hasEirfRow() == false;
+        return request.indexSource().hasSource() && request.getContentType() != null && request.indexSource().hasSourceRow() == false;
     }
 
     /**
@@ -192,7 +192,7 @@ final class BulkBatchEncoders implements Releasable {
                 EirfBatch batch = state.encoder.buildPartition(shardId.getId());
                 batchesByShard.put(shardId, batch);
                 for (PendingAttachment attachment : pending) {
-                    attachment.indexRequest.indexSource().setEirfRow(batch, attachment.rowIndex);
+                    attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);
                 }
             }
         }

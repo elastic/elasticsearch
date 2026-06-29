@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.compute.aggregation.Temporality;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexMode;
@@ -35,6 +36,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -204,6 +206,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             }, Collectors.toList())));
     }
 
+    private static Temporality getCounterTemporality(String timeseriesId) {
+        String deltaLiteral = Temporality.DELTA.bytesRef().utf8ToString();
+        if (timeseriesId.contains(TSDataGenerationHelper.TEMPORALITY_ATTRIBUTE_NAME + ":" + deltaLiteral)) {
+            return Temporality.DELTA;
+        }
+        return Temporality.CUMULATIVE;
+    }
+
     /**
      * Two-level aggregation: first applies {@code timeseriesAgg} within each timeseries, then applies
      * {@code crossAgg} across all per-timeseries results.
@@ -347,15 +357,243 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     /** Aggregated rate statistics (count, max, avg, min, sum) computed across timeseries in a window. */
     record RateStats(Long count, RateRange max, RateRange avg, RateRange min, RateRange sum) {}
 
+    @Nullable
+    private static TimestampedValue findLastPoint(List<Map<String, List<TimestampedValue>>> allWindows, int idx, String tsId) {
+        if (idx < 0 || idx >= allWindows.size()) return null;
+        var pts = allWindows.get(idx).get(tsId);
+        if (pts == null) return null;
+        return pts.stream().max(Comparator.comparing(TimestampedValue::timestamp)).orElse(null);
+    }
+
+    @Nullable
+    private static TimestampedValue findFirstPoint(List<Map<String, List<TimestampedValue>>> allWindows, int idx, String tsId) {
+        if (idx < 0 || idx >= allWindows.size()) return null;
+        var pts = allWindows.get(idx).get(tsId);
+        if (pts == null) return null;
+        return pts.stream().min(Comparator.comparing(TimestampedValue::timestamp)).orElse(null);
+    }
+
     /**
-     * Calculates a delta-based aggregation (rate, irate, increase, delta, idelta) for a single time window,
-     * using adjacent windows for boundary interpolation.
+     * Computes a reference rate or increase for a single timeseries within a time window, matching
+     * {@code RateDoubleGroupingAggregatorFunction#computeRate}.
+     */
+    static Double computeReferenceRateOrIncrease(
+        @Nullable TimestampedValue lastInPrevWindow,
+        List<TimestampedValue> currentWindow,
+        @Nullable TimestampedValue firstInNextWindow,
+        Temporality temporality,
+        int secondsInWindow,
+        boolean isRate
+    ) {
+        long millisInWindow = secondsInWindow * 1000L;
+        if (currentWindow.isEmpty()) {
+            return null;
+        }
+        TimestampedValue firstInWindow = currentWindow.getFirst();
+        TimestampedValue lastInWindow = currentWindow.getLast();
+
+        long startTs = firstInWindow.timestamp().toEpochMilli();
+        long endTs = lastInWindow.timestamp().toEpochMilli();
+
+        long timebucketStart = startTs / millisInWindow * millisInWindow;
+        long timebucketEnd = timebucketStart + millisInWindow;
+
+        double totalIncrease = computeCounterIncreaseBetween(currentWindow, temporality);
+
+        if (lastInPrevWindow != null) {
+            totalIncrease += getInterpolatedIncreaseBetween(lastInPrevWindow, firstInWindow, timebucketStart, temporality, true);
+            startTs = timebucketStart;
+        } else if (currentWindow.size() > 1) {
+            totalIncrease += getExtrapolatedIncreaseAtBorder(currentWindow, temporality, secondsInWindow, true);
+            startTs = timebucketStart;
+        }
+        if (firstInNextWindow != null) {
+            totalIncrease += getInterpolatedIncreaseBetween(lastInWindow, firstInNextWindow, timebucketEnd, temporality, false);
+            endTs = timebucketEnd;
+        } else if (currentWindow.size() > 1) {
+            totalIncrease += getExtrapolatedIncreaseAtBorder(currentWindow, temporality, secondsInWindow, false);
+            endTs = timebucketEnd;
+        }
+
+        if (startTs == endTs) {
+            if (lastInPrevWindow != null && isRate) {
+                // special case: The only value falls exactly on the start border
+                // our rate implementation in this case returns the rate between the point in this window and the point in the last window
+                List<TimestampedValue> values = List.of(lastInPrevWindow, firstInWindow);
+                double rangeSeconds = (firstInWindow.timestamp().toEpochMilli() - lastInPrevWindow.timestamp().toEpochMilli()) / 1000.0;
+                return computeCounterIncreaseBetween(values, temporality) / rangeSeconds;
+            }
+            return null;
+        }
+        return isRate ? totalIncrease / ((endTs - startTs) / 1000.0) : totalIncrease;
+    }
+
+    private static double computeCounterIncreaseBetween(List<TimestampedValue> currentWindow, Temporality temporality) {
+        double increaseInWindow = 0.0;
+
+        if (temporality == Temporality.DELTA) {
+            // Intentionally skip the first value: It's increase belongs to
+            // the timespan before the timestamp of the first value!
+            for (int i = 1; i < currentWindow.size(); i++) {
+                increaseInWindow += currentWindow.get(i).value();
+            }
+        } else {
+            if (currentWindow.isEmpty()) {
+                return 0;
+            }
+            double resets = 0;
+            for (int i = 1; i < currentWindow.size(); i++) {
+                double prevValue = currentWindow.get(i - 1).value();
+                double currValue = currentWindow.get(i).value();
+                if (currValue < prevValue) {
+                    resets += prevValue;
+                }
+            }
+            increaseInWindow = currentWindow.getLast().value + resets - currentWindow.getFirst().value();
+        }
+        return increaseInWindow;
+    }
+
+    static double getInterpolatedIncreaseBetween(
+        TimestampedValue left,
+        TimestampedValue right,
+        long targetTimestamp,
+        Temporality temporality,
+        boolean isLowerBound
+    ) {
+        long leftTs = left.timestamp().toEpochMilli();
+        long rightTs = right.timestamp().toEpochMilli();
+        assert targetTimestamp >= leftTs : "Target timestamp must be greater than or equal to left timestamp";
+        assert targetTimestamp <= rightTs : "Target timestamp must be less than or equal to right timestamp";
+        assert leftTs != rightTs : "Left and right timestamps must be different for interpolation";
+
+        long timespan = rightTs - leftTs;
+        double interpolationWeight = (targetTimestamp - leftTs) * 1.0 / timespan;
+        if (isLowerBound) {
+            interpolationWeight = 1.0 - interpolationWeight;
+        }
+
+        double totalIncrease;
+        if (temporality == Temporality.DELTA) {
+            // For delta, only the counter value of the right point matters. It represents the total increase between the two points
+            totalIncrease = right.value();
+        } else {
+            if (right.value() >= left.value()) {
+                // no reset
+                totalIncrease = right.value() - left.value();
+            } else {
+                // reset, absolute value of right point matters
+                totalIncrease = right.value();
+            }
+        }
+        return totalIncrease * interpolationWeight;
+    }
+
+    private static double getExtrapolatedIncreaseAtBorder(
+        List<TimestampedValue> values,
+        Temporality temporality,
+        long secondsInWindow,
+        boolean isLowerBoundary
+    ) {
+        assert values.size() >= 2 : "At least two points are required for extrapolation";
+
+        double increase = computeCounterIncreaseBetween(values, temporality);
+        long firstTs = values.getFirst().timestamp().toEpochMilli();
+        long lastTs = values.getLast().timestamp().toEpochMilli();
+
+        final long sampleTs = lastTs - firstTs;
+        final double averageSampleInterval = sampleTs * 1.0 / values.size();
+        final double slope = increase / sampleTs;
+
+        assert firstTs != lastTs;
+
+        long millisInWindow = secondsInWindow * 1000L;
+        long tbucketStart = firstTs / millisInWindow * millisInWindow;
+        long tbucketEnd = tbucketStart + millisInWindow;
+
+        double gap;
+        if (isLowerBoundary) {
+            gap = firstTs - tbucketStart;
+        } else {
+            gap = tbucketEnd - lastTs;
+        }
+        if (gap > 0) {
+            if (gap > averageSampleInterval * 1.1) {
+                gap = averageSampleInterval / 2.0;
+            }
+            // the extrapolated increase cannot exceed the first counter value for the lower boundary
+            double extrapolatedIncrease = gap * slope;
+            if (isLowerBoundary) {
+                extrapolatedIncrease = Math.min(extrapolatedIncrease, values.getFirst().value());
+            }
+            return extrapolatedIncrease;
+        }
+        return 0.0;
+    }
+
+    /**
+     * Computes a reference irate matching {@code IrateAggregator#evaluateFinal}.
+     * Uses only the last two samples; no adjacent-window data.
+     */
+    static Double computeReferenceIrate(List<TimestampedValue> currentWindow, Temporality temporality) {
+        if (currentWindow == null || currentWindow.size() < 2) {
+            return null;
+        }
+        var last = currentWindow.getLast();
+        var secondLast = currentWindow.get(currentWindow.size() - 2);
+        double ydiff;
+        if (temporality != Temporality.DELTA && last.value() >= secondLast.value()) {
+            ydiff = last.value() - secondLast.value();
+        } else {
+            ydiff = last.value();
+        }
+        long xdiff = last.timestamp().toEpochMilli() - secondLast.timestamp().toEpochMilli();
+        return ydiff / xdiff * 1000.0;
+    }
+
+    /**
+     * Computes a reference delta range for a single timeseries in a time window.
+     * The raw delta is {@code lastValue - firstValue}. The ES DeltaAggregator applies PromQL-style
+     * extrapolation that scales the delta up to cover the full bucket width, so the actual result
+     * falls between the raw delta and {@code delta * windowSizeFactor}.
      *
-     * @param allWindows ordered list of time windows; each window is a map keyed by timeseries identifier
-     *                   to the data points in that window
-     * @param offset index into {@code allWindows} for the window to compute
-     * @param secondsInWindow time bucket width in seconds
-     * @param deltaAgg the delta aggregation type to compute
+     * @return a {@code [lower, upper]} range, or {@code null} if fewer than 2 points
+     */
+    static double[] computeReferenceDelta(List<TimestampedValue> currentWindow, int secondsInWindow) {
+        if (currentWindow == null || currentWindow.size() < 2) {
+            return null;
+        }
+        double firstValue = currentWindow.getFirst().value();
+        double lastValue = currentWindow.getLast().value();
+        long firstTs = currentWindow.getFirst().timestamp().toEpochMilli();
+        long lastTs = currentWindow.getLast().timestamp().toEpochMilli();
+        if (lastTs == firstTs) {
+            return null;
+        }
+
+        double delta = lastValue - firstValue;
+        double tsDurationSeconds = (lastTs - firstTs) / 1000.0;
+        double windowSizeFactor = secondsInWindow / tsDurationSeconds;
+        if (delta < 0) {
+            return new double[] { delta * windowSizeFactor, delta };
+        } else {
+            return new double[] { delta, delta * windowSizeFactor };
+        }
+    }
+
+    /**
+     * Computes a reference idelta matching {@code IdeltaAggregator#evaluateFinal}.
+     * Uses only the last two samples; no adjacent-window data, no temporality handling.
+     */
+    static Double computeReferenceIdelta(List<TimestampedValue> currentWindow) {
+        if (currentWindow == null || currentWindow.size() < 2) {
+            return null;
+        }
+        return currentWindow.getLast().value() - currentWindow.get(currentWindow.size() - 2).value();
+    }
+
+    /**
+     * Calculates a delta-based aggregation (rate, irate, increase, delta, idelta) for a single time window.
      */
     static RateStats calculateDeltaAggregation(
         List<Map<String, List<TimestampedValue>>> allWindows,
@@ -365,110 +603,60 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     ) {
         List<RateRange> allRates = allWindows.get(offset).entrySet().stream().map(entry -> {
             String timeseriesId = entry.getKey();
-            var timeseriesPointsInWindow = new ArrayList<>(entry.getValue());
-            timeseriesPointsInWindow.sort(Comparator.comparing(TimestampedValue::timestamp));
+            List<TimestampedValue> points = new ArrayList<>(entry.getValue());
+            points.sort(Comparator.comparing(TimestampedValue::timestamp));
+            Temporality temporality = getCounterTemporality(timeseriesId);
 
-            boolean addedLowerBoundary = false;
-            boolean addedUpperBoundary = false;
-            if (deltaAgg.equals(DeltaAgg.RATE) || deltaAgg.equals(DeltaAgg.INCREASE)) {
-                if (offset > 0) {
-                    var previousWindow = allWindows.get(offset - 1).get(timeseriesId);
-                    if (previousWindow != null && previousWindow.isEmpty() == false) {
-                        addedLowerBoundary = addBoundaryPoint(timeseriesPointsInWindow, previousWindow, secondsInWindow, true);
-                    }
-                }
-                if (offset < allWindows.size() - 1) {
-                    var nextWindow = allWindows.get(offset + 1).get(timeseriesId);
-                    if (nextWindow != null && nextWindow.isEmpty() == false) {
-                        addedUpperBoundary = addBoundaryPoint(timeseriesPointsInWindow, nextWindow, secondsInWindow, false);
-                    }
+            long millisInWindow = secondsInWindow * 1000L;
+            long currentBucketStartMs = points.getFirst().timestamp().toEpochMilli() / millisInWindow * millisInWindow;
+
+            TimestampedValue lastInPrev = findLastPoint(allWindows, offset - 1, timeseriesId);
+            TimestampedValue firstInNext = findFirstPoint(allWindows, offset + 1, timeseriesId);
+
+            // The allWindows list only contains entries for non-empty buckets, so offset-1 / offset+1
+            // may point to a non-adjacent time bucket when there are gaps in the data. ES only
+            // interpolates with the immediately adjacent bucket, so discard points from distant buckets.
+            if (lastInPrev != null) {
+                long prevBucket = lastInPrev.timestamp().toEpochMilli() / millisInWindow * millisInWindow;
+                if (prevBucket != currentBucketStartMs - millisInWindow) {
+                    lastInPrev = null;
                 }
             }
-            if (timeseriesPointsInWindow.size() < 2) {
-                if ((deltaAgg.equals(DeltaAgg.RATE) || deltaAgg.equals(DeltaAgg.INCREASE))
-                    && timeseriesPointsInWindow.size() == 1
-                    && timeseriesPointsInWindow.getFirst().timestamp().toEpochMilli() % (secondsInWindow * 1000L) == 0
-                    && offset > 0) {
-                    // Value at lower boundary is present, check if there's one in the previous window to use.
-                    addLastPointFromLowerWindow(timeseriesPointsInWindow, allWindows.get(offset - 1).get(timeseriesId), secondsInWindow);
-                    // For INCREASE, return 0 if there is a previous bucket because
-                    // the increase was already accounted for in the previous bucket.
-                    // For RATE, we still need to calculate the rate using interpolation from the previous bucket.
-                    if (timeseriesPointsInWindow.size() == 2 && deltaAgg.equals(DeltaAgg.INCREASE)) {
-                        return new RateRange(0.0, 0.0);
-                    }
+            if (firstInNext != null) {
+                long nextBucket = firstInNext.timestamp().toEpochMilli() / millisInWindow * millisInWindow;
+                if (nextBucket != currentBucketStartMs + millisInWindow) {
+                    firstInNext = null;
                 }
-                if (timeseriesPointsInWindow.size() < 2) {
+            }
+
+            if (deltaAgg == DeltaAgg.DELTA) {
+                double[] deltaRange = computeReferenceDelta(points, secondsInWindow);
+                if (deltaRange == null) {
                     return null;
                 }
-            }
-            var firstTs = timeseriesPointsInWindow.getFirst().timestamp();
-            var lastTs = timeseriesPointsInWindow.getLast().timestamp();
-            var tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
-            if (deltaAgg.equals(DeltaAgg.IRATE)) {
-                var lastVal = timeseriesPointsInWindow.getLast().value();
-                var secondLast = timeseriesPointsInWindow.get(timeseriesPointsInWindow.size() - 2);
-                var secondLastVal = secondLast.value();
-                var irate = (lastVal >= secondLastVal ? lastVal - secondLastVal : lastVal) / (lastTs.toEpochMilli() - secondLast.timestamp()
-                    .toEpochMilli()) * 1000;
-                return new RateRange(irate * 0.999, irate * 1.001); // Add 0.1% tolerance
-            } else if (deltaAgg.equals(DeltaAgg.DELTA)) {
-                var firstVal = timeseriesPointsInWindow.getFirst().value();
-                var lastVal = timeseriesPointsInWindow.getLast().value();
-                var delta = lastVal - firstVal;
-                var windowSizeFactor = secondsInWindow / tsDurationSeconds;
-                if (delta < 0) {
-                    return new RateRange(delta * windowSizeFactor * 1.001, delta * 0.999); // Add 0.1% tolerance
-                } else {
-                    return new RateRange(delta * 0.999, delta * windowSizeFactor * 1.001); // Add 0.1% tolerance
-                }
-            } else if (deltaAgg.equals(DeltaAgg.IDELTA)) {
-                var lastVal = timeseriesPointsInWindow.getLast().value();
-                var secondLastVal = timeseriesPointsInWindow.get(timeseriesPointsInWindow.size() - 2).value();
-                var idelta = lastVal - secondLastVal;
-                if (idelta < 0) {
-                    return new RateRange(idelta * 1.001, idelta * 0.999); // Add 0.1% tolerance
-                } else {
-                    return new RateRange(idelta * 0.999, idelta * 1.001); // Add 0.1% tolerance
-                }
-            }
-            assert deltaAgg == DeltaAgg.RATE || deltaAgg == DeltaAgg.INCREASE;
-            double lastValue = 0.0;
-            boolean first = true;
-            double counterGrowth = 0.0;
-            for (TimestampedValue point : timeseriesPointsInWindow) {
-                double currentValue = point.value();
-                if (first) {
-                    lastValue = currentValue;
-                    first = false;
-                    continue;
-                }
-                if (currentValue > lastValue) {
-                    counterGrowth += currentValue - lastValue;
-                } else if (currentValue < lastValue) {
-                    counterGrowth += currentValue;
-                }
-                lastValue = currentValue;
+                double tol = 0.001;
+                double lo = deltaRange[0] < 0 ? deltaRange[0] * (1 + tol) : deltaRange[0] * (1 - tol);
+                double hi = deltaRange[1] < 0 ? deltaRange[1] * (1 - tol) : deltaRange[1] * (1 + tol);
+                return new RateRange(lo, hi);
             }
 
-            // Account for extrapolation in case there are no adjacent buckets.
-            if (timeseriesPointsInWindow.size() > 2) {
-                if (addedLowerBoundary && addedUpperBoundary == false) {
-                    firstTs = timeseriesPointsInWindow.get(1).timestamp();
-                } else if (addedLowerBoundary == false && addedUpperBoundary) {
-                    lastTs = timeseriesPointsInWindow.get(timeseriesPointsInWindow.size() - 2).timestamp();
-                }
-                tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
+            Double value = switch (deltaAgg) {
+                case RATE -> computeReferenceRateOrIncrease(lastInPrev, points, firstInNext, temporality, secondsInWindow, true);
+                case INCREASE -> computeReferenceRateOrIncrease(lastInPrev, points, firstInNext, temporality, secondsInWindow, false);
+                case IRATE -> computeReferenceIrate(points, temporality);
+                case IDELTA -> computeReferenceIdelta(points);
+                default -> throw new IllegalStateException("Unexpected delta agg: " + deltaAgg);
+            };
+            if (value == null || value.isNaN()) {
+                return null;
             }
-
-            if (deltaAgg.equals(DeltaAgg.INCREASE)) {
-                // TODO: get tighter bounds by applying interpolation instead of median between adjacent buckets
-                return new RateRange(counterGrowth * 0.9, counterGrowth * secondsInWindow / tsDurationSeconds * 1.1);
-            } else {
-                double lowBound = counterGrowth / secondsInWindow * 0.9;
-                double highBound = counterGrowth / tsDurationSeconds * 1.1;
-                return new RateRange(lowBound, highBound);
+            double tol = 0.001;
+            if (value == 0.0) {
+                return new RateRange(0.0, 0.0);
             }
+            double lo = value * (1 - tol);
+            double hi = value * (1 + tol);
+            return value < 0 ? new RateRange(hi, lo) : new RateRange(lo, hi);
         }).filter(Objects::nonNull).toList();
         if (allRates.isEmpty()) {
             return new RateStats(0L, null, null, null, null);
@@ -485,128 +673,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    /**
-     * Adds an interpolated boundary point to a timeseries using data from the same timeseries in an
-     * adjacent window.
-     *
-     * @param currentWindow mutable list of data points for one timeseries in the current window (modified in place)
-     * @param adjacentWindow data points for the same timeseries in the adjacent window
-     * @return {@code true} if a boundary point was added or the reference point is already on the boundary
-     */
-    private static boolean addBoundaryPoint(
-        List<TimestampedValue> currentWindow,
-        List<TimestampedValue> adjacentWindow,
-        int secondsInWindow,
-        boolean isLowerBoundary
-    ) {
-        var referencePoint = isLowerBoundary ? currentWindow.getFirst() : currentWindow.getLast();
-        if (isLowerBoundary && referencePoint.timestamp().toEpochMilli() % (secondsInWindow * 1000L) == 0) {
-            return true;
-        }
-        if (instantsInAdjacentWindows(adjacentWindow.getFirst().timestamp(), referencePoint.timestamp(), secondsInWindow) == false) {
-            return false;
-        }
-        TimestampedValue otherValue = null;
-        long otherTimestamp = 0;
-        for (var point : adjacentWindow) {
-            long timestamp = point.timestamp().toEpochMilli();
-            if (otherValue == null
-                || (timestamp > otherTimestamp && isLowerBoundary)
-                || (timestamp < otherTimestamp && isLowerBoundary == false)) {
-                otherTimestamp = timestamp;
-                otherValue = point;
-            }
-        }
-        if (isLowerBoundary) {
-            currentWindow.addFirst(interpolateAtLowerBoundary(otherValue, referencePoint, secondsInWindow));
-        } else {
-            currentWindow.addLast(interpolateAtUpperBoundary(referencePoint, otherValue, secondsInWindow));
-        }
-        return true;
-    }
-
-    /**
-     * Prepends the latest data point from the same currentWindow in the lower (previous) window,
-     * used when only a single boundary-aligned point exists in the current window.
-     *
-     * @param currentWindow mutable list of data points for one currentWindow in the current window (modified in place)
-     * @param previousWindow data points for the same currentWindow in the previous window, or {@code null} if absent
-     */
-    private static void addLastPointFromLowerWindow(
-        List<TimestampedValue> currentWindow,
-        @Nullable List<TimestampedValue> previousWindow,
-        int secondsInWindow
-    ) {
-        if (previousWindow == null || previousWindow.isEmpty()) {
-            return;
-        }
-        Instant referenceTimestamp = currentWindow.getFirst().timestamp();
-        if (instantsInAdjacentWindows(previousWindow.getFirst().timestamp(), referenceTimestamp, secondsInWindow) == false) {
-            return;
-        }
-        TimestampedValue lowerPoint = null;
-        long lowerTimestampMs = 0;
-        for (var point : previousWindow) {
-            long timestamp = point.timestamp().toEpochMilli();
-            if (lowerPoint == null || timestamp > lowerTimestampMs) {
-                lowerTimestampMs = timestamp;
-                lowerPoint = point;
-            }
-        }
-        if (lowerPoint != null) {
-            currentWindow.addFirst(lowerPoint);
-        }
-    }
-
-    private static boolean instantsInAdjacentWindows(Instant first, Instant second, int secondsInWindow) {
-        long firstRounded = first.getEpochSecond() / secondsInWindow * secondsInWindow;
-        long secondRounded = second.getEpochSecond() / secondsInWindow * secondsInWindow;
-        long delta = Math.abs(firstRounded - secondRounded);
-        return delta == secondsInWindow;
-    }
-
-    private static TimestampedValue interpolateAtLowerBoundary(
-        TimestampedValue lowerPoint,
-        TimestampedValue upperPoint,
-        int secondsInWindow
-    ) {
-        final double valueDelta;
-        final double baseValue;
-        if (upperPoint.value() >= lowerPoint.value()) {
-            valueDelta = upperPoint.value() - lowerPoint.value();
-            baseValue = lowerPoint.value();
-        } else {
-            // Counter reset.
-            valueDelta = upperPoint.value();
-            baseValue = 0;
-        }
-        final double timeDelta = (upperPoint.timestamp().toEpochMilli() - lowerPoint.timestamp().toEpochMilli()) / 1000.0;
-        final double slope = valueDelta / timeDelta;
-        final long lowerBoundaryTimeSeconds = upperPoint.timestamp().getEpochSecond() / secondsInWindow * secondsInWindow;
-        final double lowerBoundaryValue = baseValue + slope * (lowerBoundaryTimeSeconds - lowerPoint.timestamp().toEpochMilli() / 1000.0);
-        return new TimestampedValue(Instant.ofEpochSecond(lowerBoundaryTimeSeconds), lowerBoundaryValue);
-    }
-
-    private static TimestampedValue interpolateAtUpperBoundary(
-        TimestampedValue lowerPoint,
-        TimestampedValue upperPoint,
-        int secondsInWindow
-    ) {
-        final double valueDelta;
-        if (upperPoint.value() >= lowerPoint.value()) {
-            valueDelta = upperPoint.value() - lowerPoint.value();
-        } else {
-            // Counter reset.
-            valueDelta = upperPoint.value();
-        }
-        final double timeDelta = (upperPoint.timestamp().toEpochMilli() - lowerPoint.timestamp().toEpochMilli()) / 1000.0;
-        final double slope = valueDelta / timeDelta;
-        final long upperBoundaryTimeSeconds = upperPoint.timestamp().getEpochSecond() / secondsInWindow * secondsInWindow;
-        final double upperBoundaryValue = lowerPoint.value() + slope * (upperBoundaryTimeSeconds - lowerPoint.timestamp().toEpochMilli()
-            / 1000.0);
-        return new TimestampedValue(Instant.ofEpochSecond(upperBoundaryTimeSeconds), upperBoundaryValue);
-    }
-
     void putTSDBIndexTemplate(List<String> patterns, @Nullable String mappingString) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder();
         // Ensure it will be a TSDB data stream
@@ -614,6 +680,10 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, ESTestCase.randomIntBetween(1, 5));
         settingsBuilder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2025-07-31T00:00:00Z");
         settingsBuilder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-07-31T12:00:00Z");
+        settingsBuilder.put(
+            IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(),
+            "attributes." + TSDataGenerationHelper.TEMPORALITY_ATTRIBUTE_NAME
+        );
         settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
@@ -632,7 +702,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() throws IOException {
-        dataGenerationHelper = new TSDataGenerationHelper(NUM_DOCS, TIME_RANGE_SECONDS);
+        List<Temporality> allowedTemporalities = randomNonEmptySubsetOf(Arrays.asList(Temporality.DELTA, Temporality.CUMULATIVE, null));
+        dataGenerationHelper = new TSDataGenerationHelper(NUM_DOCS, TIME_RANGE_SECONDS, allowedTemporalities);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(dataGenerationHelper.mapping.raw());
         final String jsonMappings = Strings.toString(builder);

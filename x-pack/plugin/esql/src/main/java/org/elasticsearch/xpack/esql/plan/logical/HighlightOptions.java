@@ -141,9 +141,8 @@ public record HighlightOptions(
             case Highlight.ENCODER, Highlight.BOUNDARY_SCANNER, Highlight.ORDER, Highlight.PHRASE_LIMIT -> {
                 // Handled elsewhere (enums against EnumOption, phrase_limit is grammar-only).
             }
-            default -> {
-                // Unknown name; the parser already rejected anything not in VALID_OPTION_NAMES.
-            }
+            // Unreachable: the parser already rejected anything not in VALID_OPTION_NAMES.
+            default -> throw new AssertionError("Unexpected HIGHLIGHT option [" + name + "]");
         }
     }
 

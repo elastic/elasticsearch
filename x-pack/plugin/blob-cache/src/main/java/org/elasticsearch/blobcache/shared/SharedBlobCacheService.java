@@ -57,6 +57,7 @@ import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -351,6 +352,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         int forceEvict(ShardId shard, Predicate<K> cacheKeyPredicate);
 
         int forceEvict(ShardId shard, BiPredicate<K, Integer> regionPredicate);
+
+        int demoteAll(ShardId shard);
     }
 
     private abstract static class CacheEntry<T> {
@@ -950,6 +953,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return cache.forceEvict(shard, cacheKeyPredicate);
     }
 
+    public int forceEvict(ShardId shard, BiPredicate<KeyType, Integer> regionPredicate) {
+        return cache.forceEvict(shard, regionPredicate);
+    }
+
     /**
      * Evict entries from the cache that match the given predicate asynchronously
      *
@@ -959,8 +966,41 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         cache.forceEvictAsync(cacheKeyPredicate);
     }
 
-    public int forceEvict(ShardId shard, BiPredicate<KeyType, Integer> regionPredicate) {
-        return cache.forceEvict(shard, regionPredicate);
+    /**
+     * Demotes all active cache regions for the given shard to frequency 0.
+     * Demoted entries are inserted at the front of the frequency-0 list so they are evicted before
+     * other frequency-0 entries. {@code lastAccessedEpoch} is set to {@code -1} so demoted entries
+     * are not frequency-promoted before the next epoch.
+     *
+     * @return the number of regions demoted
+     */
+    public int demoteAll(ShardId shard) {
+        return cache.demoteAll(shard);
+    }
+
+    /**
+     * Schedules an asynchronous demotion of all active cache regions for the given shard to frequency 0.
+     * The predicate is evaluated when the task runs; demotion is skipped when it returns {@code false}.
+     */
+    public void demoteAllAsync(ShardId shard, Predicate<ShardId> shouldDemote) {
+        // TODO do not submit task if shutting down
+        asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    if (shouldDemote.test(shard)) {
+                        cache.demoteAll(shard);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                final String message = "unexpected failure in async demotion task for shard [" + shard + "]";
+                logger.error(message, e);
+                assert false : new AssertionError(message, e);
+            }
+        });
     }
 
     /**
@@ -983,6 +1023,19 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 assert false : new AssertionError(message, e);
             }
         });
+    }
+
+    // used by tests
+    Map<Integer, Integer> countCachedRegionsByFreq(Predicate<KeyType> predicate) {
+        return countCachedRegionsByFreq(predicate, false);
+    }
+
+    // used by tests
+    Map<Integer, Integer> countCachedRegionsByFreq(Predicate<KeyType> predicate, boolean includeEvicted) {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.countCachedRegionsByFreq(predicate, includeEvicted);
+        }
+        throw new UnsupportedOperationException("cache is not an LFUCache");
     }
 
     // used by tests
@@ -2375,6 +2428,32 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return evictedCount;
         }
 
+        @Override
+        public int demoteAll(ShardId shard) {
+            final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
+            keyMapping.forEach(shard, (key, entry) -> matchingEntries.add(entry));
+
+            var demotedCount = 0;
+            if (matchingEntries.isEmpty() == false) {
+                synchronized (SharedBlobCacheService.this) {
+                    for (LFUCacheEntry entry : matchingEntries) {
+                        if (entry.freq == 0 || entry.chunk.isEvicted() || entry.chunk.volatileIO() == null) {
+                            continue;
+                        }
+                        unlink(entry);
+                        entry.freq = 0;
+                        entry.lastAccessedEpoch = -1;
+                        pushEntryToFront(entry);
+                        demotedCount++;
+                    }
+                }
+            }
+            if (demotedCount > 0) {
+                logger.debug("{} demoted [{}] cache regions to frequency 0", shard, demotedCount);
+            }
+            return demotedCount;
+        }
+
         private LFUCacheEntry initChunk(LFUCacheEntry entry) {
             assert Thread.holdsLock(entry.chunk);
             RegionKey<KeyType> regionKey = entry.chunk.regionKey;
@@ -2435,6 +2514,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         private void pushEntryToBack(final LFUCacheEntry entry) {
+            pushEntry(entry, false);
+        }
+
+        private void pushEntryToFront(final LFUCacheEntry entry) {
+            pushEntry(entry, true);
+        }
+
+        private void pushEntry(final LFUCacheEntry entry, boolean toFront) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
             assert invariant(entry, false);
             assert entry.prev == null;
@@ -2448,18 +2535,26 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 entry.next = null;
             } else {
                 assert currFront.freq == entry.freq;
-                final LFUCacheEntry last = currFront.prev;
-                currFront.prev = entry;
-                last.next = entry;
-                entry.prev = last;
-                entry.next = null;
+                if (toFront) {
+                    entry.next = currFront;
+                    entry.prev = currFront.prev;
+                    currFront.prev = entry;
+                    level.head = entry;
+                } else {
+                    final LFUCacheEntry last = currFront.prev;
+                    currFront.prev = entry;
+                    last.next = entry;
+                    entry.prev = last;
+                    entry.next = null;
+                }
             }
             level.count++;
-            assert freqs[entry.freq].head.prev == entry;
-            assert freqs[entry.freq].head.prev.next == null;
+            assert toFront == false || freqs[entry.freq].head == entry;
+            assert toFront || freqs[entry.freq].head.prev == entry;
+            assert freqs[entry.freq].head.prev != null;
             assert entry.prev != null;
             assert entry.prev.next == null || entry.prev.next == entry;
-            assert entry.next == null;
+            assert toFront || entry.next == null;
             assert invariant(entry, true);
         }
 
@@ -2714,6 +2809,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             });
             return count[0];
+        }
+
+        // used by tests
+        Map<Integer, Integer> countCachedRegionsByFreq(Predicate<KeyType> predicate, boolean includeEvicted) {
+            final Map<Integer, Integer> freqs = new HashMap<>();
+            keyMapping.forEach((regionKey, entry) -> {
+                if (predicate.test(regionKey.file()) && (includeEvicted || entry.chunk.isEvicted() == false)) {
+                    freqs.merge(entry.freq, 1, Integer::sum);
+                }
+            });
+            return Map.copyOf(freqs);
         }
 
         /**

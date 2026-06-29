@@ -675,6 +675,108 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testDemoteAll() throws Exception {
+        final boolean async = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final ShardId shard1 = randomShardId();
+            final ShardId shard2 = randomShardId();
+            final var cacheKey1 = randomTestCacheKey(shard1);
+            final var cacheKey2 = randomTestCacheKey(shard2);
+
+            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            final var region1 = cacheService.get(cacheKey1, size(250), 1);
+            final var region2 = cacheService.get(cacheKey2, size(250), 0);
+
+            assertEquals(1, cacheService.getFreq(region0));
+            assertEquals(1, cacheService.getFreq(region1));
+            assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shard1)), equalTo(Map.of(1, 2)));
+
+            if (async) {
+                cacheService.demoteAllAsync(shard1, id -> id.equals(shard1));
+                assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shard1)), equalTo(Map.of(1, 2)));
+                taskQueue.runAllRunnableTasks();
+            } else {
+                assertEquals(2, cacheService.demoteAll(shard1));
+            }
+
+            assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shard1)), equalTo(Map.of(0, 2)));
+            assertEquals(0, cacheService.getFreq(region0));
+            assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region2));
+
+            assertEquals(0, cacheService.demoteAll(shard1));
+            assertEquals(0, cacheService.demoteAll(randomShardId()));
+        }
+    }
+
+    /// Verifies that {@link SharedBlobCacheService#demoteAll} moves demoted regions to the freq-0 head
+    /// so they are evicted before other freq-0 entries.
+    public void testDemoteAllMovesRegionsToFrontForEviction() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(300)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final ShardId protectedShard = randomShardId();
+            final ShardId victimShard = randomShardId();
+            final var protectedKey = randomTestCacheKey(protectedShard);
+            final var victimKey = randomTestCacheKey(victimShard);
+
+            final var protectedRegion0 = cacheService.get(protectedKey, size(250), 0);
+            final var protectedRegion1 = cacheService.get(protectedKey, size(250), 1);
+            assertThat(cacheService.freeRegionCount(), equalTo(1));
+
+            cacheService.computeDecay();
+            taskQueue.runAllRunnableTasks();
+            assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(protectedShard)), equalTo(Map.of(0, 2)));
+            assertEquals(0, cacheService.getFreq(protectedRegion0));
+            assertEquals(0, cacheService.getFreq(protectedRegion1));
+
+            final var victimRegion0 = cacheService.get(victimKey, size(250), 0);
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+            assertEquals(1, cacheService.getFreq(victimRegion0));
+
+            assertEquals(1, cacheService.demoteAll(victimShard));
+            assertEquals(0, cacheService.getFreq(victimRegion0));
+            assertThat(cacheService.countCachedRegionsByFreq(key -> true), equalTo(Map.of(0, 3)));
+
+            assertThat(cacheService.maybeEvictLeastUsed(randomTestCacheKey(randomShardId()), size(250), 0), is(true));
+            assertTrue(victimRegion0.isEvicted());
+            assertFalse(protectedRegion0.isEvicted());
+            assertFalse(protectedRegion1.isEvicted());
+        }
+    }
+
     public void testCountCachedRegionsByShardId() throws IOException {
         final int numShards = randomIntBetween(1, 10);
         final Map<ShardId, Integer> regionCountPerShard = new HashMap<>();

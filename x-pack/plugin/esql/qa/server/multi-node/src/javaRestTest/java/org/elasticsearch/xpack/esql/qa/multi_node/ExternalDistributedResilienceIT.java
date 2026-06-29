@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.datasources.FaultInjectingS3HttpHandler;
 import org.elasticsearch.xpack.esql.datasources.FaultInjectingS3HttpHandler.FaultType;
 import org.junit.After;
 
-import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -48,8 +47,8 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
         return s3Fixture.getFaultHandler();
     }
 
-    private String employeesQuery() throws IOException {
-        return fromS3(WAREHOUSE + "/standalone/employees.parquet") + " | KEEP emp_no, first_name, salary | SORT emp_no | LIMIT 5";
+    private String employeesQuery() {
+        return externalS3Query(WAREHOUSE + "/standalone/employees.parquet") + " | KEEP emp_no, first_name, salary | SORT emp_no | LIMIT 5";
     }
 
     public void testNoFaultQuerySucceeds() throws Exception {
@@ -171,7 +170,7 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
             String key = WAREHOUSE + "/reset/" + fileName;
             s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
 
-            String query = fromS3(key) + " | STATS count = COUNT(*)";
+            String query = externalS3Query(key) + " | STATS count = COUNT(*)";
             // Two resets on the data object's reads; each segment re-open is within the retry budget.
             faultHandler().setFault(FaultType.CONNECTION_RESET, 2, path -> path.endsWith(fileName));
 
@@ -216,11 +215,13 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
 
             String statsTail = " | STATS c = COUNT(*), s = SUM(salary), m = MAX(salary)";
             @SuppressWarnings("unchecked")
-            List<List<Object>> clean = (List<List<Object>>) runQueryWithMode(fromS3(cleanKey) + statsTail, mode, 4).get("values");
+            List<List<Object>> clean = (List<List<Object>>) runQueryWithMode(externalS3Query(cleanKey) + statsTail, mode, 4).get("values");
 
             faultHandler().setMidBodyResetFault(2, 256, path -> path.endsWith(faultedFile));
             @SuppressWarnings("unchecked")
-            List<List<Object>> faulted = (List<List<Object>>) runQueryWithMode(fromS3(faultedKey) + statsTail, mode, 4).get("values");
+            List<List<Object>> faulted = (List<List<Object>>) runQueryWithMode(externalS3Query(faultedKey) + statsTail, mode, 4).get(
+                "values"
+            );
 
             assertEquals(Strings.format("faulted result must equal the clean baseline for mode %s", mode), clean, faulted);
             assertEquals(Strings.format("all injected resets consumed for mode %s", mode), 0, faultHandler().remainingFaults());
@@ -257,7 +258,7 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
             // the whole file as one object read during setup. With a projected column the fault lands on a segment
             // byte-range read — exactly the newStream(pos,len) range the storage layer re-opens and resumes.
             // max(salary) is deterministic: salary = 40000 + (i % 50000), so the max over 500k rows is 89999.
-            String query = fromS3(key) + " | STATS count = COUNT(*), max_salary = MAX(salary)";
+            String query = externalS3Query(key) + " | STATS count = COUNT(*), max_salary = MAX(salary)";
             faultHandler().setMidBodyResetFault(1, 1024 * 1024, path -> path.endsWith(fileName));
 
             Map<String, Object> result = runQueryWithMode(query, mode, 4);

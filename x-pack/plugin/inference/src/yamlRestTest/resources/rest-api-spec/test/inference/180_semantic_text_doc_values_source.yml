@@ -24,7 +24,6 @@ setup:
         body:
           settings:
             index.mapping.source.mode: synthetic
-            index.mapping.semantic_text.use_legacy_format: false
           mappings:
             properties:
               sparse_field:

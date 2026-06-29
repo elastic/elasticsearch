@@ -510,12 +510,6 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
     }
 
     @Override
-    protected boolean supportsParsingObject() {
-        // Unlike the multimodal semantic field, semantic_text only accepts text input, never an object.
-        return false;
-    }
-
-    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final XContentParser parser = context.parser();
         final XContentLocation xContentLocation = parser.getTokenLocation();
@@ -548,6 +542,13 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
     protected boolean storesOriginalValuesInDocValues() {
         // The legacy format keeps the original value in _source, so the doc values store is only used by the new format.
         return storesOriginalValuesInDocValues(fieldType().useLegacyFormat(), indexCreatedVersion, indexMode);
+    }
+
+    static boolean storesOriginalValuesInDocValues(boolean useLegacyFormat, IndexVersion indexVersion, IndexMode indexMode) {
+        if (useLegacyFormat) {
+            return false;
+        }
+        return indexMode.isStrictColumnar() || indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES);
     }
 
     private void storeOriginalValueForSyntheticSource(DocumentParserContext context) throws IOException {

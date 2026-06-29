@@ -690,13 +690,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         return false;
     }
 
-    static boolean storesOriginalValuesInDocValues(boolean useLegacyFormat, IndexVersion indexVersion, IndexMode indexMode) {
-        if (useLegacyFormat) {
-            return false;
-        }
-        return indexMode.isStrictColumnar() || indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES);
-    }
-
     protected SemanticTextField.ParserContext getParserContext(DocumentParserContext context) {
         return new SemanticTextField.ParserContext(false, fullPath(), context.parser().contentType());
     }
@@ -982,8 +975,9 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         /** Decodes a value stored in the binary doc-values store into its {@code _source} form; {@code semantic} uses the encoder. */
         protected CheckedFunction<BytesRef, Object, IOException> inputDecoder() {
-            // semantic_text overrides this with its UTF-8 decoder; the semantic field's binary decoder is added in a follow-up.
-            return BytesRef::utf8ToString;
+            // semantic_text overrides this with its UTF-8 decoder; the semantic field does not store its input in doc values yet
+            // (its columnar source support, with the binary decoder, is added in a follow-up), so this must never be reached.
+            throw new UnsupportedOperationException("the semantic field does not store its original input in doc values yet");
         }
 
         protected ValueFetcher valueFetcher(MappedFieldType.BlockLoaderContext blContext) {

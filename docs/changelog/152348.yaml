@@ -1,4 +1,4 @@
-area: "Columnar, Store"
+area: Codec
 issues: []
 pr: 152348
 summary: Add `index.codec.per_field_files` setting

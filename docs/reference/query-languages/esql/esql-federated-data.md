@@ -26,7 +26,7 @@ Many organizations store large volumes of data in cloud object storage for cost 
 
 Federated data separates connection details from reading and parsing details:
 
-- A **[data source](esql-federated-data-reference.md#data-source-api)** is where and how {{es}} connects. It stores the connection type, region, endpoint, and credentials. A data source defines how to connect, not what data to query.
+- A **[data source](esql-federated-data-reference.md#data-source-api)** defines the connection to an external storage system. It stores the connection type, region, endpoint, and credentials. A data source defines how to connect, not what data to query.
 - A **[dataset](esql-federated-data-reference.md#dataset-api)** is what to read. For file-based data sources, this is a resource path or glob pattern over files. A dataset is the entity you query by name, just like a regular index.
 - **Compression** is how bytes are unwrapped before text files are parsed. For example, `logs.ndjson.gz` is recognized as a gzip-compressed NDJSON resource.
 - A **format reader** is how records are parsed after the bytes are available. Parquet, CSV, TSV, and NDJSON each have their own reader behavior and settings.

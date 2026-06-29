@@ -192,6 +192,20 @@ b:double | a:double
 1.5       | 0.0
 ;
 
+// The INTEGER fill literal is converted at plan time to the LONG column type and applied to an actually-null value
+// (fillNullOnVersionMetadata only exercises the conversion on a non-null _version).
+fillNullWithIntegerValueIntoLong
+required_capability: fillnull
+
+ROW a = null, b = 2
+| EVAL a = a::long
+| FILLNULL WITH 0 a
+;
+
+b:integer | a:long
+2          | 0
+;
+
 fillNullThenWhereIsNullIsEmpty
 required_capability: fillnull
 

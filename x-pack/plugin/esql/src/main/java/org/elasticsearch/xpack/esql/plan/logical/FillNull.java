@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -163,7 +164,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         if (targetFields.isEmpty() && childrenResolved() && allFillableColumnsCovered() == false) {
             return false;
         }
-        return true;
+        return Resolvables.resolved(fields);
     }
 
     private boolean allFillableColumnsCovered() {
@@ -220,7 +221,11 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         for (Attribute field : childOutput) {
             if (fillNames.contains(field.name())) {
                 Alias previous = existing.get(field.name());
-                if (previous != null) {
+                // Reuse the existing alias (keeping its attribute id) only while it stays valid: resolved and still matching
+                // the column's type. The fill alias wraps the column in Coalesce, whose type is the column type via noText()
+                // (a TEXT column's alias reports KEYWORD), so the comparison must use noText() to avoid churning TEXT-column
+                // aliases
+                if (previous != null && previous.resolved() && previous.dataType() == field.dataType().noText()) {
                     built.add(previous);
                     continue;
                 }

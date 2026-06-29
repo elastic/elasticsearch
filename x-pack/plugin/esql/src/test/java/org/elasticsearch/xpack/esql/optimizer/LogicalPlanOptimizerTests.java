@@ -10263,6 +10263,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
+     * WHERE <field> IS NULL feeding FILLNULL: the surrogate's Coalesce sits below a downstream IS NOT NULL filter,
+     * exercising PropagateNullable/FoldNull over the materialized fill alias.
+     */
+    public void testFillNullUnderNullnessFiltersIsAccepted() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        var plan = plan("""
+            ROW a = null, b = 1
+            | EVAL a = a::integer
+            | WHERE a IS NULL
+            | FILLNULL WITH 0 a
+            | WHERE a IS NOT NULL
+            """);
+        assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));
+        assertThat(Expressions.names(plan.output()), containsInAnyOrder("a", "b"));
+    }
+
+    /*
      * Nested subqueries are not supported yet.
      */
     public void testNestedSubqueries() {

@@ -322,6 +322,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_LOAD_KEYWORD_WITH_MULTIFIELDS,
 
         /**
+         * Don't implicitly cast a partially unmapped {@code dense_vector} field under {@code unmapped_fields="load"}.
+         * See https://github.com/elastic/elasticsearch/issues/152184.
+         */
+        OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_DENSE_VECTOR,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -3229,6 +3235,12 @@ public class EsqlCapabilities {
          * child output.
          */
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
+
+        /**
+         * Fixes a bug in the planner where {@code TS} queries without an outer aggregation (group by all)
+         * would wrongly fail with an {@link IllegalStateException} if any aggregation had a filter.
+         */
+        FIX_GROUP_BY_ALL_AGGREGATION_FILTERS,
 
         /**
          * Fix for PromQL {@code without} and ES|QL {@code TS_WITHOUT}: passthrough alias names (e.g. OTel

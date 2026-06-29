@@ -73,4 +73,32 @@ class EsqlCsvSpecTestsPluginFuncTest extends AbstractGradleInternalPluginFuncTes
         then:
         result.task(':generateEsqlSpecTests').outcome == TaskOutcome.UP_TO_DATE
     }
+
+    def "generateEsqlSpecTests is loaded from build cache after clean"() {
+        given:
+        def specDir = dir("spec")
+        new File(specDir, "my_tests.csv-spec") << "// dummy spec\n"
+
+        buildFile << """
+            apply plugin: 'java'
+
+            sourceSets {
+                javaRestTest {}
+            }
+
+            esqlCsvSpecTests {
+                specFilesDir = file('spec')
+                packageName = 'org.example.test'
+                variant 'EsqlSpec', 'AbstractEsqlSpecIT'
+            }
+        """
+
+        when:
+        gradleRunner('generateEsqlSpecTests', '--build-cache').build()
+        gradleRunner('clean').build()
+        def result = gradleRunner('generateEsqlSpecTests', '--build-cache').build()
+
+        then:
+        result.task(':generateEsqlSpecTests').outcome == TaskOutcome.FROM_CACHE
+    }
 }

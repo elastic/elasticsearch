@@ -14,6 +14,7 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.OutputDirectory;
@@ -39,6 +40,7 @@ import javax.inject.Inject;
  * <p>This task is registered and wired by {@link EsqlCsvSpecTestsPlugin}; use that plugin
  * rather than registering this task directly.
  */
+@CacheableTask
 public abstract class GenerateEsqlSpecTestsTask extends DefaultTask {
 
     @InputDirectory

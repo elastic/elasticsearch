@@ -28,7 +28,6 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
@@ -50,7 +49,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -81,7 +79,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private final TransportService transportService;
-    private final Executor executor;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final RecoverySettings recoverySettings;
@@ -99,7 +96,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         CompositeRecoverySchedulingListener schedulingListeners
     ) {
         this.transportService = transportService;
-        this.executor = transportService.getThreadPool().generic();
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
@@ -114,7 +110,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
             Actions.START_RECOVERY,
-            executor,
+            transportService.getThreadPool().generic(),
             StartRecoveryRequest::new,
             (request, channel, task) -> recover(request, task, new ChannelActionListener<>(channel))
         );
@@ -124,7 +120,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         // action will fail and the target node will send a new START_RECOVERY request.
         transportService.registerRequestHandler(
             Actions.REESTABLISH_RECOVERY,
-            executor,
+            transportService.getThreadPool().generic(),
             ReestablishRecoveryRequest::new,
             (request, channel, task) -> reestablish(request, new ChannelActionListener<>(channel))
         );
@@ -181,7 +177,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
             clusterService,
-            executor,
+            transportService.getThreadPool().generic(),
             transportService.getThreadPool().getThreadContext(),
             listener,
             new Consumer<>() {
@@ -419,18 +415,12 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     nextRecovery.request().shardId().id(),
                     nextRecovery.request().targetNode()
                 );
-                try {
-                    final ActionListener<RecoveryResponse> wrappedListener = ActionListener.runAfter(
-                        nextRecovery.listener(),
-                        () -> onRecoveryComplete(nextRecovery.shard(), nextHandler, true)
-                    );
-                    executor.execute(() -> nextHandler.recoverToTarget(wrappedListener));
-                } catch (EsRejectedExecutionException e) {
-                    nextRecovery.listener.onFailure(e);
-                    // No need to call `startRecoveriesUpToLimit` for synchronous recovery completion,
-                    // the next loop iteration will be in charge of filling the free slot.
-                    onRecoveryComplete(nextRecovery.shard, nextHandler, false);
-                }
+                final ActionListener<RecoveryResponse> wrappedListener = ActionListener.runAfter(
+                    nextRecovery.listener(),
+                    () -> onRecoveryComplete(nextRecovery.shard(), nextHandler, true)
+                );
+                // Generic executor cannot throw `EsRejectedExecutionException` (unbounded queue + rejectAfterShutdown=false)
+                transportService.getThreadPool().generic().execute(() -> nextHandler.recoverToTarget(wrappedListener));
             }
         }
 

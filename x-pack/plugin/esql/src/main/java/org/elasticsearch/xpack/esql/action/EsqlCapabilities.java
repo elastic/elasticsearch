@@ -322,6 +322,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_LOAD_KEYWORD_WITH_MULTIFIELDS,
 
         /**
+         * Don't implicitly cast a partially unmapped {@code dense_vector} field under {@code unmapped_fields="load"}.
+         * See https://github.com/elastic/elasticsearch/issues/152184.
+         */
+        OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_DENSE_VECTOR,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

@@ -211,10 +211,7 @@ public class PulseDetectorTests extends ESTestCase {
         double[] values = noise(160, 100.0, 3.0, random);
         values[158] -= 80.0;
         List<ChangeType> events = detector(16).detect(values);
-        assertTrue(
-            "a dip near the end should be reported as a Dip, got " + events,
-            hasDipNear(events, 158, 2)
-        );
+        assertTrue("a dip near the end should be reported as a Dip, got " + events, hasDipNear(events, 158, 2));
     }
 
     public void testDoesNotReportTrendEndpointsAsSpikes() {

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 
@@ -34,12 +34,15 @@ public class InferenceIndex {
     }
 
     /**
-     * Returns true when the .inference index already has v4 mappings that include the {@code doc_type} field.
-     * Used to guard against writing {@code doc_type} to an index that still has strict v3 mappings, which
-     * would cause a strict_dynamic_mapping_exception during a rolling upgrade before the mapping migration
-     * completes.
+     * Returns true when the .inference index already has v4 mappings that include the {@code doc_type} field,
+     * or when the index does not yet exist and it is safe to assume it will be created with v4 mappings.
+     * <p>
+     * Returns false during a mixed-version cluster (where an old master may create the index with v3 mappings),
+     * and false when the index exists but still carries v3 or earlier mappings (i.e. before the mapping migration
+     * completes during a rolling upgrade).
      */
-    public static boolean inferenceIndexHasV4Mappings(ProjectMetadata projectMetadata) {
+    public static boolean inferenceIndexHasV4Mappings(ClusterState clusterState) {
+        var projectMetadata = clusterState.metadata().getProject();
         IndexMetadata indexMetadata = projectMetadata.index(InferenceIndex.INDEX_NAME);
         if (indexMetadata == null) {
             // The primary index name may have become an alias after a system index migration
@@ -52,8 +55,10 @@ public class InferenceIndex {
             }
         }
         if (indexMetadata == null) {
-            // The index truly doesn't exist yet — it will be created with v4 mappings.
-            return true;
+            // The index doesn't exist yet. In a mixed-version cluster the old master may create it with
+            // v3 mappings (SystemIndexMappingUpdateService skips upgrades while versions differ), so
+            // we cannot safely assume v4 will be used.
+            return clusterState.nodes().isMixedVersionCluster() == false;
         }
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {

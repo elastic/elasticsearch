@@ -632,7 +632,7 @@ public class ModelRegistry implements ClusterStateListener {
             preventDeletionLock.add(inferenceEntityId);
         }
 
-        boolean includeDocType = shouldIncludeDocType();
+        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state());
         SubscribableListener.<BulkResponse>newForked((subListener) -> {
             // in this block, we try to update the stored model configurations
             var configRequestBuilder = createIndexRequestBuilder(
@@ -823,7 +823,7 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        boolean includeDocType = shouldIncludeDocType();
+        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state());
 
         for (var model : models) {
             bulkRequestBuilder.add(
@@ -1234,14 +1234,6 @@ public class ModelRegistry implements ClusterStateListener {
         request.setQuery(documentIdsQuery(inferenceEntityIds));
         request.setRefresh(true);
         return request;
-    }
-
-    private boolean shouldIncludeDocType() {
-        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled() == false) {
-            return false;
-        }
-        ProjectMetadata projectMetadata = clusterService.state().metadata().getProject();
-        return InferenceIndex.inferenceIndexHasV4Mappings(projectMetadata);
     }
 
     // public for testing

@@ -7,10 +7,18 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
@@ -21,8 +29,16 @@ import java.util.Map;
 
 public class InferenceIndexTests extends ESTestCase {
 
-    private static ProjectMetadata projectWithoutInferenceIndex() {
-        return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+    private static ClusterState clusterState(ProjectMetadata project) {
+        var nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node")).build();
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(Metadata.builder().put(project).build()).build();
+    }
+
+    private static ClusterState mixedVersionClusterState(ProjectMetadata project) {
+        var oldNode = DiscoveryNodeUtils.builder("old-node").version(VersionInformation.inferVersions(Version.V_8_9_0)).build();
+        var newNode = DiscoveryNodeUtils.create("new-node");
+        var nodes = DiscoveryNodes.builder().add(oldNode).add(newNode).build();
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(Metadata.builder().put(project).build()).build();
     }
 
     private static IndexMetadata indexWithMappings(String indexName, String mappingsJson) {
@@ -38,39 +54,47 @@ public class InferenceIndexTests extends ESTestCase {
     }
 
     public void testInferenceIndexHasV4Mappings_GivenIndexDoesNotExist() {
-        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(projectWithoutInferenceIndex()));
+        var project = ProjectMetadata.builder(ProjectId.DEFAULT).build();
+        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
+    }
+
+    public void testInferenceIndexHasV4Mappings_GivenIndexDoesNotExistInMixedVersionCluster() {
+        // In a mixed-version cluster, the old master may create the index with v3 mappings,
+        // so we must conservatively return false.
+        var project = ProjectMetadata.builder(ProjectId.DEFAULT).build();
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(mixedVersionClusterState(project)));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenV4Mappings() {
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV4()), false)
             .build();
 
-        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(project));
+        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenV3Mappings() {
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV3()), false)
             .build();
 
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(project));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenV2Mappings() {
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV2()), false)
             .build();
 
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(project));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenV1Mappings() {
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV1()), false)
             .build();
 
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(project));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenMappingHasNoMeta() {
@@ -82,11 +106,11 @@ public class InferenceIndexTests extends ESTestCase {
               }
             }
             """;
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, mappingsWithNoMeta), false)
             .build();
 
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(project));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenMappingMetaHasNoVersionKey() {
@@ -99,11 +123,11 @@ public class InferenceIndexTests extends ESTestCase {
               }
             }
             """;
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, mappingsWithNoVersionKey), false)
             .build();
 
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(project));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenMigratedIndexWithV4Mappings() {
@@ -116,12 +140,12 @@ public class InferenceIndexTests extends ESTestCase {
             .putAlias(AliasMetadata.builder(InferenceIndex.INDEX_NAME).build())
             .build();
 
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(migratedIndex, false).build();
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(migratedIndex, false).build();
 
         // projectMetadata.index(".inference") returns null here because ".inference" is an alias,
         // not a concrete name. The method must fall through to the indicesLookup resolution path.
         assertNull(project.index(InferenceIndex.INDEX_NAME));
-        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(project));
+        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenMigratedIndexWithV3Mappings() {
@@ -133,9 +157,9 @@ public class InferenceIndexTests extends ESTestCase {
             .putAlias(AliasMetadata.builder(InferenceIndex.INDEX_NAME).build())
             .build();
 
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(migratedIndex, false).build();
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(migratedIndex, false).build();
 
         assertNull(project.index(InferenceIndex.INDEX_NAME));
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(project));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
     }
 }

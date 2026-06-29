@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyDoc;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.inference.InferenceIndex;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -119,8 +118,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             .setId(RegionPolicyDoc.DOCUMENT_ID)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        boolean includeDocType = InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()
-            && InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state().metadata().getProject());
+        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             ToXContent.Params params = includeDocType
                 ? new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))

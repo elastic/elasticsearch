@@ -579,7 +579,7 @@ public class IndexResolver {
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
         @Nullable Map<Set<String>, Set<String>> indexDedupCache
     ) {
-        boolean useLegacyField = indexDedupCache != null;
+        boolean useLegacyField = indexDedupCache == null;
         return switch (field.getDataType()) {
             // OBJECT fields are containers for subfields, not leaf fields that get queried directly.
             // Wrapping them would break downstream code that doesn't expect OBJECT as a data type in InvalidMappedField.
@@ -589,15 +589,15 @@ public class IndexResolver {
             default -> {
                 if (field instanceof TypeConflictedField) {
                     yield useLegacyField
-                        ? CompactInvalidMappedField.potentiallyUnmapped(
+                        ? InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices))
+                        : CompactInvalidMappedField.potentiallyUnmapped(
                             name,
                             partiallyUnmappedTypesByDataType(field, mappedIndices),
                             indexDedupCache
-                        )
-                        : InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices));
+                        );
                 }
                 // We only need to maintain mappedIndices for the legacy InvalidMappedType.
-                yield new PotentiallyUnmappedSingleTypeEsField(field, useLegacyField ? Set.of() : mappedIndices);
+                yield new PotentiallyUnmappedSingleTypeEsField(field, useLegacyField ? mappedIndices : Set.of());
             }
         };
     }

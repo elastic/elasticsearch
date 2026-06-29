@@ -21,7 +21,7 @@ import java.util.TreeMap;
  * in other indices.
  * If an implicit cast from {@link DataType#KEYWORD} to that type exists, it will be auto-cast to that type.
  * Otherwise, it will be loaded as {@code null}, i.e., exactly as it would without {@code UNMAPPED_FIELDS="LOAD"}, which is why it needs to
- * maintain the original mapped {@link EsField}.
+ * maintain the original (unwidened, with its original properties) mapped {@link EsField}.
  * <br>
  * We treat this as a {@link TypeConflictedField} because it needs to be resolved, either via an implicit cast or null.
  */
@@ -53,11 +53,6 @@ public final class PotentiallyUnmappedSingleTypeEsField extends TypeConflictedFi
     public Set<DataType> types() {
         return Set.of(mappedField.getDataType());
     }
-    //
-    // @Override
-    // public DataType getDataType() {
-    // return mappedField.getDataType();
-    // }
 
     @Override
     public Map<String, Set<String>> getTypesToIndices() {

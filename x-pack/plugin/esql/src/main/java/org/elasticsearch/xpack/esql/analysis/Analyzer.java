@@ -2858,7 +2858,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
 
                     Set<DataType> supportedTypes = convert.supportedTypes();
-                    if (canConvertOriginalTypes(unionTypeEsField, supportedTypes)) {
+                    if (areMappedTypesSupported(unionTypeEsField, supportedTypes)) {
                         Expression unmappedExpr = unionTypeEsField.getUnmappedConversionExpression();
                         // Resolve surrogates immediately, since expressions stored in UnionTypeEsField are serialized
                         // to data nodes, and SurrogateExpressions cannot be serialized.
@@ -2966,13 +2966,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Check if all the original mapped types in the {@code UnionTypeEsField} are supported by the convert function.
-         * If the field is partially unmapped and the function cannot consume {@code KEYWORD}, unmapped branches are nullified separately.
-         *
-         * @param unionTypeEsField
-         * @param supportedTypes The types supported by the convert function
-         * @return True if we can convert.
+         * If the field is partially unmapped and the function cannot consume {@code KEYWORD}, the unmapped branches are nullified
+         * outside this function.
          */
-        private static boolean canConvertOriginalTypes(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
+        private static boolean areMappedTypesSupported(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
             return unionTypeEsField.getConversionExpressions()
                 .stream()
                 .allMatch(

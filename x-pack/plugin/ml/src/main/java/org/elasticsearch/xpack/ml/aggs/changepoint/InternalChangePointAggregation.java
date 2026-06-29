@@ -87,7 +87,7 @@ public class InternalChangePointAggregation extends InternalAggregation {
                 minPValue = changeType.pValue();
                 minIndex = i;
             }
-        }        
+        }
         return minIndex >= 0 ? buckets.get(minIndex) : null;
     }
 

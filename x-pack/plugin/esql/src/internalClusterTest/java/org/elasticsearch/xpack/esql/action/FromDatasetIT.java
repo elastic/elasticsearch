@@ -8,16 +8,23 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -27,6 +34,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -53,20 +61,63 @@ import static org.hamcrest.Matchers.not;
  * nodes (covered by {@code ProjectMetadataTests#testDatasetChangeViaDiffRebuildsIndicesLookup}).
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public class FromDatasetIT extends AbstractExternalDataSourceIT {
+public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
+    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private Path csvFixture;
     private Path csvFixtureAlt;
 
+    /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
+    public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
+        @Override
+        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+            return Map.of("test", new TestValidator());
+        }
+    }
+
+    private static final class TestValidator implements DataSourceValidator {
+        @Override
+        public String type() {
+            return "test";
+        }
+
+        @Override
+        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+            Map<String, DataSourceSetting> out = new HashMap<>();
+            for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
+                out.put(e.getKey(), new DataSourceSetting(e.getValue(), e.getKey().startsWith("secret_")));
+            }
+            return out;
+        }
+
+        @Override
+        public Map<String, Object> validateDataset(
+            Map<String, DataSourceSetting> datasourceSettings,
+            String resource,
+            Map<String, Object> datasetSettings
+        ) {
+            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
+        }
+    }
+
     @Override
-    protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(CsvDataSourcePlugin.class);
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(HttpDataSourcePlugin.class);
+        plugins.add(CsvDataSourcePlugin.class);
+        plugins.add(TestDataSourcePlugin.class);
+        return plugins;
     }
 
     /** Determinism over planner-regression diversity here — these tests pin specific plan shapes. */
     @Override
     protected QueryPragmas getPragmas() {
         return QueryPragmas.EMPTY;
+    }
+
+    @Before
+    public void requireFeatureFlag() {
+        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
     }
 
     @Before
@@ -98,7 +149,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view");
 
     @After
-    public void cleanupViewsDatasetsAndSource() throws Exception {
+    public void cleanupRegistry() throws Exception {
         for (String view : CREATED_VIEWS) {
             try {
                 client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).get(30, java.util.concurrent.TimeUnit.SECONDS);

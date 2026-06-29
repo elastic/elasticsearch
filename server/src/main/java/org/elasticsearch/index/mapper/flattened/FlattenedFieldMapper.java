@@ -87,7 +87,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -684,7 +684,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         public Query termQuery(Object value, SearchExecutionContext context) {
             if (indexType.hasOnlyDocValues()) {
                 if (usesBinaryDocValues) {
-                    return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+                    return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
                 } else {
                     return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }

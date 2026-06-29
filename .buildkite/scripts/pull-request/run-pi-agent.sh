@@ -69,9 +69,26 @@ fi
 # ── run ───────────────────────────────────────────────────────────────
 echo --- Running pi-agent analysis
 
-nono run \
-  --profile always-further/pi \
-  --allow "${PI_AGENT_DIR}" \
-  --allow-cwd \
-  --silent \
-  -- pi-agent analyze --issue-url "${ISSUE_URL}"
+# Emit a progress heartbeat every 5 minutes so the BK log doesn't go dark
+# and the step doesn't appear hung. Killed automatically when pi-agent exits.
+_heartbeat() {
+  local i=0
+  while sleep 300; do
+    i=$((i + 1))
+    echo "[pi-agent] still running... ${i}x5 min elapsed"
+  done
+}
+_heartbeat &
+_HEARTBEAT_PID=$!
+trap 'kill "$_HEARTBEAT_PID" 2>/dev/null' EXIT
+
+# Hard cap: kill the agent after 30 minutes so it can't silently burn the
+# full 60-minute BK step timeout. If it hasn't finished by then it is
+# either stuck or the task is too large for a single CI step.
+timeout --signal=TERM --kill-after=60s 30m \
+  nono run \
+    --profile always-further/pi \
+    --allow "${PI_AGENT_DIR}" \
+    --allow-cwd \
+    --silent \
+    -- pi-agent analyze --issue-url "${ISSUE_URL}"

@@ -20,10 +20,10 @@ Querying unmapped fields helps in several common situations where the mapping do
 
 - **Explore new fields before mapping them**: query the values of a field as soon as it appears, whether it arrives unexpectedly from an integration or an upstream change, then decide later whether the performance gains of formal mapping justify a reindex.
 - **Read the real values of a partially mapped field**: when a field is mapped in some indices but not others, get its values everywhere in a single query, including the indices where it is unmapped.
-- **Keep result columns consistent**: fill a missing field with `null` across a wildcard pattern, a [view](esql-views.md), or a [subquery](esql-subquery.md), so that the set of columns stays stable instead of raising an error.
+- **Run reusable queries across datasets**: let a query continue when a field is not mapped in the data it runs against. This is useful for shared or saved queries and for data streams whose mappings change between rollovers. You can either ignore the missing data by returning `null` or try to load its values from `_source`.
 
 :::{tip}
-Some data lives inside JSON strings or [`flattened`](/reference/elasticsearch/mapping-reference/flattened.md) fields, where loading the whole field is not enough. To pull a specific value out of that nested structure, use the [`JSON_EXTRACT`](functions-operators/string-functions/json_extract.md) function.
+To extract a value from a JSON string or directly from `_source`, use [`JSON_EXTRACT`](functions-operators/string-functions/json_extract.md). To extract a subfield from a [`flattened`](/reference/elasticsearch/mapping-reference/flattened.md) field, use `FIELD_EXTRACT` {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`.
 :::
 
 ## How {{esql}} handles unmapped fields [esql-unmapped-fields-how-it-works]
@@ -32,9 +32,9 @@ The `unmapped_fields` setting accepts three values, which range from strict to p
 
 | Value | What it does | When to use it |
 | --- | --- | --- |
-| `DEFAULT` | The query fails when it references an unmapped field. This is the default behavior. | You want strict schema enforcement and prefer an error over silently missing data. |
-| `NULLIFY` | Unmapped fields come back as columns of `null` values. | You query several indices with a wildcard and a field is missing from some of them, or you work with views and subqueries that need a stable set of columns. |
-| `LOAD` {applies_to}`stack: preview 9.4` | {{esql}} loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) at search time and treats them as `keyword`. Fields absent from `_source` come back as `null`. | You need the real values of a field that was never mapped, so that you can filter or aggregate on it. |
+| `DEFAULT` | The query fails when it references a field that is not mapped in any queried index. For a partially mapped field, documents from indices where the field is not mapped return `null`. This is the default behavior. | You want strict schema enforcement and prefer an error when a field is completely unmapped. |
+| `NULLIFY` | Fields that are not mapped in any queried index return `null`. Partially mapped fields behave as they do in `DEFAULT`: documents from indices where the field is not mapped return `null`. | You want a reusable query to continue when a field is not available in a dataset. |
+| `LOAD` {applies_to}`stack: preview 9.4` | {{esql}} loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) at search time and treats them as `keyword`. For partially mapped fields, it loads values from `_source` in indices where the field is not mapped. Fields absent from `_source` return `null`. | You need the real values of a fully or partially unmapped field, so that you can filter or aggregate on it. |
 
 For the full syntax, refer to the [`SET unmapped_fields`](commands/set.md#esql-unmapped_fields) reference.
 

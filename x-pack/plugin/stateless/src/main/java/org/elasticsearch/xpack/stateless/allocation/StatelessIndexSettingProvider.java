@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.time.Instant;
@@ -23,7 +27,11 @@ import java.util.Objects;
 
 public class StatelessIndexSettingProvider implements IndexSettingProvider {
 
-    public StatelessIndexSettingProvider() {}
+    private final ByteSizeValue regionSize;
+
+    public StatelessIndexSettingProvider(Settings nodeSettings) {
+        this.regionSize = SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(nodeSettings);
+    }
 
     @Override
     public void provideAdditionalSettings(
@@ -38,8 +46,23 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
         Settings.Builder additionalSettings
     ) {
         // TODO find a prover way to bypass index template validation
-        if (Objects.equals(indexName, "validate-index-name") == false) {
-            additionalSettings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), StatelessPlugin.NAME);
+        if (Objects.equals(indexName, "validate-index-name")) {
+            return;
+        }
+        additionalSettings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), StatelessPlugin.NAME);
+
+        // In stateless, isolate each field into its own files by default, and align the compound threshold with one blob
+        // cache region: segments larger than a region keep their per-field files loose (so reads/prewarm can target a
+        // field's regions) while smaller ones stay compound. Explicit user/template settings win.
+        final boolean perFieldFiles;
+        if (IndexSettings.INDEX_PER_FIELD_FILES_SETTING.exists(indexTemplateAndCreateRequestSettings)) {
+            perFieldFiles = IndexSettings.INDEX_PER_FIELD_FILES_SETTING.get(indexTemplateAndCreateRequestSettings);
+        } else {
+            perFieldFiles = true;
+            additionalSettings.put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true);
+        }
+        if (perFieldFiles && MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
+            additionalSettings.put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), regionSize.getStringRep());
         }
     }
 }

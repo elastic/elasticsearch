@@ -474,7 +474,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             @Override
             protected Set<IndexSettingProvider> getIndexSettingProviders() {
-                final var statelessIndexSettingProvider = new StatelessIndexSettingProvider();
+                final var statelessIndexSettingProvider = new StatelessIndexSettingProvider(Settings.EMPTY);
                 return Set.of(statelessIndexSettingProvider);
             }
 

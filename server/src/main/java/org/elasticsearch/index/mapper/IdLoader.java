@@ -421,7 +421,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     /**
      * Loads the {@code _id} for a slice-enabled index in document (non-columnar) mode. The stored {@code _id} is the
-     * compound identity term ({@link Uid#encodeCompoundId}); this loader reads raw bytes and decodes them via
+     * compound identity term ({@link SliceIdFieldMapper#encodeCompoundId}); this loader reads raw bytes and decodes them via
      * {@link IdFieldMapper#decodeIdentity} rather than the plain {@link Uid#decodeId} used by {@link StoredIdLoader}.
      */
     final class SliceStoredIdLoader implements IdLoader {
@@ -582,7 +582,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     /**
      * {@link Leaf} for a slice-enabled index in document (non-columnar) mode. The stored {@code _id} is the compound
-     * identity term ({@link Uid#encodeCompoundId}); reading it via the generic {@link StoredLeaf} would garble the id
+     * identity term ({@link SliceIdFieldMapper#encodeCompoundId}); reading it via the generic {@link StoredLeaf} would garble the id
      * because {@link org.elasticsearch.index.fieldvisitor.FieldsVisitor} decodes via {@link Uid#decodeId}. Instead,
      * this leaf reads the raw bytes directly from Lucene stored fields and decodes via
      * {@link IdFieldMapper#decodeIdentity}.
@@ -670,7 +670,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     /**
      * Loads the {@code _id} from binary doc values for a slice-enabled index in columnar mode. The doc values carry the
-     * compound identity term ({@link Uid#encodeCompoundId}); this loader decodes them via
+     * compound identity term ({@link SliceIdFieldMapper#encodeCompoundId}); this loader decodes them via
      * {@link IdFieldMapper#decodeIdentity} to recover the user-visible plain id.
      */
     final class SliceDocValuesIdLoader implements IdLoader {

@@ -120,6 +120,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
@@ -2279,7 +2280,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // The translog Index uid is the compound identity term for a slice index (encodeCompoundId) or the plain
                 // encodeId for a non-slice index. Extract the user-visible id and routing in the same way for both.
                 final boolean sliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
-                final String indexId = sliceEnabled ? Uid.decodeCompoundId(index.uid()) : Uid.decodeId(index.uid());
+                final String indexId = sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(index.uid()) : Uid.decodeId(index.uid());
                 assert sliceEnabled == false || index.routing() != null
                     : "slice-enabled index replayed an index op for id [" + indexId + "] without routing";
                 // we set canHaveDuplicates to true all the time such that we de-optimze the translog case and ensure that all
@@ -2303,8 +2304,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // The translog Delete uid is the compound identity term for a slice index (encodeCompoundId) or the plain
                 // encodeId for a non-slice index — symmetric with the INDEX case above.
                 final boolean sliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
-                final String id = sliceEnabled ? Uid.decodeCompoundId(delete.uid()) : Uid.decodeId(delete.uid());
-                final String routing = sliceEnabled ? Uid.sliceFromCompoundId(delete.uid()) : null;
+                final String id = sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(delete.uid()) : Uid.decodeId(delete.uid());
+                final String routing = sliceEnabled ? SliceIdFieldMapper.sliceFromCompoundId(delete.uid()) : null;
                 result = applyDeleteOperation(
                     engine,
                     delete.seqNo(),

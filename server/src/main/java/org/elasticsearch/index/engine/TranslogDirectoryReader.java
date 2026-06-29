@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
@@ -202,7 +203,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         // encodeId for a non-slice index. Extract the user-visible id accordingly so the re-parse feeds the
         // mapper the correct plain id (the mapper rebuilds all three _id terms from id + routing).
         final boolean sliceEnabled = engineConfig.getIndexSettings().isSliceEnabled();
-        final String id = sliceEnabled ? Uid.decodeCompoundId(operation.uid()) : Uid.decodeId(operation.uid());
+        final String id = sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(operation.uid()) : Uid.decodeId(operation.uid());
         final ParsedDocument parsedDocs = documentParser.parseDocument(
             new SourceToParse(id, operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
             mappingLookup

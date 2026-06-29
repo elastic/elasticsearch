@@ -12,7 +12,6 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -80,97 +79,6 @@ public class UidTests extends ESTestCase {
             assertEquals(id, doDecodeId(encoded));
             assertTrue(encoded.length <= 1 + binaryId.length);
         }
-    }
-
-    public void testCompoundIdRoundTrip() {
-        final int iters = 10000;
-        for (int iter = 0; iter < iters; ++iter) {
-            final String slice = randomSlice();
-            final String id = randomId();
-            BytesRef compound = Uid.encodeCompoundId(id, slice);
-            BytesRef search = Uid.searchTerm(id);
-            // The plain id and the slice round-trip from the compound term...
-            assertEquals(id, Uid.decodeCompoundId(compound));
-            assertEquals(slice, Uid.sliceFromCompoundId(compound));
-            // ...and the plain id round-trips from the search term (empty-slice member of the same format).
-            assertEquals(id, Uid.decodeCompoundId(search));
-            assertEquals("", Uid.sliceFromCompoundId(search));
-            // The plain encoded id is the prefix shared by both terms; the trailing byte holds the slice length.
-            BytesRef plain = Uid.encodeId(id);
-            assertEquals(plain.length + slice.getBytes(StandardCharsets.UTF_8).length + 1, compound.length);
-            assertEquals(plain.length + 1, search.length);
-        }
-    }
-
-    public void testSearchAndCompoundTermSpacesAreDisjoint() {
-        // The hazard a bare search term would have: the WHOLE compound encodeId("12")++"34"++[2] is byte-identical to
-        // bare encodeId("12333402") (numeric ids pack two digits/byte). So a bare-id search term could land on an
-        // identity term. Tagging the search term with a trailing 0x00 makes it longer and disjoint.
-        assertEquals(Uid.encodeId("12333402"), Uid.encodeCompoundId("12", "34"));
-        assertNotEquals(Uid.searchTerm("12333402"), Uid.encodeCompoundId("12", "34"));
-
-        for (int iter = 0; iter < 5000; ++iter) {
-            String id1 = randomId();
-            String id2 = randomId();
-            String slice = randomSlice();
-            // A search term can never byte-equal any compound term: last byte is 0x00 vs the slice length (>= 1).
-            assertNotEquals(Uid.searchTerm(id1), Uid.encodeCompoundId(id2, slice));
-        }
-    }
-
-    public void testCompoundSplitsOnTrailingLengthForAnyId() {
-        // ids may contain '#' or other bytes; the trailing length byte makes the (id, slice) split unambiguous.
-        for (String id : new String[] { "a#b", "a#b#c", "with space", "0", "00" }) {
-            BytesRef compound = Uid.encodeCompoundId(id, "the-slice");
-            assertEquals(id, Uid.decodeCompoundId(compound));
-            assertEquals("the-slice", Uid.sliceFromCompoundId(compound));
-        }
-    }
-
-    public void testSameIdDifferentSlicesAreDistinctCompoundTerms() {
-        final String id = randomId();
-        BytesRef a = Uid.encodeCompoundId(id, "slice-a");
-        BytesRef b = Uid.encodeCompoundId(id, "slice-b");
-        assertNotEquals(a, b);
-        assertEquals(id, Uid.decodeCompoundId(a));
-        assertEquals(id, Uid.decodeCompoundId(b));
-    }
-
-    public void testCompoundIdEnforcesSliceLengthBounds() {
-        final String id = randomId();
-        // A 128-byte (ASCII) slice is the maximum and must round-trip; the trailing length byte holds 128 (0x80).
-        final String maxSlice = randomAlphaOfLength(128);
-        BytesRef max = Uid.encodeCompoundId(id, maxSlice);
-        assertEquals(maxSlice, Uid.sliceFromCompoundId(max));
-        assertEquals(id, Uid.decodeCompoundId(max));
-        // Beyond the single-byte length tag the encoding would corrupt, so it is rejected hard (not just asserted),
-        // as is the empty slice (which would collide with the search term's trailing 0x00).
-        expectThrows(IllegalArgumentException.class, () -> Uid.encodeCompoundId(id, randomAlphaOfLength(129)));
-        expectThrows(IllegalArgumentException.class, () -> Uid.encodeCompoundId(id, ""));
-    }
-
-    /** The characters {@link org.elasticsearch.index.SliceIndexing#validateUserSliceValue} accepts: {@code [a-zA-Z0-9._:-]}. */
-    private static final String SLICE_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-";
-
-    private static String randomSlice() {
-        // Span the full allowed charset and length range (1..128 bytes), often hitting the 128-byte maximum so the
-        // trailing length byte exercises its 0x80 boundary against the bounds check in encodeCompoundId. All allowed
-        // characters are single-byte ASCII, so the char length equals the byte length.
-        final int length = rarely() ? 128 : randomIntBetween(1, 128);
-        final StringBuilder slice = new StringBuilder(length);
-        for (int i = 0; i < length; i++) {
-            slice.append(SLICE_CHARS.charAt(randomInt(SLICE_CHARS.length() - 1)));
-        }
-        return slice.toString();
-    }
-
-    private static String randomId() {
-        return switch (randomIntBetween(0, 2)) {
-            case 0 -> Long.toString(randomNonNegativeLong()); // numeric encoding
-            case 1 -> Base64.getUrlEncoder().withoutPadding().encodeToString(randomByteArrayOfLength(randomIntBetween(1, 12))); // base64
-            case 2 -> randomAlphaOfLengthBetween(1, 16); // utf8 encoding
-            default -> throw new AssertionError("unreachable");
-        };
     }
 
     private static String doDecodeId(BytesRef encoded) {

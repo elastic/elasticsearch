@@ -122,17 +122,17 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         if (sliceEnabled && routing == null) {
             throw new IllegalArgumentException("unable to create _id as slice is enabled but _slice is null");
         }
-        return sliceEnabled ? Uid.encodeCompoundId(id, routing) : Uid.encodeId(id);
+        return sliceEnabled ? SliceIdFieldMapper.encodeCompoundId(id, routing) : Uid.encodeId(id);
     }
 
     /**
      * Decode the user-visible plain {@code _id} string from the bytes that are stored in the {@code _id} stored field
      * or binary doc value. For a slice-enabled index the stored bytes are the compound identity term
-     * ({@link Uid#encodeCompoundId(String, String)}); for a non-slice index they are the plain
+     * ({@link SliceIdFieldMapper#encodeCompoundId(String, String)}); for a non-slice index they are the plain
      * {@link Uid#encodeId(String)} bytes. This is the symmetric counterpart of {@link #encodeIdentity}.
      */
     public static String decodeIdentity(boolean sliceEnabled, BytesRef storedBytes) {
-        return sliceEnabled ? Uid.decodeCompoundId(storedBytes) : Uid.decodeId(storedBytes);
+        return sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(storedBytes) : Uid.decodeId(storedBytes);
     }
 
     /**

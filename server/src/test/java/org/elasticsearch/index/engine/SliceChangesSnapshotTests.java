@@ -16,7 +16,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
@@ -43,7 +43,7 @@ public class SliceChangesSnapshotTests extends EngineTestCase {
         final String slice = "slice-7";
         // A delete is always recorded as a tombstone (even of an absent doc) so history/recovery can replay it. The engine
         // builds the tombstone from the compound term below and stores it (Store.YES) so the snapshot reads it back raw.
-        final BytesRef compoundUid = Uid.encodeCompoundId(id, slice);
+        final BytesRef compoundUid = SliceIdFieldMapper.encodeCompoundId(id, slice);
         engine.delete(
             new Engine.Delete(
                 id,
@@ -77,8 +77,8 @@ public class SliceChangesSnapshotTests extends EngineTestCase {
             // The recovered Delete carries the compound term directly; replay deletes exactly the (slice, id) term.
             assertEquals(compoundUid, delete.uid());
             // The slice and the plain id are both recoverable from that term, so no separate routing is needed.
-            assertEquals(id, Uid.decodeCompoundId(delete.uid()));
-            assertEquals(slice, Uid.sliceFromCompoundId(delete.uid()));
+            assertEquals(id, SliceIdFieldMapper.decodeCompoundId(delete.uid()));
+            assertEquals(slice, SliceIdFieldMapper.sliceFromCompoundId(delete.uid()));
             assertThat("only the single delete op should be present", snapshot.next(), nullValue());
         }
     }
@@ -89,7 +89,7 @@ public class SliceChangesSnapshotTests extends EngineTestCase {
         // Parse a live slice doc (preParse stores the compound _id plus the two indexed terms) and index it
         // under the compound identity term, mirroring the write path.
         ParsedDocument doc = parseDocument(engine.engineConfig.getMapperService(), id, slice);
-        engine.index(new Engine.Index(Uid.encodeCompoundId(id, slice), primaryTerm.get(), doc));
+        engine.index(new Engine.Index(SliceIdFieldMapper.encodeCompoundId(id, slice), primaryTerm.get(), doc));
         engine.refresh("test");
 
         try (
@@ -107,9 +107,9 @@ public class SliceChangesSnapshotTests extends EngineTestCase {
             assertThat(op, instanceOf(Translog.Index.class));
             Translog.Index index = (Translog.Index) op;
             // The Index op carries the compound uid; replay decodes the plain id + routing from it.
-            assertEquals(Uid.encodeCompoundId(id, slice), index.uid());
-            assertEquals(id, Uid.decodeCompoundId(index.uid()));
-            assertEquals(slice, Uid.sliceFromCompoundId(index.uid()));
+            assertEquals(SliceIdFieldMapper.encodeCompoundId(id, slice), index.uid());
+            assertEquals(id, SliceIdFieldMapper.decodeCompoundId(index.uid()));
+            assertEquals(slice, SliceIdFieldMapper.sliceFromCompoundId(index.uid()));
             assertEquals(slice, index.routing());
             assertThat("only the single index op should be present", snapshot.next(), nullValue());
         }

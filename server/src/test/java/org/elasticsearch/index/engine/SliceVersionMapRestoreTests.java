@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
@@ -71,8 +72,8 @@ public class SliceVersionMapRestoreTests extends EngineTestCase {
             // Reopen without recovering from translog: this runs restoreVersionMapAndCheckpointTracker for seq_no > 1.
             try (InternalEngine engine = new InternalEngine(config)) {
                 final Map<BytesRef, VersionValue> versionMap = engine.getVersionMap();
-                final BytesRef uidA = Uid.encodeCompoundId("1", "s1");
-                final BytesRef uidB = Uid.encodeCompoundId("1", "s2");
+                final BytesRef uidA = SliceIdFieldMapper.encodeCompoundId("1", "s1");
+                final BytesRef uidB = SliceIdFieldMapper.encodeCompoundId("1", "s2");
                 // The two restored deletes are keyed by the compound identity terms, not the (shared) plain encodeId.
                 assertThat(versionMap.keySet(), equalTo(Set.of(uidA, uidB)));
                 assertThat(versionMap.get(uidA), instanceOf(DeleteVersionValue.class));
@@ -87,7 +88,7 @@ public class SliceVersionMapRestoreTests extends EngineTestCase {
     private Engine.Index sliceIndex(String id, String slice, long seqNo, long version) {
         final ParsedDocument doc = parseDocument(engine.engineConfig.getMapperService(), id, slice);
         return new Engine.Index(
-            Uid.encodeCompoundId(id, slice),
+            SliceIdFieldMapper.encodeCompoundId(id, slice),
             doc,
             seqNo,
             primaryTerm.get(),
@@ -105,7 +106,7 @@ public class SliceVersionMapRestoreTests extends EngineTestCase {
     private Engine.Delete sliceDelete(String id, String slice, long seqNo, long version) {
         return new Engine.Delete(
             id,
-            Uid.encodeCompoundId(id, slice),
+            SliceIdFieldMapper.encodeCompoundId(id, slice),
             seqNo,
             primaryTerm.get(),
             version,

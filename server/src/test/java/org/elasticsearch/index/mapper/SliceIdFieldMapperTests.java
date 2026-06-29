@@ -22,6 +22,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.IdFieldMapper.AbstractIdFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -51,14 +53,17 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         // No slice routing on the context: id search must still work (the search term is derived only from the id).
         SearchExecutionContext context = createSearchExecutionContext(createMapperService(mapping(b -> {})));
         Query query = fieldType().termsQuery(List.of("a", "b"), context);
-        Query expected = new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.searchTerm("a"), Uid.searchTerm("b")));
+        Query expected = new TermInSetQuery(
+            IdFieldMapper.NAME,
+            List.of(SliceIdFieldMapper.searchTerm("a"), SliceIdFieldMapper.searchTerm("b"))
+        );
         assertThat(query, equalTo(expected));
     }
 
     public void testTermQueryDelegatesToTermsQuery() throws Exception {
         SearchExecutionContext context = createSearchExecutionContext(createMapperService(mapping(b -> {})));
         Query query = fieldType().termQuery("a", context);
-        Query expected = new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.searchTerm("a")));
+        Query expected = new TermInSetQuery(IdFieldMapper.NAME, List.of(SliceIdFieldMapper.searchTerm("a")));
         assertThat(query, equalTo(expected));
     }
 
@@ -76,9 +81,9 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         // Two indexed terms (search + compound) plus a stored field carrying the compound id; no doc values.
         // The compound bytes are also the stored value, matching tombstone storage and eliminating live-vs-tombstone
         // branching in the engine/recovery paths.
-        assertThat(idFields, hasItem(storedField(Uid.encodeCompoundId(id, "slice-1"))));
-        assertThat(idFields, hasItem(indexedTerm(Uid.searchTerm(id))));
-        assertThat(idFields, hasItem(indexedTerm(Uid.encodeCompoundId(id, "slice-1"))));
+        assertThat(idFields, hasItem(storedField(SliceIdFieldMapper.encodeCompoundId(id, "slice-1"))));
+        assertThat(idFields, hasItem(indexedTerm(SliceIdFieldMapper.searchTerm(id))));
+        assertThat(idFields, hasItem(indexedTerm(SliceIdFieldMapper.encodeCompoundId(id, "slice-1"))));
         for (IndexableField f : idFields) {
             assertThat("document mode must not use doc values", f.fieldType().docValuesType(), equalTo(DocValuesType.NONE));
         }
@@ -98,8 +103,8 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(id, b -> {}, "slice-1"));
         List<IndexableField> idFields = doc.rootDoc().getFields(IdFieldMapper.NAME);
         // The same two indexed terms (search + compound) but the compound id is in binary doc values, not a stored field.
-        assertThat(idFields, hasItem(indexedTerm(Uid.searchTerm(id))));
-        assertThat(idFields, hasItem(indexedTerm(Uid.encodeCompoundId(id, "slice-1"))));
+        assertThat(idFields, hasItem(indexedTerm(SliceIdFieldMapper.searchTerm(id))));
+        assertThat(idFields, hasItem(indexedTerm(SliceIdFieldMapper.encodeCompoundId(id, "slice-1"))));
         IndexableField docValues = null;
         for (IndexableField f : idFields) {
             assertFalse("columnar mode must not store _id", f.fieldType().stored());
@@ -108,7 +113,7 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
             }
         }
         assertNotNull("columnar mode must keep the compound id in binary doc values", docValues);
-        assertThat(docValues.binaryValue(), equalTo(Uid.encodeCompoundId(id, "slice-1")));
+        assertThat(docValues.binaryValue(), equalTo(SliceIdFieldMapper.encodeCompoundId(id, "slice-1")));
     }
 
     private static SliceIdFieldMapper sliceIdMapper(MapperService mapperService) {
@@ -140,6 +145,97 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
             public void describeTo(org.hamcrest.Description description) {
                 description.appendText("an indexed _id term ").appendValue(term);
             }
+        };
+    }
+
+    public void testCompoundIdRoundTrip() {
+        final int iters = 10000;
+        for (int iter = 0; iter < iters; ++iter) {
+            final String slice = randomSlice();
+            final String id = randomId();
+            BytesRef compound = SliceIdFieldMapper.encodeCompoundId(id, slice);
+            BytesRef search = SliceIdFieldMapper.searchTerm(id);
+            // The plain id and the slice round-trip from the compound term...
+            assertEquals(id, SliceIdFieldMapper.decodeCompoundId(compound));
+            assertEquals(slice, SliceIdFieldMapper.sliceFromCompoundId(compound));
+            // ...and the plain id round-trips from the search term (empty-slice member of the same format).
+            assertEquals(id, SliceIdFieldMapper.decodeCompoundId(search));
+            assertEquals("", SliceIdFieldMapper.sliceFromCompoundId(search));
+            // The plain encoded id is the prefix shared by both terms; the trailing byte holds the slice length.
+            BytesRef plain = Uid.encodeId(id);
+            assertEquals(plain.length + slice.getBytes(StandardCharsets.UTF_8).length + 1, compound.length);
+            assertEquals(plain.length + 1, search.length);
+        }
+    }
+
+    public void testSearchAndCompoundTermSpacesAreDisjoint() {
+        // The hazard a bare search term would have: the WHOLE compound encodeId("12")++"34"++[2] is byte-identical to
+        // bare encodeId("12333402") (numeric ids pack two digits/byte). So a bare-id search term could land on an
+        // identity term. Tagging the search term with a trailing 0x00 makes it longer and disjoint.
+        assertEquals(Uid.encodeId("12333402"), SliceIdFieldMapper.encodeCompoundId("12", "34"));
+        assertNotEquals(SliceIdFieldMapper.searchTerm("12333402"), SliceIdFieldMapper.encodeCompoundId("12", "34"));
+
+        for (int iter = 0; iter < 5000; ++iter) {
+            String id1 = randomId();
+            String id2 = randomId();
+            String slice = randomSlice();
+            // A search term can never byte-equal any compound term: last byte is 0x00 vs the slice length (>= 1).
+            assertNotEquals(SliceIdFieldMapper.searchTerm(id1), SliceIdFieldMapper.encodeCompoundId(id2, slice));
+        }
+    }
+
+    public void testCompoundSplitsOnTrailingLengthForAnyId() {
+        // ids may contain '#' or other bytes; the trailing length byte makes the (id, slice) split unambiguous.
+        for (String id : new String[] { "a#b", "a#b#c", "with space", "0", "00" }) {
+            BytesRef compound = SliceIdFieldMapper.encodeCompoundId(id, "the-slice");
+            assertEquals(id, SliceIdFieldMapper.decodeCompoundId(compound));
+            assertEquals("the-slice", SliceIdFieldMapper.sliceFromCompoundId(compound));
+        }
+    }
+
+    public void testSameIdDifferentSlicesAreDistinctCompoundTerms() {
+        final String id = randomId();
+        BytesRef a = SliceIdFieldMapper.encodeCompoundId(id, "slice-a");
+        BytesRef b = SliceIdFieldMapper.encodeCompoundId(id, "slice-b");
+        assertNotEquals(a, b);
+        assertEquals(id, SliceIdFieldMapper.decodeCompoundId(a));
+        assertEquals(id, SliceIdFieldMapper.decodeCompoundId(b));
+    }
+
+    public void testCompoundIdEnforcesSliceLengthBounds() {
+        final String id = randomId();
+        // A 128-byte (ASCII) slice is the maximum and must round-trip; the trailing length byte holds 128 (0x80).
+        final String maxSlice = randomAlphaOfLength(128);
+        BytesRef max = SliceIdFieldMapper.encodeCompoundId(id, maxSlice);
+        assertEquals(maxSlice, SliceIdFieldMapper.sliceFromCompoundId(max));
+        assertEquals(id, SliceIdFieldMapper.decodeCompoundId(max));
+        // Beyond the single-byte length tag the encoding would corrupt, so it is rejected hard (not just asserted),
+        // as is the empty slice (which would collide with the search term's trailing 0x00).
+        expectThrows(IllegalArgumentException.class, () -> SliceIdFieldMapper.encodeCompoundId(id, randomAlphaOfLength(129)));
+        expectThrows(IllegalArgumentException.class, () -> SliceIdFieldMapper.encodeCompoundId(id, ""));
+    }
+
+    /** The characters {@link org.elasticsearch.index.SliceIndexing#validateUserSliceValue} accepts: {@code [a-zA-Z0-9._:-]}. */
+    private static final String SLICE_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-";
+
+    private static String randomSlice() {
+        // Span the full allowed charset and length range (1..128 bytes), often hitting the 128-byte maximum so the
+        // trailing length byte exercises its 0x80 boundary against the bounds check in encodeCompoundId. All allowed
+        // characters are single-byte ASCII, so the char length equals the byte length.
+        final int length = rarely() ? 128 : randomIntBetween(1, 128);
+        final StringBuilder slice = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            slice.append(SLICE_CHARS.charAt(randomInt(SLICE_CHARS.length() - 1)));
+        }
+        return slice.toString();
+    }
+
+    private static String randomId() {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> Long.toString(randomNonNegativeLong()); // numeric encoding
+            case 1 -> Base64.getUrlEncoder().withoutPadding().encodeToString(randomByteArrayOfLength(randomIntBetween(1, 12))); // base64
+            case 2 -> randomAlphaOfLengthBetween(1, 16); // utf8 encoding
+            default -> throw new AssertionError("unreachable");
         };
     }
 }

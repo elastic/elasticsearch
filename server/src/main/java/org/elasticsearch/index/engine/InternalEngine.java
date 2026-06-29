@@ -95,6 +95,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
@@ -4107,7 +4108,7 @@ public class InternalEngine extends Engine {
                         continue;
                     }
                     uid = rawId;
-                    id = Uid.decodeCompoundId(rawId);
+                    id = SliceIdFieldMapper.decodeCompoundId(rawId);
                 } else {
                     id = leafIdLoader.getId(docId);
                     if (id == null) {

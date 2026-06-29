@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.LocalCheckpointTrackerTests;
@@ -3521,7 +3522,7 @@ public class TranslogTests extends ESTestCase {
      * (the plain id and slice are recoverable from it) and round-trips through serialization with no routing channel.
      */
     public void testTranslogDeleteCompoundUidSerialization() throws Exception {
-        final BytesRef compoundUid = Uid.encodeCompoundId("the-id", "slice-1");
+        final BytesRef compoundUid = SliceIdFieldMapper.encodeCompoundId("the-id", "slice-1");
         final long seqNo = randomNonNegativeLong();
         final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         final long version = randomLongBetween(1, Long.MAX_VALUE);
@@ -3545,8 +3546,8 @@ public class TranslogTests extends ESTestCase {
         assertEquals(translogDelete, roundTripped);
         assertEquals(compoundUid, roundTripped.uid());
         // The plain id and slice are recoverable from the compound term, so replay needs no separate routing.
-        assertEquals("the-id", Uid.decodeCompoundId(roundTripped.uid()));
-        assertEquals("slice-1", Uid.sliceFromCompoundId(roundTripped.uid()));
+        assertEquals("the-id", SliceIdFieldMapper.decodeCompoundId(roundTripped.uid()));
+        assertEquals("slice-1", SliceIdFieldMapper.sliceFromCompoundId(roundTripped.uid()));
     }
 
     private static Translog.Delete copyDelete(Translog.Delete delete, TransportVersion version) throws IOException {

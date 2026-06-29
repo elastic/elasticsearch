@@ -162,7 +162,6 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     public void testDeltaTemporalityRate() {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         runTestWithTemporality(
             List.of(
                 new DocumentSpec("pod", "delta", "2021-04-29T17:01:00.000Z", 5),
@@ -179,7 +178,6 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     public void testMixedTemporalityRate() {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         runTestWithTemporality(
             List.of(
                 // cumulative TSID: monotonically increasing counter
@@ -206,7 +204,6 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     public void testDeltaTemporalityHistograms() {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         runHistogramTest(
             List.of(
                 new HistogramDocSpec("pod", "delta", "2021-04-29T17:01:00.000Z", 1.0, 2.0),
@@ -226,7 +223,6 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     public void testCumulativeTemporalityHistograms() {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         runHistogramTest(
             List.of(
                 new HistogramDocSpec("pod", "cumulative", "2021-04-29T17:01:00.000Z", 1.0),
@@ -246,7 +242,6 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     public void testMixedTemporalityHistograms() {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         runHistogramTest(
             List.of(
                 // cumulative TSID: growing histogram

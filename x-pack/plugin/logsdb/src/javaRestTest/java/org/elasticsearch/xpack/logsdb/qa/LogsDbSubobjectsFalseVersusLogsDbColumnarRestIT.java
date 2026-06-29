@@ -78,7 +78,7 @@ import java.util.stream.Collectors;
  *       {@code defaultDocValuesParameters()}, activating {@code usesBinaryDocValues()=true};
  *       combined with {@code FieldMapper.indexParam()} defaulting to {@code false} when
  *       {@code isIndexDisabledByDefault()=true} (set by logsdb_columnar), {@code hasTerms()=false}
- *       routes term/prefix/range queries through {@code SlowCustomBinaryDocValues*Query}, which
+ *       routes term/prefix/range queries through {@code ScanningBinaryDocValues*Query}, which
  *       uses {@code MultiValueSeparateCountBinaryDocValuesReader} expecting {@code SeparateCount}
  *       format; the binary DV is stored in {@code ArrayOrderInlineNull} format
  *       ({@code arrayOrderBinaryDocValues=true} in strict-columnar + multiValue), causing an
@@ -298,7 +298,7 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
         // returns HIGH when isStrictColumnar()), which activates usesBinaryDocValues()=true.
         // Combined with isIndexDisabledByDefault()=true (FieldMapper.indexParam() returns false by
         // default when the index setting is disabled), index:false means hasTerms()=false →
-        // term/prefix/range queries route through SlowCustomBinaryDocValues*Query. That reader uses
+        // term/prefix/range queries route through ScanningBinaryDocValues*Query. That reader uses
         // MultiValueSeparateCountBinaryDocValuesReader which expects SeparateCount format, but the
         // data is stored in ArrayOrderInlineNull format (arrayOrderBinaryDocValues=true in strict-
         // columnar + multiValue mode) → Invalid vInt server crash.

@@ -2,19 +2,13 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/plugin-management.html
 applies_to:
-  deployment:
-    ess: ga
-    ece: ga
-    self: ga
+  stack: all
   serverless: unavailable
 ---
 
 # Plugin management
 
-Plugins extend {{es}}'s core functionality and can be managed differently depending on the deployment type. While {{ece}} (ECE) and {{ech}} 
-(ECH) provide built-in plugin management, self-managed deployments require manual installation.
-
-Plugins serve various purposes, including:
+Plugins extend {{es}}'s core functionality and can serve various purposes, including:
 
 * National language support, phonetic analysis, and extended unicode support
 * Ingesting attachments in common formats and ingesting information about the geographic location of IP addresses
@@ -23,7 +17,17 @@ Plugins serve various purposes, including:
 * Analysis plugins, to provide analyzers targeted at languages other than English
 * Scripting plugins, to provide additional scripting languages
 
-## Managing plugins for {{ech}}
+
+How you add and manage plugins depends on where {{es}} runs:
+* Hosted Cloud deployments such as [{{ech}}](#managing-plugins-for-ech) and [{{ece}}](#managing-plugins-for-ece) expose plugin and extension management in the Cloud console and API.
+* [Self-managed deployments](#managing-plugins-for-self-managed) use the `elasticsearch-plugin` CLI to install, list, and remove plugins on each node, while for Docker, you can also declare plugins in a [configuration file](manage-plugins-using-configuration-file.md).
+* On [{{eck}}](#managing-plugins-for-eck) deployments you install plugins by building a custom container image or using init containers.
+
+::::{note} {{serverless-full}} projects
+{{serverless-full}} projects do not support custom plugin or bundle uploads. For how {{ech}} and {{serverless-short}} differ on plugins, bundles, and dictionary options, see [Compare {{ech}} and Serverless](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md#elasticsearch-differences-custom-plugins-and-bundles).
+::::
+
+## Managing plugins for {{ech}} [managing-plugins-for-ech]
 ```{applies_to}
     ess: ga
 ```
@@ -33,10 +37,11 @@ Plugins serve various purposes, including:
 To add plugins to a hosted deployment, refer to:
 
 * [Add plugins and extensions in {{ech}}](docs-content://deploy-manage/deploy/elastic-cloud/add-plugins-extensions.md)
+% * [Add plugins provided with {{ech}}](docs-content://deploy-manage/deploy/elastic-cloud/add-plugins-provided-with-ech.md)
 * [Upload custom plugins and bundles](docs-content://deploy-manage/deploy/elastic-cloud/upload-custom-plugins-bundles.md)
 * [Manage plugins and extensions through the API](docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md)
 
-## Managing plugins for {{ece}}
+## Managing plugins for {{ece}} [managing-plugins-for-ece]
 ```{applies_to}
     ece: ga
 ```
@@ -48,12 +53,13 @@ To add plugins to an {{ece}} deployment, refer to:
 * [Add plugins and extensions in {{ece}}](docs-content://deploy-manage/deploy/cloud-enterprise/add-plugins.md)
 * [Add custom bundles and plugins](docs-content://deploy-manage/deploy/cloud-enterprise/add-custom-bundles-plugins.md)
 
-## Managing plugins for self-managed deployments
+
+## Managing plugins for self-managed deployments [managing-plugins-for-self-managed]
 ```{applies_to}
     self: ga
 ```
 
-Use the `elasticsearch-plugin` command line tool to install, list, and remove plugins. It is located in the `$ES_HOME/bin` directory by default but it may be in a different location depending on which {{es}} package you installed. For more information, see [Plugins directory](_plugins_directory.md)
+Use the `elasticsearch-plugin` command line tool to install, list, and remove plugins. It is located in the `$ES_HOME/bin` directory by default but it may be in a different location depending on which {{es}} package you installed. For more information, see [](_plugins_directory.md)
 
 Run the following command to get usage instructions:
 
@@ -80,7 +86,17 @@ For detailed instructions on installing, managing, and configuring plugins, see 
 If you run {{es}} using the [official {{es}} Docker image](https://www.docker.elastic.co/), you can manage plugins using a declarative [configuration file](manage-plugins-using-configuration-file.md). This approach applies to self-managed Docker deployments only.
 
 
-:::{admonition} Running {{es}} with plugins on {{eck}}
-:applies_to: eck: ga
-On {{eck}}, install plugins by building a custom container image or using init containers. For details, see [Custom configuration files and plugins](docs-content://deploy-manage/deploy/cloud-on-k8s/custom-configuration-files-plugins.md).
+
+## Managing plugins for {{eck}} [managing-plugins-for-eck]
+```{applies_to}
+    eck: ga
+```
+
+On {{eck}}, {{es}} runs in Kubernetes pods. Plugins must be on disk before the main {{es}} container starts. The two supported approaches are:
+
+* [Using a custom container image](docs-content://deploy-manage/deploy/cloud-on-k8s/custom-configuration-files-plugins.md): You build a custom image from the official Elastic image with the required plugins pre-installed. This option is reproducible, works without internet access at runtime, and starts quickly, but requires a container registry and a new image for each {{es}} version upgrade.
+* [Using init containers](docs-content://deploy-manage/deploy/cloud-on-k8s/init-containers-for-plugin-downloads.md): You use an init container to run `elasticsearch-plugin install` before the main {{es}} container starts. This option is easier to get started with, but requires pod internet access and repeats the download on each new node.
+
+:::{note}
+You can inject configuration files, such as synonym dictionaries, SAML metadata, or TLS certificates by [mounting them with ConfigMaps or Secrets](docs-content://deploy-manage/deploy/cloud-on-k8s/custom-configuration-files-plugins.md#use-a-volume-and-volume-mount-together-with-a-configmap-or-secret). However, mounting plugin files into a pod does not run `elasticsearch-plugin install`, so {{es}} will not load them at startup. Instead, to install plugins, use a custom container image or init container. 
 :::

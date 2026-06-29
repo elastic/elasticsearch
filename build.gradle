@@ -288,6 +288,11 @@ def upgradeCompatibilityZip = tasks.register("upgradeCompatibilityZip", Zip) {
   from(generateUpgradeCompatibilityFile)
 }
 
+def isCiSplitTask = { String taskName ->
+  taskName.startsWith("checkPart") || taskName.startsWith("releaseTestCheck")
+    || taskName == 'functionalTests' || taskName == 'checkBuildLogic'
+}
+
 // TODO: This flag existed as a mechanism to disable bwc tests during a backport. It is no
 // longer used for that purpose, but instead a way to run only functional tests. We should
 // rework the functionalTests task to be more explicit about which tasks it wants to run
@@ -536,6 +541,9 @@ tasks.named("precommit") {
 }
 
 tasks.named("checkPart1").configure {
+}
+
+tasks.register("checkBuildLogic").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
 }

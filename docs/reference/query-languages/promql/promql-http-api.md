@@ -24,6 +24,7 @@ Every path has two forms:
 - Explicit index expression: `/_prometheus/{index}/api/v1/<path>`
 
 The `{index}` segment is an {{es}} index expression (for example, `metrics-generic.prometheus-*`) that restricts which indices are considered in the query.
+Index aliases are also accepted; when using an alias, API key privileges must be granted on the alias name, not the underlying index names.
 This can reduce latency on clusters that contain many large time series data streams when you query a subset of indices.
 
 When you omit `{index}` in the path, qualifying indices are identified through the default index expression `metrics-*`.

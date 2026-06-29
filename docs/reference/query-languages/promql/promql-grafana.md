@@ -41,7 +41,10 @@ In **Control security privileges**, use a role descriptor such as:
     "indices": [
       {
         "names": ["metrics-*.prometheus-*"],
-        "privileges": ["read", "view_index_metadata"]
+        "privileges": ["read", "view_index_metadata"],
+        "query": {
+          "terms": { "_tier": ["data_hot", "data_warm"] }
+        }
       }
     ]
   }
@@ -56,6 +59,7 @@ When the key is created, copy the **Encoded** value (select the **Encoded** form
 ::::{tip}
 You can configure a separate Grafana data source per index pattern to give teams scoped access to their own metrics.
 Add an index expression after `/_prometheus/`, for example `https://<es_endpoint>/_prometheus/metrics-prod-*`.
+Index aliases are also supported as the index expression – you need to scope the API key to the alias name rather than the underlying index pattern.
 See [Index scoping](promql-http-api.md#promql-http-api-index-scope).
 ::::
 
@@ -65,7 +69,7 @@ Configure the data source through the Grafana UI or through [provisioning](https
 
 ### Add the data source in the UI [promql-grafana-datasource-ui]
 
-1. In Grafana, go to **Connections > Data sources > Add data source**, then choose **Prometheus**.
+1. In Grafana, go to **Connections → Data sources → Add data source**, then choose **Prometheus**.
 2. Set the following:
     - **Name**: `Elasticsearch`
     - **Prometheus server URL**: `https://<es_endpoint>/_prometheus`
@@ -99,9 +103,16 @@ datasources:
     isDefault: true
     jsonData:
       httpHeaderName1: Authorization
+      # If TLS terminates before Elasticsearch (plain HTTP to the node), uncomment:
+      # httpMethod: GET
     secureJsonData:
       httpHeaderValue1: "ApiKey <query_api_key>"
 ```
+
+::::{note}
+`isDefault: true` overrides the existing default data source for all users in the Grafana instance.
+Set it to `false` if this deployment already has a default data source.
+::::
 
 Mount the `provisioning` directory into Grafana at `/etc/grafana/provisioning`.
 
@@ -116,7 +127,7 @@ If a dashboard already runs against another Prometheus-compatible backend, switc
 
 ### Build a new dashboard [promql-grafana-dashboard-new]
 
-1. Go to **Dashboards > New > New dashboard > Add visualization**.
+1. Go to **Dashboards → New → New dashboard → Add visualization**.
 2. Select the **Elasticsearch** data source.
 3. In the query editor, write a PromQL query (for example, `sum(up)`). Autocompletion and the metric browser are backed by the {{es}} [metadata and discovery endpoints](promql-http-api.md#promql-http-api-metadata).
 4. Choose a visualization, then save the dashboard.
@@ -142,7 +153,7 @@ If it is unclear, the panel returns wrong or empty data with no error, or you su
 
 ### Step 2: Inspect the request and response [promql-grafana-troubleshooting-inspect]
 
-If the panel error is unclear, or the panel returns wrong or empty data with no error, open the query inspector (panel menu > **Inspect > Query**) and run the query.
+If the panel error is unclear, or the panel returns wrong or empty data with no error, open the query inspector (panel menu → **Inspect → Query**) and run the query.
 The inspector shows both the request Grafana sent (endpoint, `query`, `start`, `end`, `step`) and the raw response from {{es}}, which usually points straight at the cause.
 
 To confirm {{es}}'s behavior independently of Grafana, replay the same request directly against the [HTTP API](promql-http-api.md).
@@ -176,12 +187,13 @@ For metric discovery, autocompletion, or template-variable problems, check the r
 
 ### Common symptoms [promql-grafana-troubleshooting-symptoms]
 
-| Symptom | Likely cause | What to check |
-| --- | --- | --- |
-| `406 Not Acceptable` on every query | Form-encoded `POST` is not accepted by this deployment | Set the data source **HTTP method** to `GET`, or ensure TLS terminates at {{es}}. See [Form-encoded POST requests](promql-limitations.md#promql-limitations-form-post) |
-| `401`/`403` errors | API key missing, invalid, or lacking privileges | Verify the `Authorization: ApiKey <key>` header and that the key grants `read` and `view_index_metadata` on `metrics-*.prometheus-*` |
-| Empty results, no error | No matching data in the time range or index scope | Confirm metrics exist in the queried [index scope](promql-http-api.md#promql-http-api-index-scope) and time window by reproducing the request directly |
-| `bad_data` error on a specific expression | Unsupported PromQL construct | Compare the expression against [unsupported constructs](promql-limitations.md#promql-limitations-unsupported-constructs) |
+| Symptom | Likely cause | What to check                                                                                                                                                                                    |
+| --- | --- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `406 Not Acceptable` on every query | Form-encoded `POST` is not accepted by this deployment | Upgrade to the latest deployment version; ensure TLS terminates at {{es}}. See [Form-encoded POST requests](promql-limitations.md#promql-limitations-form-post) |
+| `401`/`403` errors | API key missing, invalid, or lacking privileges | Verify the `Authorization: ApiKey <key>` header and that the key grants `read` and `view_index_metadata` on `metrics-*.prometheus-*`                                                             |
+| Empty results, no error | No matching data in the time range or index scope | Confirm metrics exist in the queried [index scope](promql-http-api.md#promql-http-api-index-scope) and time window by reproducing the request directly                                           |
+| `bad_data` error on a specific expression | Unsupported PromQL construct | Compare the expression against [unsupported constructs](promql-limitations.md#promql-limitations-unsupported-constructs)                                                                         |
+| Recurring errors related to exemplar queries | `/api/v1/query_exemplars` is not implemented | In Grafana, go to **Data sources → Elasticsearch → Exemplars** and disable all configured exemplar links                                                                                         |
 
 ## Further reading
 

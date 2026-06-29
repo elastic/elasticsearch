@@ -59,6 +59,6 @@ Unmapped fields differ from runtime fields. A runtime field is a computed field 
 To go deeper on unmapped fields and related capabilities, refer to these pages:
 
 - [`SET unmapped_fields`](commands/set.md#esql-unmapped_fields): the directive syntax, accepted values, and `LOAD` limitations.
-- [`JSON_EXTRACT`](functions-operators/string-functions/json_extract.md): extract values from JSON strings and `flattened` fields.
+- [`JSON_EXTRACT`](functions-operators/string-functions/json_extract.md): extract values from JSON strings and `_source`.
 - [Retrieve unmapped fields](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#retrieve-unmapped-fields): the equivalent `include_unmapped` option in the search `fields` API.
 - [ES|QL unmapped fields on Elastic Search Labs](https://www.elastic.co/search-labs/blog/esql-unmapped-fields): the blog post that introduces the feature.

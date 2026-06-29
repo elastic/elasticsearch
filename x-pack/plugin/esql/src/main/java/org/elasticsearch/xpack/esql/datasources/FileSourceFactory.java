@@ -193,22 +193,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
         try {
-            // Reject unknown configuration keys via the SPI hook before any provider/reader work.
-            // The provider/reader resolutions below hit the same cache keys validateConfig populates,
-            // so this is a single source of truth for validation without extra cloud-client construction.
-            validateConfig(location, config);
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
             StorageProvider provider;
             FormatReader reader;
             if (config != null && config.isEmpty() == false) {
-                provider = storageRegistry.createProviderTrackingConsumedKeys(
-                    scheme,
-                    settings,
-                    ExternalSourceResolver.storageConfig(config)
-                ).value();
-                reader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(config).value();
+                provider = storageRegistry.createProvider(scheme, settings, ExternalSourceResolver.storageConfig(config));
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             } else {
                 provider = storageRegistry.provider(storagePath);
                 reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);

@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.ml.action.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -20,8 +18,6 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
-import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -33,7 +29,6 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -109,44 +104,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         TransportStartDatafeedAction.auditDeprecations(config, job1, auditor, xContentRegistry());
 
         verify(auditor, never()).warning(any(), any());
-    }
-
-    public void testValidateCrossProjectSearchMissingCredentialShouldFailFast() {
-        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-        DatafeedConfig datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
-        CrossProjectModeDecider crossProjectModeDecider = new CrossProjectModeDecider(
-            Settings.builder().put("serverless.cross_project.enabled", true).build()
-        );
-
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> TransportStartDatafeedAction.validateCloudCredentialForCrossProjectSearch(datafeedConfig, crossProjectModeDecider)
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo("datafeed [foo-datafeed] is missing its cloud credential for cross-project search; recreate or update the datafeed")
-        );
-    }
-
-    public void testValidateCrossProjectSearchWithCredentialShouldNotFail() {
-        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-        DatafeedConfig.Builder builder = DatafeedRunnerTests.createDatafeedConfig("foo-datafeed", "job_id");
-        builder.setCloudInternalCredential(new PersistedCloudCredential("test-credential-id", new SecureString("test-key".toCharArray())));
-        DatafeedConfig datafeedConfig = builder.build();
-        CrossProjectModeDecider crossProjectModeDecider = new CrossProjectModeDecider(
-            Settings.builder().put("serverless.cross_project.enabled", true).build()
-        );
-
-        TransportStartDatafeedAction.validateCloudCredentialForCrossProjectSearch(datafeedConfig, crossProjectModeDecider);
-    }
-
-    public void testValidateCrossProjectSearchWhenCpsDisabledShouldNotFailWithoutCredential() {
-        DatafeedConfig datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
-        CrossProjectModeDecider crossProjectModeDecider = new CrossProjectModeDecider(
-            Settings.builder().put("serverless.cross_project.enabled", false).build()
-        );
-
-        TransportStartDatafeedAction.validateCloudCredentialForCrossProjectSearch(datafeedConfig, crossProjectModeDecider);
     }
 
     public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(

@@ -164,22 +164,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
     }
 
-    static void validateCloudCredentialForCrossProjectSearch(
-        DatafeedConfig datafeedConfig,
-        CrossProjectModeDecider crossProjectModeDecider
-    ) {
-        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider);
-        if (effectiveDatafeed.getIndicesOptions().resolveCrossProjectIndexExpression()
-            && datafeedConfig.getCloudInternalCredential() == null) {
-            throw new ElasticsearchStatusException(
-                "datafeed ["
-                    + datafeedConfig.getId()
-                    + "] is missing its cloud credential for cross-project search; recreate or update the datafeed",
-                RestStatus.BAD_REQUEST
-            );
-        }
-    }
-
     // Get the deprecation warnings from the parsed query and aggs to audit
     static void auditDeprecations(
         DatafeedConfig datafeed,
@@ -329,7 +313,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {
             Job job = jobBuilder.build();
             validate(job, datafeedConfigHolder.get(), tasks, xContentRegistry);
-            validateCloudCredentialForCrossProjectSearch(datafeedConfigHolder.get(), crossProjectModeDecider);
             auditDeprecations(datafeedConfigHolder.get(), job, auditor, xContentRegistry);
             createDataExtractor.accept(job);
         }, responseHeaderPreservingListener::onFailure);

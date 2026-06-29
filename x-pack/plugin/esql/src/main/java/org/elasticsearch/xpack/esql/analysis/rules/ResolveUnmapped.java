@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -310,6 +311,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                         esRelation.indexMode()
                     );
                 }
+            }
+            case ExternalRelation unused -> {
             }
             case Row unused -> {
             }

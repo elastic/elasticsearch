@@ -34,11 +34,11 @@ import java.io.IOException;
 
 /**
  * ES95 TSDB doc values format. Uses pipeline-based encoding for numeric fields via
- * {@link ES95NumericCodec} and per-field block size encoding for ordinals via
- * {@link ES95OrdinalCodec}. Non-numeric field types are handled identically to
- * ES819 by the shared abstract base classes. Each numeric field writes a self-describing
- * {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor} so decoders
- * reconstruct themselves from segment metadata.
+ * {@link ES95NumericCodec} and shared ordinal encoding via
+ * {@link ES95OrdinalCodec}. Non-numeric field types
+ * are handled identically to ES819 by the shared abstract base classes. Each numeric field
+ * writes a self-describing {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor}
+ * so decoders reconstruct themselves from segment metadata.
  */
 public class ES95TSDBDocValuesFormat extends DocValuesFormat {
 

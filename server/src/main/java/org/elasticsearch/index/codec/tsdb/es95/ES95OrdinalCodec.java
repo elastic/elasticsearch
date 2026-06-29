@@ -21,10 +21,9 @@ import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 /**
  * {@link OrdinalBlockCodec} for the ES95 TSDB format.
  *
- * <p>Creates {@link ES95OrdinalFieldWriter} and {@link ES95OrdinalFieldReader} instances
- * that carry a per-field {@code blockShift} byte in segment metadata. This lets the
- * decoder always use the exact block size the field was encoded with, independent of
- * the format-level default.
+ * <p>Creates {@link ES95OrdinalFieldWriter} and {@link ES95OrdinalFieldReader} instances.
+ * The writer carries a per-field {@code blockShift} byte in segment metadata so the decoder
+ * always uses the exact block size the field was encoded with.
  */
 final class ES95OrdinalCodec implements OrdinalBlockCodec {
 
@@ -39,7 +38,7 @@ final class ES95OrdinalCodec implements OrdinalBlockCodec {
 
     @Override
     public OrdinalFieldReader createReader(final NumericReadContext ctx) {
-        return new ES95OrdinalFieldReader();
+        return new ES95OrdinalFieldReader(ctx.segmentVersion());
     }
 
     @Override

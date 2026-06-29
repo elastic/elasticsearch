@@ -437,12 +437,69 @@ public class EsqlQueryRequestTests extends ESTestCase {
         );
     }
 
-    public void testEmptyListNamedParamIsRejected() throws IOException {
-        // Empty lists as named parameters are rejected. See https://github.com/elastic/elasticsearch/issues/147448:
-        // they used to produce an NPE downstream because their inferred DataType was null.
+    /**
+     * An empty list passed as a named VALUE parameter is equivalent to null.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
+     */
+    public void testEmptyListNamedParamIsNull() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        String paramsString = """
+            ,"params":[
+             {"n1" : []},
+             {"n2" : null},
+             {"n3" : {"value" : []}},
+             {"n4" : "non-empty"},
+             {"n5" : []},
+             {"n6" : [1, 2, 3]}
+             ] }""";
+
+        List<QueryParam> expected = List.of(
+            new QueryParam("n1", null, NULL, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("n2", null, NULL, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("n3", null, NULL, ParserUtils.ParamClassification.VALUE),
+            paramAsConstant("n4", "non-empty"),
+            new QueryParam("n5", null, NULL, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("n6", List.of(1, 2, 3), INTEGER, ParserUtils.ParamClassification.VALUE)
+        );
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "columnar": %s,
+                "time_zone": "%s",
+                "locale": "%s",
+                "filter": %s
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+
+        assertEquals(expected.size(), request.params().size());
+        for (int i = 0; i < expected.size(); i++) {
+            QueryParam expectedParam = expected.get(i);
+            QueryParam actualParam = request.params().get(i + 1);
+            assertEquals("param at index " + i, expectedParam, actualParam);
+        }
+
+        QueryParam bareEmpty = request.params().get("n1");
+        QueryParam explicitNull = request.params().get("n2");
+        QueryParam keyedEmpty = request.params().get("n3");
+        assertNull(bareEmpty.value());
+        assertNull(explicitNull.value());
+        assertNull(keyedEmpty.value());
+        assertEquals(NULL, bareEmpty.type());
+        assertEquals(NULL, explicitNull.type());
+        assertEquals(NULL, keyedEmpty.type());
+    }
+
+    public void testEmptyListNamedParamForIdentifierOrPatternIsRejected() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         String paramsString = """
-            "params":[ {"_n1": []}, {"_n2": {"value": []}} ]""";
+            "params":[ {"n1" : {"identifier" : []}}, {"n2" : {"pattern" : []}},
+                        {"n3" : {"identifier" : null}}, {"n4" : {"pattern" : null}} ]""";
         String json = String.format(Locale.ROOT, """
             {
                 %s,
@@ -450,31 +507,43 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""", paramsString, query);
 
         Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Empty lists are not allowed as named parameter values. Got parameter [_n1] with value [[]]")
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Empty lists are not allowed as named parameter values. Got parameter [_n2] with value [[]]")
-        );
+        String message = e.getCause().getMessage();
+        // empty lists: rejected as multivalued (only VALUE params can be multivalued)
+        assertThat(message, containsString("n1={identifier=[]} parameter is multivalued, only VALUE parameters can be multivalued"));
+        assertThat(message, containsString("n2={pattern=[]} parameter is multivalued, only VALUE parameters can be multivalued"));
+        // explicit nulls: rejected because null is not a valid identifier/pattern string
+        assertThat(message, containsString("[null] is not a valid value for IDENTIFIER parameter"));
+        assertThat(message, containsString("[null] is not a valid value for PATTERN parameter"));
     }
 
-    public void testEmptyListUnnamedParamIsAccepted() throws IOException {
-        // Empty positional parameters are still accepted (they are treated as null downstream); the quickfix for
-        // https://github.com/elastic/elasticsearch/issues/147448 only targets named parameters.
+    /**
+     * Empty lists as unnamed/positional VALUE params are also coerced to null.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
+     */
+    public void testEmptyListPositionalParamIsNull() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         String json = String.format(Locale.ROOT, """
             {
-                "params": [ [] ],
-                "query": "%s"
+                "query": "%s",
+                "params": [[], null, "non-empty", [1, 2, 3]]
             }""", query);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
-        assertThat(request.params().size(), is(1));
-        QueryParam param = request.params().get(1);
-        assertEquals(List.of(), param.value());
-        assertEquals(NULL, param.type());
+        assertEquals(4, request.params().size());
+
+        QueryParam emptyList = request.params().get(1);
+        QueryParam explicitNull = request.params().get(2);
+        assertNull(emptyList.value());
+        assertNull(explicitNull.value());
+        assertEquals(NULL, emptyList.type());
+        assertEquals(NULL, explicitNull.type());
+        assertEquals(ParserUtils.ParamClassification.VALUE, emptyList.classification());
+
+        assertEquals("non-empty", request.params().get(3).value());
+        assertEquals(KEYWORD, request.params().get(3).type());
+
+        assertEquals(List.of(1, 2, 3), request.params().get(4).value());
+        assertEquals(INTEGER, request.params().get(4).type());
     }
 
     public void testInvalidParamsString() {

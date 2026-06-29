@@ -140,7 +140,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 if (version >= TSDBDocValuesFormatConfig.VERSION_NUMERIC_LARGE_BLOCKS) {
                     blockShift = in.readByte();
                 }
-                this.readContext = new NumericReadContext(1 << blockShift, formatConfig);
+                this.readContext = new NumericReadContext(1 << blockShift, formatConfig, version);
                 readFields(in, state.fieldInfos, version, blockShift);
             } catch (Throwable exception) {
                 priorE = exception;
@@ -188,7 +188,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     tempIn,
                     skipCodec,
                     TSDBDocValuesFormatConfig.VERSION_START,
-                    TSDBDocValuesFormatConfig.VERSION_SEPARATE_SKIPLIST,
+                    TSDBDocValuesFormatConfig.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );

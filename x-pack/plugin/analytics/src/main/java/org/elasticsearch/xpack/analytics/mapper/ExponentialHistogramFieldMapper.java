@@ -896,7 +896,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 assert valueSumsPresent;
                 valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
             } else {
-                valueSum = 0.0;
+                valueSum = 0.0; // empty histogram has sum of 0.0, but we store null in the doc values
             }
             double valueMin;
             if (valueMinima != null && valueMinima.advanceExact(currentDocId)) {

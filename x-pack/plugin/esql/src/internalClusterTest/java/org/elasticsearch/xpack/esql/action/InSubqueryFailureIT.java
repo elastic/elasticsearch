@@ -114,6 +114,7 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRejectsSubqueryWithMultipleColumnsWithRow() {
+        assumeTrue("Requires subquery with row support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
         var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (ROW x = 1, id = 2) | KEEP id"));
         assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found [x, id]"));
     }
@@ -127,6 +128,7 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRejectsSubqueryWithZeroColumnInOutputWithRow() {
+        assumeTrue("Requires subquery with row support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
         var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (ROW x = 1 | DROP x) | KEEP id"));
         assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found []"));
     }

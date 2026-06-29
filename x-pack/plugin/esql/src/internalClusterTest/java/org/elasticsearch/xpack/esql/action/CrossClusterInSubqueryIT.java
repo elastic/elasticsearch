@@ -585,6 +585,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
      * events with {@code tag == "cluster-a"} match, yielding 6 rows.
      */
     public void testTsSourceInSubquery() {
+        assumeTrue("Requires subquery with TS support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
         setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
         try (EsqlQueryResponse resp = runQuery("""
             FROM *:events
@@ -611,6 +612,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
      * Events where id == 1 (one per cluster) are returned.
      */
     public void testRowSourceInSubquery() {
+        assumeTrue("Requires subquery with row support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
         try (EsqlQueryResponse resp = runQuery("""
             FROM *:events, events
             | WHERE id IN (ROW id = 1 | KEEP id)

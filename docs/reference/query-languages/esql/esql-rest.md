@@ -325,7 +325,7 @@ POST /_query
 }
 ```
 
-For more advanced settings, use a [query approximation settings](commands/set#esql-approximation) object.
+For more advanced settings, use a [query approximation settings](commands/set.md#esql-approximation) object.
 
 ## Pass parameters to a query [esql-rest-params]
 

@@ -719,33 +719,51 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(Integer.valueOf(10000), request.get(QuerySettings.APPROXIMATION).rows());
     }
 
-    public void testSettingsBlockCanonicalWinsOverLegacyTopLevel() throws IOException {
-        // Both legacy top-level "time_zone" and canonical settings.time_zone supply a value.
-        // Canonical wins silently (no error, regardless of JSON field order).
-        String json = """
+    public void testSettingsBlockRejectsConflictingValuesAtBothLevels() {
+        // The same setting at the legacy top level AND under settings.{} with DIFFERENT values is a client bug,
+        // not an override: reject with a 400 naming the setting rather than silently picking a winner.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
             {
                 "query": "FROM idx",
                 "time_zone": "Europe/Paris",
                 "settings": {
                     "time_zone": "UTC"
                 }
-            }""";
-        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
-        assertEquals(ZoneId.of("UTC"), request.get(QuerySettings.TIME_ZONE));
+            }"""));
+        assertThat(
+            e.getMessage(),
+            containsString("Setting [time_zone] has conflicting values at the top level of the request body and under [settings]")
+        );
     }
 
-    public void testSettingsBlockCanonicalWinsRegardlessOfOrder() throws IOException {
-        // Same as above but with the order swapped — canonical still wins (the resolver doesn't depend on order).
-        String json = """
+    public void testSettingsBlockRejectsConflictingValuesRegardlessOfOrder() {
+        // Same conflict, JSON order swapped — the check runs after the whole body is parsed, so order is irrelevant.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
             {
                 "query": "FROM idx",
                 "settings": {
                     "time_zone": "UTC"
                 },
                 "time_zone": "Europe/Paris"
+            }"""));
+        assertThat(
+            e.getMessage(),
+            containsString("Setting [time_zone] has conflicting values at the top level of the request body and under [settings]")
+        );
+    }
+
+    public void testSettingsBlockAllowsIdenticalValueAtBothLevels() throws IOException {
+        // The same value in both places is a fair migration path — accept it, no error.
+        String json = """
+            {
+                "query": "FROM idx",
+                "time_zone": "Europe/Paris",
+                "settings": {
+                    "time_zone": "Europe/Paris"
+                }
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
-        assertEquals(ZoneId.of("UTC"), request.get(QuerySettings.TIME_ZONE));
+        assertEquals(ZoneId.of("Europe/Paris"), request.get(QuerySettings.TIME_ZONE));
     }
 
     public void testSettingsBlockRejectsUnknownKey() {

@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -69,7 +70,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
     /**
      * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
-     * {@link #applyCanonicalRequestSettings()} so canonical wins over legacy aliases regardless of JSON field order.
+     * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
+     * must be supplied in exactly one place — see that method.
      */
     private final Map<QuerySettingDef<?>, Object> canonicalRequestSettings = new HashMap<>();
 
@@ -395,15 +397,31 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return canonicalRequestSettings;
     }
 
+    /**
+     * Folds the canonical {@code settings.{}} block into {@link #requestSettings}. A setting with a legacy
+     * top-level body field (e.g. {@code time_zone}) may be supplied at the top level, under {@code settings.{}},
+     * or in both — as long as the two agree. Supplying it in both places with <em>different</em> values is a
+     * 400: we won't silently pick a winner. Supplying the <em>same</em> value in both is allowed, so a client
+     * mid-migration can carry the field at both surfaces. The check runs after the whole body is parsed, so it
+     * is independent of JSON field order. In-query {@code SET} still overrides a body value — that precedence is
+     * intentional and unaffected here, because {@code SET} is reconciled later, off this envelope.
+     */
     void applyCanonicalRequestSettings() {
-        if (canonicalRequestSettings.isEmpty()) {
-            return;
-        }
         for (Map.Entry<QuerySettingDef<?>, Object> e : canonicalRequestSettings.entrySet()) {
+            QuerySettingDef<?> def = e.getKey();
+            if (requestSettings.containsKey(def) && Objects.equals(requestSettings.get(def), e.getValue()) == false) {
+                throw new IllegalArgumentException(
+                    "Setting ["
+                        + def.name()
+                        + "] has conflicting values at the top level of the request body and under ["
+                        + RequestXContent.SETTINGS_FIELD.getPreferredName()
+                        + "]; specify it in only one place, or with the same value in both."
+                );
+            }
             if (e.getValue() == null) {
-                requestSettings.remove(e.getKey());
+                requestSettings.remove(def);
             } else {
-                requestSettings.put(e.getKey(), e.getValue());
+                requestSettings.put(def, e.getValue());
             }
         }
         canonicalRequestSettings.clear();

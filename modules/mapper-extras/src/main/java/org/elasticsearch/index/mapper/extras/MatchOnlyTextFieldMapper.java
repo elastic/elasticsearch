@@ -184,14 +184,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
             this.indexMode = indexMode;
-            this.docValuesParameters = FieldMapper.DocValuesParameter.of(() -> {
-                FieldMapper.DocValuesParameter.Values defaultDocValues = defaultDocValuesParameters(indexMode);
-                // In strict-columnar mode, skip the field's own doc values when a plain keyword multi-field already stores an identical
-                // copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating the column.
-                boolean enabled = defaultDocValues.enabled()
-                    && multiFieldsBuilder.hasColumnarModeCompatibleKeywordDelegate(indexMode) == false;
-                return new FieldMapper.DocValuesParameter.Values(enabled, defaultDocValues.cardinality(), defaultDocValues.multiValue());
-            }, defaultDocValuesParameters(indexMode), m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters);
+            this.docValuesParameters = FieldMapper.DocValuesParameter.of(
+                () -> defaultDocValuesParameters(indexMode),
+                defaultDocValuesParameters(indexMode),
+                m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters
+            );
         }
 
         public Builder(String name, MappingParserContext context) {
@@ -1192,7 +1189,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             BytesRef binaryValue = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
             if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
+                if (context.isPartOfArray() == false) {
+                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(context.doc(), fieldType().name(), binaryValue);
+                } else {
+                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
+                }
             } else if (fieldType().usesBinaryDocValues()) {
                 dvFactory.addBinaryField(
                     context.doc(),

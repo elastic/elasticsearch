@@ -1516,6 +1516,7 @@ public class StatelessPlugin extends Plugin
             });
         }
         if (hasSearchRole) {
+            final var commitService = this.commitService.get();
             final var collector = searchShardSizeCollector.get();
             indexModule.addIndexEventListener(new IndexEventListener() {
 
@@ -1529,9 +1530,11 @@ public class StatelessPlugin extends Plugin
                     getClosedShardService().onStoreClose(shardId);
                     final var cacheService = sharedBlobCacheService.get();
                     // TODO consider removing the flag guard once performance is verified
-                    if (cacheService.isCacheBoostPreferenceEnabled()) {
-                        final Predicate<ShardId> hasShard = indicesService.get().hasShardPredicate();
-                        cacheService.demoteAllAsync(shardId, id -> hasShard.test(id) == false);
+                    if (cacheService.isCacheBoostPreferenceEnabled() && commitService.isNodeShuttingDown() == false) {
+                        final var shouldDemote = indicesService.get()
+                            .hasShardPredicate()
+                            .and(shardId1 -> commitService.isNodeShuttingDown() == false);
+                        cacheService.demoteAllAsync(shardId, id -> shouldDemote.test(id) == false);
                     }
                 }
             });

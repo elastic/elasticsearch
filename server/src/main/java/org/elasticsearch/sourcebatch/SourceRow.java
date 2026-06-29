@@ -22,8 +22,8 @@ import org.elasticsearch.xcontent.Text;
  * is the leaf at position {@code i}. Columns not present in this row report type
  * {@link org.elasticsearch.eirf.EirfType#ABSENT}.
  *
- * <p>Callers typically loop {@code 0 .. columnCount()-1}, check {@link #isAbsent(int)}, then
- * call the appropriate typed getter. All getters are pure reads — they do not advance any
+ * <p>Callers typically loop {@code 0 .. schema().leafCount()-1}, check {@link #isAbsent(int)},
+ * then call the appropriate typed getter. All getters are pure reads — they do not advance any
  * cursor state.
  */
 public interface SourceRow {
@@ -31,11 +31,8 @@ public interface SourceRow {
     /** The schema describing the columns in this batch. */
     SourceSchema schema();
 
-    /**
-     * The number of columns recorded in this row's header. Columns at indices
-     * {@code [columnCount(), schema().leafCount())} are implicitly absent.
-     */
-    int columnCount();
+    /** Returns {@code true} if this row carries no column values (an empty document). */
+    boolean isEmpty();
 
     /**
      * The size of this row in bytes. Used as a cheap proxy for the original source size when the
@@ -43,7 +40,7 @@ public interface SourceRow {
      */
     int sizeInBytes();
 
-    /** The raw type byte for column {@code col}; returns {@link org.elasticsearch.eirf.EirfType#ABSENT} when out of range. */
+    /** The raw type byte for column {@code col}. */
     byte getTypeByte(int col);
 
     /** Returns {@code true} if column {@code col} is absent (not present in this row). */

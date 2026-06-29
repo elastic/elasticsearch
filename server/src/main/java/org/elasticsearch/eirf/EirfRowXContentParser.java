@@ -241,7 +241,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
 
                 if (child.isLeaf()) {
                     int colIdx = child.leafColumnIndex;
-                    if (colIdx >= row.columnCount() || row.isAbsent(colIdx)) {
+                    if (row.isAbsent(colIdx)) {
                         continue;
                     }
                 }

@@ -45,7 +45,7 @@ public final class EirfRowToXContent {
         for (EirfRowXContentParser.SchemaNode child : node.children()) {
             if (child.isLeaf()) {
                 int leafIdx = child.leafColumnIndex();
-                if (leafIdx >= row.columnCount() || row.isAbsent(leafIdx)) {
+                if (row.isAbsent(leafIdx)) {
                     continue;
                 }
                 writeLeafValue(row, leafIdx, row.getTypeByte(leafIdx), child.name(), builder);
@@ -62,7 +62,7 @@ public final class EirfRowToXContent {
         for (EirfRowXContentParser.SchemaNode child : node.children()) {
             if (child.isLeaf()) {
                 int leafIdx = child.leafColumnIndex();
-                if (leafIdx < row.columnCount() && row.isAbsent(leafIdx) == false) {
+                if (row.isAbsent(leafIdx) == false) {
                     return true;
                 }
             } else if (isNotEmpty(child, row)) {

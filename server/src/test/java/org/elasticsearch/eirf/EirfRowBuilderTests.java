@@ -214,7 +214,7 @@ public class EirfRowBuilderTests extends ESTestCase {
             for (int doc = 0; doc < encoderBatch.docCount(); doc++) {
                 EirfRowReader er = encoderBatch.getRowReader(doc);
                 EirfRowReader br = builderBatch.getRowReader(doc);
-                for (int col = 0; col < er.columnCount(); col++) {
+                for (int col = 0; col < er.recordedColumnCount(); col++) {
                     assertEquals(er.getTypeByte(col), br.getTypeByte(col));
                 }
             }

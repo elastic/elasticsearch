@@ -333,7 +333,7 @@ public class EirfEncoderTests extends ESTestCase {
         assertEquals(3, batch.columnCount());
 
         EirfRowReader row0 = batch.getRowReader(0);
-        assertEquals(2, row0.columnCount());
+        assertEquals(2, row0.recordedColumnCount());
         assertTrue(row0.isAbsent(2));
 
         batch.close();

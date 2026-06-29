@@ -214,8 +214,7 @@ public class SourceToParse {
         }
 
         public boolean isEmpty() {
-            return (row != null && row.columnCount() == 0)
-                || (row == null && (originalSourceBytes == null || originalSourceBytes.length() == 0));
+            return (row != null && row.isEmpty()) || (row == null && (originalSourceBytes == null || originalSourceBytes.length() == 0));
         }
 
         public XContentType xContentType() {

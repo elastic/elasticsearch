@@ -360,7 +360,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 oldMax = maxConcurrentOutgoingRecoveries;
                 maxConcurrentOutgoingRecoveries = newMax;
             }
-            // Called outside the lock: startRecoveriesUpToLimit() re-acquires it per dequeue iteration.
             if (oldMax < newMax) {
                 startRecoveriesUpToLimit();
             }

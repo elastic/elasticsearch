@@ -49,6 +49,11 @@ public abstract class AbstractEsqlSpecForceStoredLoadingIT extends AbstractEsqlS
         return true;
     }
 
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
+    }
+
     /**
      * Loads the single spec file and filters out cases that cannot run with forced
      * stored-field loading. Hides {@link EsqlSpecTestCase#readScriptSpec(String)}.

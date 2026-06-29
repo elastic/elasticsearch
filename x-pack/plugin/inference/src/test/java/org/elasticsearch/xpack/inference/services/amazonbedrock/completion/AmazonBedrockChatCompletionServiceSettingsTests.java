@@ -47,10 +47,10 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractAma
     protected AmazonBedrockChatCompletionServiceSettings createServiceSettings(
         String region,
         String model,
-        String provider,
+        AmazonBedrockProvider provider,
         RateLimitSettings rateLimitSettings
     ) {
-        return new AmazonBedrockChatCompletionServiceSettings(region, model, AmazonBedrockProvider.fromString(provider), rateLimitSettings);
+        return new AmazonBedrockChatCompletionServiceSettings(region, model, provider, rateLimitSettings);
     }
 
     @Override

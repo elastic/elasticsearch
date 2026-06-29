@@ -190,8 +190,8 @@ public final class ThrottlingRecoveryService implements Closeable {
     }
 
     /// Metadata holder for a recovery that has been enqueued but not yet dispatched.
-    /// The `listener` is the one passed in to [#enqueue] by indicesServices. Slot-release and other wrappers are added
-    /// at dispatch time, such that aborting a queued-but-never-dispatched task does not decrement a slot that was never taken
+    /// The `listener` is the one passed in to [#enqueue] by indicesServices. Slot-release, project context and
+    /// other wrappers are added at dispatch time, such that aborting a queued-but-never-dispatched task are not affected
     private record PendingRecovery(
         ProjectId projectId,
         RecoveryState recoveryState,

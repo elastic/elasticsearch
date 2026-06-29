@@ -938,6 +938,44 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         closeShards(primary1, primary2, primary3, primary4, primary5);
     }
 
+    public void testStartRecoveriesUpToLimitHandlesSynchronousFailures() throws Exception {
+        final int queuedRecoveryCount = 10000;
+        final IndexShard queuedShard = newStartedShard(true);
+
+        final PeerRecoverySourceService service = newPeerRecoverySourceService(1);
+        service.start();
+        final var task = newRecoveryTask();
+
+        final var runningShard = newStartedShard(true);
+        final var handler = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(runningShard),
+            task,
+            runningShard,
+            ActionListener.noop()
+        );
+
+        for (int i = 0; i < queuedRecoveryCount; i++) {
+            service.ongoingRecoveries.addOrEnqueueNewRecovery(
+                newStartRecoveryRequest(queuedShard),
+                task,
+                queuedShard,
+                ActionListener.noop()
+            );
+        }
+
+        assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(queuedRecoveryCount, service.ongoingRecoveries.queuedRecoveryCount());
+
+        // Close queued shard so recoveries fail synchronously in recoverToTarget
+        closeShards(queuedShard);
+
+        // Trigger cascading failures
+        service.ongoingRecoveries.onRecoveryComplete(runningShard, handler);
+
+        assertBusy(() -> assertEquals(0, service.ongoingRecoveries.activeRecoveryCount()));
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+    }
+
     private PeerRecoverySourceService newPeerRecoverySourceService() {
         return newPeerRecoverySourceService(Integer.MAX_VALUE);
     }

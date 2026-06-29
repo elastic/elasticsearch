@@ -57,6 +57,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     private final String rawVectorFormatName;
     private final Boolean useDirectIOReads;
     private final FlatVectorsWriter rawVectorDelegate;
+    private final int flatVectorThreshold;
     private final boolean shouldWriteDirectIoReads;
     protected final SegmentWriteState segmentWriteState;
 
@@ -71,11 +72,13 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         String metaExtension,
         String centroidExtension,
         String clusterExtension,
-        boolean shouldWriteDirectIoReads
+        boolean shouldWriteDirectIoReads,
+        int flatVectorThreshold
     ) throws IOException {
         this.rawVectorFormatName = rawVectorFormatName;
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
+        this.flatVectorThreshold = flatVectorThreshold;
         this.shouldWriteDirectIoReads = shouldWriteDirectIoReads;
         this.segmentWriteState = state;
         final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
@@ -222,7 +225,11 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
             );
 
             // build centroids
-            final CentroidInformation centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
+            final CentroidInformation centroidAssignments = floatVectorValues.size() > 0
+                && flatVectorThreshold > 0
+                && floatVectorValues.size() <= flatVectorThreshold
+                    ? buildFlatCentroidAssignments(fieldWriter.fieldInfo, floatVectorValues)
+                    : calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
             final CentroidSupplier centroidSupplier = createCentroidSupplier(
                 fieldWriter.fieldInfo,
                 centroidAssignments.centroids(),
@@ -596,21 +603,6 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                 org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
             }
         }
-    }
-
-    public static float[] computeGlobalCentroid(int dims, float[][] centroids) {
-        final float[] globalCentroid = new float[dims];
-        // TODO: push this logic into vector util?
-        for (float[] centroid : centroids) {
-            assert centroid.length == dims;
-            for (int j = 0; j < centroid.length; j++) {
-                globalCentroid[j] += centroid[j];
-            }
-        }
-        for (int j = 0; j < globalCentroid.length; j++) {
-            globalCentroid[j] /= centroids.length;
-        }
-        return globalCentroid;
     }
 
     private static KMeansFloatVectorValues getKMeansFloatVectorValues(

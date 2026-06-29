@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import static org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter.computeGlobalCentroid;
-
 public record CentroidInformation(float[][] centroids, CentroidAssignments centroidAssignments) {
 
     public CentroidInformation(int dims, float[][] centroids, int[] assignments, OverspillAssignments overspillAssignments) {
@@ -55,7 +53,18 @@ public record CentroidInformation(float[][] centroids, CentroidAssignments centr
         return centroidAssignments.overspillAssignments();
     }
 
-    public CentroidSlices centroidSlices() {
-        return centroidAssignments.centroidSlices();
+    private static float[] computeGlobalCentroid(int dims, float[][] centroids) {
+        final float[] globalCentroid = new float[dims];
+        // TODO: push this logic into vector util?
+        for (float[] centroid : centroids) {
+            assert centroid.length == dims;
+            for (int j = 0; j < centroid.length; j++) {
+                globalCentroid[j] += centroid[j];
+            }
+        }
+        for (int j = 0; j < globalCentroid.length; j++) {
+            globalCentroid[j] /= centroids.length;
+        }
+        return globalCentroid;
     }
 }

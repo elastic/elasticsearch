@@ -76,7 +76,6 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
     private final int numMergeWorkers;
     private final int blockDimension;
     private final boolean doPrecondition;
-    private final int flatVectorThreshold;
 
     public ES940DiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -134,7 +133,8 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
             ES940DiskBBQVectorsFormat.IVF_META_EXTENSION,
             ES940DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES940DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            true
+            true,
+            flatVectorThreshold
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
@@ -143,7 +143,6 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
         this.numMergeWorkers = numMergeWorkers;
         this.blockDimension = blockDimension;
         this.doPrecondition = doPrecondition;
-        this.flatVectorThreshold = flatVectorThreshold;
     }
 
     @Override
@@ -644,14 +643,14 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
         }
     }
 
-    private void writeCentroidLookup(IndexOutput out, int[] centroidAssignments, IntUnaryOperator OrdinalMap, int numberCentroids)
+    private void writeCentroidLookup(IndexOutput out, int[] centroidAssignments, IntUnaryOperator ordinalMap, int numberCentroids)
         throws IOException {
         final int bitsRequired = DirectWriter.bitsRequired(numberCentroids);
         final long bytesRequired = DirectWriter.bytesRequired(centroidAssignments.length, bitsRequired);
         final ByteBuffersDataOutput memory = new ByteBuffersDataOutput(bytesRequired);
         final DirectWriter writer = DirectWriter.getInstance(memory, centroidAssignments.length, bitsRequired);
         for (int centroidAssignment : centroidAssignments) {
-            writer.add(OrdinalMap.applyAsInt(centroidAssignment));
+            writer.add(ordinalMap.applyAsInt(centroidAssignment));
         }
         writer.finish();
         out.copyBytes(memory.toDataInput(), memory.size());
@@ -816,12 +815,8 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
      */
     @Override
     public CentroidInformation calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
-        if (floatVectorValues.size() > 0 && flatVectorThreshold > 0 && floatVectorValues.size() <= flatVectorThreshold) {
-            return buildFlatCentroidAssignments(fieldInfo, floatVectorValues);
-        } else {
-            HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
-            return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
-        }
+        HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
+        return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
     }
 
     private CentroidInformation calculateCentroids(

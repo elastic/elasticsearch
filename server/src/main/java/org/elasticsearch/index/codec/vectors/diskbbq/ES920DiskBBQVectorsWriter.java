@@ -52,7 +52,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
-    private final int flatVectorThreshold;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
 
@@ -103,9 +102,9 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             ES920DiskBBQVectorsFormat.IVF_META_EXTENSION,
             ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO
+            writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            flatVectorThreshold
         );
-        this.flatVectorThreshold = flatVectorThreshold;
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.mergeExec = mergeExec;

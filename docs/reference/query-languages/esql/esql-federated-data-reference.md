@@ -1,6 +1,6 @@
 ---
 navigation_title: "Reference"
-description: "API reference, settings, schema discovery, and limits for {{esql}} federated data sources and datasets."
+description: "API reference, settings, schema inference, and limits for {{esql}} federated data sources and datasets."
 applies_to:
   stack: preview =9.5
   serverless: preview
@@ -482,7 +482,7 @@ A dataset is a file, not an {{es}} index, so the operations below are not availa
 
 Complex Parquet types MAP and nested LIST are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`).
 
-## Schema discovery
+## How schemas are inferred
 
 <!-- TODO: Confirm whether the schema discovery API (GET /_query/data_source/{name}/_schema) is public.
      Tracked in https://github.com/elastic/esql-planning/issues/288 -->

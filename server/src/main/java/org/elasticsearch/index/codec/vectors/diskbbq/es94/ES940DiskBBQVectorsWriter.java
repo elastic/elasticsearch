@@ -66,7 +66,7 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  * partition the vector space, and then stores the centroids and posting list in a sequential
  * fashion.
  */
-public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
+public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVectorsWriter.CentroidGroups> {
     private static final Logger logger = LogManager.getLogger(ES940DiskBBQVectorsWriter.class);
 
     private final int vectorPerCluster;
@@ -76,6 +76,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int numMergeWorkers;
     private final int blockDimension;
     private final boolean doPrecondition;
+    private final int flatVectorThreshold;
 
     public ES940DiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -133,8 +134,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             ES940DiskBBQVectorsFormat.IVF_META_EXTENSION,
             ES940DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES940DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            true,
-            flatVectorThreshold
+            true
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
@@ -143,6 +143,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         this.numMergeWorkers = numMergeWorkers;
         this.blockDimension = blockDimension;
         this.doPrecondition = doPrecondition;
+        this.flatVectorThreshold = flatVectorThreshold;
     }
 
     @Override
@@ -607,59 +608,43 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
     }
 
-    @Override
-    public void writeCentroids(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        int[] centroidAssignments,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput
-    ) throws IOException {
-        doWriteCentroids(fieldInfo, centroidSupplier, centroidAssignments, globalCentroid, centroidOffsetAndLength, centroidOutput);
-    }
+    record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
 
     @Override
-    public void writeCentroids(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        int[] centroidAssignments,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput,
-        MergeState mergeState
-    ) throws IOException {
-        doWriteCentroids(fieldInfo, centroidSupplier, centroidAssignments, globalCentroid, centroidOffsetAndLength, centroidOutput);
-    }
-
-    private record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
-
-    private void doWriteCentroids(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        int[] centroidAssignments,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput
-    ) throws IOException {
+    protected CentroidGroups writeCentroidIndex(CentroidSupplier centroidSupplier, int[] centroidAssignments, IndexOutput centroidOutput)
+        throws IOException {
         if (centroidSupplier.secondLevelClusters().centroidsSupplier().size() > 1) {
             final CentroidGroups centroidGroups = buildCentroidGroups(centroidSupplier.secondLevelClusters());
-            {
-                // write vector ord -> centroid lookup table. We need to remap current centroid ordinals
-                // to the ordinals on the parent / child structure.
-                final int[] centroidOrdinalMap = new int[centroidSupplier.size()];
-                int idx = 0;
-                for (int[] centroidVectors : centroidGroups.vectors()) {
-                    for (int assignment : centroidVectors) {
-                        centroidOrdinalMap[assignment] = idx++;
-                    }
+            // write vector ord -> centroid lookup table. We need to remap current centroid ordinals
+            // to the ordinals on the parent / child structure.
+            final int[] centroidOrdinalMap = new int[centroidSupplier.size()];
+            int idx = 0;
+            for (int[] centroidVectors : centroidGroups.vectors()) {
+                for (int assignment : centroidVectors) {
+                    centroidOrdinalMap[assignment] = idx++;
                 }
-                assert idx == centroidSupplier.size() : "Expected [" + centroidSupplier.size() + "], got [" + idx + "]";
-                writeCentroidLookup(centroidOutput, centroidAssignments, i -> centroidOrdinalMap[i], centroidSupplier.size());
             }
-            writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput, centroidGroups);
+            assert idx == centroidSupplier.size() : "Expected [" + centroidSupplier.size() + "], got [" + idx + "]";
+            writeCentroidLookup(centroidOutput, centroidAssignments, i -> centroidOrdinalMap[i], centroidSupplier.size());
+            return centroidGroups;
         } else {
             writeCentroidLookup(centroidOutput, centroidAssignments, IntUnaryOperator.identity(), centroidSupplier.size());
+            return null;
+        }
+    }
+
+    @Override
+    protected void writeCentroidData(
+        FieldInfo fieldInfo,
+        CentroidSupplier centroidSupplier,
+        float[] globalCentroid,
+        CentroidOffsetAndLength centroidOffsetAndLength,
+        CentroidGroups centroidGroups,
+        IndexOutput centroidOutput
+    ) throws IOException {
+        if (centroidGroups != null) {
+            writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput, centroidGroups);
+        } else {
             writeCentroidsWithoutParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
         }
     }
@@ -836,8 +821,12 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
      */
     @Override
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
-        HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
-        return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
+        if (floatVectorValues.size() > 0 && flatVectorThreshold > 0 && floatVectorValues.size() <= flatVectorThreshold) {
+            return buildFlatCentroidAssignments(fieldInfo, floatVectorValues);
+        } else {
+            HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
+            return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
+        }
     }
 
     private CentroidAssignments calculateCentroids(

@@ -47,11 +47,12 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
  * partition the vector space, and then stores the centroids and posting list in a sequential
  * fashion.
  */
-public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
+public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVectorsWriter.CentroidGroups> {
     private static final Logger logger = LogManager.getLogger(ES920DiskBBQVectorsWriter.class);
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
+    private final int flatVectorThreshold;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
 
@@ -102,9 +103,9 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             ES920DiskBBQVectorsFormat.IVF_META_EXTENSION,
             ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
-            flatVectorThreshold
+            writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO
         );
+        this.flatVectorThreshold = flatVectorThreshold;
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.mergeExec = mergeExec;
@@ -486,42 +487,28 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         // no-op
     }
 
-    @Override
-    public void writeCentroids(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        int[] centroidAssignments,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput
-    ) throws IOException {
-        doWriteCentroids(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
-    }
+    record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
 
     @Override
-    public void writeCentroids(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        int[] centroidAssignments,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput,
-        MergeState mergeState
-    ) throws IOException {
-        doWriteCentroids(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
-    }
-
-    private record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
-
-    private void doWriteCentroids(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput
-    ) throws IOException {
+    protected CentroidGroups writeCentroidIndex(CentroidSupplier centroidSupplier, int[] centroidAssignments, IndexOutput centroidOutput)
+        throws IOException {
         if (centroidSupplier.secondLevelClusters().centroidsSupplier().size() > 1) {
-            final CentroidGroups centroidGroups = buildCentroidGroups(centroidSupplier);
+            return buildCentroidGroups(centroidSupplier);
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    protected void writeCentroidData(
+        FieldInfo fieldInfo,
+        CentroidSupplier centroidSupplier,
+        float[] globalCentroid,
+        CentroidOffsetAndLength centroidOffsetAndLength,
+        CentroidGroups centroidGroups,
+        IndexOutput centroidOutput
+    ) throws IOException {
+        if (centroidGroups != null) {
             writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput, centroidGroups);
         } else {
             writeCentroidsWithoutParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);

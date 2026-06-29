@@ -30,7 +30,55 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 class FlatCentroidIndexWriter {
 
-    private record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
+    record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
+
+    static CentroidGroups writeCentroidIndex(CentroidSupplier centroidSupplier, int[] centroidAssignments, IndexOutput centroidOutput)
+        throws IOException {
+        CentroidSlices centroidSlices = centroidSupplier.slices();
+        if (centroidSlices != null) {
+            int numSlices = centroidSlices.sliceNumVectors().length;
+            int maxSlice = centroidSlices.maxSliceSize();
+            int bits = DirectWriter.bitsRequired(maxSlice);
+            DirectWriter writer = DirectWriter.getInstance(centroidOutput, numSlices, bits);
+            for (int i = 0; i < centroidSlices.sliceNumVectors().length; i++) {
+                writer.add(centroidSlices.sliceNumVectors()[i]);
+            }
+            writer.finish();
+        }
+        if (centroidSupplier.secondLevelClusters().centroidsSupplier().size() > 1) {
+            final CentroidGroups centroidGroups = buildCentroidGroups(centroidSupplier.secondLevelClusters());
+            // write vector ord -> centroid lookup table. We need to remap current centroid ordinals
+            // to the ordinals on the parent / child structure.
+            final int[] centroidOrdinalMap = new int[centroidSupplier.size()];
+            int idx = 0;
+            for (int[] centroidVectors : centroidGroups.vectors()) {
+                for (int assignment : centroidVectors) {
+                    centroidOrdinalMap[assignment] = idx++;
+                }
+            }
+            assert idx == centroidSupplier.size() : "Expected [" + centroidSupplier.size() + "], got [" + idx + "]";
+            writeCentroidLookup(centroidOutput, centroidAssignments, i -> centroidOrdinalMap[i], centroidSupplier.size());
+            return centroidGroups;
+        } else {
+            writeCentroidLookup(centroidOutput, centroidAssignments, IntUnaryOperator.identity(), centroidSupplier.size());
+            return null;
+        }
+    }
+
+    static void writeCentroidData(
+        FieldInfo fieldInfo,
+        CentroidSupplier centroidSupplier,
+        float[] globalCentroid,
+        IVFVectorsWriter.CentroidOffsetAndLength centroidOffsetAndLength,
+        CentroidGroups centroidGroups,
+        IndexOutput centroidOutput
+    ) throws IOException {
+        if (centroidGroups != null) {
+            writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput, centroidGroups);
+        } else {
+            writeCentroidsWithoutParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
+        }
+    }
 
     static void writeCentroids(
         FieldInfo fieldInfo,

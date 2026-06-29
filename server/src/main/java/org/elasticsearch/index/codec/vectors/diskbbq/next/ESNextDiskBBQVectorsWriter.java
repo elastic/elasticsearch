@@ -79,7 +79,7 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  * partition the vector space, and then stores the centroids and posting list in a sequential
  * fashion.
  */
-public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
+public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidIndexWriter.CentroidGroups> {
     private static final Logger logger = LogManager.getLogger(ESNextDiskBBQVectorsWriter.class);
 
     private final int vectorPerCluster;
@@ -90,6 +90,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int numMergeWorkers;
     private final int blockDimension;
     private final boolean doPrecondition;
+    private final int flatVectorThreshold;
     // field for slicing, null for no slicing
     private final String sliceField;
     private final IvfFlushConfigSource flushConfigSource;
@@ -123,8 +124,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             ESNextDiskBBQVectorsFormat.IVF_META_EXTENSION,
             ESNextDiskBBQVectorsFormat.CENTROID_EXTENSION,
             ESNextDiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            true,
-            flatVectorThreshold
+            true
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidIndexFormat = centroidIndexFormat;
@@ -134,6 +134,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         this.numMergeWorkers = numMergeWorkers;
         this.blockDimension = blockDimension;
         this.doPrecondition = doPrecondition;
+        this.flatVectorThreshold = flatVectorThreshold;
         this.sliceField = sliceField;
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
@@ -716,37 +717,35 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public void writeCentroids(
-        FieldInfo fieldInfo,
+    protected FlatCentroidIndexWriter.CentroidGroups writeCentroidIndex(
         CentroidSupplier centroidSupplier,
         int[] centroidAssignments,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
     ) throws IOException {
-        switch (centroidIndexFormat) {
-            case FLAT -> FlatCentroidIndexWriter.writeCentroids(
-                fieldInfo,
-                centroidSupplier,
-                centroidAssignments,
-                globalCentroid,
-                centroidOffsetAndLength,
-                centroidOutput
-            );
-        }
+        return switch (centroidIndexFormat) {
+            case FLAT -> FlatCentroidIndexWriter.writeCentroidIndex(centroidSupplier, centroidAssignments, centroidOutput);
+        };
     }
 
     @Override
-    public void writeCentroids(
+    protected void writeCentroidData(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
-        int[] centroidAssignments,
         float[] globalCentroid,
         CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput,
-        MergeState mergeState
+        FlatCentroidIndexWriter.CentroidGroups centroidGroups,
+        IndexOutput centroidOutput
     ) throws IOException {
-        writeCentroids(fieldInfo, centroidSupplier, centroidAssignments, globalCentroid, centroidOffsetAndLength, centroidOutput);
+        switch (centroidIndexFormat) {
+            case FLAT -> FlatCentroidIndexWriter.writeCentroidData(
+                fieldInfo,
+                centroidSupplier,
+                globalCentroid,
+                centroidOffsetAndLength,
+                centroidGroups,
+                centroidOutput
+            );
+        }
     }
 
     @Override

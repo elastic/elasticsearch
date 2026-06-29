@@ -71,7 +71,13 @@ public class GroqActionCreatorTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(Utils.inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, Utils.mockClusterServiceEmpty(), mock(ThrottlerManager.class), new TestCircuitBreaker());
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            Utils.mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After

@@ -82,7 +82,13 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
         var webServerUrl = getUrl(webServer);
 
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class), new TestCircuitBreaker());
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         ccmFeature = mock(CCMFeature.class);
 

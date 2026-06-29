@@ -264,10 +264,7 @@ public class InferencePlugin extends Plugin
 
     // 50% of the available heap will be the upper limit for the memory
     // the inference plugin can use for various tasks (in-flight requests to external providers for example)
-    public static final long DEFAULT_INFERENCE_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo()
-        .getMem()
-        .getHeapMax()
-        .getBytes());
+    public static final long DEFAULT_INFERENCE_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
     public static final double DEFAULT_INFERENCE_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
 
     /**
@@ -361,13 +358,16 @@ public class InferencePlugin extends Plugin
         var circuitBreaker = inferenceCircuitBreaker.get();
 
         var truncator = new Truncator(settings, services.clusterService());
-        serviceComponents.set(
-            new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, circuitBreaker)
-        );
+        serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, circuitBreaker));
         threadPoolSetOnce.set(services.threadPool());
 
-
-        var httpClientManager = HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager, circuitBreaker);
+        var httpClientManager = HttpClientManager.create(
+            settings,
+            services.threadPool(),
+            services.clusterService(),
+            throttlerManager,
+            circuitBreaker
+        );
         var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
         httpFactory.set(httpRequestSenderFactory);
 
@@ -386,7 +386,12 @@ public class InferencePlugin extends Plugin
         var inferenceServiceSettings = new CCMInformedSettings(settings, ccmFeature.get());
         inferenceServiceSettings.init(services.clusterService());
 
-        var eisRequestSenderFactoryComponents = createEisRequestSenderComponents(services, throttlerManager, inferenceServiceSettings, circuitBreaker);
+        var eisRequestSenderFactoryComponents = createEisRequestSenderComponents(
+            services,
+            throttlerManager,
+            inferenceServiceSettings,
+            circuitBreaker
+        );
         var elasticInferenceServiceHttpClientManager = eisRequestSenderFactoryComponents.httpClientManager();
         elasticInferenceServiceFactory.set(eisRequestSenderFactoryComponents.factory());
 

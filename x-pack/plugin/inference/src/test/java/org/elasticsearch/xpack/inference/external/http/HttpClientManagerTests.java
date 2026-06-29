@@ -65,7 +65,13 @@ public class HttpClientManagerTests extends ESTestCase {
         String paramValue = randomAlphaOfLength(3);
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
-        var manager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class), new TestCircuitBreaker());
+        var manager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
         try (var httpClient = manager.getHttpClient()) {
             httpClient.start();
 
@@ -85,7 +91,13 @@ public class HttpClientManagerTests extends ESTestCase {
 
     public void testStartsANewEvictor_WithNewEvictionInterval() {
         var threadPool = mock(ThreadPool.class);
-        var manager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class), new TestCircuitBreaker());
+        var manager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
 
         var evictionInterval = TimeValue.timeValueSeconds(1);
         manager.setEvictionInterval(evictionInterval);

@@ -54,7 +54,12 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
 
     private volatile Exception exception;
 
-    StreamingHttpResultPublisher(ThreadPool threadPool, HttpSettings settings, ActionListener<StreamingHttpResult> listener, CircuitBreaker circuitBreaker) {
+    StreamingHttpResultPublisher(
+        ThreadPool threadPool,
+        HttpSettings settings,
+        ActionListener<StreamingHttpResult> listener,
+        CircuitBreaker circuitBreaker
+    ) {
         this.listener = ActionListener.notifyOnce(Objects.requireNonNull(listener));
 
         this.publisher = new DataPublisher(threadPool);

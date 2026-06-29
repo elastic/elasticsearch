@@ -46,8 +46,7 @@ public interface RecoveryListener {
     /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
     void onRecoveryAborted();
 
-    static RecoveryListener wrapPreservingContext(RecoveryListener listener, ThreadContext threadContext) {
-        final Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(false);
+    static RecoveryListener wrapPreservingContext(RecoveryListener listener, Supplier<ThreadContext.StoredContext> context) {
         return new RecoveryListener() {
             @Override
             public void onRecoveryDone(

@@ -28,6 +28,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes.
@@ -85,7 +86,8 @@ public final class ThrottlingRecoveryService implements Closeable {
         final PendingRecovery pendingRecovery;
         synchronized (this) {
             if (closed == false) {
-                pendingRecovery = new PendingRecovery(projectId, recoveryState, stats, task, recoveryListener);
+                final var restorableContext = threadContext.newRestorableContext(false);
+                pendingRecovery = new PendingRecovery(projectId, recoveryState, stats, task, recoveryListener, restorableContext);
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             } else {
@@ -150,7 +152,13 @@ public final class ThrottlingRecoveryService implements Closeable {
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            executor.execute(new RecoveryRunnable(recovery));
+            projectResolver.executeOnProject(recovery.projectId, () -> {
+                var wrappedListener = RecoveryListener.wrapPreservingContext(
+                    RecoveryListener.runAfter(recovery.listener, () -> releaseSlot(recovery)),
+                    recovery.contextToRestore
+                );
+                executor.execute(new RecoveryRunnable(recovery, wrappedListener));
+            });
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
@@ -189,31 +197,21 @@ public final class ThrottlingRecoveryService implements Closeable {
         RecoveryState recoveryState,
         RecoveryStats stats,
         Consumer<RecoveryListener> task,
-        RecoveryListener listener
+        RecoveryListener listener,
+        Supplier<ThreadContext.StoredContext> contextToRestore
     ) {}
 
     /// Executable wrapper for a dispatched recovery.
-    /// The provided recovery listener (from [PendingRecovery]) is wrapped with `runAfter` (to restore the original
-    /// thread context and remove the projectId header before we then release a recovery slot on completion)
-    /// and `assertOnce` (to ensure there is only one terminal callback).
-    private class RecoveryRunnable extends AbstractRunnable {
-        private final ProjectId projectId;
+    /// The provided recovery listener is wrapped with `assertOnce` (to ensure there is only one terminal callback).
+    private static class RecoveryRunnable extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
         private final RecoveryListener listener;
 
-        private RecoveryRunnable(PendingRecovery pending) {
-            this.projectId = pending.projectId;
+        private RecoveryRunnable(PendingRecovery pending, RecoveryListener recoveryListener) {
             this.recoveryState = pending.recoveryState;
             this.task = pending.task;
-            this.listener = RecoveryListener.assertOnce(
-                // We should recover the original thread context (without the project-id) when calling the listener and
-                // launching the next recovery via [#releaseSlot]
-                RecoveryListener.wrapPreservingContext(
-                    RecoveryListener.runAfter(pending.listener, () -> releaseSlot(pending)),
-                    threadContext
-                )
-            );
+            this.listener = RecoveryListener.assertOnce(recoveryListener);
         }
 
         @Override
@@ -223,7 +221,7 @@ public final class ThrottlingRecoveryService implements Closeable {
 
         @Override
         protected void doRun() {
-            projectResolver.executeOnProject(projectId, () -> task.accept(listener));
+            task.accept(listener);
         }
     }
 }

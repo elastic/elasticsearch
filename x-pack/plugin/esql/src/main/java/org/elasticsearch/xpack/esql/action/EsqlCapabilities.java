@@ -2625,6 +2625,14 @@ public class EsqlCapabilities {
          */
         APPROXIMATION_FIX_MV_FUNCTIONS,
 
+        /**
+         * An empty list passed as a query parameter (named or positional) is treated as null
+         * instead of producing an NPE. A defined-but-null param used in an identifier or pattern
+         * position produces a clean parsing error instead of silently yielding an empty column name.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
+         */
+        EMPTY_LIST_PARAM_AS_NULL,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

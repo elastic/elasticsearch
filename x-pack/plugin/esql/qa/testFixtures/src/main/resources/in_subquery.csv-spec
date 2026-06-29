@@ -1054,7 +1054,7 @@ FROM employees
 ;
 
 emp_no:integer | salary:integer | type:keyword | pvalue:double
-10023          | 1000000        | spike        | 0.0
+10023          | 1000000        | spike        | 0..1E-80
 ;
 
 changePointInsideInSubquery
@@ -1091,7 +1091,7 @@ FROM employees
 ;
 
 emp_no:integer | salary:integer | type:keyword | pvalue:double
-10023          | 1000000        | spike        | 0.0
+10023          | 1000000        | spike        | 0..1E-80
 ;
 
 rerankBeforeInSubquery

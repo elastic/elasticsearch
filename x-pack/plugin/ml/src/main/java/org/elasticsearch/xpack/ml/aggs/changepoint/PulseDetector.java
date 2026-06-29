@@ -236,7 +236,7 @@ public class PulseDetector {
     // Candidate ("long list") threshold: a point is a candidate excursion when its residual from the local
     // rolling-median baseline exceeds this many robust sigmas of the residual scale. Generous pre-filter; the
     // significance decision is the KDE gate.
-    private static final double PULSE_Z_THRESHOLD = 5.0;
+    private static final double PULSE_Z_THRESHOLD = 3.0;
     // Candidates separated by at most this many buckets (and of the same sign) are one physical excursion and
     // are merged. We do NOT chain across larger gaps: repeated/recurring excursions are a structural/dispersion
     // matter, not something the pulse stream should fuse. Set to 1 (strictly adjacent).

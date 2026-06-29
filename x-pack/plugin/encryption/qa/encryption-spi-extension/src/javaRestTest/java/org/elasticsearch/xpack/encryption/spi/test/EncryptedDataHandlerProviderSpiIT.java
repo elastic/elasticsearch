@@ -40,7 +40,6 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
         .setting("xpack.encryption.key_rotation.check_interval", "1s")
         .keystore("cluster.state.encryption.active_password_id", "v1")
         .keystore("cluster.state.encryption.password.v1", "encryption-test-password")
-        .systemProperty("es.project_encryption_key_feature_flag_enabled", "true")
         .user("test-admin", "x-pack-test-password")
         .build();
 

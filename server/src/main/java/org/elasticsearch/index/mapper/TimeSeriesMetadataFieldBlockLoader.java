@@ -12,10 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -29,7 +27,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -125,35 +122,25 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
         assert ctx.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
         var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) ctx.blockLoaderFunctionConfig();
+        MappingLookup mappingLookup = ctx.mappingLookup();
 
-        if (loadMetrics == false) {
-            IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
-            List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
-            // The settings shortcut lists dimensions by name and excludes WITHOUT fields via an exact-name removal.
-            // It cannot honor exclusions when an entry is a wildcard (e.g. a passthrough dimension recorded as
-            // "labels.*"), because a concrete field name like "labels.le" never matches the literal "labels.*".
-            // In that case fall through to the mapping-based enumeration below, which resolves the wildcard to
-            // concrete dimension fields and can drop the excluded ones by name.
-            if (dimensionFieldsFromSettings != null
-                && dimensionFieldsFromSettings.isEmpty() == false
-                && (config.withoutFields().isEmpty() || dimensionFieldsFromSettings.stream().noneMatch(Regex::isSimpleMatchPattern))) {
-                Set<String> result = new LinkedHashSet<>(dimensionFieldsFromSettings);
-                result.removeAll(config.withoutFields());
-                return result;
-            }
+        Set<FieldMapper> dimensionIndex = mappingLookup.indexDimensionFieldMappers();
+        Set<String> result = new LinkedHashSet<>(dimensionIndex.size());
+        for (FieldMapper mapper : dimensionIndex) {
+            result.add(mapper.fieldType().name());
         }
 
-        Set<String> result = new LinkedHashSet<>();
-        MappingLookup mappingLookup = ctx.mappingLookup();
-        for (Mapper mapper : mappingLookup.fieldMappers()) {
-            if (mapper instanceof FieldMapper fieldMapper) {
-                MappedFieldType fieldType = fieldMapper.fieldType();
-                if (fieldType.isDimension() && config.withoutFields().contains(fieldType.name()) == false) {
-                    result.add(fieldType.name());
-                }
-                if (loadMetrics && fieldType.getMetricType() != null) {
-                    result.add(fieldType.name());
-                }
+        for (String skip : config.withoutFields()) {
+            // Resolve each name to its concrete field name so that passthrough aliases
+            // like "cpu" -> "attributes.cpu" are matched correctly.
+            var ft = mappingLookup.getFieldType(skip);
+            result.remove(ft != null ? ft.name() : skip);
+        }
+
+        if (loadMetrics) {
+            // Metrics are disjoint from dimensions by TSDB mapping validation and are never excluded.
+            for (FieldMapper mapper : mappingLookup.indexMetricFieldMappers()) {
+                result.add(mapper.fieldType().name());
             }
         }
 

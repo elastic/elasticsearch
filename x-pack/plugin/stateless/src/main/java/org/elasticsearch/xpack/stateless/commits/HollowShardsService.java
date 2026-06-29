@@ -302,12 +302,19 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
      * If the shard is hollow, the operation will be blocked until the shard is
      * unhollowed and the ingestion blocker is uninstalled.
      *
-     * @param indexShard     the shard for which the mutable operation is being processed
-     * @param permitAcquired whether the operation has acquired an operation permit on the shard
-     * @param listener       the listener to be notified when the mutable operation can proceed
+     * @param indexShard      the shard for which the mutable operation is being processed
+     * @param permitAcquired  whether the operation has acquired an operation permit on the shard
+     * @param executorOnDelay executor used to notify the listener if the shard is hollow;
+     *                        if the shard is already mutable the listener is notified on the calling thread
+     * @param listener        the listener to be notified when the mutable operation can proceed
      */
     @Override
-    public void beforeMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
+    public void beforeMutableOperation(
+        IndexShard indexShard,
+        boolean permitAcquired,
+        Executor executorOnDelay,
+        ActionListener<Void> listener
+    ) {
         // Unhollowing requires a primary permit. We use the permitAcquired flag to determine if the primary permit has been acquired.
         // If it's not, we take our own primary permit here before unhollowing.
         // Ingestion already holds a primary permit, so there is no need to take another one, and it would be dangerous to take yet
@@ -325,13 +332,17 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
             if (permitAcquired) {
                 logger.debug(() -> "adding ingestion operation for shard " + shardId + " to the ingestion blocker");
                 assert indexShard.getActiveOperationsCount() != 0 : indexShard.getActiveOperationsCount();
-                ingestionBlocker.listener.addListener(listener);
+                ingestionBlocker.listener.addListener(listener, executorOnDelay, threadPool.getThreadContext());
                 unhollow(shardId);
             } else {
                 logger.debug(() -> "acquiring primary permit for shard " + shardId + " for unhollowing");
                 indexShard.acquirePrimaryOperationPermit(ActionListener.wrap(primaryPermit -> {
                     logger.debug(() -> "acquired primary permit for shard " + shardId + " and adding to the ingestion blocker");
-                    ingestionBlocker.listener.addListener(ActionListener.releaseBefore(primaryPermit, listener));
+                    ingestionBlocker.listener.addListener(
+                        ActionListener.releaseBefore(primaryPermit, listener),
+                        executorOnDelay,
+                        threadPool.getThreadContext()
+                    );
                     unhollow(shardId);
                 }, e -> listener.onFailure(e)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }

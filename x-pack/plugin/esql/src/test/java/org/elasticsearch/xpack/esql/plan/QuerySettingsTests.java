@@ -304,7 +304,6 @@ public class QuerySettingsTests extends ESTestCase {
     public static void generateDocs() throws Exception {
         List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values()
             .stream()
-            .filter(def -> def.snapshotOnly() == false)
             .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
             .toList();
 

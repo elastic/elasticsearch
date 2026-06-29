@@ -454,7 +454,7 @@ public class EsqlSession {
                             )
                         )
                         .<Result>andThen((l, p) -> {
-                            columnMetadata.set(createColumnMetadata(p, foldContext, statement));
+                            columnMetadata.set(createColumnMetadata(p, foldContext, statement.setting(QuerySettings.COLUMN_METADATA)));
                             executeOptimizedPlan(
                                 request,
                                 executionInfo,
@@ -575,11 +575,11 @@ public class EsqlSession {
     private Map<NameId, Map<String, Object>> createColumnMetadata(
         LogicalPlan optimizedPlan,
         FoldContext foldContext,
-        EsqlStatement statement
+        boolean columnMetadataEnabled
     ) {
         // TODO we need to enforce NameId do not change during optimization.
         // Otherwise metadata might not be found when redering result.
-        Map<NameId, Map<String, Object>> bucketMetadata = statement.setting(QuerySettings.COLUMN_METADATA)
+        Map<NameId, Map<String, Object>> bucketMetadata = columnMetadataEnabled
             ? BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext)
             : Map.of();
         return Maps.merge(

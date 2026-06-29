@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
@@ -41,7 +40,6 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
     @Inject
     public DataStreamLifecycleUsageTransportAction(
         TransportService transportService,
-        Settings settings,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
@@ -51,7 +49,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         super(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
         this.globalRetentionSettings = globalRetentionSettings;
         this.projectResolver = projectResolver;
-        this.isStateless = DiscoveryNode.isStateless(settings);
+        this.isStateless = DiscoveryNode.isStateless(clusterService.getSettings());
     }
 
     @Override

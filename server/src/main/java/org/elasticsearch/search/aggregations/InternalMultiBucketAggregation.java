@@ -216,6 +216,7 @@ public abstract class InternalMultiBucketAggregation<
                 aggs.add(agg.reducePipelines(agg, reduceContext, subTree));
             }
             reducedBuckets.add(createBucket(InternalAggregations.from(aggs), bucket));
+            reduceContext.consumeBucketsAndMaybeBreak(0); // Check the real memory breaker
         }
         return reducedBuckets;
     }

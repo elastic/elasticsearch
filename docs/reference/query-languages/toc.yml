@@ -434,6 +434,7 @@ toc:
           - file: promql/functions/math.md
           - file: promql/functions/date-time.md
           - file: promql/functions/conversion.md
+      - file: promql/promql-grafana.md
       - file: promql/promql-limitations.md
   - file: sql.md
     children:

@@ -64,6 +64,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.stateless.utils.WaitForVersion;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -211,6 +213,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
+    public static final String BCC_ON_DISK_COUNT_METRIC = "es.bcc.on_disk.total";
+    public static final String BCC_ON_DISK_SIZE_METRIC = "es.bcc.on_disk.size";
 
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
@@ -342,6 +346,35 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 "Histogram for elapsed time in milliseconds of batched compound commits before freezing",
                 "ms"
             );
+        var meterRegistry = telemetryProvider.getMeterRegistry();
+        meterRegistry.registerLongGauge(
+            BCC_ON_DISK_COUNT_METRIC,
+            "Total number of batched compound commits with local data on disk on this node",
+            "count",
+            () -> new LongWithAttributes(getBccOnDiskCount(shardsCommitsStates.values()))
+        );
+        meterRegistry.registerLongGauge(
+            BCC_ON_DISK_SIZE_METRIC,
+            "Total size in bytes of batched compound commits with local data on disk on this node",
+            "bytes",
+            () -> new LongWithAttributes(getBccOnDiskSizeInBytes(shardsCommitsStates.values()))
+        );
+    }
+
+    private static long getBccOnDiskCount(Collection<ShardCommitState> shardCommitStates) {
+        long count = 0;
+        for (ShardCommitState commitState : shardCommitStates) {
+            count += commitState.getBccOnDiskCount();
+        }
+        return count;
+    }
+
+    private static long getBccOnDiskSizeInBytes(Collection<ShardCommitState> shardCommitStates) {
+        long sizeInBytes = 0;
+        for (ShardCommitState commitState : shardCommitStates) {
+            sizeInBytes += commitState.getBccOnDiskSizeInBytes();
+        }
+        return sizeInBytes;
     }
 
     public boolean useReplicatedRanges() {
@@ -943,13 +976,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         if (bccUploadSlowLogThresholdMillis <= 0 || uploadResult.totalUploadTimeMs() < bccUploadSlowLogThresholdMillis) {
             return;
         }
+
+        final ShardId shardId = virtualBcc.getShardId();
+        // The BCC has not yet been marked as uploaded so we need to remove one
+        final int generationQueueSize = this.shardsCommitsStates.get(shardId).getPendingUploadCount() - 1;
+
         final var message = new ESLogMessage(
-            "{} batched compound commit [{}] upload took [{}]ms over [{}] attempt(s): {}",
-            virtualBcc.getShardId(),
+            "{} batched compound commit [{}] upload took [{}]ms over [{}] attempt(s): {} ( remaining BCCs in the generation queue: {} )",
+            shardId,
             virtualBcc.getPrimaryTermAndGeneration().generation(),
             uploadResult.totalUploadTimeMs(),
             uploadResult.uploadAttempts(),
-            uploadResult.attemptsToLogString()
+            uploadResult.attemptsToLogString(),
+            generationQueueSize
         ).field("elasticsearch.primary.bcc_upload_time", uploadResult.totalUploadTimeMs())
             .field("elasticsearch.primary.bcc_upload_attempts", uploadResult.uploadAttempts())
             .field("elasticsearch.primary.bcc_generation_queue_time", uploadResult.totalGenerationQueueWaitMs())
@@ -1250,6 +1289,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // uploaded which is then removed from pendingUploadBccGenerations.
         private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
         private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
+        private volatile long pendingUploadTotalSizeInBytes;
         private volatile BatchedCompoundCommit latestUploadedBcc = null;
         // NOTE When moving a VBCC through its lifecycle, we must update it first in the new state before remove it from the old state.
         // That is, we must first add it to the `pendingUploadBccGenerations` before un-assigning it from `currentVirtualBcc`,
@@ -1350,6 +1390,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         public ShardLocalCommitsTracker shardLocalCommitsTracker() {
             return shardLocalCommitsTracker;
+        }
+
+        public int getPendingUploadCount() {
+            return this.pendingUploadBccGenerations.size();
+        }
+
+        public int getBccOnDiskCount() {
+            return (this.currentVirtualBcc == null ? 0 : 1) + getPendingUploadCount();
+        }
+
+        public long getBccOnDiskSizeInBytes() {
+            var current = this.currentVirtualBcc;
+            return (current == null ? 0 : current.getTotalSizeInBytes()) + pendingUploadTotalSizeInBytes;
         }
 
         /**
@@ -1820,6 +1873,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 assert previous == null : "expected null, but got " + previous;
                 // reset after add to pending list so that vbcc is always visible as either pending or current
                 currentVirtualBcc = null;
+                pendingUploadTotalSizeInBytes += expectedVirtualBcc.getTotalSizeInBytes();
                 logger.trace(
                     () -> Strings.format(
                         "%s reset current VBCC generation [%s] after freeze",
@@ -2005,7 +2059,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (newBccGeneration <= getMaxUploadedBccGeneration()) {
                     if (isUpload) {
                         // Remove the BCC from the pending list regardless just in case
-                        pendingUploadBccGenerations.remove(newBccGeneration);
+                        var removed = pendingUploadBccGenerations.remove(newBccGeneration);
+                        if (removed != null) {
+                            pendingUploadTotalSizeInBytes -= removed.getTotalSizeInBytes();
+                        }
                     }
                     assert false
                         : "out of order BCC generation ["
@@ -2068,7 +2125,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (isUpload) {
                     // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
-                    assert removed != null : newBccGeneration + "not found";
+                    if (removed != null) {
+                        pendingUploadTotalSizeInBytes -= removed.getTotalSizeInBytes();
+                    } else {
+                        assert false : newBccGeneration + "not found";
+                    }
                 }
                 if (generationListeners != null) {
                     List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;

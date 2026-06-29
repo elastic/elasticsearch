@@ -10,7 +10,7 @@ products:
 
 # {{esql}} federated data
 
-{{esql}} federated data enables you to query data stored outside {{es}} without ingesting it first. You register a connection to an external system, define which data to query, and access it with `FROM`, the same syntax used for native indices. External data and indexed data can be queried side by side in a single workflow.
+{{esql}} federated data enables you to query data stored in external sources, without ingesting into {{es}}, using the same syntax you use for native indices and other index abstractions.
 
 ## Why use federated data
 

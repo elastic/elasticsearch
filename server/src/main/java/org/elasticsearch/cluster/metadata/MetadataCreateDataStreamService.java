@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -443,7 +442,6 @@ public class MetadataCreateDataStreamService {
      * resource already exists, the caller needs to handle this.
      */
     public ClusterState createPastBackingIndex(
-        SystemIndices systemIndices,
         ClusterState currentState,
         ProjectId projectId,
         RerouteBehavior rerouteBehavior,
@@ -453,25 +451,15 @@ public class MetadataCreateDataStreamService {
         Instant startTime,
         Instant endTime
     ) throws Exception {
-        final ComposableIndexTemplate template;
-        final SystemDataStreamDescriptor systemDataStreamDescriptor;
         final ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
-        if (dataStream.isSystem() == false) {
-            systemDataStreamDescriptor = null;
-            template = dataStream.getEffectiveIndexTemplate(projectMetadata);
-        } else {
-            systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStream.getName());
-            if (systemDataStreamDescriptor == null) {
-                throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStream.getName() + "]");
-            }
-            template = systemDataStreamDescriptor.getComposableIndexTemplate();
-        }
+        assert dataStream.isSystem() == false : "Automatic backing index creation is not supported for system time series data streams.";
+        final ComposableIndexTemplate template = dataStream.getEffectiveIndexTemplate(projectMetadata);
         CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
             "initialize_past_backing_index",
             projectId,
             backingIndexName,
             backingIndexName
-        ).dataStreamName(dataStream.getName()).systemDataStreamDescriptor(systemDataStreamDescriptor).setMatchingTemplate(template);
+        ).dataStreamName(dataStream.getName()).setMatchingTemplate(template);
 
         Settings.Builder settings = Settings.builder()
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(startTime))

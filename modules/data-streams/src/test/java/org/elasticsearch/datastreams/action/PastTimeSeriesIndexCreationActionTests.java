@@ -29,7 +29,6 @@ import org.elasticsearch.datastreams.action.TransportPastTimeSeriesIndexCreation
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -60,28 +59,24 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
     private MetadataCreateDataStreamService createDataStreamService;
     private PastTimeSeriesIndexCreationExecutor executor;
     private ProjectResolver projectResolver;
-    private SystemIndices systemIndices;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         projectId = randomProjectIdOrDefault();
         createDataStreamService = mock(MetadataCreateDataStreamService.class);
-        when(createDataStreamService.createPastBackingIndex(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenAnswer(
-            inv -> {
-                ClusterState clusterState = inv.getArgument(1);
-                String indexName = inv.getArgument(6);
-                Instant startTime = inv.getArgument(7);
-                Instant endTime = inv.getArgument(8);
-                IndexMetadata indexMetadata = createIndexMetadata(indexName, startTime, endTime);
-                ProjectMetadata projectMetadata = clusterState.projectState(projectId).metadata();
-                DataStream dataStream = projectMetadata.dataStreams().get(DATA_STREAM).unsafeAddBackingIndex(indexMetadata.getIndex());
-                ProjectMetadata project = ProjectMetadata.builder(projectMetadata).put(indexMetadata, false).put(dataStream).build();
-                return ClusterState.builder(clusterState).putProjectMetadata(project).build();
-            }
-        );
+        when(createDataStreamService.createPastBackingIndex(any(), any(), any(), any(), any(), any(), any(), any())).thenAnswer(inv -> {
+            ClusterState clusterState = inv.getArgument(0);
+            String indexName = inv.getArgument(5);
+            Instant startTime = inv.getArgument(6);
+            Instant endTime = inv.getArgument(7);
+            IndexMetadata indexMetadata = createIndexMetadata(indexName, startTime, endTime);
+            ProjectMetadata projectMetadata = clusterState.projectState(projectId).metadata();
+            DataStream dataStream = projectMetadata.dataStreams().get(DATA_STREAM).unsafeAddBackingIndex(indexMetadata.getIndex());
+            ProjectMetadata project = ProjectMetadata.builder(projectMetadata).put(indexMetadata, false).put(dataStream).build();
+            return ClusterState.builder(clusterState).putProjectMetadata(project).build();
+        });
         projectResolver = TestProjectResolvers.singleProject(projectId);
-        systemIndices = mock(SystemIndices.class);
     }
 
     public void testSortAndRetrieve() {
@@ -237,7 +232,6 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 emptyState,
                 projectResolver,
                 createDataStreamService,
-                systemIndices,
                 task,
                 new ArrayList<>(),
                 new HashSet<>(),
@@ -270,7 +264,6 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 stateWithReplicated,
                 projectResolver,
                 createDataStreamService,
-                systemIndices,
                 task,
                 new ArrayList<>(),
                 new HashSet<>(),
@@ -302,7 +295,6 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 state,
                 projectResolver,
                 createDataStreamService,
-                systemIndices,
                 task,
                 new ArrayList<>(),
                 new HashSet<>(),
@@ -312,6 +304,39 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             )
         );
         assertThat(illegalArgumentException.getMessage(), containsString(", it needs to be a time series data stream."));
+    }
+
+    public void testSystemDataStreamFails() {
+        ClusterState state = stateWithExisting(List.of(), Instant.now());
+        ProjectMetadata projectMetadata = state.projectState(projectId).metadata();
+        DataStream ds = projectMetadata.dataStreams().get(DATA_STREAM).copy().setSystem(true).setHidden(true).build();
+        ClusterState stateWithSystem = ClusterState.builder(state)
+            .putProjectMetadata(ProjectMetadata.builder(projectMetadata).put(ds).build())
+            .build();
+        long ts = Instant.parse("2024-01-15T09:00:00Z").toEpochMilli();
+        var task = new PastTsdbIndexCreationTask(
+            DATA_STREAM,
+            new long[] { ts },
+            Set.of(),
+            TimeValue.ZERO,
+            ActionListener.noop(),
+            Instant.now().toEpochMilli()
+        );
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> PastTimeSeriesIndexCreationExecutor.executeTask(
+                stateWithSystem,
+                projectResolver,
+                createDataStreamService,
+                task,
+                new ArrayList<>(),
+                new HashSet<>(),
+                new HashMap<>(),
+                INDEX_DURATION_MILLIS,
+                -1L
+            )
+        );
+        assertThat(illegalArgumentException.getMessage(), containsString("Cannot create past TSDB backing index for system data stream"));
     }
 
     public void testResponseSerialization() throws Exception {
@@ -394,7 +419,6 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             state,
             projectResolver,
             createDataStreamService,
-            systemIndices,
             task,
             createdNames,
             covered,

@@ -44,7 +44,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -101,7 +100,6 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
     public TransportPastTimeSeriesIndexCreationAction(
         TransportService transportService,
         ClusterService clusterService,
-        SystemIndices systemIndices,
         Settings settings,
         ThreadPool threadPool,
         ActionFilters actionFilters,
@@ -127,7 +125,6 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             clusterService,
             allocationService,
             createDataStreamService,
-            systemIndices,
             projectResolver,
             timeSeriesEligibleWriteWindowLocator,
             dataStreamGlobalRetentionSettings
@@ -212,7 +209,6 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         private final ClusterService clusterService;
         private final AllocationService allocationService;
         private final MetadataCreateDataStreamService createDataStreamService;
-        private final SystemIndices systemIndices;
         private final ProjectResolver projectResolver;
         private final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator;
         private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings;
@@ -223,7 +219,6 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             ClusterService clusterService,
             AllocationService allocationService,
             MetadataCreateDataStreamService createDataStreamService,
-            SystemIndices systemIndices,
             ProjectResolver projectResolver,
             TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
             DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
@@ -231,7 +226,6 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             this.clusterService = clusterService;
             this.allocationService = allocationService;
             this.createDataStreamService = createDataStreamService;
-            this.systemIndices = systemIndices;
             this.projectResolver = projectResolver;
             this.timeSeriesEligibleWriteWindowLocator = timeSeriesEligibleWriteWindowLocator;
             this.dataStreamGlobalRetentionSettings = dataStreamGlobalRetentionSettings;
@@ -267,7 +261,6 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                         state,
                         projectResolver,
                         createDataStreamService,
-                        systemIndices,
                         task,
                         createdIndexNames,
                         coveredTimestamps,
@@ -359,7 +352,6 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             ClusterState clusterState,
             ProjectResolver projectResolver,
             MetadataCreateDataStreamService createDataStreamService,
-            SystemIndices systemIndices,
             PastTsdbIndexCreationTask task,
             List<String> createdIndexNames,
             Set<Instant> coveredTimestamps,
@@ -430,7 +422,6 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
 
                 String pastIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, dataStream.getGeneration() + 1, indexStart);
                 updatedClusterState = createDataStreamService.createPastBackingIndex(
-                    systemIndices,
                     updatedClusterState,
                     projectResolver.getProjectId(),
                     RerouteBehavior.SKIP_REROUTE,
@@ -485,9 +476,11 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         if (dataStream == null) {
             throw new ResourceNotFoundException("Data stream [" + dataStreamName + "] not found");
         }
-        // Checking here is sufficient because a data stream cannot be converted from leader to follower, only the other way around.
         if (dataStream.isReplicated()) {
             throw new IllegalArgumentException("Cannot create past TSDB backing index for replicated data stream [" + dataStreamName + "]");
+        }
+        if (dataStream.isSystem()) {
+            throw new IllegalArgumentException("Cannot create past TSDB backing index for system data stream [" + dataStreamName + "]");
         }
 
         if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {

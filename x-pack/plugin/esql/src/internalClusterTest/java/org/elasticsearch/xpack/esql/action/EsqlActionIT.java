@@ -1492,6 +1492,61 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testConflictedMultifieldTransportAcrossNodes() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        String node1 = randomDataNode().getName();
+        String node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        Settings settings1 = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.require._name", node1)
+            .build();
+        Settings settings2 = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.require._name", node2)
+            .build();
+        assertAcked(client().admin().indices().prepareCreate("conflict-a").setSettings(settings1).setMapping("""
+            {
+              "properties": {
+                "my_field": {
+                  "type": "keyword",
+                  "fields": {
+                    "analyzed": {
+                      "type": "text"
+                    }
+                  }
+                }
+              }
+            }"""));
+        assertAcked(client().admin().indices().prepareCreate("conflict-b").setSettings(settings2).setMapping("""
+            {
+              "properties": {
+                "my_field": {
+                  "type": "keyword",
+                  "fields": {
+                    "analyzed": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }"""));
+        client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(prepareIndex("conflict-a").setSource(Map.of("my_field", "hello")))
+            .add(prepareIndex("conflict-b").setSource(Map.of("my_field", "world")))
+            .get();
+
+        try (
+            var resp = run(syncEsqlQueryRequest("FROM conflict-a,conflict-b | SORT my_field | LIMIT 2").allowPartialResults(false))
+        ) {
+            assertThat(resp.isPartial(), equalTo(false));
+            assertThat(resp.columns(), hasItem(equalTo(new ColumnInfoImpl("my_field", "keyword", null))));
+            assertThat(getValuesList(resp), hasSize(2));
+        }
+    }
+
     public void testStatsNestFields() {
         final String node1, node2;
         if (randomBoolean()) {

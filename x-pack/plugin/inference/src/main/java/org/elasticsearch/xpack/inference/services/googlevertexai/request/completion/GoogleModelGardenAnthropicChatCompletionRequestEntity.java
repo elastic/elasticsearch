@@ -41,6 +41,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     private static final String VERTEX_2023_10_16 = "vertex-2023-10-16";
     private static final String STREAM_FIELD = "stream";
     private static final String INPUT_SCHEMA_FIELD = "input_schema";
+    private static final String TOOL_CHOICE_TOOL_TYPE = "tool";
     public static final int DEFAULT_MAX_TOKENS = 1024;
 
     private final UnifiedCompletionRequest unifiedRequest;
@@ -78,15 +79,30 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
         }
         var toolChoice = unifiedRequest.toolChoice();
         if (toolChoice != null) {
-            if (toolChoice instanceof ToolChoiceObject) {
+            if (toolChoice instanceof ToolChoiceObject toolChoiceObject) {
+                // Translate OpenAI's {"type":"function","function":{"name":"..."}} to Anthropic's {"type":"tool","name":"..."}.
                 builder.startObject(TOOL_CHOICE_FIELD);
-                builder.field(TYPE_FIELD, ((ToolChoiceObject) toolChoice).type());
+                builder.field(TYPE_FIELD, TOOL_CHOICE_TOOL_TYPE);
+                if (toolChoiceObject.function() != null) {
+                    builder.field(NAME_FIELD, toolChoiceObject.function().name());
+                }
                 builder.endObject();
-            } else if (toolChoice instanceof ToolChoiceString) {
-                throw new ElasticsearchStatusException(
-                    "Tool choice value is not supported as string by Google Model Garden Anthropic Chat Completion.",
-                    RestStatus.BAD_REQUEST
-                );
+            } else if (toolChoice instanceof ToolChoiceString toolChoiceString) {
+                // Translate OpenAI string values to Anthropic's object format.
+                String anthropicType = switch (toolChoiceString.value()) {
+                    case "none" -> "none";
+                    case "auto" -> "auto";
+                    case "required" -> "any";
+                    default -> throw new ElasticsearchStatusException(
+                        "Unsupported tool_choice value ["
+                            + toolChoiceString.value()
+                            + "] for the Google Model Garden Anthropic chat completion API.",
+                        RestStatus.BAD_REQUEST
+                    );
+                };
+                builder.startObject(TOOL_CHOICE_FIELD);
+                builder.field(TYPE_FIELD, anthropicType);
+                builder.endObject();
             }
         }
         var tools = unifiedRequest.tools();

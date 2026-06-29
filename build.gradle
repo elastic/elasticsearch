@@ -559,12 +559,18 @@ tasks.register("checkBuildLogic").configure {
     ':x-pack:plugin:esql:tools',
     ':x-pack:plugin:esql-core',
   ],
-  releaseTestCheckEsqlQa: [
+  // The ESQL QA suite is sharded into two balanced halves so neither exceeds the CI timeout.
+  // The two heaviest, independently-growing workloads are kept apart: single-node runs the full
+  // CSV-spec suite twice (EsqlSpecIT + EsqlSpecForceStoredLoadingIT), while mixed-cluster runs the
+  // spec/yaml suites once per supported BWC version (and grows as new versions are added).
+  releaseTestCheckEsqlQa1: [
     ':x-pack:plugin:esql:qa:action',
     ':x-pack:plugin:esql:qa:server',
-    ':x-pack:plugin:esql:qa:server:mixed-cluster',
-    ':x-pack:plugin:esql:qa:server:multi-clusters',
     ':x-pack:plugin:esql:qa:server:single-node',
+    ':x-pack:plugin:esql:qa:server:multi-clusters',
+  ],
+  releaseTestCheckEsqlQa2: [
+    ':x-pack:plugin:esql:qa:server:mixed-cluster',
     ':x-pack:plugin:esql:qa:server:multi-node',
     ':x-pack:plugin:esql:qa:security',
   ],

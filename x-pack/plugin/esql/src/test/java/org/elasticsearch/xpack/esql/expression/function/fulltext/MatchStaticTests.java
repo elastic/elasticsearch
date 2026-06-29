@@ -20,6 +20,7 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +43,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class MatchStaticTests extends ESTestCase {
     static String ZERO_TERMS_QUERY = " . . .  ";
+
+    @Before
+    public void setup() {
+        assumeTrue("Runtime lexical search is enabled", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH_V1.isEnabled());
+    }
 
     public void testWithDefaultOptionsWithSingleQueryTerm() {
         Match match = matchWithText("cat", null);

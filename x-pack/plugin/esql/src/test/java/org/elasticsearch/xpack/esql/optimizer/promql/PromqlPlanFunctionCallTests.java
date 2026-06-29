@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTests {
 
@@ -103,6 +105,17 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("round(vector(15.92077), 0.001)", equalTo(15.921));
         assertConstantResult("round(vector(1.8376549999999998), 0.001)", equalTo(1.838));
         assertConstantResult("round(vector(25.832432999999998), 0.001)", equalTo(25.832));
+    }
+
+    /**
+     * Prometheus evaluates {@code round(v, 0)} to {@code NaN}: it computes {@code 1 / to_nearest = +Inf}, so
+     * {@code floor(v * +Inf + 0.5) / +Inf} is {@code NaN} for every input. The PromQL translation builds this chain
+     * with non-finite-preserving arithmetic, so the series is kept as {@code NaN} rather than dropped by the
+     * divide-by-zero guard.
+     */
+    public void testRoundToNearestZeroIsNaN() {
+        assertConstantResult("round(vector(3.7), 0)", equalTo(Double.NaN));
+        assertConstantResult("round(vector(0), 0)", equalTo(Double.NaN)); // exercises the 0 * +Inf = NaN path
     }
 
     public void testYearUsesStepTimestampWhenNoArgument() {
@@ -187,6 +200,24 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("clamp(vector(15), 0, 10)", equalTo(10.0));
         assertConstantResult("clamp(vector(0), 0, 10)", equalTo(0.0));
         assertConstantResult("clamp(vector(10), 0, 10)", equalTo(10.0));
+    }
+
+    /**
+     * Prometheus {@code clamp} returns an empty result (drops the series) when {@code max < min}. The PromQL
+     * translation wraps clamp in {@code CASE(max < min, NULL, clamp)} so the value folds to NULL and is later dropped
+     * by the null-output filter. {@code Clamp} is surrogate-only, so substitute it before folding (as the optimizer
+     * pipeline does).
+     */
+    public void testClampWithMaxBelowMinFoldsToNull() {
+        Expression built = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            "clamp",
+            Source.EMPTY,
+            Literal.fromDouble(Source.EMPTY, 5.0),
+            ctxAt("2024-01-01T00:00:00Z"),
+            List.of(Literal.fromDouble(Source.EMPTY, 10.0), Literal.fromDouble(Source.EMPTY, 0.0))
+        );
+        Expression evaluable = built.transformUp(Expression.class, SubstituteSurrogateExpressions::rule);
+        assertThat(evaluable.fold(FoldContext.small()), nullValue());
     }
 
     public void testClampMin() {

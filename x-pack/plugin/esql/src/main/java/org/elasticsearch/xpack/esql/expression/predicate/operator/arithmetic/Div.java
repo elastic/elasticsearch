@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,17 +21,27 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Div extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
+public class Div extends DenseVectorArithmeticOperation implements BinaryComparisonInversible, NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);
     public static final String OP_NAME = "Div";
 
     private DataType type;
+
+    /**
+     * When {@code true}, the scalar double division follows IEEE-754: division by zero yields {@code ±Inf} (or
+     * {@code NaN} for {@code 0/0}) and other non-finite results are returned as-is, instead of being rejected to
+     * {@code null}. Set only by the PromQL translation, where Prometheus defines {@code x / 0} as {@code ±Inf}/{@code NaN}
+     * with the series kept. The default is {@code false}, preserving ES|QL's divide-by-zero error and finite-only contract.
+     * Only the scalar double path honors this flag.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(operator = "/", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, description = """
         Divide one value by another. For numeric operands, if either field is <<esql-multivalued-fields,multivalued>>
@@ -47,6 +59,10 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
     }
 
     public Div(Source source, Expression left, Expression right, DataType type) {
+        this(source, left, right, type, false);
+    }
+
+    public Div(Source source, Expression left, Expression right, DataType type, boolean allowNonFinite) {
         super(
             source,
             left,
@@ -55,30 +71,36 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivIntsEvaluator.Factory::new,
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
-            DivDoublesEvaluator.Factory::new,
+            (s, lhs, rhs) -> new DivDoublesEvaluator.Factory(s, lhs, rhs, allowNonFinite),
             DIV_DENSE_VECTOR_EVALUATOR,
-            DivIntsByConstantEvaluator.Factory::new,
-            DivLongsByConstantEvaluator.Factory::new,
-            DivDoublesByConstantEvaluator.Factory::new,
+            // The lenient (PromQL) path disables the constant-RHS fast path so all double division flows through the
+            // binary evaluator above, which surfaces ±Inf/NaN (including x/0). The strict path keeps the fast path.
+            allowNonFinite ? null : DivIntsByConstantEvaluator.Factory::new,
+            allowNonFinite ? null : DivLongsByConstantEvaluator.Factory::new,
+            allowNonFinite ? null : DivDoublesByConstantEvaluator.Factory::new,
             /* excludeZeroRhs */ true
         );
         this.type = type;
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Div(StreamInput in) throws IOException {
-        super(
-            in,
-            DIV,
-            DivIntsEvaluator.Factory::new,
-            DivLongsEvaluator.Factory::new,
-            DivUnsignedLongsEvaluator.Factory::new,
-            DivDoublesEvaluator.Factory::new,
-            DIV_DENSE_VECTOR_EVALUATOR,
-            DivIntsByConstantEvaluator.Factory::new,
-            DivLongsByConstantEvaluator.Factory::new,
-            DivDoublesByConstantEvaluator.Factory::new,
-            /* excludeZeroRhs */ true
+        // Children are serialized by BinaryScalarFunction#writeTo (source, left, right); the non-finite flag, when
+        // present, follows them, so read it last to match. The lazily-computed result type is not serialized.
+        // Bypassing the base StreamInput constructor lets the flag reach the double-evaluator factories.
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            null,
+            NonFiniteSupport.readNonFinite(in)
         );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeNonFinite(out);
     }
 
     @Override
@@ -96,11 +118,21 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     @Override
     protected NodeInfo<Div> info() {
-        return NodeInfo.create(this, Div::new, left(), right(), type);
+        return NodeInfo.create(this, Div::new, left(), right(), type, allowNonFinite);
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Div(source(), left(), right(), type, false);
     }
 
     protected Div replaceChildren(Expression newLeft, Expression newRight) {
-        return new Div(source(), newLeft, newRight, type);
+        return new Div(source(), newLeft, newRight, type, allowNonFinite);
     }
 
     @Override
@@ -133,7 +165,12 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
     }
 
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
-    static double processDoubles(double lhs, double rhs) {
+    static double processDoubles(double lhs, double rhs, @Fixed(includeInToString = false) boolean allowNonFinite) {
+        if (allowNonFinite) {
+            // Prometheus defines x / 0 as ±Inf (NaN for 0/0) with the series kept, so skip both the divide-by-zero
+            // guard and the finite-number check and let IEEE-754 division produce the result.
+            return lhs / rhs;
+        }
         if (rhs == 0.0) {
             throw new ArithmeticException("/ by zero");
         }

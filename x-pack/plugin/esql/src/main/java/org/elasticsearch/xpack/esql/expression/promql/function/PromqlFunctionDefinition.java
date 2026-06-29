@@ -54,6 +54,16 @@ public final class PromqlFunctionDefinition {
     }
 
     /**
+     * Constructor reference for a unary function whose non-finite behavior is selectable, i.e. a constructor of the
+     * form {@code (source, field, allowNonFinite)}. Used by {@link Builder#unaryNonFiniteValueTransformation} to build
+     * the PromQL variant of math functions that must follow IEEE-754 semantics.
+     */
+    @FunctionalInterface
+    public interface NonFiniteUnaryBuilder {
+        Expression build(Source source, Expression field, boolean allowNonFinite);
+    }
+
+    /**
      * Describes whether a PromQL function supports counter metric types.
      * <p>
      * This is an ES|QL implementation detail — in real PromQL, all functions work with any numeric type.
@@ -464,6 +474,16 @@ public final class PromqlFunctionDefinition {
             this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, target);
             this.params = List.of(INSTANT_VECTOR);
             return this;
+        }
+
+        /**
+         * Registers a unary math function whose PromQL variant must preserve non-finite results ({@code NaN}/{@code ±Inf})
+         * rather than reject them to {@code null}. The input is coerced to {@code double} so the function evaluates with
+         * IEEE-754 semantics regardless of the metric's stored type (e.g. {@code sqrt(-x)} yields {@code NaN} even for a
+         * {@code long}/{@code integer} metric), and the function is constructed with its non-finite-preserving flag set.
+         */
+        public PromqlFunctionDefinition.Builder unaryNonFiniteValueTransformation(NonFiniteUnaryBuilder ctorRef) {
+            return unaryValueTransformation((source, field) -> ctorRef.build(source, new ToDouble(source, field), true));
         }
 
         public PromqlFunctionDefinition.Builder binaryValueTransformation(

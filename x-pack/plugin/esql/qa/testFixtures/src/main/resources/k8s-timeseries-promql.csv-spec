@@ -586,6 +586,25 @@ result:double | step:datetime
 5.0           | 2024-05-10T01:00:00.000Z
 ;
 
+// Prometheus drops every series when min > max (clamp returns an empty result), see promql/functions.go clamp().
+clamp_scalar_min_greater_than_max
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(clamp(vector(5), 10, 0));
+
+result:double | step:datetime
+;
+
+clamp_min_greater_than_max_drops_series
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(clamp(sum by (cluster) (network.cost), 100, 0)) | SORT cluster;
+
+result:double | step:datetime | cluster:keyword
+;
+
 round_to_nearest_scalar
 required_capability: promql_command_v0
 required_capability: fix_promql_round_to_nearest
@@ -1422,6 +1441,223 @@ result:double | step:datetime
 1024.0        | 2025-01-01T00:00:00.000Z
 1024.0        | 2025-01-01T00:01:00.000Z
 1024.0        | 2025-01-01T00:02:00.000Z
+;
+
+// === Non-finite (NaN / ±Inf) preservation, matching Prometheus (issue #151972) ===
+// ES previously dropped any series whose value evaluated to NaN/±Inf; Prometheus keeps them. The cases below
+// cover the math/arithmetic functions affected. Scalar cases exercise constant folding; the *_runtime cases run
+// the per-series evaluators over real index data and assert the series is kept rather than dropped.
+
+nonfinite_sqrt_negative
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sqrt(vector(-4)));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_ln_negative
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(ln(vector(-1)));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_log10_negative
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(log10(vector(-1)));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_log2_negative
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(log2(vector(-1)));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// 0 * ±Inf is NaN in IEEE-754.
+nonfinite_mul_zero_inf
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(0) * Inf);
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_div_by_zero_positive
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(1) / 0);
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_div_by_zero_negative
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(-1) / 0);
+
+result:double | step:datetime
+-Infinity     | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_div_zero_by_zero
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(0) / 0);
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// x % 0 is NaN, matching Go's math.Mod used by Prometheus.
+nonfinite_mod_by_zero
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(5) % 0);
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// round(v, 0) divides by 1/to_nearest = +Inf, so every value folds to NaN (matches Prometheus) rather than being dropped.
+nonfinite_round_to_nearest_zero
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(round(vector(3.7), 0));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// round(0, 0) exercises the 0 * +Inf = NaN path of the round translation.
+nonfinite_round_zero_value_to_nearest_zero
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(round(vector(0), 0));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// Overflow to +Inf is kept rather than dropped.
+nonfinite_pow_overflow
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(vector(10) ^ 400);
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
+nonfinite_deg_overflow
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_math_v0
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(deg(vector(1e308)));
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
+// metric * Inf over real index data: each series is kept with +Inf (issue's metric * Inf case).
+nonfinite_mul_inf_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) * Inf) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+Infinity      | 2024-05-10T01:00:00.000Z | prod
+Infinity      | 2024-05-10T01:00:00.000Z | qa
+Infinity      | 2024-05-10T01:00:00.000Z | staging
+;
+
+// metric * NaN over real index data: each series is kept with NaN (issue's metric * NaN case).
+nonfinite_mul_nan_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) * NaN) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+NaN           | 2024-05-10T01:00:00.000Z | prod
+NaN           | 2024-05-10T01:00:00.000Z | qa
+NaN           | 2024-05-10T01:00:00.000Z | staging
+;
+
+nonfinite_div_by_zero_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) / 0) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+Infinity      | 2024-05-10T01:00:00.000Z | prod
+Infinity      | 2024-05-10T01:00:00.000Z | qa
+Infinity      | 2024-05-10T01:00:00.000Z | staging
+;
+
+nonfinite_mod_by_zero_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) % 0) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+NaN           | 2024-05-10T01:00:00.000Z | prod
+NaN           | 2024-05-10T01:00:00.000Z | qa
+NaN           | 2024-05-10T01:00:00.000Z | staging
+;
+
+// sqrt of a negative per-series value (runtime evaluator + ToDouble coercion) yields NaN, not a dropped series.
+nonfinite_sqrt_negative_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sqrt(0 - sum by (cluster) (network.cost))) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+NaN           | 2024-05-10T01:00:00.000Z | prod
+NaN           | 2024-05-10T01:00:00.000Z | qa
+NaN           | 2024-05-10T01:00:00.000Z | staging
+;
+
+// Same as above but over a long-typed metric, exercising the long -> double coercion end to end.
+nonfinite_mul_inf_long_runtime
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(max by (cluster) (network.bytes_in) * Inf) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+Infinity      | 2024-05-10T01:00:00.000Z | prod
+Infinity      | 2024-05-10T01:00:00.000Z | qa
+Infinity      | 2024-05-10T01:00:00.000Z | staging
 ;
 
 scalar_constant_time

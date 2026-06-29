@@ -342,6 +342,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
 
         /**
+         * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
+         * instead of failing with "No matches found for pattern".
+         * See https://github.com/elastic/elasticsearch/issues/143226
+         */
+        OPTIONAL_FIELDS_DROP_NON_MATCHING_PATTERN_NOOP,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

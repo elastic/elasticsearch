@@ -95,26 +95,4 @@ public class ColumnarIndexModeTests extends ESTestCase {
         assertTrue(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(settings));
     }
 
-    public void testPerFieldFilesOnByDefault() {
-        Settings settings = IndexSettingsTests.newIndexMeta(
-            "test",
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()
-        ).getSettings();
-        assertTrue(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.get(settings));
-    }
-
-    public void testPerFieldFilesCannotBeDisabled() {
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta(
-            "test",
-            Settings.builder()
-                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                .put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), false)
-                .build()
-        );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(
-            e.getMessage(),
-            containsString("[index.codec.per_field_files] can not be disabled in index using [columnar] index mode")
-        );
-    }
 }

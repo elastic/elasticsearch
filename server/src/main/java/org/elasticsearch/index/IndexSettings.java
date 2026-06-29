@@ -779,35 +779,12 @@ public final class IndexSettings {
     /**
      * Whether each field's per-field Lucene formats (postings, doc values, vectors) are written to their own files rather
      * than co-mingled in shared files. Compound files still apply via {@code index.compound_format}, so only segments
-     * above that threshold expose per-field files. Defaults to {@code true} for strict columnar index modes, which
-     * require it; other indices may set it freely.
+     * above that threshold expose per-field files. Off by default; stateless enables it for new indices (see
+     * {@code StatelessIndexSettingProvider}).
      */
     public static final Setting<Boolean> INDEX_PER_FIELD_FILES_SETTING = Setting.boolSetting(
         "index.codec.per_field_files",
-        settings -> Boolean.toString(MODE.get(settings).isStrictColumnar()),
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean value) {}
-
-            @Override
-            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
-                if (value == false && ((IndexMode) settings.get(MODE)).isStrictColumnar()) {
-                    throw new IllegalArgumentException(
-                        "["
-                            + INDEX_PER_FIELD_FILES_SETTING.getKey()
-                            + "] can not be disabled in index using ["
-                            + settings.get(MODE)
-                            + "] index mode"
-                    );
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                List<Setting<?>> list = List.of(MODE);
-                return list.iterator();
-            }
-        },
+        false,
         Property.IndexScope,
         Property.Final
     );
@@ -2472,8 +2449,7 @@ public final class IndexSettings {
     }
 
     /**
-     * Whether each field's per-field Lucene formats are written to their own files. Defaults to {@code true} for strict
-     * columnar index modes.
+     * Whether each field's per-field Lucene formats are written to their own files. Off by default; enabled on stateless.
      *
      * @see #INDEX_PER_FIELD_FILES_SETTING
      */

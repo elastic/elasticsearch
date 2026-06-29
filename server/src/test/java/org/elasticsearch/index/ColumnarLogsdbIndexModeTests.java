@@ -237,23 +237,6 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
         assertTrue(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(settings));
     }
 
-    public void testPerFieldFilesOnByDefault() {
-        Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings()).getSettings();
-        assertTrue(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.get(settings));
-    }
-
-    public void testPerFieldFilesCannotBeDisabled() {
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta(
-            "test",
-            Settings.builder().put(buildSettings()).put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), false).build()
-        );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(
-            e.getMessage(),
-            containsString("[index.codec.per_field_files] can not be disabled in index using [logsdb_columnar] index mode")
-        );
-    }
-
     private Settings buildSettings() {
         return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
     }

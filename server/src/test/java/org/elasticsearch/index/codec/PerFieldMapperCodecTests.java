@@ -204,35 +204,21 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
 
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            // Columnar modes split field formats by default, so the postings format is returned wrapped; unwrap to assert
-            // the underlying format selection.
             // Columnar index mode
             // by default, columnar uses the ES 8.12 postings format
             perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.COLUMNAR, LOGS_MAPPING);
-            assertThat(
-                SplitFieldFormats.unwrap(perFieldMapperCodec.getPostingsFormatForField("message")),
-                instanceOf(ES812PostingsFormat.class)
-            );
+            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
 
             perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.COLUMNAR, LOGS_MAPPING);
-            assertThat(
-                SplitFieldFormats.unwrap(perFieldMapperCodec.getPostingsFormatForField("message")),
-                instanceOf(ES812PostingsFormat.class)
-            );
+            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
 
             // Columnar LogsDB index mode
             // by default, logsdb_columnar uses the ES 8.12 postings format
             perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
-            assertThat(
-                SplitFieldFormats.unwrap(perFieldMapperCodec.getPostingsFormatForField("message")),
-                instanceOf(ES812PostingsFormat.class)
-            );
+            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
 
             perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
-            assertThat(
-                SplitFieldFormats.unwrap(perFieldMapperCodec.getPostingsFormatForField("message")),
-                instanceOf(ES812PostingsFormat.class)
-            );
+            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
         }
     }
 
@@ -641,20 +627,11 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertEquals("alpDouble>delta>offset>gcd>bitPack", config.describeStages());
     }
 
-    public void testPerFieldFilesDefaultsOffForStandard() {
+    public void testPerFieldFilesDefaultsOff() {
+        assertFalse(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.get(Settings.EMPTY));
         assertFalse(
             IndexSettings.INDEX_PER_FIELD_FILES_SETTING.get(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD).build())
         );
-    }
-
-    public void testPerFieldFilesDefaultsOnForColumnar() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
-            assertTrue(
-                "mode=" + mode,
-                IndexSettings.INDEX_PER_FIELD_FILES_SETTING.get(Settings.builder().put(IndexSettings.MODE.getKey(), mode).build())
-            );
-        }
     }
 
     public void testSplitFormatsAreDistinctPerFieldButStablePerField() throws IOException {

@@ -48,6 +48,17 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return FormatNameResolver.READER_PARQUET_RS;
     }
 
+    /**
+     * The parquet-rs native reader registers no file extension and the dataset model has no reader/format
+     * selector, so parquet-rs is unreachable via {@code FROM <dataset>}. This suite is therefore a sanctioned
+     * EXTERNAL holdout (like gRPC/Flight and Iceberg): it rebuilds each {@code FROM <dataset>} spec into an
+     * {@code EXTERNAL ... WITH "reader": "parquet-rs"} query. See {@link #forceExternalRebuild()}.
+     */
+    @Override
+    protected boolean forceExternalRebuild() {
+        return true;
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.csv;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -19,8 +20,10 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -52,6 +55,9 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
     /** standalone/employees.csv carries 100 data rows (101 lines incl. header). */
     private static final long EMPLOYEE_ROWS = 100L;
 
+    private static final String LOCAL_DATA_SOURCE = "local_csv_ds";
+    private static final String DATASET = "employees_local";
+
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
     public static ElasticsearchCluster cluster = Clusters.multiNodeTestCluster(() -> s3Fixture.getAddress());
@@ -61,9 +67,24 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
 
     private static Path localFixturesPath;
 
+    /** Datasets and {@code local} data sources are gated to snapshot builds today (same gate as {@code DataSourceCrudRestIT}). */
+    @BeforeClass
+    public static void requireSnapshotBuild() {
+        assumeTrue("datasources not available in release builds yet", Build.current().isSnapshot());
+    }
+
     @BeforeClass
     public static void resolveLocalFixtures() {
         localFixturesPath = FixtureUtils.resolveLocalFixturesPath(logger, ExternalCsvMultiNodePushdownIT.class);
+    }
+
+    @AfterClass
+    public static void cleanupDatasets() throws Exception {
+        try {
+            DatasetRegistry.cleanup(client());
+        } finally {
+            DatasetRegistry.clearCaches();
+        }
     }
 
     @Override
@@ -76,10 +97,14 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
     public void testCountStarColdThenWarmShortCircuitsAcrossNodes() throws Exception {
         assumeTrue("LOCAL fixtures unavailable (packaged in a JAR)", localFixturesPath != null);
         String uri = localFixturesPath.resolve("standalone/employees.csv").toUri().toString();
-        // employees.csv encodes multi-value columns with bracket syntax (e.g. [val1,val2]); without
-        // this option the commas inside brackets are treated as column separators, producing a
-        // column-count mismatch at row 1.
-        String query = "EXTERNAL \"" + uri + "\" WITH { \"multi_value_syntax\": \"brackets\" } | STATS c = COUNT(*)";
+        // Register a local-file data source + dataset over the fixture, then read it via FROM <dataset>. The
+        // multi_value_syntax=brackets dataset setting mirrors the old inline WITH: employees.csv encodes
+        // multi-value columns with bracket syntax (e.g. [val1,val2]); without it the commas inside brackets
+        // are treated as column separators, producing a column-count mismatch at row 1. Format is inferred
+        // from the .csv extension.
+        DatasetRegistry.ensureDataSource(client(), LOCAL_DATA_SOURCE, "local", Map.of());
+        DatasetRegistry.ensureDataset(client(), DATASET, LOCAL_DATA_SOURCE, uri, "{ \"multi_value_syntax\": \"brackets\" }");
+        String query = "FROM " + DATASET + " | STATS c = COUNT(*)";
 
         // Cold: coordinator (no data role) dispatches the scan to the data node, which captures the
         // file's stats in its own JVM and ships them back via DriverCompletionInfo.

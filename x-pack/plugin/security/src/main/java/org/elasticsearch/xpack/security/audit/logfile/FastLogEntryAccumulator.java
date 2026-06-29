@@ -64,17 +64,19 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.X
 /**
  * A write-once accumulator for a single audit log entry that doubles as the log4j2 {@link Message} handed to the audit logger.
  *
- * <p>Acts as a drop in replacement for the {@link org.apache.logging.log4j.message.StringMapMessage} previously used in {@link LoggingAuditTrail}.
- * The log4j class stores its fields in a sorted-by-key structure, which means that every field added during construction pays for a binary search to find its insertion point, and the
- * backing array was grown/copied as fields were added. Profiling revealed this to be significate overhead for virtually
- * no return: each field is written exactly once and never queried by key except when the log message is finally constructed. The introduction of
- * this O(1) insertion data structure improves performance considerably.
+ * <p>Acts as a drop in replacement for the {@link org.apache.logging.log4j.message.StringMapMessage} previously used in
+ * {@link LoggingAuditTrail}. The log4j class stores its fields in a sorted-by-key structure, which means that every field added during
+ * construction pays for a binary search to find its insertion point, and the backing array was grown/copied as fields were added.
+ * Profiling revealed this to be significant overhead for virtually no return: each field is written exactly once and never queried by key
+ * except when the log message is finally constructed. The introduction of this O(1) insertion data structure improves performance
+ * considerably.
  *
- * <p>Here, we leverage the fact that audit logging fields are fixed and known ahead of time. This structure is captured as a static {@link #AUDIT_FORMAT}:
- * an ordered array of {@link LogField}s plus a name&rarr;slot index. Each {@link #with(String, Object)} is then a single map lookup and an array store — O(1), no sorting and no
- * resizing — and field values are held <em>as references</em> rather than being eagerly rendered to JSON. Delaying serialization allows
- * for future performance gains when paired with an async logger, i.e. it allows for all JSON encoding (now relocated within {@link #formatTo}) to be done off the transport thread. The serialization
- * code was previously present in {@link LoggingAuditTrail} and tightly coupled with the transport thread.
+ * <p>Here, we leverage the fact that audit logging fields are fixed and known ahead of time. This structure is captured as a static
+ * {@link #AUDIT_FORMAT}: an ordered array of {@link LogField}s plus a name&rarr;slot index. Each {@link #with(String, Object)} is then a
+ * single map lookup and an array store — O(1), no sorting and no resizing — and field values are held <em>as references</em> rather than
+ * being eagerly rendered to JSON. Delaying serialization allows for future performance gains when paired with an async logger, i.e. it
+ * allows for all JSON encoding (now relocated within {@link #formatTo}) to be done off the transport thread. The serialization code was
+ * previously present in {@link LoggingAuditTrail} and tightly coupled with the transport thread.
  */
 final class FastLogEntryAccumulator implements Message, StringBuilderFormattable {
 

@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -96,7 +97,7 @@ public class LoggingAuditTrailProfilingTests extends ESTestCase {
     }
 
     public void testProfileAccessGranted() throws Exception {
-        assumeTrue("audit profiling harness; enable with -Dtests.audit.profile=true", Boolean.getBoolean("tests.audit.profile"));
+        assumeTrue("audit profiling harness; enable with -Dtests.audit.profile=true", Booleans.isTrue("tests.audit.profile"));
         final int warmupIterations = Integer.getInteger("tests.audit.profile.warmup", 200_000);
         final int measureIterations = Integer.getInteger("tests.audit.profile.iterations", 2_000_000);
 

@@ -1700,8 +1700,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, innerAuthentication);
                     try {
                         final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-                        // serialize the nested authentication as a JSON object with keys in sorted order, matching the previous
-                        // StringMapMessage-backed behavior
                         builder.map(crossClusterAccessLogEntry.getData());
                         logEntry.with(CROSS_CLUSTER_ACCESS_FIELD_NAME, Strings.toString(builder));
                     } catch (IOException e) {
@@ -1759,13 +1757,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder with(String key, String[] values) {
-            // the array reference is held as-is; it is encoded as a JSON array lazily in FastLogEntryAccumulator#formatTo
             logEntry.with(key, values);
             return this;
         }
 
         LogEntryBuilder with(Map<String, Object> map) {
-            // values (scalars or arrays) are held as-is and encoded lazily in FastLogEntryAccumulator#formatTo based on the field type
             for (Entry<String, Object> entry : map.entrySet()) {
                 logEntry.with(entry.getKey(), entry.getValue());
             }

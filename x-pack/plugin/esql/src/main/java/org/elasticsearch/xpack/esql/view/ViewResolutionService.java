@@ -12,10 +12,10 @@ import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.xpack.esql.session.schema.AbstractionResolver;
 
 import java.util.List;
 
@@ -39,24 +39,25 @@ public class ViewResolutionService {
             return new ViewResolutionResult(new View[0], resolvedIndexExpressions);
         }
 
-        IndexAbstractionResolver indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+        AbstractionResolver abstractionResolver = new AbstractionResolver(indexNameExpressionResolver);
         var indicesLookup = projectState.metadata().getIndicesLookup();
 
-        if (resolvedIndexExpressions == null) {
-            resolvedIndexExpressions = indexAbstractionResolver.resolveIndexAbstractions(
+        // Resolve + classify through the kind-blind front (stage ①). When the security filter already resolved the
+        // expressions onto the request we only classify them; otherwise we resolve under the view visibility flags.
+        AbstractionResolver.Resolution resolution = resolvedIndexExpressions == null
+            ? abstractionResolver.resolve(
                 List.of(indexPatterns),
                 indicesOptions,
                 projectState.metadata(),
                 componentSelector -> indicesLookup.keySet(),
-                (index, selector) -> true, // Assume that a view is its own data component but has no failure component
-                true
-            );
-        }
+                (index, selector) -> true // Assume that a view is its own data component but has no failure component
+            )
+            : AbstractionResolver.classify(resolvedIndexExpressions, projectState.metadata());
+        resolvedIndexExpressions = resolution.expressions();
+
         checkViewsExist(resolvedIndexExpressions, indicesOptions);
-        View[] views = resolvedIndexExpressions.getLocalIndicesList()
+        View[] views = resolution.abstractionsOfKind(IndexAbstraction.Type.VIEW)
             .stream()
-            .map(indicesLookup::get)
-            .filter(indexAbstraction -> indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.VIEW)
             .map(indexAbstraction -> (View) indexAbstraction)
             .toArray(View[]::new);
 

@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
@@ -33,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.schema.AbstractionResolver;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,31 +94,20 @@ public final class DatasetRewriter {
             ? new LinkedHashSet<>()
             : new LinkedHashSet<>(iner.datasets(projectMetadata, RESOLVER_OPTIONS, indicesRequestOf(authorizedIndices)));
 
-        // (b) classify the raw (un-narrowed) patterns into dataset vs non-dataset under an open predicate.
-        IndexAbstractionResolver resolver = new IndexAbstractionResolver(iner);
+        // (b) classify the raw (un-narrowed) patterns into dataset vs non-dataset under an open predicate, through the
+        // kind-blind front (stage ①). The front wraps the same IndexAbstractionResolver call and classifies each
+        // concrete local name by IndexAbstraction.Type; a name absent from the lookup (date math) is of no kind and is
+        // neither counted as a dataset nor as a non-dataset target — identical to the inline classification it replaces.
         Map<String, IndexAbstraction> indicesLookup = projectMetadata.getIndicesLookup();
-        List<String> localNames = resolver.resolveIndexAbstractions(
+        AbstractionResolver.Resolution resolution = new AbstractionResolver(iner).resolve(
             Arrays.asList(rawPatterns),
             RESOLVER_OPTIONS,
             projectMetadata,
             componentSelector -> indicesLookup.keySet(),
-            (name, selector) -> true,
-            true
-        ).getLocalIndicesList();
-
-        boolean hasNonDatasetTargets = false;
-        Set<String> rawDatasetNames = new LinkedHashSet<>();
-        for (String name : localNames) {
-            IndexAbstraction abs = indicesLookup.get(name);
-            if (abs == null) {
-                continue; // synthesized name (date math) — neither; skipping doesn't suppress mixed-FROM rejection
-            }
-            if (abs.getType() == IndexAbstraction.Type.DATASET) {
-                rawDatasetNames.add(name);
-            } else {
-                hasNonDatasetTargets = true;
-            }
-        }
+            (name, selector) -> true
+        );
+        Set<String> rawDatasetNames = new LinkedHashSet<>(resolution.namesOfKind(IndexAbstraction.Type.DATASET));
+        boolean hasNonDatasetTargets = resolution.hasKindOtherThan(IndexAbstraction.Type.DATASET);
 
         // Explicit (non-wildcard) dataset names absent from the authorized set — rewriteOne rejects these as Unknown
         // index rather than silently dropping them from a multi-target FROM.

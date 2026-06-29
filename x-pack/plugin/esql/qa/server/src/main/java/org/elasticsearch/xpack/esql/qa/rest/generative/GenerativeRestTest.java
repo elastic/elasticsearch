@@ -491,7 +491,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
@@ -922,15 +921,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
         ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
             + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|"
-            + "\\(\\s*FROM\\b[^\\n]*,).*",
+            + "\\(\\s*FROM\\b).*",
         Pattern.DOTALL | Pattern.CASE_INSENSITIVE
     );
 
     /**
      * Product rejects full-text in {@code WHERE} when a subquery branch in {@code FROM} still contains a
      * pipeline-breaking command ({@code LIMIT}, {@code DEDUP}, {@code INLINE STATS}, etc.) or when full-text functions/operators
-     * are placed after {@code LOOKUP JOIN}; the generator only walks the outer command list. Gated on a
-     * parenthesised inner {@code FROM}.
+     * are placed after {@code LOOKUP JOIN}; the generator only walks the outer command list. It also rejects full-text after the
+     * {@code UnionAll} formed by a multi-source {@code FROM} (the union of subqueries / indices): there the verifier embeds the
+     * union's source text, which it truncates to {@code Node.TO_STRING_MAX_WIDTH} chars plus {@code "..."}, so the message may end
+     * mid-branch (before the comma separating the branches). Gated on a parenthesised inner {@code FROM}.
      * See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
      */
     static boolean isFullTextAfterSubqueryInFromBug(String errorMessage, String query) {
@@ -1068,27 +1069,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ".*Plan \\[(?:LimitBy|TopNBy)\\[.*optimized incorrectly due to missing references.*",
         Pattern.DOTALL
     );
-
-    private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\S+\\s+BY\\b");
-    private static final Pattern DEDUP_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*DEDUP\\b");
-
-    /**
-     * See https://github.com/elastic/elasticsearch/issues/148513
-     * <p>
-     * The same root cause manifests as either {@code LimitBy[...]} (no upstream SORT) or {@code TopNBy[...]}
-     * (when an upstream SORT gets combined with the LIMIT BY into a TopNBy). DEDUP uses the same LimitBy
-     * plan internally, so it has the same missing-reference failure after MV_EXPAND.
-     */
-    static boolean isLimitByMvExpandBug(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        if (OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        return MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
-            && (LIMIT_BY_COMMAND_PATTERN.matcher(query).find() || DEDUP_COMMAND_PATTERN.matcher(query).find());
-    }
 
     private static final Pattern INLINE_STATS_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*INLINE\\s+STATS\\b");
     private static final Pattern DROP_RENAME_KEEP_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*(?:DROP|RENAME|KEEP)\\b");

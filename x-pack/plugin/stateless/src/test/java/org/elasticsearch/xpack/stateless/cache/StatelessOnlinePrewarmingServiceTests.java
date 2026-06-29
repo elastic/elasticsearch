@@ -24,6 +24,7 @@ import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -312,6 +313,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         threadPool,
                         BlobCacheMetrics.NOOP,
                         clusterService,
+                        TestUtils.mockIndicesService(clusterService),
                         new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                     ) {
                         @Override

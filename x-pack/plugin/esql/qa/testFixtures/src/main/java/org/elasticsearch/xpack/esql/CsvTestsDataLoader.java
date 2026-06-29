@@ -77,6 +77,8 @@ public class CsvTestsDataLoader {
     private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
     private static final int BULK_DATA_SIZE = 100_000;
+    private static final String VIEW_SUPPORT_PROBE_NAME = "esql-view-support-probe";
+    private static final String VIEW_SUPPORT_PROBE_QUERY = "{\"query\":\"ROW x = 1\"}";
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(
@@ -103,6 +105,11 @@ public class CsvTestsDataLoader {
             .withDynamic("false")
             .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
+        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_no_short")
+            .withTypeMapping(removeFields("short"))
+            .withDynamic("false"),
+        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_short_as_long")
+            .withTypeMapping(Map.of("short", "long")),
         new TestDataset("hosts"),
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
         new TestDataset("apps"),
@@ -201,8 +208,8 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
-        new TestDataset("k8s_double_bytes_in", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
-            .withTypeMapping(Map.of("network.bytes_in", "double")),
+        new TestDataset("k8s_retyped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(Map.of("network.bytes_in", "double", "network.cost", "long")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
@@ -218,6 +225,10 @@ public class CsvTestsDataLoader {
             "promql_histogram_no_le.csv",
             "promql_histogram_no_le-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
+        new TestDataset("otel-metrics", "otel-metrics-mappings.json", "k8s-otel.csv", "otel-metrics-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
+        new TestDataset("prom-metrics", "prom-metrics-mappings.json", "k8s-prometheus-remote-write.csv", "prom-metrics-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")
@@ -250,6 +261,9 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_text"),
         new TestDataset("mv_text"),
         new TestDataset("dense_vector"),
+        new TestDataset("dense_vector").withIndex("dense_vector_unmapped")
+            .withDynamic("false")
+            .withTypeMapping(removeFields("float_vector")),
         new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
@@ -300,7 +314,8 @@ public class CsvTestsDataLoader {
             "metric_temporality-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
-        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv")
+        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
+        new TestDataset("trim_test")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -702,7 +717,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
-        if (clusterHasViewSupport(client)) {
+        if (clusterSupportsViews(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
                 if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
@@ -717,7 +732,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void deleteViews(RestClient client) throws IOException {
-        if (clusterHasViewSupport(client)) {
+        if (clusterSupportsViews(client)) {
             logger.debug("Deleting views");
             for (var view : VIEW_CONFIGS.values()) {
                 deleteView(client, view.name);
@@ -823,46 +838,60 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        // Use the _capabilities endpoint so we check ALL nodes, not just the coordinator.
-        // Views CRUD operations are master-node transport actions; if any node (e.g. an older data
-        // node acting as master) doesn't know the action, it will crash with an AssertionError.
-        Request capRequest = new Request("GET", "_capabilities");
+    public static boolean clusterSupportsViews(RestClient client) throws IOException {
+        final Set<Integer> unsupportedViewCrudStatusCodes = Set.of(400, 405, 410, 500);
+        final Set<Integer> ignoredProbeDeleteStatusCodes = Set.of(400, 404, 405, 410, 500);
+
+        // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
+        Request capRequest = new Request("GET", "/_capabilities");
         capRequest.addParameter("method", "POST");
         capRequest.addParameter("path", "/_query");
         capRequest.addParameter("capabilities", "views_crud_as_index_actions");
         try {
-            Response response = client.performRequest(capRequest);
-            try (var content = response.getEntity().getContent()) {
-                Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, false);
-                if (!Boolean.TRUE.equals(map.get("supported"))) {
-                    return false;
-                }
+            Response capResponse = client.performRequest(capRequest);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
+            JsonNode supported = json.get("supported");
+            if (supported == null || supported.asBoolean() == false) {
+                return false;
             }
         } catch (ResponseException e) {
             return false;
         }
-        // The _capabilities check above confirms all nodes know the view transport actions (safe for
-        // BWC mixed-cluster tests). Now verify the view CRUD REST endpoints are actually reachable:
-        // in serverless mode, RestPutViewAction has no @ServerlessScope annotation, so those routes
-        // return 410 Gone — but _capabilities does not check the serverless scope and would still
-        // report "supported: true". A direct GET confirms real accessibility.
+
+        // Step 2: probe the API path used by loadView (PUT /_query/view/{name}). In serverless mode
+        // an old node can still pass generic checks and read probes, but reject PUT with 410 because
+        // RestPutViewAction lacks the required @ServerlessScope.
         try {
-            client.performRequest(new Request("GET", "/_query/view"));
+            Request createProbeView = new Request("PUT", "/_query/view/" + VIEW_SUPPORT_PROBE_NAME);
+            createProbeView.setJsonEntity(VIEW_SUPPORT_PROBE_QUERY);
+            client.performRequest(createProbeView);
+            try {
+                client.performRequest(new Request("DELETE", "/_query/view/" + VIEW_SUPPORT_PROBE_NAME));
+            } catch (ResponseException e) {
+                if (ignoredProbeDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
+                    throw e;
+                }
+            }
             return true;
         } catch (ResponseException e) {
-            return false;
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            // Serverless restriction (410) or old servers not supporting this view API path.
+            if (unsupportedViewCrudStatusCodes.contains(code)) {
+                return false;
+            }
+            throw e;
         }
     }
 
     private static void deleteView(RestClient client, String viewName) throws IOException {
+        final Set<Integer> ignoredDeleteStatusCodes = Set.of(400, 404, 405, 410, 500, 503);
         try {
             client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
         } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
             // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500.
             // 503 (master_not_discovered_exception) is transient and can occur in BWC mixed-cluster tests after node restarts.
-            if (code != 404 && code != 400 && code != 410 && code != 500 && code != 503) {
+            if (ignoredDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
                 logger.info("View delete error: {}", e.getMessage());
                 throw e;
             }

@@ -19,6 +19,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -139,6 +141,56 @@ public class SearchResponseMergerTests extends ESTestCase {
                 searchResponse.decRef();
             }
         }
+    }
+
+    public void testMergeDirectoryMetrics() throws InterruptedException {
+        long currentRelativeTime = randomNonNegativeLong();
+        SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                randomIntBetween(0, 10000),
+                SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+                timeProvider,
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
+            )
+        ) {
+            long expectedBytesRead = 0;
+            for (int i = 0; i < numResponses; i++) {
+                long bytesRead = randomLongBetween(0, 10_000);
+                expectedBytesRead += bytesRead;
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
+                    null,
+                    1,
+                    1,
+                    0,
+                    randomNonNegativeLong(),
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponseTests.randomClusters()
+                );
+                searchResponse.setDirectoryMetrics(storeMetrics(bytesRead));
+                try {
+                    addResponse(merger, searchResponse);
+                } finally {
+                    searchResponse.decRef();
+                }
+            }
+            awaitResponsesAdded();
+            SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+            try {
+                long bytesRead = mergedResponse.getDirectoryMetrics().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead();
+                assertThat(expectedBytesRead, equalTo(bytesRead));
+            } finally {
+                mergedResponse.decRef();
+            }
+        }
+    }
+
+    private static DirectoryMetrics storeMetrics(long bytesRead) {
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(StoreMetrics.NAME, new StoreMetrics(bytesRead));
+        return builder.build();
     }
 
     public void testMergeShardFailures() throws InterruptedException {

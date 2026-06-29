@@ -303,7 +303,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         // We create both only when we're testing LOOKUP mode.
         if (indexExists(LOOKUP_INDEX_NAME) == false && indexMode == IndexMode.LOOKUP) {
             createAllTypesIndex(client(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode);
-            createAllTypesDoc(client(), minVersion(), LOOKUP_INDEX_NAME);
+            createAllTypesDoc(client(), minVersion(), LOOKUP_INDEX_NAME, indexMode);
             createEnrichPolicy(client(), minVersion(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }
     }
@@ -444,6 +444,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                 continue;
             }
+            if (excludedInColumnar(type, indexMode)) {
+                continue;
+            }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
                 continue;
             }
@@ -479,6 +482,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
+                continue;
+            }
+            if (excludedInColumnar(type, indexMode)) {
                 continue;
             }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
@@ -849,7 +855,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         String indexName = indexName(mode, nodeName);
         if (false == indexExists(client, indexName)) {
             createAllTypesIndex(client, minimumVersionAcrossAllNodes, indexName, nodeId, mode);
-            createAllTypesDoc(client, minimumVersionAcrossAllNodes, indexName);
+            createAllTypesDoc(client, minimumVersionAcrossAllNodes, indexName, mode);
         }
     }
 
@@ -895,6 +901,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
                     continue;
                 }
+                if (excludedInColumnar(type, mode)) {
+                    continue;
+                }
                 config.startObject(fieldName(type));
                 typeMapping(mode, config, type);
                 config.endObject();
@@ -906,6 +915,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
         request.setJsonEntity(Strings.toString(config));
         client.performRequest(request);
+    }
+
+    private static boolean excludedInColumnar(DataType type, IndexMode mode) {
+        // geo_shape/cartesian_shape are reconstructable in columnar only on nodes that have the feature, so exclude them
+        // during a rolling upgrade where an older node would reject them in a columnar index.
+        return mode.isStrictColumnar()
+            && (type == DataType.GEO_SHAPE || type == DataType.CARTESIAN_SHAPE)
+            && clusterHasFeature("mapper.columnar.supports_shape_fields") == false;
     }
 
     private static String fieldName(DataType type) {
@@ -931,13 +948,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    protected static void createAllTypesDoc(RestClient client, TransportVersion minimumVersionAcrossAllNodes, String indexName)
-        throws IOException {
+    protected static void createAllTypesDoc(
+        RestClient client,
+        TransportVersion minimumVersionAcrossAllNodes,
+        String indexName,
+        IndexMode mode
+    ) throws IOException {
         XContentBuilder doc = JsonXContent.contentBuilder().startObject();
         doc.field(LOOKUP_ID_FIELD);
         doc.value(123);
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type, minimumVersionAcrossAllNodes) == false) {
+                continue;
+            }
+            if (excludedInColumnar(type, mode)) {
                 continue;
             }
             doc.field(fieldName(type));
@@ -1477,6 +1501,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type, TransportVersion.current()) == false) {
                 continue;
             }
+            if (excludedInColumnar(type, indexMode)) {
+                continue;
+            }
 
             expected = expected.entry(fieldName(type), loadersFor(type));
         }
@@ -1515,14 +1542,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")
                 : matchesList().item("column_at_a_time:BlockDocValuesReader.BytesRefsFromLong");
             case GEO_SHAPE -> {
-                String last;
-                if (syntheticSourceByDefault()) {
-                    last = "row_stride:FallbackToSource[Geometry]";
-                } else if (extractPreference == MappedFieldType.FieldExtractPreference.STORED) {
-                    last = "row_stride:BlockSourceReader.Geometries";
-                } else {
-                    last = "row_stride:BlockSourceReader.Geometries";
+                // In columnar, geo_shape is native and reads its WKB value straight from its own doc value; other
+                // synthetic-source modes fall back to loading the value from source.
+                if (indexMode.isStrictColumnar()) {
+                    yield matchesList().item("column_at_a_time:GeometrySource");
                 }
+                String last = syntheticSourceByDefault()
+                    ? "row_stride:FallbackToSource[Geometry]"
+                    : "row_stride:BlockSourceReader.Geometries";
                 yield matchesList().item("column_at_a_time:null").item(last);
             }
             case HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes");
@@ -1544,7 +1571,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
-            case TEXT -> syntheticSourceByDefault()
+            case TEXT -> indexMode.isStrictColumnar() || syntheticSourceByDefault()
                 ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");

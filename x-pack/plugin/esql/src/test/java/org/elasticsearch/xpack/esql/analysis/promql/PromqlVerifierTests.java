@@ -330,6 +330,27 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testHistogramCountOnCounter() {
+        tsdb.error(
+            "PROMQL index=test step=5m histogram_count(network.bytes_in)",
+            containsString("must be [exponential_histogram or tdigest]")
+        );
+    }
+
+    public void testHistogramSumOnCounter() {
+        tsdb.error(
+            "PROMQL index=test step=5m histogram_sum(network.bytes_in)",
+            containsString("must be [exponential_histogram or tdigest]")
+        );
+    }
+
+    public void testHistogramAvgOnCounter() {
+        tsdb.error(
+            "PROMQL index=test step=5m histogram_avg(network.bytes_in)",
+            containsString("must be [exponential_histogram or tdigest]")
+        );
+    }
+
     public void testAggregationOnNonNumericField() {
         // metricset is a keyword dimension field, not a numeric metric
         tsdb.error(

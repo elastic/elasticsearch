@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Heap-buffered async response consumer that charges the raw Apache HTTP response buffer to the
@@ -144,7 +145,9 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
         protected void expand() {
             int oldCapacity = buffer.capacity();
             if (oldCapacity >= bufferLimitBytes) {
-                throw new ContentTooLongRuntimeException(contentTooLong((long) bufferLimitBytes + 1));
+                throw new ContentTooLongRuntimeException(
+                    new ContentTooLongException("response buffer exceeded limit [" + bufferLimitBytes + "] bytes")
+                );
             }
             long doubledCapacity = ((long) oldCapacity + 1) << 1;
             int newCapacity = Math.toIntExact(Math.min(doubledCapacity, (long) bufferLimitBytes));
@@ -170,7 +173,7 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
     private static final class AccountingByteBufferAllocator implements ByteBufferAllocator, Releasable {
         private final CircuitBreaker breaker;
         private final AtomicBoolean closed = new AtomicBoolean();
-        private long reservedBytes;
+        private final AtomicLong reservedBytes = new AtomicLong();
 
         private AccountingByteBufferAllocator(CircuitBreaker breaker) {
             this.breaker = breaker;
@@ -183,7 +186,7 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
             }
             if (size > 0) {
                 breaker.addEstimateBytesAndMaybeBreak(size, REMOTE_RESPONSE_BUFFER_BREAKER_LABEL);
-                reservedBytes += size;
+                reservedBytes.addAndGet(size);
             }
             try {
                 return ByteBuffer.allocate(size);
@@ -195,20 +198,19 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
 
         void release(long bytes) {
             if (bytes > 0) {
-                reservedBytes -= bytes;
+                reservedBytes.addAndGet(-bytes);
                 breaker.addWithoutBreaking(-bytes);
             }
         }
 
         long currentReservation() {
-            return reservedBytes;
+            return reservedBytes.get();
         }
 
         @Override
         public void close() {
             if (closed.compareAndSet(false, true)) {
-                long bytes = reservedBytes;
-                reservedBytes = 0;
+                long bytes = reservedBytes.getAndSet(0L);
                 if (bytes > 0) {
                     breaker.addWithoutBreaking(-bytes);
                 }

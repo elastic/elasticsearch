@@ -158,7 +158,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
             ContentTooLongException.class,
             () -> consumer.consumeContent(new FixedBytesContentDecoder(10_000), null)
         );
-        assertThat(thrown.getMessage(), containsString("configured buffer limit [8194]"));
+        assertThat(thrown.getMessage(), containsString("response buffer exceeded limit [8194] bytes"));
 
         consumer.failed(thrown);
         assertThat(breaker.getUsed(), equalTo(0L));

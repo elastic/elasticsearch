@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
@@ -27,16 +29,38 @@ import java.util.concurrent.ExecutorService;
  *   EXTERNAL "gs://my-bucket/data/sales.parquet"
  *   EXTERNAL "gs://my-bucket/data/sales.parquet" WITH {"credentials": "{ ... service account JSON ... }", "project_id": "my-project"}
  * </pre>
+ * <p>
+ * GCS is not in the released ship set yet (S3 is the released cloud provider), so registration is
+ * gated on the umbrella {@link DatasetMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG} and the
+ * component {@link #ESQL_EXTERNAL_GCS_FEATURE_FLAG}: available in snapshot/development builds, disabled
+ * in release. When the gate is off the {@code gs} scheme is not registered, so a {@code gs://} source
+ * resolves to the generic "Unsupported storage scheme" rejection.
  */
 public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
+    /**
+     * Gates the GCS storage provider. Snapshot-on, release-off; override in release with
+     * {@code -Des.esql_external_gcs_feature_flag_enabled=true}.
+     */
+    public static final FeatureFlag ESQL_EXTERNAL_GCS_FEATURE_FLAG = new FeatureFlag("esql_external_gcs");
+
+    private static boolean enabled() {
+        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() && ESQL_EXTERNAL_GCS_FEATURE_FLAG.isEnabled();
+    }
+
     @Override
     public Set<String> supportedSchemes() {
+        if (enabled() == false) {
+            return Set.of();
+        }
         return Set.of("gs");
     }
 
     @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
+        if (enabled() == false) {
+            return Map.of();
+        }
         StorageProviderFactory gcsFactory = StorageProviderFactory.of(
             () -> new GcsStorageProvider((GcsConfiguration) null),
             GcsConfiguration::fromQueryConfig,
@@ -47,6 +71,9 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        if (enabled() == false) {
+            return Map.of();
+        }
         DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, supportedSchemes());
         return Map.of(v.type(), v);
     }

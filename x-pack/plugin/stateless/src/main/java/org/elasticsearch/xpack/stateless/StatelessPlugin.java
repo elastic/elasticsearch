@@ -1531,10 +1531,10 @@ public class StatelessPlugin extends Plugin
                     final var cacheService = sharedBlobCacheService.get();
                     // TODO consider removing the flag guard once performance is verified
                     if (cacheService.isCacheBoostPreferenceEnabled() && commitService.isNodeShuttingDown() == false) {
-                        final var shouldDemote = indicesService.get()
-                            .hasShardPredicate()
-                            .and(shardId1 -> commitService.isNodeShuttingDown() == false);
-                        cacheService.demoteAllAsync(shardId, id -> shouldDemote.test(id) == false);
+                        final var hasShard = indicesService.get().hasShardPredicate();
+                        final Predicate<ShardId> shouldDemote = id -> hasShard.test(id) == false
+                            && commitService.isNodeShuttingDown() == false;
+                        cacheService.demoteAllAsync(shardId, shouldDemote);
                     }
                 }
             });

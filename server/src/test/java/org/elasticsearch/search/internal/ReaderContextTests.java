@@ -54,6 +54,6 @@ public class ReaderContextTests extends IndexShardTestCase {
     }
 
     private static ReaderContext newReaderContext(IndexShard shard, ShardSearchContextId id) {
-        return new ReaderContext(id, null, shard, null, 0L, randomBoolean(), 0L);
+        return new ReaderContext(id, null, shard, null, 0L, randomBoolean());
     }
 }

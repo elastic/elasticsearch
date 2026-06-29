@@ -690,57 +690,61 @@ final class NdJsonPageIterator extends BufferingPageIterator {
 
     @Override
     protected void closeInternal() throws IOException {
-        // Cache only on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
-        // SKIP_ROW with parse errors in a chunk publishes a poison marker so the coordinator's reconciler
-        // discards the file's merge rather than committing an under-counted COUNT(*).
-        if (cacheableObject != null
-            && naturallyExhausted
-            && pinnedMtimeMillis >= 0
-            && fingerprinter != null
-            && pageDecoder.errorCount() > 0
-            && chunkMode) {
-            Map<String, Object> poison = new HashMap<>();
-            poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
-            poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
-            ExternalStatsCapture.record(sourceLocation, poison);
-        }
-        // NONE scope suppresses all stats publishing (whole-chunk and per-stripe), so a warm aggregate over
-        // this read always re-scans.
-        if (cacheableObject != null
-            && naturallyExhausted
-            && pageDecoder.errorCount() == 0
-            && pinnedMtimeMillis >= 0
-            && fingerprinter != null
-            && statsColumnScope != StripeColumnScope.NONE) {
-            // Fingerprint must use the FULL file schema for parity with NdJsonFormatReader.metadata().
-            // Prefer the planner-provided schema (resolvedAttributes), fall back to the decoder's
-            // projected attributes only when those equal the full schema (no projection pruning).
-            List<Attribute> fullSchema = fingerprintSchema != null ? fingerprintSchema : pageDecoder.projectedAttributes();
-            if (fullSchema != null && fullSchema.isEmpty() == false) {
-                if (statsStripeSize > 0) {
-                    // Byte-range cover emit (shared with CSV): one fragment per stripe the chunk's byte range
-                    // overlaps, including empty edge stripes. Safe-miss if row/offset alignment was lost.
-                    if (stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
-                        long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : byteArrayBytesRead;
-                        // Anchor the byte-range cover at the first byte actually decoded (statsBaseOffset +
-                        // skipped); chunkBytes counts only the post-skip bytes, so [statsStripeBaseOffset,
-                        // statsStripeBaseOffset + chunkBytes) is the true covered range. Using statsBaseOffset
-                        // would under-shoot by `skipped` on a mid-record split and mis-attribute the edge stripes.
-                        stripeHarvester.emit(
-                            sourceLocation,
-                            statsStripeBaseOffset,
-                            chunkBytes,
-                            pinnedMtimeMillis,
-                            fingerprinter.apply(fullSchema),
-                            fullSchema
-                        );
+        // Close the decoder even if a stats publish throws — the publish is best-effort caching, the close is not.
+        try {
+            // Cache only on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
+            // SKIP_ROW with parse errors in a chunk publishes a poison marker so the coordinator's reconciler
+            // discards the file's merge rather than committing an under-counted COUNT(*).
+            if (cacheableObject != null
+                && naturallyExhausted
+                && pinnedMtimeMillis >= 0
+                && fingerprinter != null
+                && pageDecoder.errorCount() > 0
+                && chunkMode) {
+                Map<String, Object> poison = new HashMap<>();
+                poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+                poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+                ExternalStatsCapture.record(sourceLocation, poison);
+            }
+            // NONE scope suppresses all stats publishing (whole-chunk and per-stripe), so a warm aggregate over
+            // this read always re-scans.
+            if (cacheableObject != null
+                && naturallyExhausted
+                && pageDecoder.errorCount() == 0
+                && pinnedMtimeMillis >= 0
+                && fingerprinter != null
+                && statsColumnScope != StripeColumnScope.NONE) {
+                // Fingerprint must use the FULL file schema for parity with NdJsonFormatReader.metadata().
+                // Prefer the planner-provided schema (resolvedAttributes), fall back to the decoder's
+                // projected attributes only when those equal the full schema (no projection pruning).
+                List<Attribute> fullSchema = fingerprintSchema != null ? fingerprintSchema : pageDecoder.projectedAttributes();
+                if (fullSchema != null && fullSchema.isEmpty() == false) {
+                    if (statsStripeSize > 0) {
+                        // Byte-range cover emit (shared with CSV): one fragment per stripe the chunk's byte range
+                        // overlaps, including empty edge stripes. Safe-miss if row/offset alignment was lost.
+                        if (stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
+                            long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : byteArrayBytesRead;
+                            // Anchor the byte-range cover at the first byte actually decoded (statsBaseOffset +
+                            // skipped); chunkBytes counts only the post-skip bytes, so [statsStripeBaseOffset,
+                            // statsStripeBaseOffset + chunkBytes) is the true covered range. Using statsBaseOffset
+                            // would under-shoot by `skipped` on a mid-record split and mis-attribute the edge stripes.
+                            stripeHarvester.emit(
+                                sourceLocation,
+                                statsStripeBaseOffset,
+                                chunkBytes,
+                                pinnedMtimeMillis,
+                                fingerprinter.apply(fullSchema),
+                                fullSchema
+                            );
+                        }
+                    } else {
+                        emitWholeChunk(fullSchema);
                     }
-                } else {
-                    emitWholeChunk(fullSchema);
                 }
             }
+        } finally {
+            IOUtils.close(pageDecoder);
         }
-        IOUtils.close(pageDecoder);
     }
 
     /**

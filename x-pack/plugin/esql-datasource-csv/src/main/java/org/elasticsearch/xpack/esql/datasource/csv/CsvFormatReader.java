@@ -29,6 +29,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -2242,68 +2243,72 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     prefetchedRowsBytes = 0;
                     prefetchedRows = null;
                 }
-                if (modeOrdinal != ErrorPolicy.Mode.FAIL_FAST.ordinal() && errorCount > 0) {
-                    logger.info(
-                        "CSV parsing completed with [{}] errors out of [{}] rows (policy: {})",
-                        errorCount,
-                        totalRowCount,
-                        errorPolicy.mode()
-                    );
-                }
-                // The captured row count is accurate as long as no rows were DROPPED. NULL_FIELD
-                // null-fills a malformed field but preserves the row, so rowsEmittedForCache still
-                // matches the file's true row count even though errorCount > 0 — that read is safe to
-                // cache. SKIP_ROW drops rows (rowsSkipped > 0), making the count policy-dependent:
-                // suppress the whole-file write, and poison parallel chunks so the coordinator
-                // discards the file rather than committing an under-counted sum. (FAIL_FAST aborts
-                // before EOF, so naturallyExhausted already gates it out.)
-                // NONE scope suppresses all stats publishing (whole-file and per-stripe), so a warm aggregate
-                // over this read always re-scans.
-                if (cacheableObject != null
-                    && naturallyExhausted
-                    && pinnedMtimeMillis >= 0
-                    && schema != null
-                    && statsColumnScope != StripeColumnScope.NONE) {
-                    if (rowsSkipped == 0) {
-                        if (statsStripeSize > 0 && stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
-                            // Chunk-parallel read with per-stripe stats: emit one stripe-addressed fragment per
-                            // stripe this chunk touched; the coordinator interval-covers and folds them.
-                            emitPerStripe();
-                        } else {
-                            // PROJECTED/COUNT commit columnStats (projected / none). ALL additionally commits
-                            // allFileColumnStats (every file column) → strict superset of PROJECTED's set.
-                            Map<String, ExternalStats.ColumnStats> cols = StripeStatsHarvester.mergeColumnStats(
-                                columnStats,
-                                allFileColumnStats
-                            );
-                            OptionalLong bytesRead = byteCounter == null
-                                ? OptionalLong.empty()
-                                : OptionalLong.of(byteCounter.getBytesRead());
-                            String fingerprint = computeConfigFingerprint();
-                            ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmittedForCache, bytesRead, cols);
-                            // Whole-file publishes carry no partial marker; per-chunk publishes carry one, and
-                            // the ParallelParsingCoordinator publishes a finalize marker at clean whole-file
-                            // completion so the coordinator's reconciler only commits the merge then.
-                            publishToCaptureSink(
-                                sourceLocation,
-                                pinnedMtimeMillis,
-                                fingerprint,
-                                statsRecord,
-                                schema,
-                                sizeInBytesFromLength()
-                            );
-                        }
-                    } else if (chunkMode) {
-                        // rowsSkipped > 0 here: a parallel chunk dropped rows mid-scan, so its partial
-                        // would under-count. Poison the file — the reconciler discards every contribution.
-                        Map<String, Object> poison = new HashMap<>();
-                        poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
-                        poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
-                        ExternalStatsCapture.record(sourceLocation, poison);
+                // Close the reader/stream even if a stats publish throws — the publish is best-effort
+                // caching, the close is not.
+                try {
+                    if (modeOrdinal != ErrorPolicy.Mode.FAIL_FAST.ordinal() && errorCount > 0) {
+                        logger.info(
+                            "CSV parsing completed with [{}] errors out of [{}] rows (policy: {})",
+                            errorCount,
+                            totalRowCount,
+                            errorPolicy.mode()
+                        );
                     }
+                    // The captured row count is accurate as long as no rows were DROPPED. NULL_FIELD
+                    // null-fills a malformed field but preserves the row, so rowsEmittedForCache still
+                    // matches the file's true row count even though errorCount > 0 — that read is safe to
+                    // cache. SKIP_ROW drops rows (rowsSkipped > 0), making the count policy-dependent:
+                    // suppress the whole-file write, and poison parallel chunks so the coordinator
+                    // discards the file rather than committing an under-counted sum. (FAIL_FAST aborts
+                    // before EOF, so naturallyExhausted already gates it out.)
+                    // NONE scope suppresses all stats publishing (whole-file and per-stripe), so a warm aggregate
+                    // over this read always re-scans.
+                    if (cacheableObject != null
+                        && naturallyExhausted
+                        && pinnedMtimeMillis >= 0
+                        && schema != null
+                        && statsColumnScope != StripeColumnScope.NONE) {
+                        if (rowsSkipped == 0) {
+                            if (statsStripeSize > 0 && stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
+                                // Chunk-parallel read with per-stripe stats: emit one stripe-addressed fragment per
+                                // stripe this chunk touched; the coordinator interval-covers and folds them.
+                                emitPerStripe();
+                            } else {
+                                // PROJECTED/COUNT commit columnStats (projected / none). ALL additionally commits
+                                // allFileColumnStats (every file column) → strict superset of PROJECTED's set.
+                                Map<String, ExternalStats.ColumnStats> cols = StripeStatsHarvester.mergeColumnStats(
+                                    columnStats,
+                                    allFileColumnStats
+                                );
+                                OptionalLong bytesRead = byteCounter == null
+                                    ? OptionalLong.empty()
+                                    : OptionalLong.of(byteCounter.getBytesRead());
+                                String fingerprint = computeConfigFingerprint();
+                                ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmittedForCache, bytesRead, cols);
+                                // Whole-file publishes carry no partial marker; per-chunk publishes carry one, and
+                                // the ParallelParsingCoordinator publishes a finalize marker at clean whole-file
+                                // completion so the coordinator's reconciler only commits the merge then.
+                                publishToCaptureSink(
+                                    sourceLocation,
+                                    pinnedMtimeMillis,
+                                    fingerprint,
+                                    statsRecord,
+                                    schema,
+                                    sizeInBytesFromLength()
+                                );
+                            }
+                        } else if (chunkMode) {
+                            // rowsSkipped > 0 here: a parallel chunk dropped rows mid-scan, so its partial
+                            // would under-count. Poison the file — the reconciler discards every contribution.
+                            Map<String, Object> poison = new HashMap<>();
+                            poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+                            poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+                            ExternalStatsCapture.record(sourceLocation, poison);
+                        }
+                    }
+                } finally {
+                    IOUtils.close(reader, stream);
                 }
-                reader.close();
-                stream.close();
             }
         }
 

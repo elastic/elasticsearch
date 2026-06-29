@@ -368,7 +368,7 @@ public abstract class DenseVectorQuery extends Query {
                     VectorEncoderDecoder.decodeDenseVector(indexVersion, ref, decoded);
                 }
                 if (queryMagnitude > 0f) {
-                    float storedMagnitude = VectorEncoderDecoder.getMagnitude(indexVersion, ref, decoded);
+                    float storedMagnitude = VectorEncoderDecoder.decodeMagnitude(indexVersion, ref);
                     float rawScore = VectorUtil.dotProduct(target, decoded) / (queryMagnitude * storedMagnitude);
                     return VectorUtil.normalizeToUnitInterval(rawScore);
                 }

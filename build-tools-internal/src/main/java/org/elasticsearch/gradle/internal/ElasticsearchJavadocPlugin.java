@@ -180,8 +180,9 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
         project.getTasks().named("javadoc", Javadoc.class).configure(javadoc -> {
             // Registering the resolved artifact files as inputs wires the producing :upstream:javadoc
             // tasks via their builtBy metadata. This replaces dependsOn(":upstream:javadoc") and
-            // evaluationDependsOn(upstream).
-            javadoc.getInputs().files(javadocDirs.getArtifactFiles());
+            // evaluationDependsOn(upstream). We bind to the public Task#getInputs() (rather than
+            // Javadoc's covariant override, which returns the internal TaskInputsInternal type).
+            ((Task) javadoc).getInputs().files(javadocDirs.getArtifactFiles());
 
             // linksOffline lives on StandardJavadocDocletOptions, which is read while the javadoc tool
             // runs. doFirst is the safe point at which the resolved ArtifactCollection is available and

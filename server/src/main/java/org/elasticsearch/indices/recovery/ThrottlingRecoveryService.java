@@ -152,13 +152,14 @@ public final class ThrottlingRecoveryService implements Closeable {
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            projectResolver.executeOnProject(recovery.projectId, () -> {
-                var wrappedListener = RecoveryListener.wrapPreservingContext(
-                    RecoveryListener.runAfter(recovery.listener, () -> releaseSlot(recovery)),
-                    recovery.contextToRestore
+            try (ThreadContext.StoredContext ignore = recovery.context.get()) {
+                projectResolver.executeOnProject(
+                    recovery.projectId,
+                    () -> executor.execute(
+                        new RecoveryRunnable(recovery, RecoveryListener.runAfter(recovery.listener, () -> releaseSlot(recovery)))
+                    )
                 );
-                executor.execute(new RecoveryRunnable(recovery, wrappedListener));
-            });
+            }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
@@ -198,7 +199,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         RecoveryStats stats,
         Consumer<RecoveryListener> task,
         RecoveryListener listener,
-        Supplier<ThreadContext.StoredContext> contextToRestore
+        Supplier<ThreadContext.StoredContext> context
     ) {}
 
     /// Executable wrapper for a dispatched recovery.

@@ -417,7 +417,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     nextRecovery.listener(),
                     () -> onRecoveryComplete(nextRecovery.shard(), nextHandler)
                 );
-                // Generic executor cannot throw `EsRejectedExecutionException` (unbounded queue + rejectAfterShutdown=false)
+                // The generic executor has an unbounded queue and the threadpool shuts down after this service is stopped
+                // (and drains the queue), so the `execute` call cannot throw `EsRejectedExecutionException` here.
                 transportService.getThreadPool().generic().execute(() -> nextHandler.recoverToTarget(wrappedListener));
             }
         }

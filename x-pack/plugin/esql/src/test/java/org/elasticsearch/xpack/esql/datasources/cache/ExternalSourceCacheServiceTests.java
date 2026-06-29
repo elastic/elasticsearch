@@ -30,7 +30,9 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
 
@@ -766,6 +768,177 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
             assertEquals(2L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+        }
+    }
+
+    public void testConcurrentDistinctStripeCommitsAccumulateWithoutLostUpdate() throws Exception {
+        // N queries each commit a distinct complete stripe of the same file at the same instant. The
+        // per-path commit lock must serialize the read-modify-write so no stripe is dropped: the
+        // whole-file fold equals the sum of all stripes and stripes 0..N-1 + EOF are all present.
+        // Without the lock, concurrent commits each snapshot the same entry and the later put drops the
+        // earlier stripe (lost update) — this is the cross-query concurrency bug the lock guards.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            long grid = 100L;
+            int stripes = 16;
+            long rowsPerStripe = 10L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(stripes);
+            ExecutorService exec = Executors.newFixedThreadPool(stripes);
+            AtomicReference<Throwable> failure = new AtomicReference<>();
+            try {
+                for (int i = 0; i < stripes; i++) {
+                    final int ordinal = i;
+                    exec.submit(() -> {
+                        try {
+                            start.await();
+                            long s = ordinal * grid;
+                            boolean eof = ordinal == stripes - 1;
+                            service.reconcileSourceStatsFromContributions(
+                                Map.of(
+                                    path,
+                                    List.of(stripeFragment(mtime, "fp", rowsPerStripe, grid, ordinal, s, s + grid, true, true, eof))
+                                )
+                            );
+                        } catch (Throwable t) {
+                            failure.compareAndSet(null, t);
+                        } finally {
+                            done.countDown();
+                        }
+                    });
+                }
+                start.countDown();
+                assertTrue("commits did not finish", done.await(30, java.util.concurrent.TimeUnit.SECONDS));
+            } finally {
+                exec.shutdown();
+            }
+            assertNull("commit threw under contention: " + failure.get(), failure.get());
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "no stripe lost under concurrent commits",
+                stripes * rowsPerStripe,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertEquals((long) (stripes - 1), enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+        }
+    }
+
+    public void testConcurrentDuplicateWholeFileContributionsFoldToOne() throws Exception {
+        // N queries each contribute the SAME whole-file stats for one file simultaneously. Dedup plus
+        // the per-path lock must yield the single row count, never N times it.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            long rows = 500L;
+            int threads = 12;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(threads);
+            ExecutorService exec = Executors.newFixedThreadPool(threads);
+            AtomicReference<Throwable> failure = new AtomicReference<>();
+            try {
+                for (int i = 0; i < threads; i++) {
+                    exec.submit(() -> {
+                        try {
+                            start.await();
+                            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(wholeFileStats(mtime, "fp", rows))));
+                        } catch (Throwable t) {
+                            failure.compareAndSet(null, t);
+                        } finally {
+                            done.countDown();
+                        }
+                    });
+                }
+                start.countDown();
+                assertTrue("contributions did not finish", done.await(30, java.util.concurrent.TimeUnit.SECONDS));
+            } finally {
+                exec.shutdown();
+            }
+            assertNull("reconcile threw under contention: " + failure.get(), failure.get());
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "duplicate whole-file contributions must not sum",
+                rows,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
+    public void testConcurrentReadDuringStripeCommitsNeverSeesTornFold() throws Exception {
+        // A reader polls the cache entry while committers add stripes. The whole-file row_count fold is
+        // published only once the file is complete (stripes 0..K + EOF), and each commit re-puts the
+        // entry's metadata as a whole map, so a concurrent reader must see either no row_count
+        // (incomplete) or exactly the final sum — never a partial/torn intermediate.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            long grid = 100L;
+            int stripes = 16;
+            long rowsPerStripe = 10L;
+            long expected = stripes * rowsPerStripe;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch committersDone = new CountDownLatch(stripes);
+            AtomicBoolean stopReader = new AtomicBoolean(false);
+            AtomicReference<Object> tornValue = new AtomicReference<>();
+            AtomicReference<Throwable> failure = new AtomicReference<>();
+            ExecutorService exec = Executors.newFixedThreadPool(stripes + 1);
+            try {
+                exec.submit(() -> {
+                    try {
+                        start.await();
+                        while (stopReader.get() == false) {
+                            SchemaCacheEntry e = service.getOrComputeSchema(key, k -> { throw new AssertionError("seeded"); });
+                            Object rc = e.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT);
+                            if (rc != null && rc.equals(expected) == false) {
+                                tornValue.compareAndSet(null, rc);
+                            }
+                        }
+                    } catch (Throwable t) {
+                        failure.compareAndSet(null, t);
+                    }
+                });
+                for (int i = 0; i < stripes; i++) {
+                    final int ordinal = i;
+                    exec.submit(() -> {
+                        try {
+                            start.await();
+                            long s = ordinal * grid;
+                            boolean eof = ordinal == stripes - 1;
+                            service.reconcileSourceStatsFromContributions(
+                                Map.of(
+                                    path,
+                                    List.of(stripeFragment(mtime, "fp", rowsPerStripe, grid, ordinal, s, s + grid, true, true, eof))
+                                )
+                            );
+                        } catch (Throwable t) {
+                            failure.compareAndSet(null, t);
+                        } finally {
+                            committersDone.countDown();
+                        }
+                    });
+                }
+                start.countDown();
+                assertTrue("commits did not finish", committersDone.await(30, java.util.concurrent.TimeUnit.SECONDS));
+                stopReader.set(true);
+            } finally {
+                exec.shutdown();
+            }
+            assertNull("a thread threw under contention: " + failure.get(), failure.get());
+            assertNull("reader saw a torn/partial row_count fold", tornValue.get());
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(expected, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         }
     }
 

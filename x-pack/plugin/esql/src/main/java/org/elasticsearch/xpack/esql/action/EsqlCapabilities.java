@@ -314,6 +314,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_SMALL_NUMERIC,
 
         /**
+         * Bugfix: {@code IndexResolver.mergedMappings} crashed with {@code UnsupportedOperationException} when a keyword
+         * field with multi-fields (e.g. {@code my_field.analyzed}) was partially unmapped across the queried indices and
+         * {@code SET unmapped_fields="load"} was active. {@code PotentiallyUnmappedKeywordEsField} was constructed with
+         * an immutable empty properties map, preventing child fields from being inserted.
+         */
+        OPTIONAL_FIELDS_FIX_LOAD_KEYWORD_WITH_MULTIFIELDS,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -2665,6 +2673,14 @@ public class EsqlCapabilities {
         DATASET_IN_FROM_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
+         * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
+         * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
+         * verification failure that old coordinators in a mixed cluster still hit.
+         */
+        FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
          * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
          * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator
@@ -2804,6 +2820,12 @@ public class EsqlCapabilities {
          * Corrects a bug with ENRICH when a shard does not contain an index field and we use LIMIT BY on top
          */
         LIMIT_BY_ENRICH_FIX(ESQL_LIMIT_BY.isEnabled()),
+
+        /**
+         * Fix pushdown of LIMIT BY past MV_EXPAND when grouping on expanded fields.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/148513">#148513</a>.
+         */
+        LIMIT_BY_MV_EXPAND_GROUPING_FIX,
 
         /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
@@ -2952,12 +2974,12 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with LOOKUP JOIN
          */
-        APPROXIMATION_LOOKUP_JOIN_V2(Build.current().isSnapshot()),
+        APPROXIMATION_LOOKUP_JOIN_V2,
 
         /**
          * Support query approximation with INLINE STATS
          */
-        APPROXIMATION_INLINE_STATS_V2(Build.current().isSnapshot()),
+        APPROXIMATION_INLINE_STATS_V2,
 
         /**
          * Support for PromQL year() function.
@@ -3076,7 +3098,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with FORK and subqueries.
          */
-        APPROXIMATION_FORK(Build.current().isSnapshot()),
+        APPROXIMATION_FORK,
 
         /**
          * Support FIRST aggregation on extended types: version, unsigned_long, geo_point,
@@ -3215,12 +3237,26 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
 
         /**
+         * Fixes a bug in the planner where {@code TS} queries without an outer aggregation (group by all)
+         * would wrongly fail with an {@link IllegalStateException} if any aggregation had a filter.
+         */
+        FIX_GROUP_BY_ALL_AGGREGATION_FILTERS,
+
+        /**
          * Fix for PromQL {@code without} and ES|QL {@code TS_WITHOUT}: passthrough alias names (e.g. OTel
          * {@code cpu} for the concrete dimension {@code attributes.cpu}) are now correctly resolved in the
          * {@code _timeseries} block loader so excluded labels are actually removed from the series key.
          * https://github.com/elastic/elasticsearch/issues/151540
          */
         FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+
+        /**
+         * An empty list passed as a query parameter (named or positional) is treated as null
+         * instead of producing an NPE. A defined-but-null param used in an identifier or pattern
+         * position produces a clean parsing error instead of silently yielding an empty column name.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
+         */
+        EMPTY_LIST_PARAM_AS_NULL,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

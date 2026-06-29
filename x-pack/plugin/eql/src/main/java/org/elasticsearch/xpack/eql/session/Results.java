@@ -11,6 +11,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
@@ -25,27 +26,41 @@ public class Results {
     private final TimeValue tookTime;
     private final Type type;
     private ShardSearchFailure[] shardFailures;
+    private final DirectoryMetrics directoryMetrics;
 
     public static Results fromPayload(Payload payload) {
+        return fromPayload(payload, DirectoryMetrics.EMPTY);
+    }
+
+    public static Results fromPayload(Payload payload, DirectoryMetrics directoryMetrics) {
         List<?> values = payload.values();
-        payload.shardFailures();
         return new Results(
             new TotalHits(values.size(), Relation.EQUAL_TO),
             payload.timeTook(),
             false,
             values,
             payload.resultType(),
-            payload.shardFailures()
+            payload.shardFailures(),
+            directoryMetrics
         );
     }
 
-    Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results, Type type, ShardSearchFailure[] shardFailures) {
+    Results(
+        TotalHits totalHits,
+        TimeValue tookTime,
+        boolean timedOut,
+        List<?> results,
+        Type type,
+        ShardSearchFailure[] shardFailures,
+        DirectoryMetrics directoryMetrics
+    ) {
         this.totalHits = totalHits;
         this.tookTime = tookTime;
         this.timedOut = timedOut;
         this.results = results;
         this.type = type;
         this.shardFailures = shardFailures;
+        this.directoryMetrics = directoryMetrics;
     }
 
     public TotalHits totalHits() {
@@ -64,6 +79,10 @@ public class Results {
 
     public ShardSearchFailure[] shardFailures() {
         return shardFailures;
+    }
+
+    public DirectoryMetrics directoryMetrics() {
+        return directoryMetrics;
     }
 
     public TimeValue tookTime() {

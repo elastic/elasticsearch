@@ -405,30 +405,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 }
             }
         }
-        // Share immutable copies with the resolver: it is held by every file validator and read
-        // concurrently by admin (PUT dataset) threads, so the captured maps must not be mutated after
-        // build. knownFormats is already an unmodifiable set from DataSourceCapabilities.
-        Map<String, Set<String>> formatKeysByName = Map.copyOf(formatToConfigKeys);
-        Map<String, String> formatByExtension = Map.copyOf(extToFormat);
-        Set<String> knownFormats = dataSourceCapabilities.formats();
-        FileDataSourceValidator.FormatConfigKeyResolver formatKeyResolver = formatKeysByName.isEmpty()
+        // The resolver captures immutable copies of the maps (it is held by every file validator and
+        // read concurrently by admin PUT-dataset threads) and derives knownFormats from the config-keys
+        // map's key set, so the two sources cannot diverge.
+        FileDataSourceValidator.FormatConfigKeyResolver formatKeyResolver = formatToConfigKeys.isEmpty()
             ? null
-            : new FileDataSourceValidator.FormatConfigKeyResolver() {
-                @Override
-                public Set<String> configKeysForFormat(String formatName) {
-                    return formatKeysByName.get(formatName.toLowerCase(Locale.ROOT));
-                }
-
-                @Override
-                public String formatForExtension(String extension) {
-                    return formatByExtension.get(extension.toLowerCase(Locale.ROOT));
-                }
-
-                @Override
-                public Set<String> knownFormats() {
-                    return knownFormats;
-                }
-            };
+            : FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat);
 
         // Collect known compression extensions so the CRUD validator only falls back to
         // inner extensions for compound paths (e.g. data.csv.gz) when the outer extension

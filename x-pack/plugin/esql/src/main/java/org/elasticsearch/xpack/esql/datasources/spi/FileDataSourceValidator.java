@@ -232,10 +232,22 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
         }
 
+        // Normalize the format selector before raw storage so the representation in cluster state
+        // is canonical (lowercase, trimmed) regardless of how the user typed it. This ensures that
+        // format="CSV" and format="csv" produce identical cluster-state entries and the same
+        // SchemaCacheKey string at query time.
+        Object rawFormat = settings.get(FormatNameResolver.CONFIG_FORMAT);
+        if (rawFormat != null && acceptedFields.contains(FormatNameResolver.CONFIG_FORMAT)) {
+            String normalized = rawFormat.toString().trim().toLowerCase(Locale.ROOT);
+            if (normalized.isEmpty() == false) {
+                result.put(FormatNameResolver.CONFIG_FORMAT, normalized);
+            }
+        }
+
         // Store every accepted setting that is present, as its raw value. Each query-time consumer
         // re-parses from value.toString(), so raw storage avoids type-coercion mismatches. Format-specific
         // fields pass through here too; the format reader validates their types at query time. The parsed
-        // schema_sample_size already placed above is left intact.
+        // schema_sample_size and format selector placed above are left intact.
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
             if (acceptedFields.contains(entry.getKey()) && result.containsKey(entry.getKey()) == false) {
                 result.put(entry.getKey(), entry.getValue());
@@ -267,8 +279,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
      *
      * <p>The format is resolved as: explicit {@code format} setting → resource extension → unknown.
      * A known format accepts the base fields plus that format's keys (strict). An unknown format
-     * accepts the base fields only; a format-specific setting then draws a targeted "set format"
-     * error. Without a resolver, {@code format} itself is rejected (see {@link #DATASET_FIELDS_WITHOUT_FORMAT}).
+     * accepts the base fields only; a remaining key that some registered format recognises draws a
+     * targeted "set format" error, while a key no format recognises is reported as a plain unknown
+     * setting. Without a resolver, {@code format} itself is rejected (see {@link #DATASET_FIELDS_WITHOUT_FORMAT}).
      *
      * <p>Returns {@code null} to signal that an explicit {@code format} value is not a registered
      * format: the caller short-circuits on the single {@code unknown format} error rather than piling
@@ -299,18 +312,47 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return acceptStrict(settings, formatKeys != null ? formatKeys : Set.of(), errors);
         }
 
-        // Format unknown: accept the base fields only. If a format-specific setting is present, the user
-        // must say which format it belongs to: a targeted message instead of a generic "unknown setting".
-        Set<String> offending = new TreeSet<>();
-        for (String key : settings.keySet()) {
-            if (DATASET_FIELDS.contains(key) == false) {
-                offending.add(key);
+        // Format unknown: accept the base fields only. Split the remaining keys so each gets the right
+        // diagnosis. A key some registered format recognises cannot be validated here (we do not know
+        // which format it belongs to), so it draws a targeted "set format" hint — but only when there
+        // is a resource URI to anchor the hint to (null resource already produces its own "[resource]
+        // is required" error, so format-specific keys fall through to the generic unknown-setting path).
+        // A key no format recognises is a genuine typo, reported as a plain unknown setting.
+        Set<String> allFormatKeys = resource != null ? allFormatConfigKeys() : Set.of();
+        Set<String> needFormat = new TreeSet<>();
+        Map<String, Object> unknownKeys = new HashMap<>();
+        for (Map.Entry<String, Object> entry : settings.entrySet()) {
+            String key = entry.getKey();
+            if (DATASET_FIELDS.contains(key)) {
+                continue;
+            }
+            if (allFormatKeys.contains(key)) {
+                needFormat.add(key);
+            } else {
+                unknownKeys.put(key, entry.getValue());
             }
         }
-        if (offending.isEmpty() == false) {
-            errors.addValidationError(cannotDetermineFormatError(resource, offending));
+        rejectUnknownFields(unknownKeys, DATASET_FIELDS, errors);
+        if (needFormat.isEmpty() == false) {
+            errors.addValidationError(cannotDetermineFormatError(resource, needFormat));
         }
         return DATASET_FIELDS;
+    }
+
+    /**
+     * Union of every registered format's config keys. Used by the unknown-format branch to tell a
+     * genuine typo apart from a real format-specific setting on a resource whose format cannot be
+     * determined. Only called when {@link #formatConfigKeyResolver} is non-null.
+     */
+    private Set<String> allFormatConfigKeys() {
+        Set<String> all = new HashSet<>();
+        for (String format : formatConfigKeyResolver.knownFormats()) {
+            Set<String> keys = formatConfigKeyResolver.configKeysForFormat(format);
+            if (keys != null) {
+                all.addAll(keys);
+            }
+        }
+        return all;
     }
 
     /**
@@ -341,23 +383,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     /**
-     * Returns the explicit, usable {@code format} value (trimmed and lowercased) from the settings, or
-     * {@code null} when {@code format} is absent, blank, or the {@link FormatNameResolver#FORMAT_AUTO}
-     * sentinel (all of which mean "infer from the extension"). Normalization matches
-     * {@link FormatNameResolver} exactly (trim, then lowercase) so a value accepted here resolves
-     * identically at query time.
+     * Returns the explicit, usable {@code format} value from the settings, or {@code null} when
+     * {@code format} is absent, blank, or the {@link FormatNameResolver#FORMAT_AUTO} sentinel (all of
+     * which mean "infer from the extension"). Delegates to
+     * {@link FormatNameResolver#parseExplicitFormat} so normalization and sentinel handling are
+     * single-sourced.
      */
     @Nullable
     private static String explicitFormat(Map<String, Object> settings) {
-        Object raw = settings.get(FormatNameResolver.CONFIG_FORMAT);
-        if (raw == null) {
-            return null;
-        }
-        String name = raw.toString().trim().toLowerCase(Locale.ROOT);
-        if (name.isEmpty() || name.equals(FormatNameResolver.FORMAT_AUTO)) {
-            return null;
-        }
-        return name;
+        return FormatNameResolver.parseExplicitFormat(settings.get(FormatNameResolver.CONFIG_FORMAT));
     }
 
     /**
@@ -458,6 +492,37 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * {@link FormatSpec} declarations at startup (see {@code EsqlPlugin}).
      */
     public interface FormatConfigKeyResolver {
+
+        /**
+         * Builds a resolver from a format-name → config-keys map and an extension → format-name map.
+         * Captures immutable copies so the result is safe for concurrent reads, and lowercases the
+         * lookup arguments so callers need not normalize first. {@link #knownFormats()} is the
+         * config-keys map's key set, so it stays consistent with {@link #configKeysForFormat} by
+         * construction. This is the implementation used in production (see {@code EsqlPlugin}); tests
+         * use it too rather than hand-rolling a stand-in.
+         */
+        static FormatConfigKeyResolver of(Map<String, Set<String>> formatConfigKeys, Map<String, String> formatByExtension) {
+            Map<String, Set<String>> keysByFormat = Map.copyOf(formatConfigKeys);
+            Map<String, String> formatByExt = Map.copyOf(formatByExtension);
+            Set<String> formats = keysByFormat.keySet();
+            return new FormatConfigKeyResolver() {
+                @Override
+                public Set<String> configKeysForFormat(String formatName) {
+                    return keysByFormat.get(formatName.toLowerCase(Locale.ROOT));
+                }
+
+                @Override
+                public String formatForExtension(String extension) {
+                    return formatByExt.get(extension.toLowerCase(Locale.ROOT));
+                }
+
+                @Override
+                public Set<String> knownFormats() {
+                    return formats;
+                }
+            };
+        }
+
         /**
          * Returns the set of per-dataset config keys the named format recognises (possibly empty for a
          * known format with no extra keys, e.g. {@code orc}), or {@code null} if the format name is not

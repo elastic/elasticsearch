@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 import java.util.Locale;
@@ -58,6 +59,28 @@ public final class FormatNameResolver {
     private FormatNameResolver() {}
 
     /**
+     * Normalizes a raw {@code format} config value into a usable format name, or returns {@code null}
+     * when the value means "infer from the resource extension" (blank, or the {@link #FORMAT_AUTO}
+     * sentinel). Normalization is {@code trim().toLowerCase(Locale.ROOT)}, matching how the query
+     * path reads stored values, so a value accepted here resolves identically at query time.
+     *
+     * <p>This is the single source of truth for {@code format} sentinel handling. Both the CRUD
+     * validator ({@code FileDataSourceValidator.explicitFormat}) and the query-time resolvers
+     * ({@link #resolve}, {@link #resolveReader}) delegate here so new sentinels only need one edit.
+     */
+    @Nullable
+    public static String parseExplicitFormat(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String name = raw.toString().trim().toLowerCase(Locale.ROOT);
+        if (name.isEmpty() || name.equals(FORMAT_AUTO)) {
+            return null;
+        }
+        return name;
+    }
+
+    /**
      * Resolves the format name from the WITH config map and/or the source path.
      *
      * @return the format name (e.g. "parquet", "parquet-rs", "orc"), or null if undetermined
@@ -72,12 +95,9 @@ public final class FormatNameResolver {
                     return formatName;
                 }
             }
-            Object formatOverride = config.get(CONFIG_FORMAT);
-            if (formatOverride != null) {
-                String name = formatOverride.toString().trim().toLowerCase(Locale.ROOT);
-                if (name.isEmpty() == false && name.equals(FORMAT_AUTO) == false) {
-                    return name;
-                }
+            String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
+            if (name != null) {
+                return name;
             }
         }
         return formatFromExtension(sourcePath);
@@ -114,12 +134,9 @@ public final class FormatNameResolver {
                 }
                 return registry.byName(formatName);
             }
-            Object formatOverride = config.get(CONFIG_FORMAT);
-            if (formatOverride != null) {
-                String name = formatOverride.toString().trim().toLowerCase(Locale.ROOT);
-                if (name.isEmpty() == false && name.equals(FORMAT_AUTO) == false) {
-                    return registry.byName(name);
-                }
+            String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
+            if (name != null) {
+                return registry.byName(name);
             }
         }
         return registry.byExtension(objectName);

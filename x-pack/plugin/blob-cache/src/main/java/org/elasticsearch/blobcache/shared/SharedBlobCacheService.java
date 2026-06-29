@@ -57,6 +57,7 @@ import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -348,6 +349,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         void forceEvictAsync(Predicate<K> cacheKey);
 
         int forceEvict(ShardId shard, Predicate<K> cacheKeyPredicate);
+
+        int demoteAll(ShardId shard);
     }
 
     private abstract static class CacheEntry<T> {
@@ -946,6 +949,56 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      */
     public void forceEvictAsync(Predicate<KeyType> cacheKeyPredicate) {
         cache.forceEvictAsync(cacheKeyPredicate);
+    }
+
+    /**
+     * Demotes all active cache regions for the given shard to frequency 0.
+     * Demoted entries are inserted at the front of the frequency-0 list so they are evicted before
+     * other frequency-0 entries. {@code lastAccessedEpoch} is set to {@code -1} so demoted entries
+     * are not frequency-promoted before the next epoch.
+     *
+     * @return the number of regions demoted
+     */
+    public int demoteAll(ShardId shard) {
+        return cache.demoteAll(shard);
+    }
+
+    /**
+     * Schedules an asynchronous demotion of all active cache regions for the given shard to frequency 0.
+     * The predicate is evaluated when the task runs; demotion is skipped when it returns {@code false}.
+     */
+    public void demoteAllAsync(ShardId shard, Predicate<ShardId> shouldDemote) {
+        // TODO do not submit task if shutting down
+        asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    if (shouldDemote.test(shard)) {
+                        cache.demoteAll(shard);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                final String message = "unexpected failure in async demotion task for shard [" + shard + "]";
+                logger.error(message, e);
+                assert false : new AssertionError(message, e);
+            }
+        });
+    }
+
+    // used by tests
+    Map<Integer, Integer> countCachedRegionsByFreq(Predicate<KeyType> predicate) {
+        return countCachedRegionsByFreq(predicate, false);
+    }
+
+    // used by tests
+    Map<Integer, Integer> countCachedRegionsByFreq(Predicate<KeyType> predicate, boolean includeEvicted) {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.countCachedRegionsByFreq(predicate, includeEvicted);
+        }
+        throw new UnsupportedOperationException("cache is not an LFUCache");
     }
 
     // used by tests
@@ -2322,6 +2375,32 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return evictedCount;
         }
 
+        @Override
+        public int demoteAll(ShardId shard) {
+            final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
+            keyMapping.forEach(shard, (key, entry) -> matchingEntries.add(entry));
+
+            var demotedCount = 0;
+            if (matchingEntries.isEmpty() == false) {
+                synchronized (SharedBlobCacheService.this) {
+                    for (LFUCacheEntry entry : matchingEntries) {
+                        if (entry.freq == 0 || entry.chunk.isEvicted() || entry.chunk.volatileIO() == null) {
+                            continue;
+                        }
+                        unlink(entry);
+                        entry.freq = 0;
+                        entry.lastAccessedEpoch = -1;
+                        pushEntryToFront(entry);
+                        demotedCount++;
+                    }
+                }
+            }
+            if (demotedCount > 0) {
+                logger.debug("{} demoted [{}] cache regions to frequency 0", shard, demotedCount);
+            }
+            return demotedCount;
+        }
+
         private LFUCacheEntry initChunk(LFUCacheEntry entry) {
             assert Thread.holdsLock(entry.chunk);
             RegionKey<KeyType> regionKey = entry.chunk.regionKey;
@@ -2382,6 +2461,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         private void pushEntryToBack(final LFUCacheEntry entry) {
+            pushEntry(entry, false);
+        }
+
+        private void pushEntryToFront(final LFUCacheEntry entry) {
+            pushEntry(entry, true);
+        }
+
+        private void pushEntry(final LFUCacheEntry entry, boolean toFront) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
             assert invariant(entry, false);
             assert entry.prev == null;
@@ -2395,18 +2482,26 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 entry.next = null;
             } else {
                 assert currFront.freq == entry.freq;
-                final LFUCacheEntry last = currFront.prev;
-                currFront.prev = entry;
-                last.next = entry;
-                entry.prev = last;
-                entry.next = null;
+                if (toFront) {
+                    entry.next = currFront;
+                    entry.prev = currFront.prev;
+                    currFront.prev = entry;
+                    level.head = entry;
+                } else {
+                    final LFUCacheEntry last = currFront.prev;
+                    currFront.prev = entry;
+                    last.next = entry;
+                    entry.prev = last;
+                    entry.next = null;
+                }
             }
             level.count++;
-            assert freqs[entry.freq].head.prev == entry;
-            assert freqs[entry.freq].head.prev.next == null;
+            assert toFront == false || freqs[entry.freq].head == entry;
+            assert toFront || freqs[entry.freq].head.prev == entry;
+            assert freqs[entry.freq].head.prev != null;
             assert entry.prev != null;
             assert entry.prev.next == null || entry.prev.next == entry;
-            assert entry.next == null;
+            assert toFront || entry.next == null;
             assert invariant(entry, true);
         }
 
@@ -2552,7 +2647,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final long startNanos = relativeNanosProvider.getAsLong();
             final int[] entriesScanned = new int[1];
             final long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
-            SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, entriesScanned);
+            final Predicate<CacheRegion<KeyType>> canEvict = evictionPolicy.createPredicate(incoming.chunk);
+            SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, entriesScanned, canEvict);
             if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
@@ -2567,7 +2663,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Free, entriesScanned[0]);
                     return freeRegion;
                 }
-                result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq, entriesScanned);
+                result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq, entriesScanned, canEvict);
                 if (result != null) {
                     logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Evicted, entriesScanned[0]);
                     return result;
@@ -2599,12 +2695,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final LFUCacheEntry incoming,
             final Runnable evictedNotification,
             final int freq,
-            final int[] entriesScanned
+            final int[] entriesScanned,
+            final Predicate<CacheRegion<KeyType>> canEvict
         ) {
             assert entriesScanned.length == 1 && entriesScanned[0] >= 0;
             for (LFUCacheEntry entry = freqs[freq].head; entry != null; entry = entry.next) {
                 entriesScanned[0]++;
-                if (evictionPolicy.canEvict(entry.chunk, incoming.chunk) == false) {
+                if (canEvict.test(entry.chunk) == false) {
                     continue;
                 }
 
@@ -2650,6 +2747,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return keyMapping.countMatchingKey2s(regionKey -> predicate.test(regionKey.file()));
         }
 
+        // used by tests
+        Map<Integer, Integer> countCachedRegionsByFreq(Predicate<KeyType> predicate, boolean includeEvicted) {
+            final Map<Integer, Integer> freqs = new HashMap<>();
+            keyMapping.forEach((regionKey, entry) -> {
+                if (predicate.test(regionKey.file()) && (includeEvicted || entry.chunk.isEvicted() == false)) {
+                    freqs.merge(entry.freq, 1, Integer::sum);
+                }
+            });
+            return Map.copyOf(freqs);
+        }
+
         /**
          * This method tries to evict the least used {@link LFUCacheEntry}. Only entries with the lowest possible frequency are considered
          * for eviction.
@@ -2662,9 +2770,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             boolean found = false;
             synchronized (SharedBlobCacheService.this) {
                 startNanos = relativeNanosProvider.getAsLong();
+                final Predicate<CacheRegion<KeyType>> canEvict = evictionPolicy.createPredicate(incoming);
                 for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
                     entriesScanned++;
-                    if (evictionPolicy.canEvict(entry.chunk, incoming) == false) {
+                    if (canEvict.test(entry.chunk) == false) {
                         continue;
                     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -66,6 +67,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -673,6 +675,108 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testDemoteAll() throws Exception {
+        final boolean async = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final ShardId shard1 = randomShardId();
+            final ShardId shard2 = randomShardId();
+            final var cacheKey1 = randomTestCacheKey(shard1);
+            final var cacheKey2 = randomTestCacheKey(shard2);
+
+            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            final var region1 = cacheService.get(cacheKey1, size(250), 1);
+            final var region2 = cacheService.get(cacheKey2, size(250), 0);
+
+            assertEquals(1, cacheService.getFreq(region0));
+            assertEquals(1, cacheService.getFreq(region1));
+            assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shard1)), equalTo(Map.of(1, 2)));
+
+            if (async) {
+                cacheService.demoteAllAsync(shard1, id -> id.equals(shard1));
+                assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shard1)), equalTo(Map.of(1, 2)));
+                taskQueue.runAllRunnableTasks();
+            } else {
+                assertEquals(2, cacheService.demoteAll(shard1));
+            }
+
+            assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(shard1)), equalTo(Map.of(0, 2)));
+            assertEquals(0, cacheService.getFreq(region0));
+            assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region2));
+
+            assertEquals(0, cacheService.demoteAll(shard1));
+            assertEquals(0, cacheService.demoteAll(randomShardId()));
+        }
+    }
+
+    /// Verifies that {@link SharedBlobCacheService#demoteAll} moves demoted regions to the freq-0 head
+    /// so they are evicted before other freq-0 entries.
+    public void testDemoteAllMovesRegionsToFrontForEviction() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(300)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final ShardId protectedShard = randomShardId();
+            final ShardId victimShard = randomShardId();
+            final var protectedKey = randomTestCacheKey(protectedShard);
+            final var victimKey = randomTestCacheKey(victimShard);
+
+            final var protectedRegion0 = cacheService.get(protectedKey, size(250), 0);
+            final var protectedRegion1 = cacheService.get(protectedKey, size(250), 1);
+            assertThat(cacheService.freeRegionCount(), equalTo(1));
+
+            cacheService.computeDecay();
+            taskQueue.runAllRunnableTasks();
+            assertThat(cacheService.countCachedRegionsByFreq(key -> key.shardId().equals(protectedShard)), equalTo(Map.of(0, 2)));
+            assertEquals(0, cacheService.getFreq(protectedRegion0));
+            assertEquals(0, cacheService.getFreq(protectedRegion1));
+
+            final var victimRegion0 = cacheService.get(victimKey, size(250), 0);
+            assertThat(cacheService.freeRegionCount(), equalTo(0));
+            assertEquals(1, cacheService.getFreq(victimRegion0));
+
+            assertEquals(1, cacheService.demoteAll(victimShard));
+            assertEquals(0, cacheService.getFreq(victimRegion0));
+            assertThat(cacheService.countCachedRegionsByFreq(key -> true), equalTo(Map.of(0, 3)));
+
+            assertThat(cacheService.maybeEvictLeastUsed(randomTestCacheKey(randomShardId()), size(250), 0), is(true));
+            assertTrue(victimRegion0.isEvicted());
+            assertFalse(protectedRegion0.isEvicted());
+            assertFalse(protectedRegion1.isEvicted());
+        }
+    }
+
     public void testDecay() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
@@ -1207,6 +1311,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                     cacheService.forceEvict(x -> true);
                                 } else if (evict[i] == 1) {
                                     cacheService.forceEvict(shardId, x -> true);
+                                } else if (evict[i] == 2) {
+                                    cacheService.demoteAll(shardId);
                                 }
                             } catch (AlreadyClosedException e) {
                                 // ignore
@@ -1706,8 +1812,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final RecordingMeterRegistry recordingNone = new RecordingMeterRegistry();
         final EvictionPolicy<TestCacheKey> neverEvict = new EvictionPolicy<>() {
             @Override
-            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
-                return false;
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
+                return Predicates.never();
             }
 
             @Override
@@ -1758,9 +1864,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     /// Drives the all-frequency scanner to the rarely-hit `Free` outcome and asserts the recorded `mode`, `outcome` and `entriesScanned`.
     ///
     /// The `Free` outcome fires when a region appears in `freeRegions` *during* the scan's poll, rather than being produced by the
-    /// scan's own eviction. To trigger it deterministically, we install a policy that never evicts, but on its first `canEvict`
-    /// consultation force-evicts a victim that has been parked in a higher frequency bucket. `forceEvict` bypasses `canEvict` (so the
-    /// side effect fires exactly once) and re-enters the same reentrant monitor already held by the in-flight scan, freeing one region
+    /// scan's own eviction. To trigger it deterministically, we install a policy that never evicts, but when its eviction predicate is
+    /// created force-evicts a victim that has been parked in a higher frequency bucket. `forceEvict` bypasses the eviction predicate (so
+    /// the side effect fires exactly once) and re-enters the same reentrant monitor already held by the in-flight scan, freeing one region
     /// into `freeRegions` which the scan's next poll then picks up.
     ///
     /// The victim must live in a *different* frequency bucket than the one being scanned: `maybeEvictAndTakeForFrequency` walks its
@@ -1787,16 +1893,16 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final AtomicReference<SharedBlobCacheService<TestCacheKey>> serviceRef = new AtomicReference<>();
         final TestCacheKey victimKey = generateCacheKey();
 
-        // never evicts, but on its first consultation force-evicts the victim
+        // never evicts, but when its eviction predicate is created force-evicts the victim
         final EvictionPolicy<TestCacheKey> freeingPolicy = new EvictionPolicy<>() {
             final AtomicBoolean forcedOnce = new AtomicBoolean(false);
 
             @Override
-            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
                 if (forcedOnce.compareAndSet(false, true)) {
                     serviceRef.get().forceEvict(victimKey::equals);
                 }
-                return false;
+                return Predicates.never();
             }
 
             @Override
@@ -1838,7 +1944,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // the cache is still full, so the only way a region can land in freeRegions mid-scan is the in-scan force-evict below
             assertThat(cacheService.freeRegionCount(), equalTo(0));
 
-            // get() of a new key has no free region: the freq-0 scan walks all numRegions - 1 entries (canEvict false), the first of
+            // get() of a new key has no free region: the freq-0 scan walks all numRegions - 1 entries (predicate false), the first of
             // which force-evicts the freq-2 victim; the freq-1 poll then picks up that freed region, giving the Free outcome
             cacheService.get(generateCacheKey(), regionSize, 0);
 
@@ -1893,8 +1999,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final Set<TestCacheKey> protectedKeys = new HashSet<>();
         final EvictionPolicy<TestCacheKey> protectFirstSkip = new EvictionPolicy<>() {
             @Override
-            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
-                return protectedKeys.contains(region.key()) == false;
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
+                return region -> protectedKeys.contains(region.key()) == false;
             }
 
             @Override
@@ -2007,8 +2113,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final Set<TestCacheKey> protectedKeys = new HashSet<>();
         final EvictionPolicy<TestCacheKey> protectByKey = new EvictionPolicy<>() {
             @Override
-            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
-                return protectedKeys.contains(region.key()) == false;
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
+                return region -> protectedKeys.contains(region.key()) == false;
             }
 
             @Override

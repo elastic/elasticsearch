@@ -76,7 +76,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -112,6 +111,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -1357,7 +1357,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
         assert operations.size() == batch.docCount()
             : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
         try (var ignored = acquireEnsureOpenRef()) {
@@ -1437,7 +1437,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, EirfBatch batch, IndexResult[] allResults)
+    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, SourceBatch batch, IndexResult[] allResults)
         throws IOException {
         final boolean fromTranslog = operations.getFirst().origin().isFromTranslog();
         assert assertNoMixedRecoveryOperations(operations);
@@ -1558,7 +1558,7 @@ public class InternalEngine extends Engine {
             final Translog.Location batchLocation;
             if (fromTranslog == false) {
                 final long batchPrimaryTerm = subBatchOps[0].primaryTerm();
-                final EirfBatch slicedBatch = batch.slice(subBatchIdx, subBatchIdx + subBatchSize);
+                final SourceBatch slicedBatch = batch.slice(subBatchIdx, subBatchIdx + subBatchSize);
                 final List<Translog.IndexBatch.Op> translogOps = new ArrayList<>(subBatchSize);
                 for (int i = 0; i < subBatchSize; i++) {
                     Index index = subBatchOps[i];

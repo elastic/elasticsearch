@@ -51,7 +51,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -59,6 +58,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -430,7 +430,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
         // Build per-shard EIRF batches for shards that ended up batchable (initial-pass only). For
         // shards marked non-batchable, no batch is produced and the items keep their inline source.
-        Map<ShardId, EirfBatch> shardBatches = batchEncoders == null ? Collections.emptyMap() : batchEncoders.finalizeBatches();
+        Map<ShardId, SourceBatch> shardBatches = batchEncoders == null ? Collections.emptyMap() : batchEncoders.finalizeBatches();
 
         String nodeId = clusterService.localNode().getId();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
@@ -451,7 +451,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     bulkRequest.isSimulated()
                 );
 
-                EirfBatch shardBatch = shardBatches.get(shardId);
+                SourceBatch shardBatch = shardBatches.get(shardId);
                 if (shardBatch != null) {
                     bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
                 }

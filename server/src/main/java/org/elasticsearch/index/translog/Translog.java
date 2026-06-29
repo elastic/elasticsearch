@@ -34,10 +34,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfRowReader;
 import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.eirf.EirfRowXContentParser;
+import org.elasticsearch.eirf.SourceBatches;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
@@ -49,6 +48,8 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -1963,7 +1964,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * {@link XContentType}. {@link NoOpOp} entries decode to {@link NoOp} records.
          */
         public List<Operation> explode() throws IOException {
-            try (EirfBatch eirf = new EirfBatch(batchData, () -> {})) {
+            try (SourceBatch eirf = SourceBatches.fromBytes(batchData, () -> {})) {
                 EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(eirf.schema());
                 List<Operation> out = new ArrayList<>(ops.size());
                 for (int i = 0; i < ops.size(); i++) {
@@ -1974,7 +1975,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                                 "IndexOp rowIndex [" + indexOp.rowIndex() + "] out of range for batch with [" + eirf.docCount() + "] rows"
                             );
                         }
-                        EirfRowReader row = eirf.getRowReader(indexOp.rowIndex());
+                        SourceRow row = eirf.row(indexOp.rowIndex());
                         BytesReference source;
                         try (XContentBuilder builder = XContentBuilder.builder(indexOp.xContentType().xContent())) {
                             EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);

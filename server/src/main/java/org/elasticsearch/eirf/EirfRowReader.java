@@ -11,6 +11,7 @@ package org.elasticsearch.eirf;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -22,7 +23,7 @@ import org.elasticsearch.xcontent.XContentString;
  * row_flags(u8) | column_count(u16) | var_offset(u16 or i32) | type_bytes[column_count] | fixed_section | var_section
  * </pre>
  */
-public final class EirfRowReader {
+public final class EirfRowReader implements SourceRow {
 
     private static final int ROW_FLAGS_OFFSET = 0;
     private static final int ROW_COLUMN_COUNT_OFFSET = ROW_FLAGS_OFFSET + 1;

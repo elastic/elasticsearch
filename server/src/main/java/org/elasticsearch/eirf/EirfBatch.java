@@ -9,11 +9,13 @@
 
 package org.elasticsearch.eirf;
 
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceColumn;
+import org.elasticsearch.sourcebatch.SourceRow;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -30,7 +32,7 @@ import java.util.List;
  * [Row Data] rows
  * </pre>
  */
-public final class EirfBatch implements Releasable, Accountable {
+public final class EirfBatch implements SourceBatch {
 
     /** Magic as a little-endian int: bytes 'e','i','r','f' read as LE i32. */
     public static final int MAGIC_LE = ('e' & 0xFF) | (('i' & 0xFF) << 8) | (('r' & 0xFF) << 16) | (('f' & 0xFF) << 24);
@@ -123,20 +125,37 @@ public final class EirfBatch implements Releasable, Accountable {
         return (data.get(offset) & 0xFF) | ((data.get(offset + 1) & 0xFF) << 8);
     }
 
+    @Override
     public int docCount() {
         return docCount;
     }
 
+    @Override
     public EirfSchema schema() {
         return schema;
     }
 
+    @Override
     public BytesReference data() {
         return data;
     }
 
+    @Override
     public int columnCount() {
         return schema.leafCount();
+    }
+
+    @Override
+    public SourceRow row(int docIndex) {
+        return getRowReader(docIndex);
+    }
+
+    @Override
+    public SourceColumn column(int columnIndex) {
+        if (columnIndex < 0 || columnIndex >= columnCount()) {
+            throw new IndexOutOfBoundsException("columnIndex " + columnIndex + " out of range [0, " + columnCount() + ")");
+        }
+        return new EirfColumn(this, columnIndex);
     }
 
     public EirfRowReader getRowReader(int docIndex) {
@@ -156,6 +175,7 @@ public final class EirfBatch implements Releasable, Accountable {
      * {@link CompositeBytesReference}. The returned batch holds no ownership over the parent's
      * underlying buffers — closing it is a no-op.
      */
+    @Override
     public EirfBatch slice(int from, int to) {
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");

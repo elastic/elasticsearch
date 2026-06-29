@@ -11,6 +11,7 @@ package org.elasticsearch.eirf;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.Text;
@@ -26,7 +27,7 @@ import java.util.List;
 
 /**
  * An {@link org.elasticsearch.xcontent.XContentParser} that walks a pre-built {@link SchemaNode} tree,
- * reading values directly from an {@link EirfRowReader} without intermediate allocations.
+ * reading values directly from a {@link SourceRow} without intermediate allocations.
  *
  * <p>The {@link SchemaNode} tree is built once per batch from the {@link EirfSchema} and reused
  * across all rows. Each parser instance holds a reference to a specific row's data.
@@ -136,7 +137,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
 
     // Tree and row data
     private final SchemaNode root;
-    private final EirfRowReader row;
+    private final SourceRow row;
 
     // Walk state: stack of (node, childIndex) pairs
     private SchemaNode[] nodeStack = new SchemaNode[16];
@@ -171,7 +172,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     // Whether we've emitted the root START_OBJECT yet
     private boolean started;
 
-    public EirfRowXContentParser(SchemaNode root, EirfRowReader row) {
+    public EirfRowXContentParser(SchemaNode root, SourceRow row) {
         super(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, RestApiVersion.current());
         this.root = root;
         this.row = row;

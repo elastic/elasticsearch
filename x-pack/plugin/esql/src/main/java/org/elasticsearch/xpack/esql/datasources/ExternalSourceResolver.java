@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.DatasetSchema;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -220,13 +222,23 @@ public class ExternalSourceResolver {
         Map<String, Map<String, Object>> pathConfigs,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathConfigs, null, listener);
+        resolve(paths, pathConfigs, null, null, listener);
     }
 
     public void resolve(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        ActionListener<ExternalSourceResolution> listener
+    ) {
+        resolve(paths, pathConfigs, filterHints, null, listener);
+    }
+
+    public void resolve(
+        List<String> paths,
+        Map<String, Map<String, Object>> pathConfigs,
+        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        @Nullable Map<String, DatasetSchema> declaredSchemas,
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (paths == null || paths.isEmpty()) {
@@ -247,9 +259,16 @@ public class ExternalSourceResolver {
                     Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
                     List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
                     boolean hivePartitioning = isHivePartitioningEnabled(config);
+                    DatasetSchema declaredSchema = declaredSchemas != null ? declaredSchemas.get(path) : null;
 
                     try {
-                        ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
+                        ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(
+                            path,
+                            config,
+                            hints,
+                            hivePartitioning,
+                            declaredSchema
+                        );
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
                     } catch (TaskCancelledException e) {
@@ -293,7 +312,8 @@ public class ExternalSourceResolver {
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning
+        boolean hivePartitioning,
+        @Nullable DatasetSchema declaredSchema
     ) throws Exception {
         LOGGER.debug("Resolving external source: path=[{}]", path);
 
@@ -302,7 +322,7 @@ public class ExternalSourceResolver {
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            return resolveMultiFileSource(path, config, hints, hivePartitioning);
+            return resolveMultiFileSource(path, config, hints, hivePartitioning, declaredSchema);
         }
 
         /*
@@ -312,6 +332,10 @@ public class ExternalSourceResolver {
          */
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
+
+        if (isStrict(declaredSchema)) {
+            return resolveStrictSingleFile(path, storagePath, provider, config, declaredSchema);
+        }
 
         ExternalSourceMetadata extMetadata;
         StorageObject object;
@@ -351,6 +375,47 @@ public class ExternalSourceResolver {
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
 
+    /** True when the dataset declared a strict mapping ({@code dynamic: false}) — the declaration is the whole schema. */
+    private static boolean isStrict(@Nullable DatasetSchema declaredSchema) {
+        return declaredSchema != null
+            && declaredSchema.mappings() != null
+            && declaredSchema.mappings().dynamic() == DatasetSchema.Dynamic.FALSE;
+    }
+
+    /**
+     * Strict single-file resolution: the declared mapping is the entire schema, so no inference and no schema-cache
+     * lookup happen — the declaration is content-independent. Only the file's size/mtime is read (for split planning,
+     * the same data-read requirement the inferred path has). The user-facing output carries the declared <b>logical</b>
+     * names; the per-file schema the reader matches against the file carries the <b>physical</b> names (the {@code source}
+     * rename), paired position-for-position via an identity column mapping so rename is a positional relabel.
+     */
+    private ExternalSourceResolution.ResolvedSource resolveStrictSingleFile(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        Map<String, Object> config,
+        DatasetSchema declaredSchema
+    ) throws Exception {
+        StorageObject object = provider.newObject(storagePath);
+        List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredSchema);
+        List<Attribute> physicalSchema = DeclaredSchemaResolver.physicalAttributes(declaredSchema);
+        // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it), so it must equal the
+        // reader's formatName() the inferred path would have produced — derive it without reading the file: an explicit
+        // `format` setting wins, otherwise the `reader` override / file extension via FormatNameResolver.
+        Object formatOverride = config.get(FileSourceFactory.CONFIG_FORMAT);
+        String sourceType = formatOverride != null ? String.valueOf(formatOverride) : FormatNameResolver.resolve(config, path);
+        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(
+            new SimpleSourceMetadata(logicalSchema, sourceType, path),
+            config
+        );
+        FileList singletonList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
+            path
+        );
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, physicalSchema);
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
+    }
+
     private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
         StoragePath path,
         @Nullable List<Attribute> schema
@@ -366,7 +431,8 @@ public class ExternalSourceResolver {
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning
+        boolean hivePartitioning,
+        @Nullable DatasetSchema declaredSchema
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);

@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.DatasetSchema;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -139,7 +141,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "events_hive",
         "employees_external",
         "employees_mixed",
-        "stats_ds"
+        "stats_ds",
+        "employees_strict"
     );
 
     /**
@@ -200,6 +203,49 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows.get(1).get(0), equalTo(2));
             assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
             assertThat(rows.get(2).get(0), equalTo(3));
+            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testStrictDeclaredSchemaUsesDeclaredNamesAndTypesSkippingInference() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Strict (dynamic:false) declaration over the CSV fixture whose physical header is emp_no:integer,first_name:keyword.
+        // The declaration relabels the columns and pins emp_no's type to LONG (inference would have produced INTEGER),
+        // proving the declared schema is used and inference is skipped.
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", null));
+        properties.put("name", new DatasetFieldMapping("keyword", null));
+        DatasetSchema schema = new DatasetSchema(new DatasetSchema.Mappings(DatasetSchema.Dynamic.FALSE, properties), null, null);
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_strict",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    schema
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_strict | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("id"));
+            assertThat(columns.get(1).name(), equalTo("name"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            // declared LONG => values are Long, not the Integer inference would have produced
+            assertThat(rows.get(0).get(0), equalTo(1L));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(2).get(0), equalTo(3L));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
         }
     }

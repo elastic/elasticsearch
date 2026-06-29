@@ -47,6 +47,22 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         assertEquals(List.of("customer_id"), attrs.stream().map(Attribute::name).toList());
     }
 
+    public void testPhysicalAttributesUseSourceNamePairedWithLogical() {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("when", new DatasetFieldMapping("date", "ts"));        // renamed
+        props.put("status", new DatasetFieldMapping("integer", null));   // not renamed
+
+        List<Attribute> logical = DeclaredSchemaResolver.declaredAttributes(schema(props));
+        List<Attribute> physical = DeclaredSchemaResolver.physicalAttributes(schema(props));
+
+        // same arity, same types, paired position-for-position
+        assertEquals(logical.size(), physical.size());
+        assertEquals(List.of("when", "status"), logical.stream().map(Attribute::name).toList());
+        assertEquals(List.of("ts", "status"), physical.stream().map(Attribute::name).toList());
+        assertEquals(logical.get(0).dataType(), physical.get(0).dataType());
+        assertEquals(DataType.DATETIME, physical.get(0).dataType());
+    }
+
     public void testRenameMapOnlyRenamedColumns() {
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("when", new DatasetFieldMapping("date", "ts"));

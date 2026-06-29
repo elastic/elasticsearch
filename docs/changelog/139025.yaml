@@ -1,0 +1,5 @@
+pr: 139025
+summary: Fix Async Search Status Check AuthZ Error for Remote Clusters
+area: Authorization
+type: bug
+issues: []

@@ -29,7 +29,7 @@ These steps walk you through registering a data source, creating a dataset, and 
 :::::::{stepper}
 
 ::::::{step} Register a data source
-A data source tells {{es}} how to connect to an external storage system. Create one by sending a `PUT` request with the connection type and settings.
+A data source defines the connection to an external storage system, including its type, region, and credentials. Once registered, any number of datasets can reference it. Create one by sending a `PUT` request.
 
 This example registers a data source pointing at a public S3 bucket with anonymous access:
 

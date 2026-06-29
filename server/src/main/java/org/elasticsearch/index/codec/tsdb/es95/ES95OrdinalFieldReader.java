@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb.es95;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.NumericEntry;
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldReader;
+import org.elasticsearch.index.codec.tsdb.RunLengthOrdinalDecoder;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesBlockReader;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
@@ -25,8 +26,12 @@ import java.io.IOException;
  * {@link #readFieldEntry} reads the per-field {@code blockShift} byte written by
  * {@link ES95OrdinalFieldWriter} and sets {@link NumericEntry#blockSize} from it.
  * For older segments (written before this version), no extra byte is present in the metadata,
- * so the format-level default {@code numericBlockShift} is used instead — preserving backward
+ * so the format-level default {@code numericBlockShift} is used instead, preserving backward
  * compatibility with segments written by earlier binaries.
+ *
+ * <p>For segments at {@link TSDBDocValuesFormatConfig#VERSION_ORDINAL_RUN_LENGTH} or later,
+ * {@link #decoder} returns the run-length decoder; older segments are decoded with the previous
+ * four-strategy ordinal decoder, so segments written by earlier binaries still decode correctly.
  */
 final class ES95OrdinalFieldReader implements OrdinalFieldReader {
 
@@ -52,7 +57,9 @@ final class ES95OrdinalFieldReader implements OrdinalFieldReader {
 
     @Override
     public Decoder decoder(final int blockSize) {
-        final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(blockSize);
-        return encoder::decodeOrdinals;
+        if (segmentVersion >= TSDBDocValuesFormatConfig.VERSION_ORDINAL_RUN_LENGTH) {
+            return new RunLengthOrdinalDecoder(blockSize)::decode;
+        }
+        return new TSDBDocValuesEncoder(blockSize)::decodeOrdinals;
     }
 }

@@ -16,9 +16,9 @@ import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesConsumer;
 import org.elasticsearch.index.codec.tsdb.DocValueFieldCountStats;
 import org.elasticsearch.index.codec.tsdb.NumericWriteContext;
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldWriter;
+import org.elasticsearch.index.codec.tsdb.RunLengthOrdinalEncoder;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserver;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesBlockWriter;
-import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.codec.tsdb.TsdbDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
@@ -56,8 +56,8 @@ final class ES95OrdinalFieldWriter implements OrdinalFieldWriter {
 
     @Override
     public Encoder encoder() {
-        final TSDBDocValuesEncoder enc = new TSDBDocValuesEncoder(ctx.blockSize());
-        return enc::encodeOrdinals;
+        final RunLengthOrdinalEncoder encoder = new RunLengthOrdinalEncoder(ctx.blockSize());
+        return encoder::encode;
     }
 
     @Override
@@ -72,7 +72,7 @@ final class ES95OrdinalFieldWriter implements OrdinalFieldWriter {
         final int blockSize = resolver.resolve(context).blockSize();
         final int blockShift = Integer.numberOfTrailingZeros(blockSize);
         final int bitsPerOrd = PackedInts.bitsRequired(Math.max(maxOrd - 1, 0));
-        final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(blockSize);
+        final RunLengthOrdinalEncoder encoder = new RunLengthOrdinalEncoder(blockSize);
         return BLOCK_WRITER.writeFieldEntry(
             ctx,
             field,
@@ -80,7 +80,7 @@ final class ES95OrdinalFieldWriter implements OrdinalFieldWriter {
             maxOrd,
             docValueCountConsumer,
             sortedFieldObserver,
-            (buffer, data) -> encoder.encodeOrdinals(buffer, data, bitsPerOrd),
+            (buffer, data) -> encoder.encode(buffer, data, bitsPerOrd),
             () -> ctx.meta().writeByte((byte) blockShift),
             blockSize
         );

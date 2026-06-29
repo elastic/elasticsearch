@@ -378,13 +378,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
+            var defaultDocValues = defaultDocValuesParameters(indexSettings);
             this.docValuesParameters.setValue(
-                new DocValuesParameter.Values(
-                    true,
-                    cardinality,
-                    defaultDocValuesParameters(indexSettings).multiValue(),
-                    defaultDocValuesParameters(indexSettings).nullability()
-                )
+                new DocValuesParameter.Values(true, cardinality, defaultDocValues.multiValue(), defaultDocValues.nullability())
             );
             return this;
         }

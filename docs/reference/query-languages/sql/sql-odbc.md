@@ -14,7 +14,7 @@ products:
 
 {{es}} SQL ODBC Driver is a 3.80 compliant ODBC driver for {{es}}. It is a core level driver, exposing all the functionality accessible through the {{es}}'s SQL API, converting ODBC calls into {{es}} SQL.
 
-In order to make use of the driver, the server must have {{es}} SQL installed and running with the valid license.
+To use the driver, the server must have {{es}} SQL installed and running with the valid license.
 
-* [Driver installation](sql-odbc-installation.md)
+* [Driver installation](sql-odbc-installation.md) (includes [version compatibility](sql-odbc-installation.md#odbc-compatibility))
 * [Configuration](sql-odbc-setup.md)

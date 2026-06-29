@@ -45,16 +45,32 @@ from [Maven Central Repository](https://search.maven.org/artifact/org.elasticsea
 
 ## Version compatibility [jdbc-compatibility]
 
-Your driver must be compatible with your {{es}} version.
+Your JDBC driver must be compatible with your {{es}} version. Rules depend on the **driver** version; they mirror how the SQL plugin validates clients and servers.
 
-::::{important}
-The driver version cannot be newer than the {{es}} version. For example, {{es}} version 7.10.0 is not compatible with {{version.stack}} drivers.
-::::
+### JDBC driver 8.16.0 and later
 
+From **8.16.0** onward, drivers no longer enforce the rule that the {{es}} cluster could be at most **one major version** newer than the driver. The cluster validates the driver as part of SQL requests instead.
 
-| {{es}} version | Compatible driver versions | Example |
+You should still **use a JDBC driver from the same stack release as your cluster** whenever possible so features and wire behavior stay aligned.
+
+### JDBC driver 7.7.1 through 8.15.x
+
+For these driver releases, **all** of the following must hold:
+
+* The driver version must **not** be newer than the {{es}} version (for example, {{es}} 7.10.0 is not compatible with a driver newer than 7.10.0).
+* The cluster’s **major** version must be at most **one** ahead of the driver’s major version (for example, an 8.x driver with a 9.x cluster is allowed; a 7.x driver with a 9.x cluster is not).
+
+### {{es}} 7.7.0 and earlier clusters
+
+Use the **same** {{es}} and JDBC version (same patch release).
+
+| Situation | Compatible JDBC driver versions | Example |
 | --- | --- | --- |
-| 7.7.0 and earlier versions | * The same version.<br> | {{es}} 7.6.1 is only compatible with 7.6.1 drivers. |
+| JDBC **8.16.0+** | Server-side compatibility; prefer a driver matching your cluster version. | Upgrade the driver with the cluster. |
+| JDBC **7.7.1–8.15.x** | Driver ≤ {{es}} version; {{es}} major ≤ JDBC major + 1 | 8.14 JDBC with a 9.x cluster is allowed; 7.17 JDBC with a 9.x cluster is not. |
+| {{es}} **7.7.0 and earlier** | Same version only | {{es}} 7.6.1 is only compatible with 7.6.1 drivers. |
+
+On connect, the JDBC driver requires the cluster to support the SQL client protocol (**7.7** or newer). Older clusters return a connection error.
 
 
 ## Setup [jdbc-setup]

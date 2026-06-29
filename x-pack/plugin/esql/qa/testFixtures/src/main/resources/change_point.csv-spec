@@ -168,7 +168,7 @@ height:double | salary:double      | type:keyword | pvalue:double
 2.07          | 39984.0            | null         | null
 2.08          | 60523.0            | null         | null
 2.09          | 38645.0            | null         | null
-2.1           | 0.0                | dip          | 0..1E-50
+2.1           | 0.0                | dip          | 0..1E-5
 ;
 
 

@@ -16,6 +16,15 @@ import java.util.OptionalDouble;
 
 class LeastSquaresOnlineRegression {
 
+    private static final double SINGLE_VALUE_DECOMPOSITION_MAX_COND = 1e+12;
+    private static final double VARIANCE_PRECISION_ULP_FACTOR = 32.0;
+
+    private final RunningStatistics statistics;
+    private final Array2DRowRealMatrix Nx;
+    private final Array2DRowRealMatrix Ny;
+    private final Array2DRowRealMatrix Nz;
+    private final int N;
+
     LeastSquaresOnlineRegression(int degrees) {
         this.N = degrees + 1;
         statistics = new RunningStatistics(3 * N);
@@ -194,15 +203,6 @@ class LeastSquaresOnlineRegression {
     private double clampResidualVariance(double residualVariance, double totalVariance) {
         return Math.max(0.0, Math.min(residualVariance, totalVariance));
     }
-
-    private static final double SINGLE_VALUE_DECOMPOSITION_MAX_COND = 1e+12;
-    private static final double VARIANCE_PRECISION_ULP_FACTOR = 32.0;
-
-    private final RunningStatistics statistics;
-    private final Array2DRowRealMatrix Nx;
-    private final Array2DRowRealMatrix Ny;
-    private final Array2DRowRealMatrix Nz;
-    private final int N;
 
     private static class RunningStatistics {
         private double count;

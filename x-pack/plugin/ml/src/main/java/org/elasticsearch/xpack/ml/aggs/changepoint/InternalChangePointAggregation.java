@@ -65,9 +65,30 @@ public class InternalChangePointAggregation extends InternalAggregation {
         } else {
             // Down-convert for an older peer: a single optional bucket plus exactly one (non-optional) change
             // type. The legacy reader always reads one change type, so we must never write "nothing".
-            out.writeOptionalWriteable(buckets.isEmpty() ? null : buckets.get(0));
+            out.writeOptionalWriteable(representativeBucket());
             out.writeNamedWriteable(representativeChangeType());
         }
+    }
+
+    /**
+     * Returns the single bucket an older node expects when the multi-bucket result is collapsed to one: the most
+     * significant (smallest p-value). Falls back to {@code null} when there is none, because the legacy wire format
+     * has no "absent bucket" encoding.
+     */
+    private ChangePointBucket representativeBucket() {
+        // The buckets array is in one-to-one correspondence with the changeTypes array, so we can find the most
+        // significant bucket by looking for the smallest p-value in the changeTypes array and returning the bucket
+        // at the same index.
+        int minIndex = -1;
+        double minPValue = 2.0; // Any number greater than 1.0 is sufficient.
+        for (int i = 0; i < changeTypes.size(); i++) {
+            ChangeType changeType = changeTypes.get(i);
+            if (changeType.isChange() && changeType.pValue() < minPValue) {
+                minPValue = changeType.pValue();
+                minIndex = i;
+            }
+        }        
+        return minIndex >= 0 ? buckets.get(minIndex) : null;
     }
 
     /**
@@ -89,14 +110,14 @@ public class InternalChangePointAggregation extends InternalAggregation {
         return changeTypes;
     }
 
-    // TODO multi-bucket: getProperty / doXContentBody still surface only the first bucket/change type. Revisit
-    // when the multi-bucket REST representation is designed.
     public ChangePointBucket getBucket() {
-        return buckets.isEmpty() ? null : buckets.get(0);
+        return representativeBucket();
     }
 
     public ChangeType getChangeType() {
-        return changeTypes.isEmpty() ? new ChangeType.Indeterminable("no change type available") : changeTypes.get(0);
+        // For the aggregation we're going to switch to reporting the most significant bucket to avoid the backwards
+        // compatibility issues. ES|QL is our preferred method of consuming change points which returns every change.
+        return representativeChangeType();
     }
 
     @Override

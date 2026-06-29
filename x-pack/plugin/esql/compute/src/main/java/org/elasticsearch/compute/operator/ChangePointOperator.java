@@ -243,7 +243,8 @@ public class ChangePointOperator implements Operator {
     /**
      * Runs change-point detection over the pages buffered in {@link #currentGroupPages}
      * (which all belong to a single, now-completed group), annotates each page with the
-     * change-type / p-value columns, and moves them to the output queue.
+     * change-type / p-value columns, and moves them to the output queue. A page may contain
+     * zero, one, or several change points.
      */
     private void flushGroup() {
         // 1. Collect values across the group's pages.
@@ -254,28 +255,52 @@ public class ChangePointOperator implements Operator {
             bucketIndexOffset = accumulateValues(page, values, bucketIndexes, bucketIndexOffset);
         }
 
-        // 2. Detect change point
-        ChangeType changeType = detectChangePoint(values, bucketIndexes);
-        int changePointIndex = changeType.changePoint(); // group-local row index, or ChangeType.NO_CHANGE_POINT
-        if (changeType instanceof ChangeType.Indeterminable indeterminable && hasIndeterminableChangePoint == false) {
+        // 2. Detect change points.
+        List<ChangeType> changeTypes = detectChangePoints(values, bucketIndexes);
+        if (changeTypes.isEmpty() == false
+            && changeTypes.get(0) instanceof ChangeType.Indeterminable indeterminable
+            && hasIndeterminableChangePoint == false) {
+            // Remember why change point failed on this group.
             hasIndeterminableChangePoint = true;
             indeterminableChangePointReason = indeterminable.getReason();
         }
 
-        // 3. Annotate and emit pages
+        // 3. Keep only structural breaks and spikes and dips.
+        //
+        // Drop NO_CHANGE_POINT classifications such as Indeterminable / Stationary, which do not
+        // belong to any row, sorted by increasing bucket index so we can annotate the pages in a
+        // single forward pass.
+        List<ChangeType> located = new ArrayList<>();
+        for (ChangeType changeType : changeTypes) {
+            if (changeType.changePoint() != ChangeType.NO_CHANGE_POINT) {
+                located.add(changeType);
+            }
+        }
+        located.sort((a, b) -> Integer.compare(a.changePoint(), b.changePoint()));
+
+        // 4. Annotate and emit pages.
+        //
+        // Bucket indexes are global row offsets within the group, so a change point at index
+        // g lands in the page covering [pageStart, pageEnd) at local position g - pageStart.
+        // Because the change points are sorted and pages are consumed in order, every remaining
+        // change point has changePoint() >= pageStart, so a single forward cursor suffices.
+        int nextChangeType = 0;
         int cumulativeRows = 0;
         while (currentGroupPages.isEmpty() == false) {
             Page page = currentGroupPages.peekFirst();
-            int pageCpPos = ChangeType.NO_CHANGE_POINT;
-            if (changePointIndex != ChangeType.NO_CHANGE_POINT
-                && changePointIndex >= cumulativeRows
-                && changePointIndex < cumulativeRows + page.getPositionCount()) {
-                pageCpPos = changePointIndex - cumulativeRows;
+            int pageStart = cumulativeRows;
+            int pageEnd = cumulativeRows + page.getPositionCount();
+
+            List<ChangeType> pageChangePoints = new ArrayList<>();
+            while (nextChangeType < located.size() && located.get(nextChangeType).changePoint() < pageEnd) {
+                pageChangePoints.add(located.get(nextChangeType));
+                nextChangeType++;
             }
-            Page annotated = annotatePageWithChangePoint(page, pageCpPos, changeType);
+
+            Page annotated = annotatePageWithChangePoints(page, pageChangePoints, pageStart);
             currentGroupPages.removeFirst();
             outputPages.add(annotated);
-            cumulativeRows += page.getPositionCount();
+            cumulativeRows = pageEnd;
         }
     }
 
@@ -311,41 +336,36 @@ public class ChangePointOperator implements Operator {
         return bucketOffsetIndex;
     }
 
-    private ChangeType detectChangePoint(List<Double> values, List<Integer> bucketIndexes) {
-        MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
-            null,
-            values.stream().mapToDouble(Double::doubleValue).toArray(),
-            bucketIndexes.stream().mapToInt(Integer::intValue).toArray()
-        );
-        // TODO: FIXME
-        EventDetector detector = new EventDetector();
-        return detector.detect(bucketValues).get(0);
-    }
-
     /**
-     * Appends change_type and change_pvalue columns to the page. When
-     * {@code changePointPosition != ChangeType.NO_CHANGE_POINT}, that position is annotated
-     * with {@code changeType}; all other positions are null. A position equal to
-     * {@link ChangeType#NO_CHANGE_POINT} means the page contains no change point.
+     * Appends change_type and change_pvalue columns to the page. Every change point in
+     * {@code pageChangePoints} is written at its page-local position ({@code changePoint() - pageStart});
+     * all other positions are null. The change points must be sorted by bucket index and all fall within
+     * this page's row range. An empty list yields two constant-null columns.
      */
-    private Page annotatePageWithChangePoint(Page page, int changePointPosition, ChangeType changeType) {
+    private Page annotatePageWithChangePoints(Page page, List<ChangeType> pageChangePoints, int pageStart) {
         BlockFactory blockFactory = driverContext.blockFactory();
+        int positionCount = page.getPositionCount();
         Block changeTypeBlock = null;
         Block changePvalueBlock = null;
         boolean success = false;
         try {
-            if (changePointPosition == ChangeType.NO_CHANGE_POINT) {
-                changeTypeBlock = blockFactory.newConstantNullBlock(page.getPositionCount());
-                changePvalueBlock = blockFactory.newConstantNullBlock(page.getPositionCount());
+            if (pageChangePoints.isEmpty()) {
+                changeTypeBlock = blockFactory.newConstantNullBlock(positionCount);
+                changePvalueBlock = blockFactory.newConstantNullBlock(positionCount);
             } else {
                 try (
-                    BytesRefBlock.Builder typeBuilder = blockFactory.newBytesRefBlockBuilder(page.getPositionCount());
-                    DoubleBlock.Builder pvalueBuilder = blockFactory.newDoubleBlockBuilder(page.getPositionCount())
+                    BytesRefBlock.Builder typeBuilder = blockFactory.newBytesRefBlockBuilder(positionCount);
+                    DoubleBlock.Builder pvalueBuilder = blockFactory.newDoubleBlockBuilder(positionCount)
                 ) {
-                    for (int i = 0; i < page.getPositionCount(); i++) {
-                        if (i == changePointPosition) {
+                    int nextIdx = 0;
+                    int nextPos = pageChangePoints.get(0).changePoint() - pageStart;
+                    for (int i = 0; i < positionCount; i++) {
+                        if (i == nextPos) {
+                            ChangeType changeType = pageChangePoints.get(nextIdx);
                             typeBuilder.appendBytesRef(new BytesRef(changeType.getWriteableName()));
                             pvalueBuilder.appendDouble(changeType.pValue());
+                            nextIdx++;
+                            nextPos = nextIdx < pageChangePoints.size() ? pageChangePoints.get(nextIdx).changePoint() - pageStart : -1;
                         } else {
                             typeBuilder.appendNull();
                             pvalueBuilder.appendNull();
@@ -363,6 +383,16 @@ public class ChangePointOperator implements Operator {
                 Releasables.closeExpectNoException(changeTypeBlock, changePvalueBlock);
             }
         }
+    }
+
+    private List<ChangeType> detectChangePoints(List<Double> values, List<Integer> bucketIndexes) {
+        MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
+            null,
+            values.stream().mapToDouble(Double::doubleValue).toArray(),
+            bucketIndexes.stream().mapToInt(Integer::intValue).toArray()
+        );
+        EventDetector detector = new EventDetector();
+        return detector.detect(bucketValues);
     }
 
     private void emitWarnings() {

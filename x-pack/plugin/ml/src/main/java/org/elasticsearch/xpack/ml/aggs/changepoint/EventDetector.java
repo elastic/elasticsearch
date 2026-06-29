@@ -33,6 +33,39 @@ public class EventDetector {
 
     private static final Logger logger = LogManager.getLogger(EventDetector.class);
 
+    // Runtime safeguard: detection cost grows with the bucket count (PELT's reset loop), so a series longer than
+    // this is collapsed by SeriesDownsampler before any detection. The downsampled series carries the original
+    // bucket indices, so events remap back to source buckets via getBucketIndex; below the cap it is a no-op.
+    private static final int MAX_SAMPLES = 2000;
+    // The minimum number of buckets between two structural changes for them to be reported as distinct events.
+    // Anything shorter is considered a spike or dip.
+    private static final int MIN_SEGMENT_LENGTH = 10;
+    // The threshold for the p-value to emit a change point and spike and dip. P-values are Bonferroni-corrected
+    // by the number of candidate events and the threshold is applied to the corrected value.
+    private static final double P_VALUE_THRESHOLD = 0.01;
+    // The dispersion channel holds one sample per this many points (non-overlapping windows). A channel sample is
+    // centred on the middle of its window, so channel index k corresponds to value index window/2 + window * k.
+    private static final int DISPERSION_WINDOW = 8;
+    // The window slides by this stride (< window, i.e. overlapping). Overlap restores the resolution the windowing
+    // would otherwise discard. The induced autocorrelation is offset by setting the channel minSegment in value-
+    // index units (>= two windows). Channel sample k covers value indices [stride*k, stride*k + window).
+    private static final int DISPERSION_STRIDE = 2;
+    // Fraction of the overlapping dispersion samples the verifier treats as statistically independent, discounting
+    // its BIC evidence so it does not over-count correlated samples. We use the maximally-conservative bound,
+    // stride/window: every window/stride overlapping samples count as one independent observation. This holds the
+    // null false-positive rate at the non-overlapping level.
+    private static final double DISPERSION_SAMPLE_INDEPENDENCE = (double) DISPERSION_STRIDE / DISPERSION_WINDOW;
+    // Because we downsample the dispersion channel it has significantly fewer values original time series. To
+    // compensate we also use shorter segments. This means high degree trends overfit and we limit to linear only.
+    private static final int DISPERSION_MAX_DEGREE = 1;
+    private static final int VALUE_MAX_DEGREE = 3;
+
+    private final int minSegmentLength;
+    private final int dispersionMinSegment;
+    private final PulseDetector pulseDetector;
+    private final StructuralChangeDetector detectorForValues;
+    private final StructuralChangeDetector detectorForDispersions;
+
     public EventDetector() {
         this(MIN_SEGMENT_LENGTH, P_VALUE_THRESHOLD);
     }
@@ -175,37 +208,4 @@ public class EventDetector {
         }
         return kept.isEmpty() ? classification : kept;
     }
-
-    // Runtime safeguard: detection cost grows with the bucket count (PELT's reset loop), so a series longer than
-    // this is collapsed by SeriesDownsampler before any detection. The downsampled series carries the original
-    // bucket indices, so events remap back to source buckets via getBucketIndex; below the cap it is a no-op.
-    private static final int MAX_SAMPLES = 2000;
-    // The minimum number of buckets between two structural changes for them to be reported as distinct events.
-    // Anything shorter is considered a spike or dip.
-    private static final int MIN_SEGMENT_LENGTH = 10;
-    // The threshold for the p-value to emit a change point and spike and dip. P-values are Bonferroni-corrected
-    // by the number of candidate events and the threshold is applied to the corrected value.
-    private static final double P_VALUE_THRESHOLD = 0.01;
-    // The dispersion channel holds one sample per this many points (non-overlapping windows). A channel sample is
-    // centred on the middle of its window, so channel index k corresponds to value index window/2 + window * k.
-    private static final int DISPERSION_WINDOW = 8;
-    // The window slides by this stride (< window, i.e. overlapping). Overlap restores the resolution the windowing
-    // would otherwise discard. The induced autocorrelation is offset by setting the channel minSegment in value-
-    // index units (>= two windows). Channel sample k covers value indices [stride*k, stride*k + window).
-    private static final int DISPERSION_STRIDE = 2;
-    // Fraction of the overlapping dispersion samples the verifier treats as statistically independent, discounting
-    // its BIC evidence so it does not over-count correlated samples. We use the maximally-conservative bound,
-    // stride/window: every window/stride overlapping samples count as one independent observation. This holds the
-    // null false-positive rate at the non-overlapping level.
-    private static final double DISPERSION_SAMPLE_INDEPENDENCE = (double) DISPERSION_STRIDE / DISPERSION_WINDOW;
-    // Because we downsample the dispersion channel it has significantly fewer values original time series. To
-    // compensate we also use shorter segments. This means high degree trends overfit and we limit to linear only.
-    private static final int DISPERSION_MAX_DEGREE = 1;
-    private static final int VALUE_MAX_DEGREE = 3;
-
-    private final int minSegmentLength;
-    private final int dispersionMinSegment;
-    private final PulseDetector pulseDetector;
-    private final StructuralChangeDetector detectorForValues;
-    private final StructuralChangeDetector detectorForDispersions;
 }

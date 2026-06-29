@@ -16,6 +16,32 @@ import java.util.List;
 
 public class PulseDetector {
 
+    // Half-width of the centred window used for the rolling-median baseline that residuals are taken from.
+    private static final int WEIGHT_HALF_WINDOW = 5;
+    // Width of the local window used to fit the robust Theil-Sen boundary line that restores the first/last
+    // WEIGHT_HALF_WINDOW residuals (where the centred rolling median has collapsed). Wide enough for a stable
+    // slope, local enough to track the boundary.
+    private static final int BOUNDARY_LINE_WINDOW = 2 * WEIGHT_HALF_WINDOW + 1;
+    // Candidate ("long list") threshold: a point is a candidate excursion when its residual from the local
+    // rolling-median baseline exceeds this many robust sigmas of the residual scale. Generous pre-filter; the
+    // significance decision is the KDE gate.
+    private static final double PULSE_Z_THRESHOLD = 3.0;
+    // Candidates separated by at most this many buckets (and of the same sign) are one physical excursion and
+    // are merged. We do NOT chain across larger gaps: repeated/recurring excursions are a structural/dispersion
+    // matter, not something the pulse stream should fuse. Set to 1 (strictly adjacent).
+    private static final int PULSE_MERGE_MAX_GAP = 1;
+    // We report at most this many pulses — the highest-z excursions. A small floor plus a slowly-growing fraction
+    // of the series length, so a pathological or very noisy series cannot drown the output in spikes.
+    private static final int MAX_PULSES_FLOOR = 5;
+    private static final double MAX_PULSES_FRACTION = 0.02;
+    // Minimum KDE bandwidth as a fraction of the stabilized residual range, so the kernel width never collapses
+    // to zero on a flat/degenerate background (which would make the empirical-tail gate unable to flag any outlier).
+    // Small enough to be inert on a well-spread background, where Silverman's bandwidth dominates.
+    private static final double BANDWIDTH_RANGE_FLOOR = 0.02;
+
+    private final int minSegmentLength;
+    private final double pValueThreshold;
+
     private static final Logger logger = LogManager.getLogger(PulseDetector.class);
 
     PulseDetector(int minSegmentLength, double pValueThreshold) {
@@ -226,32 +252,6 @@ public class PulseDetector {
         }
         return peak;
     }
-
-    // Half-width of the centred window used for the rolling-median baseline that residuals are taken from.
-    private static final int WEIGHT_HALF_WINDOW = 5;
-    // Width of the local window used to fit the robust Theil-Sen boundary line that restores the first/last
-    // WEIGHT_HALF_WINDOW residuals (where the centred rolling median has collapsed). Wide enough for a stable
-    // slope, local enough to track the boundary.
-    private static final int BOUNDARY_LINE_WINDOW = 2 * WEIGHT_HALF_WINDOW + 1;
-    // Candidate ("long list") threshold: a point is a candidate excursion when its residual from the local
-    // rolling-median baseline exceeds this many robust sigmas of the residual scale. Generous pre-filter; the
-    // significance decision is the KDE gate.
-    private static final double PULSE_Z_THRESHOLD = 3.0;
-    // Candidates separated by at most this many buckets (and of the same sign) are one physical excursion and
-    // are merged. We do NOT chain across larger gaps: repeated/recurring excursions are a structural/dispersion
-    // matter, not something the pulse stream should fuse. Set to 1 (strictly adjacent).
-    private static final int PULSE_MERGE_MAX_GAP = 1;
-    // We report at most this many pulses — the highest-z excursions. A small floor plus a slowly-growing fraction
-    // of the series length, so a pathological or very noisy series cannot drown the output in spikes.
-    private static final int MAX_PULSES_FLOOR = 5;
-    private static final double MAX_PULSES_FRACTION = 0.02;
-    // Minimum KDE bandwidth as a fraction of the stabilized residual range, so the kernel width never collapses
-    // to zero on a flat/degenerate background (which would make the empirical-tail gate unable to flag any outlier).
-    // Small enough to be inert on a well-spread background, where Silverman's bandwidth dominates.
-    private static final double BANDWIDTH_RANGE_FLOOR = 0.02;
-
-    private final int minSegmentLength;
-    private final double pValueThreshold;
 
     private record Excursion(int start, int end, int sign, int peak, double peakZ) {}
 }

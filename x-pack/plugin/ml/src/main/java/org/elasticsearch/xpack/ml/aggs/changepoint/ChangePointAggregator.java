@@ -40,7 +40,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             return new InternalChangePointAggregation(
                 name(),
                 metadata(),
-                List.of(),
+                List.of((ChangePointBucket) null),
                 List.of(new ChangeType.Indeterminable("unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "]"))
             );
         }

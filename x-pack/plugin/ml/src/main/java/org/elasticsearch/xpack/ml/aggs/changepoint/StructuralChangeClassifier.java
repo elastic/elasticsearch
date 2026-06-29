@@ -22,6 +22,41 @@ public class StructuralChangeClassifier {
 
     private static final Logger logger = LogManager.getLogger(StructuralChangeClassifier.class);
 
+    // Muting drops the weights immediately around a candidate; if the BIC gain mostly survives the
+    // muting the change is supported by a sustained regime rather than a few extreme points (which
+    // belong to the pulse stream).
+    private static final double MUTED_WEIGHT_FACTOR = 0.1;
+    private static final double MIN_MUTED_GAIN_RATIO = 0.2;
+
+    // Absolute floor for the denominator of a percent-change magnitude, to avoid division by zero
+    // when both the baseline level and the local noise scale are ~0 (a perfectly constant series).
+    private static final double SCALE_FLOOR = 1e-10;
+    private static final double VAR_FLOOR = SCALE_FLOOR * SCALE_FLOOR;
+
+    private final int minSegmentLength;
+    // Highest polynomial order the validator may fit, applied symmetrically to the single no-change
+    // (null) model and to each segment of the change (alternative) model. The alternative is the same
+    // model class split at the candidate, so it is strictly more flexible than the null at the same
+    // degree (it can fit a step or kink); the null is never allowed a higher degree than the alternative.
+    // The degree is set per channel by the caller: the value channel uses a high order so smooth drift
+    // is absorbed by the null and not split, while the dispersion channel (much shorter segments) uses
+    // linear so a low-high-low variance bump is not absorbed and is detected.
+    private final int maxDegree;
+    private final double pValueThreshold;
+    private final double deltaBicThreshold;
+    // Quantization (rounding) noise variance q^2/12 of the current series, the floor on the per-point
+    // variance in the BIC (see bicFromRss). Set per call from the series' first-difference granularity;
+    // ~0 for continuous data.
+    private double quantizationVariance;
+    // Fraction of the channel's samples that are statistically independent (1.0 for a raw value channel;
+    // stride/window for an overlapping dispersion channel). Discounts the BIC evidence so correlated
+    // samples are not over-counted.
+    private final double effectiveSampleFactor;
+    // When true, a variance-driven boundary (per-segment profiled split significant, mean split not) is
+    // reported as a DistributionChange. On for the value channel (a backstop for short, strong variance
+    // changes); off for the dispersion channel.
+    private final boolean detectVarianceShifts;
+
     /**
      * @param effectiveSampleFactor the fraction of the samples that are statistically independent (1.0 for a
      * raw value channel; {@code stride/window} for an overlapping dispersion channel, whose adjacent samples
@@ -571,41 +606,6 @@ public class StructuralChangeClassifier {
     private double toBic(double pValue) {
         return -2.0 * Math.log(Math.max(pValue, Double.MIN_VALUE));
     }
-
-    // Muting drops the weights immediately around a candidate; if the BIC gain mostly survives the
-    // muting the change is supported by a sustained regime rather than a few extreme points (which
-    // belong to the pulse stream).
-    private static final double MUTED_WEIGHT_FACTOR = 0.1;
-    private static final double MIN_MUTED_GAIN_RATIO = 0.2;
-
-    // Absolute floor for the denominator of a percent-change magnitude, to avoid division by zero
-    // when both the baseline level and the local noise scale are ~0 (a perfectly constant series).
-    private static final double SCALE_FLOOR = 1e-10;
-    private static final double VAR_FLOOR = SCALE_FLOOR * SCALE_FLOOR;
-
-    private final int minSegmentLength;
-    // Highest polynomial order the validator may fit, applied symmetrically to the single no-change
-    // (null) model and to each segment of the change (alternative) model. The alternative is the same
-    // model class split at the candidate, so it is strictly more flexible than the null at the same
-    // degree (it can fit a step or kink); the null is never allowed a higher degree than the alternative.
-    // The degree is set per channel by the caller: the value channel uses a high order so smooth drift
-    // is absorbed by the null and not split, while the dispersion channel (much shorter segments) uses
-    // linear so a low-high-low variance bump is not absorbed and is detected.
-    private final int maxDegree;
-    private final double pValueThreshold;
-    private final double deltaBicThreshold;
-    // Quantization (rounding) noise variance q^2/12 of the current series, the floor on the per-point
-    // variance in the BIC (see bicFromRss). Set per call from the series' first-difference granularity;
-    // ~0 for continuous data.
-    private double quantizationVariance;
-    // Fraction of the channel's samples that are statistically independent (1.0 for a raw value channel;
-    // stride/window for an overlapping dispersion channel). Discounts the BIC evidence so correlated
-    // samples are not over-counted.
-    private final double effectiveSampleFactor;
-    // When true, a variance-driven boundary (per-segment profiled split significant, mean split not) is
-    // reported as a DistributionChange. On for the value channel (a backstop for short, strong variance
-    // changes); off for the dispersion channel.
-    private final boolean detectVarianceShifts;
 
     private record Bic(double bic, double rss, double r2, int degree) {}
 }

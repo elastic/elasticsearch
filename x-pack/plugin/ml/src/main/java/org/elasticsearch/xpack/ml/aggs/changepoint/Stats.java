@@ -13,6 +13,32 @@ import java.util.Arrays;
 
 public class Stats {
 
+    // The minimum variance returned by the local noise estimator, to prevent numerical collapse on flat
+    // or near-flat segments close to zero.
+    private static final double MIN_VARIANCE = 1e-12;
+    // Fraction of the local noise variance added back into a segment's RSS before taking its BIC (see
+    // {@code stabilizeRss}): a small regularizer so a near-perfect fit cannot earn an unbounded log-
+    // likelihood and dominate the model comparison on numerical noise.
+    private static final double VARIANCE_FLOOR_SCALE = 0.01;
+    // The quantization step is the smallest first-difference magnitude that recurs at least this many times
+    // (within QUANTIZATION_TOLERANCE, relative). Requiring recurrence stops a clean step series being read
+    // as quantized at the step size (which would floor away the step).
+    private static final int QUANTIZATION_MIN_RECURRENCE = 3;
+    // Near-exact: catches float-rounding on genuinely equal quantized differences (relative error ~1e-15) while
+    // rejecting continuous data, whose smallest differences cluster but are never this close in relative terms
+    // (a looser tolerance would mistake that clustering near the noise mode for quantization and floor at the
+    // noise).
+    private static final double QUANTIZATION_TOLERANCE = 1e-9;
+    // Per-tail fraction clipped when forming the Winsorized standard deviation for the KDE bandwidth: enough
+    // to clip a heavy tail or the sharp transition residuals of a structured regime, small enough to leave
+    // the bulk (and hence the within-regime noise) intact. Tuned against the synthetic benchmark.
+    private static final double WINSORIZE_ALPHA = 0.025;
+    // Silverman's rule-of-thumb bandwidth on the background, using the robust {@code min(std, IQR/1.349)}
+    // spread so a residual heavy tail in the background cannot inflate it.
+    private static final double SILVERMAN_FACTOR = 0.9;
+    // The numerical floor used by the composite robust scale below.
+    private static final double SCALE_PRECISION_ULP_FACTOR = 32.0;
+
     public static double mean(double[] values) {
         double sum = 0.0;
         for (double v : values) {
@@ -547,30 +573,4 @@ public class Stats {
         double mad = quantile(deviations, 0.5);
         return mad > 0.0 ? mad / 0.6745 : 1.0;
     }
-
-    // The minimum variance returned by the local noise estimator, to prevent numerical collapse on flat
-    // or near-flat segments close to zero.
-    private static final double MIN_VARIANCE = 1e-12;
-    // Fraction of the local noise variance added back into a segment's RSS before taking its BIC (see
-    // {@code stabilizeRss}): a small regularizer so a near-perfect fit cannot earn an unbounded log-
-    // likelihood and dominate the model comparison on numerical noise.
-    private static final double VARIANCE_FLOOR_SCALE = 0.01;
-    // The quantization step is the smallest first-difference magnitude that recurs at least this many times
-    // (within QUANTIZATION_TOLERANCE, relative). Requiring recurrence stops a clean step series being read
-    // as quantized at the step size (which would floor away the step).
-    private static final int QUANTIZATION_MIN_RECURRENCE = 3;
-    // Near-exact: catches float-rounding on genuinely equal quantized differences (relative error ~1e-15) while
-    // rejecting continuous data, whose smallest differences cluster but are never this close in relative terms
-    // (a looser tolerance would mistake that clustering near the noise mode for quantization and floor at the
-    // noise).
-    private static final double QUANTIZATION_TOLERANCE = 1e-9;
-    // Per-tail fraction clipped when forming the Winsorized standard deviation for the KDE bandwidth: enough
-    // to clip a heavy tail or the sharp transition residuals of a structured regime, small enough to leave
-    // the bulk (and hence the within-regime noise) intact. Tuned against the synthetic benchmark.
-    private static final double WINSORIZE_ALPHA = 0.025;
-    // Silverman's rule-of-thumb bandwidth on the background, using the robust {@code min(std, IQR/1.349)}
-    // spread so a residual heavy tail in the background cannot inflate it.
-    private static final double SILVERMAN_FACTOR = 0.9;
-    // The numerical floor used by the composite robust scale below.
-    private static final double SCALE_PRECISION_ULP_FACTOR = 32.0;
 }

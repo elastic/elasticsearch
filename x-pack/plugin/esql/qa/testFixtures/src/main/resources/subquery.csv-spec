@@ -861,10 +861,10 @@ required_capability: change_point
 required_capability: subquery_in_from_command
 
 FROM employees_incompatible, (FROM employees
-                                                        | EVAL salary = CASE(emp_no==10022, 100000, salary)
-                                                        | EVAL salary = CASE(emp_no==10023, 1000000, salary)
-                                                        | KEEP emp_no, salary
-                                                        | CHANGE_POINT salary ON emp_no AS type, pvalue)
+                              | EVAL salary = CASE(emp_no==10023, 1000000, salary)
+                              | KEEP emp_no, salary
+                              | WHERE emp_no < 10025
+                              | CHANGE_POINT salary ON emp_no AS type, pvalue)
             metadata _index
 | EVAL emp_no = emp_no::long, salary = salary::long
 | WHERE pvalue is not null and type is not null
@@ -872,8 +872,8 @@ FROM employees_incompatible, (FROM employees
 | KEEP  _index, emp_no, salary, type, pvalue
 ;
 
-_index:keyword         | emp_no:long | salary:long | type:keyword | pvalue:double
-null           | 10023       | 1000000     | spike        | 0.0
+_index:keyword | emp_no:long | salary:long | type:keyword | pvalue:double
+null           | 10023       | 1000000     | spike        | 0..1E-100
 ;
 
 subqueryInFromWithChangePointInMainQuery
@@ -883,8 +883,8 @@ required_capability: subquery_in_from_command
 FROM employees, (FROM employees_incompatible
                                  | KEEP emp_no, salary)
 | EVAL emp_no = emp_no::long, salary = salary::long
-| EVAL salary = CASE(emp_no==10022, 100000::long, salary)
 | EVAL salary = CASE(emp_no==10023, 1000000::long, salary)
+| WHERE emp_no < 10025
 | CHANGE_POINT salary ON emp_no AS type, pvalue
 | WHERE pvalue is not null and type is not null
 | SORT emp_no
@@ -892,7 +892,7 @@ FROM employees, (FROM employees_incompatible
 ;
 
 emp_no:long | salary:long | type:keyword | pvalue:double
-10023       | 1000000     | spike        | 0.0
+10023       | 1000000     | spike        | 0..1E-100
 ;
 
 subqueryInFromWithCompletionInSubquery

@@ -23,6 +23,43 @@ public class StructuralChangeDetector {
 
     private static final Logger logger = LogManager.getLogger(StructuralChangeDetector.class);
 
+    // PELT generates candidates with constant/linear segments only: higher-order segments are unstable
+    // on the short windows PELT explores and largely degenerate with extra linear pieces. The verifier
+    // then re-tests each candidate with its own (independent) alternative-model degree. This can't be
+    // changed without changing {@code segmentResidualVariance}.
+    private static final int SEGMENT_DEGREE = 1;
+    // Minimum spread in x (variance of the segment's indices about their weighted mean) for a linear
+    // fit to be identifiable; below this the segment is degenerate and segmentResidualVariance falls
+    // back to a mean-only fit.
+    private static final double MIN_X_VARIANCE = 1e-8;
+    // Per-break penalty bias (multiple of the BIC penalty beta). >1 biases the scale-invariant cost
+    // toward fewer segments, so a smooth oscillation does not accrue borderline piecewise-linear splits
+    // while genuine steps/trends (far stronger evidence) are unaffected.
+    private static final double SEGMENT_PENALTY_BIAS = 1.5;
+    // Default scaling of the BIC complexity penalty beta used by PELT. >1 makes candidate generation
+    // more conservative (fewer proposed boundaries).
+    private static final double BETA_MULTIPLIER = 1.0;
+    // The local scale is floored by this fraction of the global composite scale (and by the quantization
+    // step), so it adapts upward to a high-variance regime but cannot collapse on a quiet/quantized stretch.
+    private static final double SCALE_FLOOR_FRACTION = 0.5;
+    // Local-deviation weighting: down-weight excursions relative to a rolling-median baseline with
+    // a Cauchy M-estimator weight, so genuine regimes (small local residuals) keep full weight while
+    // large residuals are progressively discounted on the structural fit and cost. Robustness is local,
+    // not relative to a global median. Cauchy weight scale (in robust-sigma units). ~2.385 is the
+    // classic 95%-efficiency tuning for the Cauchy/Lorentzian loss; residuals beyond a few sigma are
+    // heavily but never fully discounted.
+    private static final double CAUCHY_C = 2.385;
+    private static final double MIN_WEIGHT = 1e-4;
+    private static final int WEIGHT_HALF_WINDOW = 4;
+    // Boundary window for the robust line used to residual the first/last WEIGHT_HALF_WINDOW points
+    // (see Stats.applyBoundaryLineResiduals): wide enough for a stable Theil-Sen slope, local enough
+    // to track the boundary.
+    private static final int BOUNDARY_LINE_WINDOW = 2 * WEIGHT_HALF_WINDOW + 1;
+
+    private final int minSegmentLength;
+    private final double betaMultiplier;
+    private final StructuralChangeClassifier classifier;
+
     public StructuralChangeDetector(int minSegmentLength, int classifierMaxDegree, double pValueThreshold) {
         this(minSegmentLength, BETA_MULTIPLIER, classifierMaxDegree, pValueThreshold, 1.0, false);
     }
@@ -343,41 +380,4 @@ public class StructuralChangeDetector {
         }
         return weights;
     }
-
-    // PELT generates candidates with constant/linear segments only: higher-order segments are unstable
-    // on the short windows PELT explores and largely degenerate with extra linear pieces. The verifier
-    // then re-tests each candidate with its own (independent) alternative-model degree. This can't be
-    // changed without changing {@code segmentResidualVariance}.
-    private static final int SEGMENT_DEGREE = 1;
-    // Minimum spread in x (variance of the segment's indices about their weighted mean) for a linear
-    // fit to be identifiable; below this the segment is degenerate and segmentResidualVariance falls
-    // back to a mean-only fit.
-    private static final double MIN_X_VARIANCE = 1e-8;
-    // Per-break penalty bias (multiple of the BIC penalty beta). >1 biases the scale-invariant cost
-    // toward fewer segments, so a smooth oscillation does not accrue borderline piecewise-linear splits
-    // while genuine steps/trends (far stronger evidence) are unaffected.
-    private static final double SEGMENT_PENALTY_BIAS = 1.5;
-    // Default scaling of the BIC complexity penalty beta used by PELT. >1 makes candidate generation
-    // more conservative (fewer proposed boundaries).
-    private static final double BETA_MULTIPLIER = 1.0;
-    // The local scale is floored by this fraction of the global composite scale (and by the quantization
-    // step), so it adapts upward to a high-variance regime but cannot collapse on a quiet/quantized stretch.
-    private static final double SCALE_FLOOR_FRACTION = 0.5;
-    // Local-deviation weighting: down-weight excursions relative to a rolling-median baseline with
-    // a Cauchy M-estimator weight, so genuine regimes (small local residuals) keep full weight while
-    // large residuals are progressively discounted on the structural fit and cost. Robustness is local,
-    // not relative to a global median. Cauchy weight scale (in robust-sigma units). ~2.385 is the
-    // classic 95%-efficiency tuning for the Cauchy/Lorentzian loss; residuals beyond a few sigma are
-    // heavily but never fully discounted.
-    private static final double CAUCHY_C = 2.385;
-    private static final double MIN_WEIGHT = 1e-4;
-    private static final int WEIGHT_HALF_WINDOW = 4;
-    // Boundary window for the robust line used to residual the first/last WEIGHT_HALF_WINDOW points
-    // (see Stats.applyBoundaryLineResiduals): wide enough for a stable Theil-Sen slope, local enough
-    // to track the boundary.
-    private static final int BOUNDARY_LINE_WINDOW = 2 * WEIGHT_HALF_WINDOW + 1;
-
-    private final int minSegmentLength;
-    private final double betaMultiplier;
-    private final StructuralChangeClassifier classifier;
 }

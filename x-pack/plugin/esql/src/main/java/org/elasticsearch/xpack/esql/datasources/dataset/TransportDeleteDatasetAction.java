@@ -71,10 +71,8 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        // Resolve the request expressions against the index namespace and keep only datasets. A
-        // wildcard like `*` expands across the whole namespace (resolveDatasets is additive, not
-        // restrictive), so without this filter concrete index names would reach the registry and be
-        // rejected as missing datasets. Mirrors TransportDeleteViewAction.
+        // Resolve to datasets only: `resolveDatasets` is additive, so a wildcard expands across the whole
+        // namespace — without this filter index names reach the registry. Mirrors TransportDeleteViewAction.
         final List<String> datasetNames;
         try {
             datasetNames = indexNameExpressionResolver.datasets(state.metadata(), request.indicesOptions(), request);

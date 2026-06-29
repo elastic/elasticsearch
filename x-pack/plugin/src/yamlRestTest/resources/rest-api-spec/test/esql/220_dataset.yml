@@ -96,11 +96,9 @@ setup:
 
 ---
 "delete-wildcard-resolves-to-datasets":
-  # With no datasets registered, DELETE /_query/dataset/* resolves the wildcard against the namespace,
-  # keeps only datasets (none), and acks the empty result. It must not 404 on the wildcard and must not
-  # touch indices. Before the fix the raw `*` reached the registry and 404'd. (The destructive-guard
-  # behaviour with action.destructive_requires_name=true is covered in DataSourceCrudIT — the shared
-  # REST test cluster relaxes that setting for its own wildcard cleanup.)
+  # No datasets registered: DELETE * resolves the wildcard, keeps only datasets (none), and acks — it must
+  # not 404 on the wildcard or touch indices (the raw `*` 404'd before the fix). The destructive-guard path
+  # is covered in DataSourceCrudIT; the REST test cluster relaxes that setting for its own cleanup.
   - do:
       esql.delete_dataset:
         name: "*"

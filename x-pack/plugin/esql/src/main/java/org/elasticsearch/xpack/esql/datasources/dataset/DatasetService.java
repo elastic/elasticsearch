@@ -141,7 +141,7 @@ public class DatasetService {
             listener.onFailure(e);
             return;
         }
-        // No-op: an identical dataset is already registered, so skip the cluster-state update. Mirrors ViewService.putView.
+        // No-op if identical to the registered dataset — skip the cluster-state update (mirrors ViewService.putView).
         if (dataset.equals(getMetadata(projectMetadata).get(dataset.name()))) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
@@ -163,7 +163,7 @@ public class DatasetService {
         final DatasetMetadata metadata = getMetadata(project);
         final Dataset current = metadata.get(dataset.name());
         if (dataset.equals(current)) {
-            // The update became a no-op between the coordinator check and the task, so no change is necessary.
+            // Became a no-op between the coordinator check and the task — nothing to write.
             return currentState;
         }
         if (current == null && metadata.datasets().size() >= maxDatasetsCount) {
@@ -197,9 +197,7 @@ public class DatasetService {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DatasetMetadata current = getMetadata(project);
                 if (names.stream().allMatch(n -> current.get(n) == null)) {
-                    // No-op: every requested dataset was already removed (e.g. by a concurrent delete), so no change is
-                    // necessary. Mirrors ViewService.deleteViews. The pre-task check above still fails fast on an
-                    // explicit name that never existed.
+                    // Idempotent: all targets already gone (e.g. concurrent delete) -> no-op, like ViewService.deleteViews.
                     return currentState;
                 }
                 final Map<String, Dataset> updated = new HashMap<>(current.datasets());

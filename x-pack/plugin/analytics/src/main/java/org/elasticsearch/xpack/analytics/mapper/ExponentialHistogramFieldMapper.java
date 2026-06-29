@@ -823,7 +823,12 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         private final NumericDocValues valueMaxima;
 
         private final CompressedExponentialHistogram tempHistogram = new CompressedExponentialHistogram();
-        private int advanceExactFailedDoc = -2;
+
+        /**
+         * If advanceExact(docId) returns false, we remember the docId for which it failed to prevent
+         * calling any of the accessor methods, such as {@link #histogramValue()}
+         */
+        private int advanceExactFailedDoc = -1;
 
         DocValuesReader(LeafReader leafReader, String fullPath) throws IOException {
             histoDocValues = leafReader.getBinaryDocValues(fullPath);
@@ -844,7 +849,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 return false;
             }
             boolean present = valueCounts.advanceExact(docId);
-            advanceExactFailedDoc = present ? -2 : docId;
+            advanceExactFailedDoc = present ? -1 : docId;
             return present;
         }
 

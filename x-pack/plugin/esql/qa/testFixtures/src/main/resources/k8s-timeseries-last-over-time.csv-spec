@@ -507,6 +507,7 @@ events:long | pod:keyword | time_bucket:datetime
 
 last_over_time_with_inline_filter_group_by_all
 required_capability: fix_group_by_all_aggregation_filters
+required_capability: metrics_group_by_all
 TS k8s
 | WHERE cluster == "prod"
 | STATS bytes = last_over_time(network.total_bytes_in) WHERE pod != "one" BY step = TBUCKET(1h)

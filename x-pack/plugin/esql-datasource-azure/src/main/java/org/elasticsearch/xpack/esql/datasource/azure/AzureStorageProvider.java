@@ -363,7 +363,7 @@ public final class AzureStorageProvider implements StorageProvider {
                     + "WITH {\"account\": \"...\", \"key\": \"...\"}, WITH {\"account\": \"...\", \"sas_token\": \"...\"}, "
                     + "WITH {\"auth\": \"none\"} for public containers, "
                     + "WITH {\"auth\": \"workload_identity\"} to use the node's managed identity (requires cluster setting), "
-                    + "or configure keyless authentication settings (tenant_id, client_id, jwt_audience)"
+                    + "or configure keyless authentication settings (tenant_id, client_id)"
             );
         }
 

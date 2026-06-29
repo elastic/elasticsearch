@@ -329,7 +329,7 @@ public class S3StorageProvider implements StorageProvider {
                 + "WITH {\"auth\": \"none\"} for public buckets, "
                 + "WITH {\"auth\": \"workload_identity\"} to use the node's instance role "
                 + "(requires the esql.datasource.workload_identity.enabled cluster setting), "
-                + "or configure keyless authentication settings (role_arn, jwt_audience)"
+                + "or configure keyless authentication settings (role_arn)"
         );
     }
 
@@ -532,7 +532,7 @@ public class S3StorageProvider implements StorageProvider {
                 && config.isWorkloadIdentity() == false)) {
             return ". If accessing a public bucket, use WITH {\"auth\": \"none\"}. "
                 + "Otherwise, provide credentials via WITH {\"access_key\": \"...\", \"secret_key\": \"...\"} "
-                + "or configure keyless authentication settings (role_arn, jwt_audience)";
+                + "or configure keyless authentication settings (role_arn)";
         }
         return "";
     }

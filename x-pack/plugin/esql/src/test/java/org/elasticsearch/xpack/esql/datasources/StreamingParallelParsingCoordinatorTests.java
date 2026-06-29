@@ -453,8 +453,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     ctx.statsBaseOffset()
                 );
                 assertTrue(
-                    "chunk[" + i + "] stats base [" + ctx.statsBaseOffset() + "] must include the macro-split baseFileOffset ["
-                        + baseFileOffset + "]",
+                    "chunk["
+                        + i
+                        + "] stats base ["
+                        + ctx.statsBaseOffset()
+                        + "] must include the macro-split baseFileOffset ["
+                        + baseFileOffset
+                        + "]",
                     ctx.statsBaseOffset() >= baseFileOffset
                 );
             }

@@ -371,7 +371,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        final IvfSegmentConfig ivfSegmentConfig = beginIvfFieldMerge(fieldInfo, mergeState);
+        // Per-field merge hook (see beginIvfFieldMerge): subclasses such as ESNextDiskBBQVectorsWriter resolve their
+        // segment config here, and it must run for every field, including non-float encodings. The result is intentionally
+        // not used in this base implementation - the float path re-resolves it inside mergeOneFieldIVF and the byte path
+        // writes IvfSegmentConfig.NONE below.
+        beginIvfFieldMerge(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             mergeOneFieldIVF(fieldInfo, mergeState);
         } else {

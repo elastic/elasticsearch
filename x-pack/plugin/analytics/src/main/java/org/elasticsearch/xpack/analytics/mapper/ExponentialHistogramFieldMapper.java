@@ -925,6 +925,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 throw new IllegalStateException("No histogram present for current document id");
             }
             if (valueSums == null || valueSums.advanceExact(currentDocId) == false) {
+                // empty histogram, must have sum of 0.0
                 return 0.0;
             }
             return NumericUtils.sortableLongToDouble(valueSums.longValue());
@@ -936,6 +937,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 throw new IllegalStateException("No histogram present for current document id");
             }
             if (valueMinima == null || valueMinima.advanceExact(currentDocId) == false) {
+                // empty histogram
                 return Double.POSITIVE_INFINITY;
             }
             return NumericUtils.sortableLongToDouble(valueMinima.longValue());
@@ -947,6 +949,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 throw new IllegalStateException("No histogram present for current document id");
             }
             if (valueMaxima == null || valueMaxima.advanceExact(currentDocId) == false) {
+                // empty histogram
                 return Double.NEGATIVE_INFINITY;
             }
             return NumericUtils.sortableLongToDouble(valueMaxima.longValue());

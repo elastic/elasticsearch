@@ -1290,6 +1290,55 @@ FROM sample_data
 2023-10-23T13:51:54.732Z | Connection error
 ;
 
+limitByMvExpandGroupingTarget
+required_capability: esql_limit_by
+required_capability: limit_by_mv_expand_grouping_fix
+
+// https://github.com/elastic/elasticsearch/issues/148513
+ROW x = [1, 1, 2, 2, 3]
+| MV_EXPAND x
+| LIMIT 1 BY x
+| SORT x
+;
+
+x:integer
+1
+2
+3
+;
+
+limitByMvExpandGroupingTargetWithSort
+required_capability: esql_limit_by
+required_capability: esql_topn_by
+required_capability: limit_by_mv_expand_grouping_fix
+
+// Same bug when SORT combines with LIMIT BY into TopNBy
+FROM employees
+| WHERE emp_no IN (10002, 10004)
+| SORT emp_no
+| LIMIT 100
+| MV_EXPAND languages
+| LIMIT 1 BY languages
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10002          | 5
+;
+
+limitByMvExpandScalar
+required_capability: esql_limit_by
+required_capability: limit_by_mv_expand_grouping_fix
+
+ROW x = 1
+| MV_EXPAND x
+| LIMIT 1 BY x
+;
+
+x:integer
+1
+;
+
 replaceTopNWithLimitOnConstantSort
 FROM employees
 | EVAL x = null

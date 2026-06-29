@@ -753,9 +753,14 @@ public class ExternalSourceResolver {
         List<Map.Entry<StoragePath, SourceMetadata>> entries = BoundedParallelGather.gather(indices, i -> {
             throwIfCancelled();
             StoragePath filePath = fileList.path(i);
-            SourceMetadata meta = cacheable
-                ? cachedResolveSingleSource(filePath, fileList.lastModifiedMillis(i), config)
-                : resolveSingleSource(filePath.toString(), config);
+            // Carry the cancellation signal across the synchronous footer read so a backoff sleep in
+            // the storage retry layer aborts promptly on cancel.
+            SourceMetadata meta = StorageRetryCancellation.callWithCancellation(
+                this::isCancelled,
+                () -> cacheable
+                    ? cachedResolveSingleSource(filePath, fileList.lastModifiedMillis(i), config)
+                    : resolveSingleSource(filePath.toString(), config)
+            );
             return Map.entry(filePath, meta);
         }, MAX_PARALLEL_METADATA_READS, executor);
 
@@ -819,7 +824,10 @@ public class ExternalSourceResolver {
         try {
             allMeta = BoundedParallelGather.gather(paths, filePath -> {
                 throwIfCancelled();
-                return resolveSingleSource(filePath.toString(), config);
+                return StorageRetryCancellation.callWithCancellation(
+                    this::isCancelled,
+                    () -> resolveSingleSource(filePath.toString(), config)
+                );
             }, MAX_PARALLEL_METADATA_READS, executor);
         } catch (TaskCancelledException e) {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query
@@ -853,9 +861,13 @@ public class ExternalSourceResolver {
             String formatType = detectFormatType(filePath);
             SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
             try {
-                SchemaCacheEntry entry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    return SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config));
-                });
+                SchemaCacheEntry entry = StorageRetryCancellation.callWithCancellation(
+                    this::isCancelled,
+                    () -> cacheService.getOrComputeSchema(
+                        schemaKey,
+                        k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
+                    )
+                );
                 Map<String, Object> fileMeta = entry.safeMetadata();
                 if (fileMeta == null || fileMeta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false) {
                     // This file has no statistics — cannot produce accurate global stats.

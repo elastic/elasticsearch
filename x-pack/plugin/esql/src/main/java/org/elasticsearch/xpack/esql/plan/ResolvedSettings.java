@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.plan;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Immutable typed view of resolved query setting values, produced by {@link QuerySettings#resolve}.
@@ -25,14 +25,12 @@ import java.util.Set;
  */
 public final class ResolvedSettings implements Writeable {
 
-    public static final ResolvedSettings EMPTY = new ResolvedSettings(Map.of(), Set.of());
+    public static final ResolvedSettings EMPTY = new ResolvedSettings(Map.of());
 
     private final Map<QuerySettingDef<?>, Object> values;
-    private final Set<String> consumed;
 
-    ResolvedSettings(Map<QuerySettingDef<?>, Object> values, Set<String> consumed) {
+    ResolvedSettings(Map<QuerySettingDef<?>, Object> values) {
         this.values = Map.copyOf(values);
-        this.consumed = Set.copyOf(consumed);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -41,14 +39,13 @@ public final class ResolvedSettings implements Writeable {
         Map<QuerySettingDef<?>, Object> v = new HashMap<>(n);
         for (int i = 0; i < n; i++) {
             String name = in.readString();
-            QuerySettingDef def = QuerySettingDef.lookup(name);
+            QuerySettingDef def = QuerySettings.lookup(name);
             if (def == null) {
                 throw new IOException("Unknown query setting on the wire: [" + name + "]");
             }
             v.put(def, def.readValue(in));
         }
         this.values = Map.copyOf(v);
-        this.consumed = in.readCollectionAsImmutableSet(StreamInput::readString);
     }
 
     @Override
@@ -60,17 +57,12 @@ public final class ResolvedSettings implements Writeable {
             out.writeString(def.name());
             def.writeValue(out, e.getValue());
         }
-        out.writeCollection(consumed, StreamOutput::writeString);
     }
 
     @SuppressWarnings("unchecked")
     <T> T get(QuerySettingDef<T> def) {
         Object v = values.get(def);
         return v != null ? (T) v : def.defaultValue();
-    }
-
-    public Set<String> consumedSettingNames() {
-        return consumed;
     }
 
     public Map<QuerySettingDef<?>, Object> values() {
@@ -82,13 +74,13 @@ public final class ResolvedSettings implements Writeable {
      * Used by {@code Configuration.withSetting} / {@code ConfigurationBuilder.setting} and similar
      * copy-with-modification helpers.
      */
-    public <T> ResolvedSettings withOverride(QuerySettingDef<T> def, @org.elasticsearch.core.Nullable T value) {
+    public <T> ResolvedSettings withOverride(QuerySettingDef<T> def, @Nullable T value) {
         Map<QuerySettingDef<?>, Object> updated = new HashMap<>(values);
         if (value == null) {
             updated.remove(def);
         } else {
             updated.put(def, value);
         }
-        return new ResolvedSettings(updated, consumed);
+        return new ResolvedSettings(updated);
     }
 }

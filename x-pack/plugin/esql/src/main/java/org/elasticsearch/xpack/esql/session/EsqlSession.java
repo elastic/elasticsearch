@@ -328,6 +328,20 @@ public class EsqlSession {
         // applied. This is the form closest to user intent for failure-path triage.
         planSnapshot = planSnapshot.withParsed(statement.plan());
         parsingProfile.stop();
+
+        // Resolve all query settings up front, immediately after parse, so every downstream phase only reads
+        // resolved values (default < request body < in-query SET) and never re-derives precedence. This also runs
+        // each setting's validator (e.g. the project_routing cross-project gate) before any view-resolution work.
+        ResolvedSettings resolved = QuerySettings.resolve(
+            request.requestSettings(),
+            statement,
+            SettingsValidationContext.from(remoteClusterService)
+        );
+        gatherSettingsMetrics(request, statement);
+        if (QuerySettings.APPROXIMATION.get(resolved) != null) {
+            EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
+        }
+
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
         // View and IN subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
@@ -336,7 +350,7 @@ public class EsqlSession {
         // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
         viewResolver.replaceViews(
             statement.plan(),
-            projectRouting(request, statement),
+            QuerySettings.PROJECT_ROUTING.get(resolved),
             (query, viewName) -> parser.parseView(
                 query,
                 request.params(),
@@ -348,7 +362,7 @@ public class EsqlSession {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
                 viewResolutionProfile.stop();
-                analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
+                analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, l);
             })
         );
     }
@@ -358,6 +372,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
         EsqlStatement statement,
+        ResolvedSettings resolved,
         ViewResolver.ViewResolutionResult viewResolution,
         ActionListener<Versioned<Result>> listener
     ) {
@@ -374,17 +389,6 @@ public class EsqlSession {
         requestIpLocationDownloads(viewResolution.plan());
 
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
-
-        ResolvedSettings resolved = QuerySettings.resolve(
-            request.requestSettings(),
-            statement,
-            SettingsValidationContext.from(remoteClusterService)
-        );
-        gatherSettingsMetrics(resolved);
-
-        if (QuerySettings.APPROXIMATION.get(resolved) != null) {
-            EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
-        }
 
         ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
         Configuration configuration = new ConfigurationBuilder(
@@ -1026,24 +1030,6 @@ public class EsqlSession {
     }
 
     /**
-     * Resolves {@code project_routing} early — before the full {@link QuerySettings#resolve} fold — because
-     * view resolution needs it to scope which projects to read views from. Same precedence as the
-     * framework's fold for this scalar: in-query {@code SET} over request body. The cross-project gate is
-     * enforced here too (and again by the setting's validator at resolve time) so a malformed value
-     * fails before any view-resolution round trip.
-     */
-    private String projectRouting(EsqlQueryRequest request, EsqlStatement statement) {
-        String projectRouting = statement.setting(QuerySettings.PROJECT_ROUTING);
-        if (projectRouting == null) {
-            projectRouting = request.get(QuerySettings.PROJECT_ROUTING);
-        }
-        if (projectRouting != null && crossProjectModeDecider.crossProjectEnabled() == false) {
-            throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
-        }
-        return projectRouting;
-    }
-
-    /**
      * Populates {@code planTelemetry} from the view-resolved plan, capturing commands, functions,
      * and settings from the original statement plus any nodes introduced by view expansion.
      */
@@ -1112,17 +1098,31 @@ public class EsqlSession {
         return IpLocationResolution.fromPrefetched(databaseInfo);
     }
 
-    private void gatherSettingsMetrics(ResolvedSettings resolved) {
+    private void gatherSettingsMetrics(EsqlQueryRequest request, EsqlStatement statement) {
         if (metrics == null) {
             return;
         }
-        // Count every setting the user actually supplied, from any surface — in-query SET, the settings.{} block,
-        // or a legacy top-level body field. ResolvedSettings.consumedSettingNames() already dedups across sources,
-        // so a setting given via both SET and the body is counted once.
         // The Metrics class only registers counters for settings applicable to the current environment
         // (e.g., snapshot-only settings are not registered in non-snapshot builds); incSetting() silently
         // ignores settings that don't have a registered counter.
-        resolved.consumedSettingNames().forEach(metrics::incSetting);
+        suppliedSettingNames(request, statement).forEach(metrics::incSetting);
+    }
+
+    /**
+     * Names of every setting the user supplied, from either surface — the request body ({@code settings.{}} or a
+     * legacy top-level field) and in-query {@code SET} — deduped by name so a setting given via both is counted once.
+     */
+    static Set<String> suppliedSettingNames(EsqlQueryRequest request, EsqlStatement statement) {
+        Set<String> supplied = new HashSet<>();
+        for (var def : request.requestSettings().keySet()) {
+            supplied.add(def.name());
+        }
+        if (statement.settings() != null) {
+            for (QuerySetting setting : statement.settings()) {
+                supplied.add(setting.name());
+            }
+        }
+        return supplied;
     }
 
     private void gatherViewMetrics(ViewResolver.ViewResolutionResult viewResolution) {

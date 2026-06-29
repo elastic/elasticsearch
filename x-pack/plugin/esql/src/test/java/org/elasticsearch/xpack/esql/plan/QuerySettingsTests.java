@@ -26,12 +26,10 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
@@ -293,7 +291,6 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testResolveEmptySources() {
         ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertThat(resolved.consumedSettingNames(), is(Collections.emptySet()));
         // Default for time_zone is UTC
         assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneOffset.UTC));
         // Defaults for the rest are null
@@ -316,7 +313,6 @@ public class QuerySettingsTests extends ESTestCase {
         requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
         ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
-        assertThat(resolved.consumedSettingNames(), equalTo(Set.of("time_zone")));
     }
 
     public void testResolveQuerySetOverridesRequestParameter() {
@@ -328,7 +324,33 @@ public class QuerySettingsTests extends ESTestCase {
         ResolvedSettings resolved = QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         // SET time_zone="UTC" wins and normalizes to ZoneOffset.UTC (see QuerySettings.parseZoneId).
         assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneOffset.UTC));
-        assertThat(resolved.consumedSettingNames(), equalTo(Set.of("time_zone")));
+    }
+
+    public void testBuildRejectsSnapshotAndServerlessOnly() {
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> QuerySettingDef.string("x").withSnapshotOnly().withServerlessOnly().build()
+        );
+        assertThat(e.getMessage(), containsString("cannot be both snapshotOnly and serverlessOnly"));
+    }
+
+    public void testBuildRejectsMissingStreamFormat() {
+        // object(...) sets a JSON/expression reader but no stream format; build() must reject it.
+        var e = expectThrows(IllegalStateException.class, () -> QuerySettingDef.object("x", p -> p.text(), ex -> null).build());
+        assertThat(e.getMessage(), containsString("has no stream format"));
+    }
+
+    public void testBuildRejectsBodyExposedWithoutJsonReader() {
+        // builder(name) has no JSON reader; opting into the request body without one is incoherent.
+        var e = expectThrows(IllegalStateException.class, () -> QuerySettingDef.builder("x").withRequestBody().build());
+        assertThat(e.getMessage(), containsString("body-exposed but has no JSON reader"));
+    }
+
+    public void testByNameRejectsDuplicateName() {
+        QuerySettingDef<String> a = QuerySettingDef.string("dup").build();
+        QuerySettingDef<String> b = QuerySettingDef.string("dup").build();
+        var e = expectThrows(IllegalStateException.class, () -> QuerySettings.byName(List.of(a, b)));
+        assertThat(e.getMessage(), containsString("Duplicate query setting [dup]"));
     }
 
     public void testResolveApproximationDisjointFieldsMerge() {
@@ -427,7 +449,7 @@ public class QuerySettingsTests extends ESTestCase {
 
     @AfterClass
     public static void generateDocs() throws Exception {
-        List<QuerySettingDef<?>> settings = QuerySettingDef.all().stream().sorted(Comparator.comparing(QuerySettingDef::name)).toList();
+        List<QuerySettingDef<?>> settings = QuerySettings.all().stream().sorted(Comparator.comparing(QuerySettingDef::name)).toList();
 
         for (QuerySettingDef<?> def : settings) {
             DocsV3Support.SettingsDocsSupport settingsDocsSupport = new DocsV3Support.SettingsDocsSupport(

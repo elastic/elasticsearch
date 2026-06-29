@@ -48,13 +48,6 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.paramClassificatio
 /** Static methods for parsing xcontent requests to transport requests. */
 final class RequestXContent {
 
-    // Force QuerySettings to initialize before parser declarations reference the registry.
-    private static final QuerySettingDef<?> SETTINGS_REGISTRY_INIT = QuerySettings.TIME_ZONE;
-
-    static {
-        assert QuerySettingDef.all().isEmpty() == false : "QuerySettings static-init guard failed: registry is empty";
-    }
-
     private static class TempObjects {
         Map<String, Object> fields = new HashMap<>();
 
@@ -138,7 +131,7 @@ final class RequestXContent {
 
     /** Declares one parser per registered body alias. Nested-path aliases throw at parser-build time. */
     private static void declareRegistryAliases(ObjectParser<EsqlQueryRequest, ?> parser) {
-        for (QuerySettingDef<?> def : QuerySettingDef.all()) {
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
             for (QuerySettingDef.RequestBodyBinding alias : def.aliases()) {
                 if (alias.isAtRoot() == false) {
                     throw new IllegalStateException(
@@ -173,7 +166,7 @@ final class RequestXContent {
                 );
             }
             String settingName = p.currentName();
-            QuerySettingDef<?> def = QuerySettingDef.lookup(settingName);
+            QuerySettingDef<?> def = QuerySettings.lookup(settingName);
             if (def == null) {
                 throw new XContentParseException(
                     p.getTokenLocation(),

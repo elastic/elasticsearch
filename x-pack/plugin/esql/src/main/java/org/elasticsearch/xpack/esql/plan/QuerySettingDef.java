@@ -18,12 +18,8 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The typed handle for one ES|QL query setting. Declared as a {@code public static final}
@@ -65,7 +61,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * <ol>
  *   <li>Pick a factory matching the value type.</li>
  *   <li>Chain only the modifiers you need.</li>
- *   <li>End with {@code build()}, which validates and registers the setting.</li>
+ *   <li>End with {@code build()}, which validates and constructs the setting; add its constant to
+ *       {@link QuerySettings#ALL} to register it.</li>
  * </ol>
  *
  * <h3>1. SET-only</h3>
@@ -153,17 +150,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class QuerySettingDef<T> {
 
-    private static final Map<String, QuerySettingDef<?>> REGISTRY = new ConcurrentHashMap<>();
-
-    public static Collection<QuerySettingDef<?>> all() {
-        return Collections.unmodifiableCollection(REGISTRY.values());
-    }
-
-    @Nullable
-    public static QuerySettingDef<?> lookup(String name) {
-        return REGISTRY.get(name);
-    }
-
     public static Builder<String> string(String name) {
         return Builder.<String>of(name, DataType.KEYWORD).fromString(s -> s);
     }
@@ -200,10 +186,6 @@ public final class QuerySettingDef<T> {
     /** Direct entry point for a setting whose factory above doesn't fit. */
     public static <T> Builder<T> builder(String name) {
         return Builder.of(name, null);
-    }
-
-    public static <T> Builder<T> builder(String name, FromString<T> from) {
-        return Builder.<T>of(name, DataType.KEYWORD).fromString(from);
     }
 
     private final String name;
@@ -316,7 +298,7 @@ public final class QuerySettingDef<T> {
 
     /**
      * Fluent builder for {@link QuerySettingDef}. Terminates in {@link #build()}, which validates the
-     * combination of flags and registers the resulting immutable setting in {@link #REGISTRY}.
+     * combination of flags and constructs the immutable setting.
      */
     public static final class Builder<T> {
 
@@ -435,17 +417,16 @@ public final class QuerySettingDef<T> {
          * each factory pre-populates it for built-in types. Settings declared via {@link #object} or
          * {@link #builder} must call this explicitly before {@code build()}.
          */
-        public Builder<T> withStreamFormat(Writeable.Writer<T> writer, Writeable.Reader<T> reader) {
-            return streamFormat(writer, reader);
-        }
-
         Builder<T> streamFormat(Writeable.Writer<T> writer, Writeable.Reader<T> reader) {
             this.streamWriter = writer;
             this.streamReader = reader;
             return this;
         }
 
-        /** Validate the builder state, construct the immutable definition, register it, and return it. */
+        /**
+         * Validate the builder state and construct the immutable definition. The setting is not self-registered;
+         * register it by adding its constant to {@link QuerySettings#ALL} (duplicate names are caught there).
+         */
         public QuerySettingDef<T> build() {
             if (snapshotOnly && serverlessOnly) {
                 throw new IllegalStateException("Setting [" + name + "] cannot be both snapshotOnly and serverlessOnly");
@@ -458,15 +439,10 @@ public final class QuerySettingDef<T> {
             }
             if (streamWriter == null || streamReader == null) {
                 throw new IllegalStateException(
-                    "Setting [" + name + "] has no stream format — call withStreamFormat(writer, reader) before build()"
+                    "Setting [" + name + "] has no stream format — call streamFormat(writer, reader) before build()"
                 );
             }
-            QuerySettingDef<T> def = new QuerySettingDef<>(this);
-            QuerySettingDef<?> prior = REGISTRY.putIfAbsent(def.name, def);
-            if (prior != null) {
-                throw new IllegalStateException("Duplicate query setting [" + def.name + "]");
-            }
-            return def;
+            return new QuerySettingDef<>(this);
         }
     }
 

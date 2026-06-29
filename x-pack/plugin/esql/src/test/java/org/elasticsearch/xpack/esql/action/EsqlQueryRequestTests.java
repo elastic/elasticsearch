@@ -101,7 +101,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.get(QuerySettings.TIME_ZONE));
+        assertEquals(timeZone.normalized(), request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -162,7 +162,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.get(QuerySettings.TIME_ZONE));
+        assertEquals(timeZone.normalized(), request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -206,7 +206,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.get(QuerySettings.TIME_ZONE));
+        assertEquals(timeZone.normalized(), request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -255,7 +255,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.get(QuerySettings.TIME_ZONE));
+        assertEquals(timeZone.normalized(), request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -734,7 +734,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.get(QuerySettings.TIME_ZONE));
+        assertEquals(timeZone.normalized(), request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());

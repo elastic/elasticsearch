@@ -23,11 +23,9 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * The catalog of registered ES|QL query settings.
@@ -159,8 +157,39 @@ public final class QuerySettings {
         .withRequestBody()
         .withAliasAtRoot()
         .withReconciler((previous, current) -> new ApproximationSettings.Builder(false).merge(previous).merge(current).build())
-        .withStreamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new)
+        .streamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new)
         .build();
+
+    /**
+     * The canonical, explicitly-enumerated set of all query settings. This is the single source of truth — the
+     * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
+     * you declare it. Referencing this field initializes the class, so there is no load-order hazard.
+     */
+    public static final List<QuerySettingDef<?>> ALL = List.of(TIME_ZONE, PROJECT_ROUTING, UNMAPPED_FIELDS, APPROXIMATION);
+
+    private static final Map<String, QuerySettingDef<?>> BY_NAME = byName(ALL);
+
+    // Package-private + parameterized so the duplicate-name guard is unit-testable without a JVM-global registry.
+    static Map<String, QuerySettingDef<?>> byName(List<QuerySettingDef<?>> all) {
+        Map<String, QuerySettingDef<?>> map = new HashMap<>();
+        for (QuerySettingDef<?> def : all) {
+            if (map.putIfAbsent(def.name(), def) != null) {
+                throw new IllegalStateException("Duplicate query setting [" + def.name() + "]");
+            }
+        }
+        return Map.copyOf(map);
+    }
+
+    /** All declared settings. */
+    public static List<QuerySettingDef<?>> all() {
+        return ALL;
+    }
+
+    /** The setting with this name, or {@code null} if no such setting is declared. */
+    @Nullable
+    public static QuerySettingDef<?> lookup(String name) {
+        return BY_NAME.get(name);
+    }
 
     private QuerySettings() {}
 
@@ -196,7 +225,7 @@ public final class QuerySettings {
             return;
         }
         for (QuerySetting setting : statement.settings()) {
-            QuerySettingDef<?> def = QuerySettingDef.lookup(setting.name());
+            QuerySettingDef<?> def = lookup(setting.name());
             if (def == null) {
                 HeaderWarning.addWarning("Unknown ES|QL setting [" + setting.name() + "] — ignored");
                 continue;
@@ -243,11 +272,10 @@ public final class QuerySettings {
         SettingsValidationContext ctx
     ) {
         Map<QuerySettingDef<?>, Object> resolved = new HashMap<>();
-        Set<String> consumed = new HashSet<>();
-        for (QuerySettingDef<?> def : QuerySettingDef.all()) {
-            resolveSingle(def, requestParams, statement, ctx, resolved, consumed);
+        for (QuerySettingDef<?> def : all()) {
+            resolveSingle(def, requestParams, statement, ctx, resolved);
         }
-        return new ResolvedSettings(resolved, consumed);
+        return new ResolvedSettings(resolved);
     }
 
     @SuppressWarnings("unchecked")
@@ -256,8 +284,7 @@ public final class QuerySettings {
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx,
-        Map<QuerySettingDef<?>, Object> resolved,
-        Set<String> consumed
+        Map<QuerySettingDef<?>, Object> resolved
     ) {
         T value = def.defaultValue();
         boolean userSupplied = false;
@@ -266,7 +293,6 @@ public final class QuerySettings {
             T requestValue = (T) requestParams.get(def);
             if (requestValue != null) {
                 value = def.reconciler().reconcile(value, requestValue);
-                consumed.add(def.name());
                 userSupplied = true;
             }
         }
@@ -276,7 +302,6 @@ public final class QuerySettings {
             if (querySetExpression != null) {
                 T querySetValue = def.readFromExpression(querySetExpression);
                 value = def.reconciler().reconcile(value, querySetValue);
-                consumed.add(def.name());
                 userSupplied = true;
             }
         }
@@ -301,7 +326,7 @@ public final class QuerySettings {
      */
     public static List<QuerySettingDef<?>> applicableIn(boolean isSnapshot, boolean isServerless) {
         List<QuerySettingDef<?>> out = new ArrayList<>();
-        for (QuerySettingDef<?> def : QuerySettingDef.all()) {
+        for (QuerySettingDef<?> def : all()) {
             if (def.snapshotOnly() && isSnapshot == false) {
                 continue;
             }

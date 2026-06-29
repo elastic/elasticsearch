@@ -413,17 +413,22 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
         }
         IndexInput quantizedScoreDataInput = segmentWriteState.directory.openInput(tempScoreQuantizedVectorName, segmentWriteState.context);
         try {
-            final IndexInput finalBinarizedDataInput = quantizedVectorData.clone();
             final IndexInput finalBinarizedScoreDataInput = quantizedScoreDataInput;
-            OffHeapBinarizedVectorValues vectorValues = new OffHeapBinarizedVectorValues.DenseOffHeapVectorValues(
-                fieldInfo.getVectorDimension(),
-                docsWithField.cardinality(),
-                fi.centroid,
-                fi.centroidDP,
+            // Read the index vectors from their region within the segment data file (sliced to the field
+            // offset), mirroring getQuantizedVectorValues. Using the raw, unsliced input would score the
+            // graph against bytes at the wrong file offset.
+            OffHeapBinarizedVectorValues vectorValues = OffHeapBinarizedVectorValues.load(
+                fi.ordToDocDISIReaderConfiguration,
+                fi.dimension,
+                fi.size,
                 quantizer,
                 fieldInfo.getVectorSimilarityFunction(),
                 vectorScorer,
-                finalBinarizedDataInput
+                fi.centroid,
+                fi.centroidDP,
+                fi.vectorDataOffset,
+                fi.vectorDataLength,
+                quantizedVectorData
             );
             RandomVectorScorerSupplier scorerSupplier = vectorScorer.getRandomVectorScorerSupplier(
                 fieldInfo.getVectorSimilarityFunction(),
@@ -436,7 +441,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
             );
             final String finalTempScoreQuantizedVectorName = tempScoreQuantizedVectorName;
             return new BinarizedCloseableRandomVectorScorerSupplier(scorerSupplier, vectorValues, () -> {
-                IOUtils.close(finalBinarizedDataInput, finalBinarizedScoreDataInput);
+                IOUtils.close(finalBinarizedScoreDataInput);
                 IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, finalTempScoreQuantizedVectorName);
             });
         } catch (Throwable t) {

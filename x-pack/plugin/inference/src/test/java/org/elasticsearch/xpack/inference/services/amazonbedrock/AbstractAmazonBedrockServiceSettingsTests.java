@@ -35,13 +35,13 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
     AbstractBWCSerializationTestCase<T> {
 
     public static final String TEST_REGION = "test-region";
-    private static final String INITIAL_TEST_REGION = "initial-test-region";
+    protected static final String INITIAL_TEST_REGION = "initial-test-region";
     public static final String TEST_MODEL_ID = "test-model-id";
-    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    protected static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
     public static final AmazonBedrockProvider TEST_PROVIDER = AmazonBedrockProvider.AMAZONTITAN;
-    private static final AmazonBedrockProvider INITIAL_TEST_PROVIDER = AmazonBedrockProvider.AI21LABS;
+    protected static final AmazonBedrockProvider INITIAL_TEST_PROVIDER = AmazonBedrockProvider.AI21LABS;
     public static final int TEST_RATE_LIMIT = 20;
-    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    protected static final int INITIAL_TEST_RATE_LIMIT = 30;
     private static final int DEFAULT_RATE_LIMIT = 240;
 
     /**
@@ -62,7 +62,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
     /**
      * Creates a settings instance with the given common fields and defaults (typically {@code null}) for any task-specific fields.
      */
-    protected abstract T createServiceSettings(String region, String model, String provider, RateLimitSettings rateLimitSettings);
+    protected abstract T createServiceSettings(String region, String model, AmazonBedrockProvider provider, RateLimitSettings rateLimitSettings);
 
     /**
      * The task-specific immutable fields an update request must reject, in addition to the common {@code region}, {@code model} and
@@ -80,7 +80,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
 
         assertThat(
             serviceSettings,
-            is(createServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+            is(createServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
         );
     }
 
@@ -92,7 +92,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
 
         assertThat(
             serviceSettings,
-            is(createServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+            is(createServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
         );
     }
 
@@ -145,7 +145,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
         var originalServiceSettings = createServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROVIDER.toString(),
+            INITIAL_TEST_PROVIDER,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
@@ -158,7 +158,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
                 createServiceSettings(
                     INITIAL_TEST_REGION,
                     INITIAL_TEST_MODEL_ID,
-                    INITIAL_TEST_PROVIDER.toString(),
+                    INITIAL_TEST_PROVIDER,
                     new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
@@ -169,7 +169,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
         var originalServiceSettings = createServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROVIDER.toString(),
+            INITIAL_TEST_PROVIDER,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
@@ -179,7 +179,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
         var originalServiceSettings = createServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROVIDER.toString(),
+            INITIAL_TEST_PROVIDER,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
@@ -193,7 +193,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
         var serviceSettings = createServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROVIDER.toString(),
+            INITIAL_TEST_PROVIDER,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
 

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -17,11 +19,14 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings;
+import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
+import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -56,8 +61,9 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
             Builder::new
         );
         AmazonBedrockServiceSettings.declareCommonFields(parser);
-        parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
+        // dimensions and dimensions_set_by_user cannot be updated via request
         if (isPersistentContext) {
+            parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
             parser.declareBoolean(Builder::setDimensionsSetByUser, new ParseField(DIMENSIONS_SET_BY_USER));
         }
         parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
@@ -168,27 +174,11 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
 
     @Override
     public AmazonBedrockEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-        var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
-
-        var extractedMaxTokens = extractOptionalPositiveInteger(
-            serviceSettings,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-
-        validationException.throwIfValidationErrorsExist();
-        return new AmazonBedrockEmbeddingsServiceSettings(
-            updatedCommonSettings.region(),
-            updatedCommonSettings.model(),
-            updatedCommonSettings.provider(),
-            this.dimensions,
-            this.dimensionsSetByUser,
-            extractedMaxTokens != null ? extractedMaxTokens : this.maxInputTokens,
-            this.similarity,
-            updatedCommonSettings.rateLimitSettings()
-        );
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Llama embeddings service settings update", e);
+        }
     }
 
     @Override
@@ -218,7 +208,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
      */
     public static class Builder extends AmazonBedrockServiceSettings.Builder<AmazonBedrockEmbeddingsServiceSettings> {
         private Integer dimensions;
-        private Boolean dimensionsSetByUser;
+        private Boolean dimensionsSetByUser = Boolean.FALSE;
         private SimilarityMeasure similarity;
         private Integer maxInputTokens;
 
@@ -254,10 +244,46 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
                 AmazonBedrockProvider.fromString(provider),
                 dimensions,
                 // Set the dimensionsSetByUser flag only if we're parsing the request and dimensions was populated by the user
-                context == ConfigurationParseContext.REQUEST && dimensions != null ? dimensionsSetByUser : false,
+                dimensionsSetByUser,
                 maxInputTokens,
                 similarity,
                 rateLimitSettings
+            );
+        }
+    }
+
+    /**
+     * Parses an update request, which may only contain the mutable {@code max_input_tokens} and {@code rate_limit} fields. Including any
+     * immutable field (such as {@code region}, {@code model}, {@code provider}, {@code dimensions}, or {@code similarity}) causes the
+     * strict parser to reject the request.
+     */
+    private static class Update extends AmazonBedrockServiceSettings.CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            declareCommonUpdatableFields(PARSER);
+            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        }
+
+        private Integer maxInputTokens;
+
+        private void setMaxInputTokens(Integer maxInputTokens) {
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            this.maxInputTokens = maxInputTokens;
+        }
+
+        public AmazonBedrockEmbeddingsServiceSettings mergeInto(AmazonBedrockEmbeddingsServiceSettings existing) {
+            var updatedMaxInputTokens = this.maxInputTokens != null ? this.maxInputTokens : existing.maxInputTokens();
+            return new AmazonBedrockEmbeddingsServiceSettings(
+                existing.region(),
+                existing.modelId(),
+                existing.provider(),
+                existing.dimensions(),
+                existing.dimensionsSetByUser(),
+                updatedMaxInputTokens,
+                existing.similarity(),
+                mergedRateLimitSettings(existing)
             );
         }
     }

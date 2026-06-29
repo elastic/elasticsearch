@@ -1,6 +1,6 @@
 area: Inference
 issues: []
-pr: 152420
+pr: 152427
 summary: Translate `tool_choice` to Anthropic format for Google Model Garden Anthropic
   chat completion
 type: bug

@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -371,6 +372,7 @@ class IndicesAndAliasesResolver {
                 final var indexExpression = requestedIndices != null && requestedIndices.length > 0 ? requestedIndices[0] : Metadata.ALL;
                 if (indicesOptions.expandWildcardExpressions()) {
                     var localExpressions = new HashSet<String>();
+                    var localResolutions = new HashMap<String, IndexAbstraction>();
 
                     // TODO: We can skip the local resolution when CPS enabled and projects filtered to empty
                     IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
@@ -384,9 +386,12 @@ class IndicesAndAliasesResolver {
                             nameExpressionResolver,
                             indicesRequest.includeDataStreams()
                         )) {
-                            localExpressions.add(
-                                IndexNameExpressionResolver.combineSelectorExpression(authorizedIndex, allIndicesPatternSelector)
-                            );
+                            String key = IndexNameExpressionResolver.combineSelectorExpression(authorizedIndex, allIndicesPatternSelector);
+                            localExpressions.add(key);
+                            IndexAbstraction abstraction = projectMetadata.getIndicesLookup().get(authorizedIndex);
+                            if (abstraction != null) {
+                                localResolutions.put(key, abstraction);
+                            }
                         }
                     }
 
@@ -412,6 +417,7 @@ class IndicesAndAliasesResolver {
                         resolvedExpressionsBuilder.addExpressions(
                             indexExpression,
                             localExpressions,
+                            localResolutions,
                             ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
                             remoteIndices
                         );

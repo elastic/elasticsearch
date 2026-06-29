@@ -39,6 +39,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -3885,7 +3886,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(indices, hasItems(expectedIndices));
     }
 
-    private static ResolvedIndexExpression resolvedIndexExpression(
+    private ResolvedIndexExpression resolvedIndexExpression(
         String original,
         Set<String> localExpressions,
         ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult
@@ -3893,15 +3894,28 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         return resolvedIndexExpression(original, localExpressions, localIndexResolutionResult, Collections.emptySet());
     }
 
-    private static ResolvedIndexExpression resolvedIndexExpression(
+    private ResolvedIndexExpression resolvedIndexExpression(
         String original,
         Set<String> localExpressions,
         ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult,
         Set<String> remoteExpressions
     ) {
+        Map<String, IndexAbstraction> resolutions;
+        if (localIndexResolutionResult == NONE) {
+            resolutions = null;
+        } else {
+            resolutions = new HashMap<>();
+            for (String expr : localExpressions) {
+                String baseName = IndexNameExpressionResolver.splitSelectorExpression(expr).v1();
+                IndexAbstraction abstraction = projectMetadata.getIndicesLookup().get(baseName);
+                if (abstraction != null) {
+                    resolutions.put(expr, abstraction);
+                }
+            }
+        }
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null, resolutions),
             remoteExpressions
         );
     }

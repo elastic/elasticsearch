@@ -16,6 +16,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * Eviction policy that prefers keeping cache regions for indices with newer creation timestamps.
@@ -48,10 +49,9 @@ public class IndexAgeEvictionPolicy implements EvictionPolicy<FileCacheKey> {
     }
 
     @Override
-    public boolean canEvict(CacheRegion<FileCacheKey> region, CacheRegion<FileCacheKey> incoming) {
-        long regionDate = indexCreationDateMillis(region.key().shardId());
-        long incomingDate = indexCreationDateMillis(incoming.key().shardId());
-        return regionDate <= incomingDate;
+    public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
+        final long incomingDate = indexCreationDateMillis(incoming.key().shardId());
+        return region -> indexCreationDateMillis(region.key().shardId()) <= incomingDate;
         // When the cache is full of regions from newer indices, older indices might not be able to get a cache region.
         // This is a simplification for now, which can be dealt with in the future.
     }

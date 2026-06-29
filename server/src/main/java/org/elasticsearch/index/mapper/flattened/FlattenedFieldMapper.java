@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
@@ -87,6 +88,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -677,6 +679,28 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         public String key() {
             return key;
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            if (indexType.hasOnlyDocValues()) {
+                if (usesBinaryDocValues) {
+                    return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+                } else {
+                    return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                }
+            } else {
+                return super.termQuery(value, context);
+            }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            if (indexType.hasOnlyDocValues()) {
+                return defaultTermsQuery(values, this::termQuery, context);
+            } else {
+                return super.termsQuery(values, context);
+            }
         }
 
         @Override

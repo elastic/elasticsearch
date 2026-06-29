@@ -342,6 +342,41 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
     }
 
     /**
+     * Collision regression: a Hive partition key ({@code year}) shadows a same-named physical
+     * column. On the data node the unified attributes are [id, value, year] with {@code year} the
+     * appended partition column; the file-backed mapping is data-only (width 2). The factory must
+     * pass the data-only view ({@code dataAttributesOf(attrs, {"year"})}, width 2) — not the full
+     * width-3 attribute list — so the size-vs-width guard does not misfire. Pairs with
+     * {@link #testConstructorRejectsMismatchedSchemaSize}, the negative case.
+     */
+    public void testCollisionDataOnlySchemaMatchesMappingWidth() {
+        List<Attribute> fullAttributes = List.of(
+            attr("id", DataType.INTEGER),
+            attr("value", DataType.KEYWORD),
+            attr("year", DataType.INTEGER) // partition column appended at tail; shadows a physical 'year'
+        );
+        // Mirrors AsyncExternalSourceOperatorFactory#queryDataSchema: data-only, partition excluded.
+        List<Attribute> dataOnly = ExternalSchema.dataAttributesOf(fullAttributes, java.util.Set.of("year")).attributes();
+        assertThat(dataOnly.size(), equalTo(2));
+
+        // Non-identity mapping (reorder) so adaptSchema does not short-circuit; width matches data-only.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0 }, null);
+
+        Block valueBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("alpha"), 2);
+        IntBlock idBlock = blockFactory.newConstantIntBlockWith(7, 2);
+        // File-natural order is [value, id]; mapping reorders to the unified [id, value].
+        Page inputPage = new Page(2, new Block[] { valueBlock, idBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), dataOnly, mapping, blockFactory)) {
+            Page result = iter.next();
+            assertThat(result.getBlockCount(), equalTo(2));
+            assertThat(result.getPositionCount(), equalTo(2));
+            IntBlock resultId = result.getBlock(0);
+            assertThat(resultId.getInt(0), equalTo(7));
+        }
+    }
+
+    /**
      * Verifies the constructor rejects a schema whose size doesn't match the mapping's
      * column count. This guards against accidentally passing the full attributes list
      * (including partition columns) instead of just the data column prefix.

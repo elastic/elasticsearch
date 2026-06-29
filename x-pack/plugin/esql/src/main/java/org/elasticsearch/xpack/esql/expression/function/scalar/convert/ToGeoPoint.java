@@ -73,6 +73,11 @@ public class ToGeoPoint extends AbstractConvertFunction {
     }
 
     @Override
+    public String functionName() {
+        return "TO_GEOPOINT";
+    }
+
+    @Override
     protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }

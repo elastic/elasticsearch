@@ -505,6 +505,22 @@ events:long | pod:keyword | time_bucket:datetime
 5           | two         | 2024-05-10T00:20:00.000Z
 ;
 
+last_over_time_with_inline_filter_group_by_all
+required_capability: fix_group_by_all_aggregation_filters
+required_capability: metrics_group_by_all
+TS k8s
+| WHERE cluster == "prod"
+| STATS bytes = last_over_time(network.total_bytes_in) WHERE pod != "one" BY step = TBUCKET(1h)
+| SORT bytes DESC
+;
+ignoreOrder:true
+
+bytes:long | _timeseries:keyword                                                   | step:datetime
+10277      | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+9969       | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+null       | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+;
+
 last_over_time_counter_double
 required_capability: ts_command_v0
 required_capability: first_last_over_time_counter_support

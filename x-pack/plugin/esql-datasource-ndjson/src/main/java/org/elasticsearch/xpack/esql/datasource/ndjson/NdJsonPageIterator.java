@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.IOUtils;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -103,7 +103,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         boolean chunkMode,
         NdJsonReaderCounters counters,
         long splitStartByte,
-        int maxRecordBytes
+        int maxRecordBytes,
+        DateFormatter datetimeFormatter
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         Check.isTrue(counters != null, "counters must not be null");
@@ -130,24 +131,15 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // reads of huge unsplit NDJSON; above the cap, fall back to streaming and accept a
         // possible offset shift on lenient-mode recovery rather than risk unbounded allocation.
         if (canUseByteArrayFastPath(object)) {
-            // Strict policy: wrap with the byte-cap stream so an oversized line trips during the single
-            // readAllBytes() pull — no second walk over the buffer like the previous enforceMaxRecordBytes
-            // pre-scan. Lenient policy: that wrap can't preserve the row-drop contract (an IOException
-            // mid-bulk-read leaves the underlying stream at an undefined offset), so we keep the
-            // post-read filtering pass — bounded to the byte-array fast path's ≤16 MiB segments — to
-            // drop oversized lines while leaving the rest of the file intact. Splitter-side enforcement
-            // (NdJsonRecordSplitter.findLastRecordBoundary at split discovery time) still covers parallel
-            // chunks; this branch protects whole-file and byte-range macro-split reads that bypass splitting.
+            // Slurp the bounded (≤16 MiB) segment in one pull. max_record_size is enforced per-record
+            // inside NdJsonPageDecoder on the pass Jackson already makes — no second walk over the buffer
+            // (the pre-#965 strict cap stream / lenient filter both re-scanned every byte before the
+            // decoder re-walked them; see issue 965). Splitter-side enforcement
+            // (NdJsonRecordSplitter.findLastRecordBoundary at split-discovery time) still bounds parallel
+            // chunks; the decoder cap protects whole-file and byte-range macro-split reads that bypass it.
             byte[] data;
-            if (errorPolicy.isStrict()) {
-                try (InputStream toClose = new NdJsonRecordCappingInputStream(inputStream, recordSplitter)) {
-                    data = toClose.readAllBytes();
-                }
-            } else {
-                try (InputStream toClose = inputStream) {
-                    data = toClose.readAllBytes();
-                }
-                data = filterOversizedRecords(data, recordSplitter);
+            try (InputStream toClose = inputStream) {
+                data = toClose.readAllBytes();
             }
             this.byteCounter = null;
             this.byteArrayBytesRead = data.length;
@@ -155,6 +147,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 data,
                 0,
                 data.length,
+                datetimeFormatter,
                 resolvedAttributes,
                 projectedColumns,
                 batchSize,
@@ -164,13 +157,17 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 counters
             );
         } else {
-            // Wrap on the streaming path so close-time bytesRead works for stream-only sources
-            // (bzip2 / zstd-streamed) whose length() throws.
+            // Streaming/fallback path (object too large for the fast path, unknown length, or a
+            // single-threaded read). max_record_size is enforced per-record by the decoder here too, which
+            // closes the pre-#965 gap where this branch wrapped only a CountingInputStream and parsed
+            // oversized records with no cap at all (issue 965 feedback). CountingInputStream still gives
+            // close-time bytesRead for stream-only sources (bzip2 / zstd-streamed) whose length() throws.
             CountingInputStream counted = new CountingInputStream(inputStream);
             this.byteCounter = counted;
             this.byteArrayBytesRead = -1;
             this.pageDecoder = new NdJsonPageDecoder(
                 counted,
+                datetimeFormatter,
                 resolvedAttributes,
                 projectedColumns,
                 batchSize,
@@ -181,57 +178,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             );
         }
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
-    }
-
-    /**
-     * Lenient-mode byte-array post-filter: walks the freshly buffered segment once and drops every
-     * record whose terminator-inclusive byte count exceeds {@code maxRecordBytes}, leaving the rest
-     * of the file intact for downstream parsing. This preserves the pre-existing skip-row contract
-     * for oversized NDJSON lines while still avoiding a redundant pre-scan on the strict path
-     * (which goes through {@link NdJsonRecordCappingInputStream}). Bounded by the byte-array fast
-     * path's segment cap, so the extra walk is a single bounded pass rather than open-ended work.
-     */
-    private static byte[] filterOversizedRecords(byte[] data, NdJsonRecordSplitter recordSplitter) {
-        int max = recordSplitter.maxRecordBytes();
-        ByteArrayOutputStream filtered = null;
-        int recordStart = 0;
-        for (int i = 0; i < data.length; i++) {
-            byte b = data[i];
-            if (b == '\n' || b == '\r') {
-                int boundary = i;
-                if (b == '\r' && i + 1 < data.length && data[i + 1] == '\n') {
-                    boundary = ++i;
-                }
-                filtered = copyOrSkipRecord(data, recordStart, boundary + 1, max, filtered);
-                recordStart = boundary + 1;
-            }
-        }
-        if (recordStart < data.length) {
-            filtered = copyOrSkipRecord(data, recordStart, data.length, max, filtered);
-        }
-        return filtered == null ? data : filtered.toByteArray();
-    }
-
-    private static ByteArrayOutputStream copyOrSkipRecord(
-        byte[] data,
-        int recordStart,
-        int recordEnd,
-        int maxRecordBytes,
-        ByteArrayOutputStream filtered
-    ) {
-        int recordBytes = recordEnd - recordStart;
-        if (recordBytes > maxRecordBytes) {
-            if (filtered == null) {
-                // First skip materializes the kept-prefix once; subsequent records are appended as we go.
-                filtered = new ByteArrayOutputStream(data.length);
-                filtered.write(data, 0, recordStart);
-            }
-            return filtered;
-        }
-        if (filtered != null) {
-            filtered.write(data, recordStart, recordBytes);
-        }
-        return filtered;
+        this.pageDecoder.setMaxRecordBytes(maxRecordBytes);
     }
 
     /**
@@ -274,7 +221,19 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             nextPage = pageDecoder.decodePage();
             if (nextPage == null) {
                 endOfFile = true;
-                naturallyExhausted = true;
+                // A streaming/fallback truncation (decoder stopped at an oversized record under a
+                // non-strict policy) is NOT a clean drain: leave naturallyExhausted false so the
+                // under-counted partial result is never published to the stats cache. The decoder has
+                // already emitted the client-facing partial-results warning.
+                if (pageDecoder.truncated()) {
+                    logger.warn(
+                        "NDJSON read of [{}] truncated at byte [{}]: a record exceeded max_record_size; results are partial",
+                        sourceLocation,
+                        pageDecoder.truncatedAtByte()
+                    );
+                } else {
+                    naturallyExhausted = true;
+                }
                 return false;
             }
             if (rowLimit != FormatReader.NO_LIMIT) {

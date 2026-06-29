@@ -229,7 +229,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 // For formats that do not apply implicit nulls to absent columns (text formats under
                 // partial harvest), an unobserved column means "not harvested," not "all-null":
                 // serving rowCount - rowCount = 0 would be wrong. Safe-miss so the engine re-scans.
-                if (implicitNullsForAbsentColumn == false && stats.hasColumn(ref.name()) == false) {
+                if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
                     return null;
                 }
                 long nc = stats.columnNullCount(ref.name());
@@ -249,7 +249,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 // unharvested split would serve a subset MIN/MAX (e.g. one file's value range while a
                 // sibling file's range is invisible). Safe-miss so the engine re-scans. MergedSplitStats
                 // already requires every child to have observed the column for hasColumn to be true.
-                if (implicitNullsForAbsentColumn == false && stats.hasColumn(ref.name()) == false) {
+                if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
                     return null;
                 }
                 return stats.columnMin(ref.name());
@@ -260,7 +260,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
-                if (implicitNullsForAbsentColumn == false && stats.hasColumn(ref.name()) == false) {
+                if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
                     return null;
                 }
                 return stats.columnMax(ref.name());

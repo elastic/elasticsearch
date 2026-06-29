@@ -33,6 +33,32 @@ public final class ExternalSourceAggregatePushdown {
     private ExternalSourceAggregatePushdown() {}
 
     /**
+     * Whether a column-statistic lookup ({@code COUNT(col)}, {@code MIN}/{@code MAX}) cannot be served
+     * from {@code stats} and must safe-miss to a re-scan.
+     * <p>
+     * The {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} "implicit nulls" contract makes
+     * an absent column key mean "all rows null" — true for footer formats (Parquet/ORC), which emit a stat
+     * for every physically present column. Line-oriented text formats harvest per-column stats partially
+     * (the {@code count}/{@code projected} scopes leave some present columns un-summarised), so for them an
+     * absent key means "not harvested": applying the contract would serve {@code rowCount - rowCount = 0} for
+     * {@code COUNT(col)} or a subset extremum for {@code MIN}/{@code MAX} over a column that may be entirely
+     * non-null. When the format declares it does not apply implicit nulls
+     * ({@code implicitNullsForAbsentColumn == false}, via
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#appliesImplicitNullsForAbsentColumn()})
+     * and the column was not observed ({@code stats.hasColumn(name) == false} —
+     * {@link org.elasticsearch.xpack.esql.datasources.MergedSplitStats} requires every child to have observed
+     * it), the lookup is unservable. Both {@link PushStatsToExternalSource} and
+     * {@link PushAggregatesToExternalSource} gate on this so the invariant lives in one place.
+     */
+    static boolean columnStatUnservable(
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        String name,
+        boolean implicitNullsForAbsentColumn
+    ) {
+        return implicitNullsForAbsentColumn == false && stats.hasColumn(name) == false;
+    }
+
+    /**
      * Parsed result from the subtree below an {@code AggregateExec}: the external source,
      * any alias mapping from intermediate {@code EvalExec}/{@code ProjectExec} nodes, and
      * the filter condition from any intermediate {@code FilterExec}.

@@ -20,13 +20,17 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -68,12 +72,14 @@ import java.util.Set;
  * the raw values may not match ESQL's millisecond representation. A future enhancement
  * should convert these values using the column's data type.
  */
-public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
+public class PushStatsToExternalSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+    AggregateExec,
+    LocalPhysicalOptimizerContext> {
 
     private static final Logger logger = LogManager.getLogger(PushStatsToExternalSource.class);
 
     @Override
-    protected PhysicalPlan rule(AggregateExec aggregateExec) {
+    protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext ctx) {
         ExternalSourceAggregatePushdown.ExternalSourceInfo info = ExternalSourceAggregatePushdown.extractExternalSource(
             aggregateExec.child()
         );
@@ -83,6 +89,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         ExternalSourceExec externalExec = info.externalExec();
         AttributeMap<Attribute> aliasReplacedBy = info.aliasReplacedBy();
         Expression filterCondition = info.filterCondition();
+        boolean implicitNullsForAbsentColumn = implicitNullsForAbsentColumn(externalExec, ctx);
 
         AggregatorMode mode = aggregateExec.getMode();
         if (mode != AggregatorMode.SINGLE && mode != AggregatorMode.INITIAL) {
@@ -148,7 +155,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             if (aliasReplacedBy.isEmpty() == false) {
                 aggExpr = aggExpr.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
             }
-            Object value = resolveFromStats(aggExpr, stats);
+            Object value = resolveFromStats(aggExpr, stats, implicitNullsForAbsentColumn);
             if (value == null) {
                 return aggregateExec;
             }
@@ -172,13 +179,41 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
 
-    private static Object resolveFromStats(Expression aggFunction, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
+    /**
+     * Resolves the format reader's "absent column means all-null" semantics for the source. Footer formats
+     * (Parquet/ORC) emit a stat for every physically present column, so an absent column key genuinely means
+     * all-null and a column-stat lookup is correct; text formats harvest partially, so an absent key means
+     * "not harvested" and the lookup must safe-miss (see
+     * {@link ExternalSourceAggregatePushdown#columnStatUnservable}). Defaults to the footer assumption when the
+     * format reader registry is unavailable: a real external read always registers its format reader, so this
+     * default only affects synthetic/registry-less contexts and never serves a wrong text answer there.
+     */
+    private static boolean implicitNullsForAbsentColumn(ExternalSourceExec externalExec, LocalPhysicalOptimizerContext ctx) {
+        if (ctx == null || ctx.external() == null) {
+            return true;
+        }
+        FormatReaderRegistry registry = ctx.external().formatReaderRegistry();
+        if (registry == null) {
+            return true;
+        }
+        FormatReader formatReader = registry.findByName(externalExec.sourceType());
+        if (formatReader == null || formatReader.aggregatePushdownSupport() == AggregatePushdownSupport.UNSUPPORTED) {
+            return true;
+        }
+        return formatReader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
+    }
+
+    private static Object resolveFromStats(
+        Expression aggFunction,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
         if (aggFunction instanceof Count count) {
-            return resolveCount(count, stats);
+            return resolveCount(count, stats, implicitNullsForAbsentColumn);
         } else if (aggFunction instanceof Min min) {
-            return resolveMin(min, stats);
+            return resolveMin(min, stats, implicitNullsForAbsentColumn);
         } else if (aggFunction instanceof Max max) {
-            return resolveMax(max, stats);
+            return resolveMax(max, stats, implicitNullsForAbsentColumn);
         }
         return null;
     }
@@ -191,7 +226,11 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
      * UNION_BY_NAME mixes where some files lack the column. A return of {@code -1} from
      * {@code columnNullCount} signals the rare present-but-stats-less case and we bail out.
      */
-    private static Object resolveCount(Count count, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
+    private static Object resolveCount(
+        Count count,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
         if (count.hasFilter()) {
             return null;
         }
@@ -200,6 +239,11 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             return stats.rowCount();
         }
         if (target instanceof ReferenceAttribute ref) {
+            // For text formats under partial harvest an unobserved column means "not harvested," not
+            // "all-null": serving rowCount - rowCount = 0 would be wrong. Safe-miss so the engine re-scans.
+            if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
+                return null;
+            }
             long nc = stats.columnNullCount(ref.name());
             if (nc >= 0) {
                 return stats.rowCount() - nc;
@@ -208,23 +252,37 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return null;
     }
 
-    private static Object resolveMin(Min min, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
+    private static Object resolveMin(
+        Min min,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
         if (min.hasFilter()) {
             return null;
         }
         Expression target = min.field();
         if (target instanceof ReferenceAttribute ref) {
+            if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
+                return null;
+            }
             return stats.columnMin(ref.name());
         }
         return null;
     }
 
-    private static Object resolveMax(Max max, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
+    private static Object resolveMax(
+        Max max,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
         if (max.hasFilter()) {
             return null;
         }
         Expression target = max.field();
         if (target instanceof ReferenceAttribute ref) {
+            if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
+                return null;
+            }
             return stats.columnMax(ref.name());
         }
         return null;

@@ -69,9 +69,6 @@ public class KeyRotationIT extends SecurityIntegTestCase {
      */
     @After
     public void stopKeyRotationCoordinators() {
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         for (String nodeName : internalCluster().getNodeNames()) {
             internalCluster().getInstance(KeyRotationCoordinator.class, nodeName).close();
         }
@@ -85,15 +82,12 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        // The encryption settings are only registered when the feature flag is enabled
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5))
-                .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-            SecuritySettingsSource.addSecureSettings(builder, secure -> {
-                secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v1");
-                secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v1", "encryption-test-password");
-            });
-        }
+        builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+            .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+        SecuritySettingsSource.addSecureSettings(builder, secure -> {
+            secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v1");
+            secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v1", "encryption-test-password");
+        });
         return builder.build();
     }
 
@@ -107,9 +101,6 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     @After
     public void stopCoordinators() {
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         // Close all coordinator instances so no new cluster-state publications are submitted after
         // the test assertions complete. Without this the coordinator's 1-second tick can start a
         // publish_state (including a PBKDF2 disk-wrap) that is still in-flight when the framework's
@@ -121,11 +112,6 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        // Check feature flag
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
         // Add listener that registers PEK changes
         internalCluster().clusterService().addListener(event -> {
             if (event.changedCustomProjectMetadataSet().contains(ProjectEncryptionKeyMetadata.TYPE) == false) {

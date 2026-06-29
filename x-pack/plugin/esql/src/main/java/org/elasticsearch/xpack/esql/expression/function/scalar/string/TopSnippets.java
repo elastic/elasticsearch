@@ -131,6 +131,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         returnType = "keyword",
         preview = true,
+        briefSummary = "Extracts the best snippets for a query string from a text field.",
         description = "Use `TOP_SNIPPETS` to extract the best snippets for a given query string from a text field.",
         detailedDescription = """
                 `TOP_SNIPPETS` can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
@@ -186,6 +187,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         @Param(
             name = "query",
             type = { "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "The input text containing only query terms for snippet extraction."
                 + " Lucene query syntax, operators, and wildcards are not allowed."
         ) Expression query,

@@ -47,10 +47,16 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
         .ternaryValueTransformation(PromqlFunctionDefinition.MIN_SCALAR, PromqlFunctionDefinition.MAX_SCALAR, Clamp::new)
         .description("Clamps the sample values of all elements to be within [min, max].")
         .example("clamp(http_requests_total, 0, 100)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "Does not implement Prometheus's special case of returning an empty vector when `min` is greater than "
+                + "`max`; it always returns clamped values."
+        )
         .name("clamp");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+        briefSummary = "Clamps values to a specified minimum and maximum range.",
         description = "Limits (or clamps) the values of all samples to have a lower limit of min and an upper limit of max.",
         examples = { @Example(file = "k8s-timeseries-clamp", tag = "clamp") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }

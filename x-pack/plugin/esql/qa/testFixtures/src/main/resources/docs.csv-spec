@@ -54,7 +54,7 @@ height:double | height.float:double | height.half_float:double | height.scaled_f
 // end::keepDoubleWildcard-result[]
 ;
 
-docsKeepCompleteName#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+docsKeepCompleteName
 // tag::keepCompleteName[]
 FROM employees
 | KEEP first_name, last_name, first_name*
@@ -66,7 +66,7 @@ first_name:keyword | last_name:keyword
 // end::keepCompleteName-result[]
 ;
 
-docsKeepWildcardPrecedence#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+docsKeepWildcardPrecedence
 // tag::keepWildcardPrecedence[]
 FROM employees
 | KEEP first_name*, last_name, first_na*
@@ -78,7 +78,7 @@ last_name:keyword | first_name:keyword
 // end::keepWildcardPrecedence-result[]
 ;
 
-docsKeepWildcardLowest#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+docsKeepWildcardLowest
 // tag::keepWildcardLowest[]
 FROM employees
 | KEEP *, first_name
@@ -512,7 +512,7 @@ message:keyword  | ts:keyword | level:keyword
 // end::dissectRightPaddingModifier-result[]
 ;
 
-dissectEmptyRightPaddingModifier#[skip:-8.11.2, reason:Support for empty right padding modifiers introduced in 8.11.2]
+dissectEmptyRightPaddingModifier
 // tag::dissectEmptyRightPaddingModifier[]
 ROW message="[1998-08-10T17:15:42]          [WARN]"
 | DISSECT message """[%{ts}]%{->}[%{level}]"""

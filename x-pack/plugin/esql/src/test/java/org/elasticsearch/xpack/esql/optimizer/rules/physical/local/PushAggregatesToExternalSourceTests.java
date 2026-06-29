@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -354,7 +356,7 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     public void testPushedWithTenSplitsWholeFileStats() {
         @SuppressWarnings("unchecked")
-        Map<String, Object>[] perSplitStats = new Map[10];
+        Map<String, Object>[] perSplitStats = (Map<String, Object>[]) new Map<?, ?>[10];
         for (int i = 0; i < 10; i++) {
             perSplitStats[i] = statsMetadata(1000L, null, null);
         }
@@ -698,6 +700,10 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
      * Minimal FormatReader stub that only provides aggregate pushdown support.
      */
     private static class StubFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final AggregatePushdownSupport support;
 

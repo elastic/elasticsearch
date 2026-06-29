@@ -22,11 +22,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -36,7 +38,9 @@ import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -66,7 +70,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {};
+        public void validateMapping(MappingLookup lookup, Settings settings) {};
 
         @Override
         public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {}
@@ -166,9 +170,45 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {
+        public void validateMapping(MappingLookup lookup, Settings settings) {
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());
+            }
+            validateTemporalityField(lookup, settings);
+        }
+
+        private static void validateTemporalityField(MappingLookup lookup, Settings settings) {
+            String temporalityFieldName = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(settings);
+            if (temporalityFieldName == null || temporalityFieldName.isEmpty()) {
+                return;
+            }
+            MappedFieldType fieldType = lookup.getFieldType(temporalityFieldName);
+            if (fieldType == null) {
+                // We silently ignore this case because of composable templates:
+                // composable templates are verified without being merged with the default mapping
+                // This means the temporality field might not exist during verification,
+                // but we'll add it automatically when the index is created through the default mapping
+                return;
+            }
+            if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()
+                        + "] field ["
+                        + temporalityFieldName
+                        + "] must be of type [keyword] but is ["
+                        + fieldType.typeName()
+                        + "]"
+                );
+            }
+            if (fieldType.isDimension() == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()
+                        + "] field ["
+                        + temporalityFieldName
+                        + "] must be a [time_series_dimension]"
+                );
             }
         }
 
@@ -186,7 +226,27 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            // TSDB indices may have a field which stores the metric temporality, the field is defined by the TIME_SERIES_TEMPORALITY_FIELD
+            // setting. During mapping validation, the field the setting points to gets included in the default mapping
+            // to ensure that it is initialized as expected
+            String temporalityField = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(indexSettings.getSettings());
+            if (temporalityField != null && temporalityField.isEmpty() == false) {
+                return createDefaultMappingWithTemporalityField(temporalityField);
+            }
             return DEFAULT_MAPPING_TIMESTAMP;
+        }
+
+        private static CompressedXContent createDefaultMappingWithTemporalityField(String temporalityFieldName) {
+            try {
+                return createDefaultMapping(
+                    b -> b.startObject(temporalityFieldName)
+                        .field("type", KeywordFieldMapper.CONTENT_TYPE)
+                        .field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, true)
+                        .endObject()
+                );
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
         }
 
         @Override
@@ -257,7 +317,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {}
+        public void validateMapping(MappingLookup lookup, Settings settings) {}
 
         @Override
         public void validateAlias(String indexRouting, String searchRouting) {
@@ -344,7 +404,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {};
+        public void validateMapping(MappingLookup lookup, Settings settings) {};
 
         @Override
         public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {}
@@ -411,7 +471,10 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {}
+        public void validateMapping(MappingLookup lookup, Settings settings) {
+            validateNoMappingRuntimeFields(lookup, this);
+            validateAllFieldsReconstructableFromDocValues(lookup, this);
+        }
 
         @Override
         public void validateAlias(String indexRouting, String searchRouting) {
@@ -509,7 +572,10 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {}
+        public void validateMapping(MappingLookup lookup, Settings settings) {
+            validateNoMappingRuntimeFields(lookup, this);
+            validateAllFieldsReconstructableFromDocValues(lookup, this);
+        }
 
         @Override
         public void validateAlias(String indexRouting, String searchRouting) {
@@ -609,7 +675,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {}
+        public void validateMapping(MappingLookup lookup, Settings settings) {}
 
         @Override
         public void validateAlias(String indexRouting, String searchRouting) {}
@@ -681,7 +747,38 @@ public enum IndexMode {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }
 
-    private static CompressedXContent createDefaultMapping(boolean includeHostName) throws IOException {
+    /**
+     * Rejects mappings that declare runtime fields at the root of the document mapping.
+     */
+    private static void validateNoMappingRuntimeFields(MappingLookup lookup, IndexMode mode) {
+        // TODO Consider including the names of the offending runtime fields in this error message
+        // so users can locate the index or component template that introduced them.
+        if (lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
+            throw new IllegalArgumentException("mapping-level runtime fields are not allowed in index using [" + mode + "] index mode");
+        }
+    }
+
+    /**
+     * Columnar index modes rebuild {@code _source} purely from doc-value columns, so every field's {@code _source} must
+     * be reconstructable from doc values (synthetic source mode {@code NATIVE}). A field that is not - one with no doc
+     * values, or a type whose doc-value encoding cannot rebuild its own source - would otherwise be silently dropped or
+     * kept as a lossy source fallback, so reject it instead.
+     */
+    private static void validateAllFieldsReconstructableFromDocValues(MappingLookup lookup, IndexMode mode) {
+        String field = lookup.firstFieldNotReconstructableFromDocValues();
+        if (field != null) {
+            throw new IllegalArgumentException(
+                "field ["
+                    + field
+                    + "] cannot reconstruct _source from doc values; every field must be reconstructable from doc values in index using ["
+                    + mode
+                    + "] index mode"
+            );
+        }
+    }
+
+    private static CompressedXContent createDefaultMapping(CheckedConsumer<XContentBuilder, IOException> fieldsCustomizer)
+        throws IOException {
         return new CompressedXContent((builder, params) -> {
             builder.startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject(DataStreamTimestampFieldMapper.NAME)
@@ -692,9 +789,7 @@ public enum IndexMode {
                 .field("type", DateFieldMapper.CONTENT_TYPE)
                 .endObject();
 
-            if (includeHostName) {
-                builder.startObject(HOST_NAME).field("type", KeywordFieldMapper.CONTENT_TYPE).field("ignore_above", 1024).endObject();
-            }
+            fieldsCustomizer.accept(builder);
 
             return builder.endObject().endObject();
         });
@@ -706,8 +801,10 @@ public enum IndexMode {
 
     static {
         try {
-            DEFAULT_MAPPING_TIMESTAMP = createDefaultMapping(false);
-            DEFAULT_MAPPING_TIMESTAMP_HOSTNAME = createDefaultMapping(true);
+            DEFAULT_MAPPING_TIMESTAMP = createDefaultMapping(b -> {});
+            DEFAULT_MAPPING_TIMESTAMP_HOSTNAME = createDefaultMapping(
+                b -> b.startObject(HOST_NAME).field("type", KeywordFieldMapper.CONTENT_TYPE).field("ignore_above", 1024).endObject()
+            );
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -779,7 +876,7 @@ public enum IndexMode {
     /**
      * Validate the mapping for this index.
      */
-    public abstract void validateMapping(MappingLookup lookup);
+    public abstract void validateMapping(MappingLookup lookup, Settings settings);
 
     /**
      * Validate aliases targeting this index.

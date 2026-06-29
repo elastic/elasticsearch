@@ -1942,6 +1942,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .errorPolicy(errorPolicy)
                     .readSchema(perFileReadSchema)
                     .maxRecordBytes(maxRecordBytes)
+                    .statsColumnScope(statsColumnScope)
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -1994,6 +1995,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .rowLimit(rowLimit)
             .errorPolicy(errorPolicy)
             .maxRecordBytes(maxRecordBytes)
+            .statsColumnScope(statsColumnScope)
             .build();
         FormatReader reader = readerWithDynamicThreshold(formatReader);
         reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
@@ -2043,6 +2045,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .rowLimit(rowLimit)
                     .errorPolicy(errorPolicy)
                     .maxRecordBytes(maxRecordBytes)
+                    .statsColumnScope(statsColumnScope)
                     .build();
                 pages = reader.read(storageObject, ctx);
             }

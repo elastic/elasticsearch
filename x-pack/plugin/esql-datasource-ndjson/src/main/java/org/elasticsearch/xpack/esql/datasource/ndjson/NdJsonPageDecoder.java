@@ -73,10 +73,9 @@ public class NdJsonPageDecoder implements Closeable {
     static final int IDENTITY_CACHE_MIN_CAP = 256;
 
     /**
-     * Multiplier on the local {@code children.size()} when sizing the identity-cache bound:
-     * gives wide schemas (e.g. ClickBench's ~105-column {@code hits}) headroom for every
-     * unprojected name without letting the bound scale unbounded with dynamic JSON keys not
-     * present in the schema.
+     * Multiplier on the local projected {@code children.size()} when sizing the identity-cache
+     * bound. The fixed floor gives narrow projections room for common unprojected field names;
+     * this multiplier gives wider projections extra space without scaling with dynamic JSON keys.
      */
     static final int IDENTITY_CACHE_FANOUT_MULT = 4;
 
@@ -858,10 +857,11 @@ public class NdJsonPageDecoder implements Closeable {
             if (children == null) {
                 return unprojected;
             }
+            int maxEntries = identityCacheMaxEntries();
             if (identityCache == null) {
-                // Sized for the expected fanout of one object: the schema's full column count is a
-                // conservative ceiling. We never iterate it, so collisions only cost a probe.
-                identityCache = new IdentityHashMap<>(children.size() * 2);
+                // Seed to the bound so narrow projections over wide objects avoid rehashing during
+                // warm-up as unprojected names fill the floor-sized working set.
+                identityCache = new IdentityHashMap<>(maxEntries);
             }
             BlockDecoder cached = identityCache.get(fieldName);
             if (cached != null) {
@@ -870,18 +870,18 @@ public class NdJsonPageDecoder implements Closeable {
             hashMapFallbacks++;
             BlockDecoder resolved = children.get(fieldName);
             BlockDecoder toCache = resolved == null ? unprojected : resolved;
-            if (identityCache.size() < identityCacheMaxEntries()) {
+            if (identityCache.size() < maxEntries) {
                 identityCache.put(fieldName, toCache);
             }
             return toCache;
         }
 
         /**
-         * Upper bound for {@link #identityCache} entries on this decoder. Sized off the local
-         * children fanout so a wide schema still gets generous headroom for unprojected names
-         * while a narrow one (the common NDJSON STATS case) stays compact. The hard floor is
-         * {@value #IDENTITY_CACHE_MIN_CAP} so leaf-ish objects with a tiny {@code children} map
-         * still cache a usable working set.
+         * Upper bound for {@link #identityCache} entries on this decoder. The local
+         * {@code children} fanout is the projected fanout at this object level, not the full
+         * observed object width. The hard floor ({@value #IDENTITY_CACHE_MIN_CAP}) gives narrow
+         * projections a usable working set for unprojected names, while wider projections get
+         * additional space proportional to their projected children.
          */
         private int identityCacheMaxEntries() {
             return Math.max(IDENTITY_CACHE_MIN_CAP, children.size() * IDENTITY_CACHE_FANOUT_MULT);

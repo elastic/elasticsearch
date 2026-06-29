@@ -142,7 +142,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,

@@ -71,35 +71,27 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
         project.getPlugins().withType(JavaBasePlugin.class, javaPlugin -> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
 
-            // Create csvSpecTest source set and wire in the generated sources.
-            // This must happen before afterEvaluate so compilation tasks are registered.
             SourceSet csvSpecTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
             csvSpecTestSourceSet.getJava().srcDir(project.getTasks().named("generateEsqlSpecTests"));
 
-            // Wire classpath after all plugins have run so javaRestTest is guaranteed to exist.
-            project.afterEvaluate(p -> {
-                SourceSet javaRestTestSourceSet = sourceSets.getByName("javaRestTest");
-
-                // csvSpecTest compiles against javaRestTest output (Clusters, abstract IT bases)
-                // and inherits all of javaRestTest's compile and runtime dependencies — the same
-                // pattern used by yamlRestTest via GradleUtils.extendSourceSet. Test-class bleed
-                // from javaRestTest into the csv runner is prevented by testClassesDirs being
-                // scoped to csvSpecTest output only.
-                project.getDependencies().add(csvSpecTestSourceSet.getImplementationConfigurationName(), javaRestTestSourceSet.getOutput());
-                project.getConfigurations()
-                    .named(csvSpecTestSourceSet.getCompileClasspathConfigurationName())
-                    .configure(
-                        c -> c.extendsFrom(
-                            project.getConfigurations().getByName(javaRestTestSourceSet.getCompileClasspathConfigurationName())
-                        )
-                    );
-                project.getConfigurations()
-                    .named(csvSpecTestSourceSet.getRuntimeClasspathConfigurationName())
-                    .configure(
-                        c -> c.extendsFrom(
-                            project.getConfigurations().getByName(javaRestTestSourceSet.getRuntimeClasspathConfigurationName())
-                        )
-                    );
+            // Wire csvSpecTest against javaRestTest whenever javaRestTest is created. Using
+            // sourceSets.all fires for both already-existing and future source sets, so this
+            // works regardless of plugin application order without resorting to afterEvaluate.
+            // csvSpecTest compiles against javaRestTest output (Clusters, abstract IT bases)
+            // and inherits all of javaRestTest's compile and runtime dependencies — the same
+            // pattern used by yamlRestTest via GradleUtils.extendSourceSet. Test-class bleed
+            // from javaRestTest into the csv runner is prevented by testClassesDirs being
+            // scoped to csvSpecTest output only.
+            sourceSets.all(ss -> {
+                if ("javaRestTest".equals(ss.getName())) {
+                    project.getDependencies().add(csvSpecTestSourceSet.getImplementationConfigurationName(), ss.getOutput());
+                    project.getConfigurations()
+                        .named(csvSpecTestSourceSet.getCompileClasspathConfigurationName())
+                        .configure(c -> c.extendsFrom(project.getConfigurations().getByName(ss.getCompileClasspathConfigurationName())));
+                    project.getConfigurations()
+                        .named(csvSpecTestSourceSet.getRuntimeClasspathConfigurationName())
+                        .configure(c -> c.extendsFrom(project.getConfigurations().getByName(ss.getRuntimeClasspathConfigurationName())));
+                }
             });
         });
     }

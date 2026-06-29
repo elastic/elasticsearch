@@ -14,6 +14,7 @@ import org.elasticsearch.common.Rounding.RoundingConvention;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -181,6 +182,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @FunctionInfo(
         returnType = { "double", "date", "date_nanos" },
+        briefSummary = "Creates groups of values (buckets) from a datetime or numeric input.",
         description = """
             Creates groups of values - buckets - out of a datetime or numeric input.
             The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.""",
@@ -283,23 +285,26 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "buckets",
             type = { "integer", "long", "double", "date_period", "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
         ) Expression buckets,
         @Param(
             name = "from",
             type = { "integer", "long", "double", "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Can be a number, a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
             type = { "integer", "long", "double", "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."
         ) Expression to,
         Configuration configuration
     ) {
-        this(source, field, buckets, from, to, configuration, 0L, DOWN);
+        this(source, field, buckets, from, to, configuration, 0L, null);
     }
 
     public Bucket(
@@ -319,7 +324,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         this.to = to;
         this.configuration = configuration;
         this.offset = offset;
-        this.roundingConvention = roundingConvention;
+        this.roundingConvention = roundingConvention != null ? roundingConvention : DOWN;
     }
 
     private Bucket(StreamInput in) throws IOException {
@@ -333,7 +338,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             in.getTransportVersion().supports(ESQL_BUCKET_OFFSET) ? in.readZLong() : 0L,
             in.getTransportVersion().supports(ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION)
                 ? in.readEnum(RoundingConvention.class)
-                : DOWN
+                : null
         );
     }
 
@@ -491,11 +496,17 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 "date_period",
                 "time_duration"
             );
-            return bucketsType.isWholeNumber()
-                ? resolution.and(checkArgsCount(4))
+            // 4-arg ctor: range + time unit or number of buckets
+            // e.g. BUCKET(@timestamp, 1 day, "2023-01-01", "2024-01-01")
+            // or BUCKET(@timestamp, 5, "2023-01-01", "2024-01-01")
+            if (bucketsType.isWholeNumber() || from != null) {
+                return resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
-                    .and(() -> isStringOrDate(to, sourceText(), FOURTH))
-                : resolution.and(checkArgsCount(2)); // temporal amount
+                    .and(() -> isStringOrDate(to, sourceText(), FOURTH));
+            }
+            // 2-arg ctor: round by a time unit unbound
+            // e.g. BUCKET(@timestamp, 1 day)
+            return resolution.and(checkArgsCount(2));
         }
         if (fieldType.isNumeric()) {
             return isNumeric(buckets, sourceText(), SECOND).and(() -> {
@@ -538,7 +549,15 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     public static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, exp -> DataType.isString(exp) || DataType.isDateTime(exp), operationName, paramOrd, "datetime", "string");
+        return isType(
+            e,
+            exp -> DataType.isString(exp) || DataType.isMillisOrNanos(exp),
+            operationName,
+            paramOrd,
+            "datetime",
+            "date_nanos",
+            "string"
+        );
     }
 
     @Override
@@ -552,7 +571,13 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     private long foldToLong(FoldContext ctx, Expression e) {
         Object value = Foldables.valueOf(ctx, e);
-        return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
+        if (DataType.isDateTime(e.dataType())) {
+            return ((Number) value).longValue();
+        }
+        if (e.dataType() == DataType.DATE_NANOS) {
+            return DateUtils.toMilliSeconds(((Number) value).longValue());
+        }
+        return dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 
     @Override

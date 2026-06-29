@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.flattenedCases;
 import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.unlimitedSuppliers;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.anyOf;
@@ -64,18 +65,24 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
             );
             searchFieldTypes.addAll(extra);
             taggedTypes.addAll(extra);
+            searchFieldTypes.add(DataType.FLATTENED);
         }
 
         FunctionAppliesTo newIn95 = appliesTo(FunctionAppliesToLifecycle.GA, "9.5.0", "", true);
         List<DataType> sortFieldTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS, DataType.NULL);
 
+        int flattenedRows = 20;
         for (DataType searchFieldType : searchFieldTypes) {
-            for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(searchFieldType, rows, rows)) {
+            int valueRows = searchFieldType == DataType.FLATTENED ? flattenedRows : rows;
+            var rawSuppliers = searchFieldType == DataType.FLATTENED
+                ? flattenedCases(flattenedRows, flattenedRows)
+                : unlimitedSuppliers(searchFieldType, rows, rows);
+            for (TestCaseSupplier.TypedDataSupplier valueSupplier : rawSuppliers) {
                 var taggedValueSupplier = taggedTypes.contains(searchFieldType) ? valueSupplier.withAppliesTo(newIn95) : valueSupplier;
                 for (DataType sortFieldType : sortFieldTypes) {
                     var sortSuppliers = sortFieldType == DataType.NULL
-                        ? MultiRowTestCaseSupplier.nullCases(rows, rows)
-                        : unlimitedSuppliers(sortFieldType, rows, rows);
+                        ? MultiRowTestCaseSupplier.nullCases(valueRows, valueRows)
+                        : unlimitedSuppliers(sortFieldType, valueRows, valueRows);
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : sortSuppliers) {
                         suppliers.add(makeSupplier(taggedValueSupplier, sortSupplier, isFirst));
                     }

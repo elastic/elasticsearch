@@ -33,7 +33,6 @@ import org.apache.lucene.util.LongValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -152,7 +151,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         IndexOutput postingsOutput,
         long fileOffset,
         int[] assignments,
-        int[] overspillAssignments,
+        OverspillAssignments overspillAssignments,
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException;
 
@@ -164,7 +163,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         long fileOffset,
         MergeState mergeState,
         int[] assignments,
-        int[] overspillAssignments,
+        OverspillAssignments overspillAssignments,
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException;
 
@@ -366,17 +365,16 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         // For flat centroid assignments there is a single global centroid and no SOAR (secondary) centroid assignments,
         // so we pass an empty array for soarAssignments.
         int[] assignments = new int[count];
-        return new CentroidAssignments(dimension, new float[][] { centroid }, assignments, new int[0]);
+        return new CentroidAssignments(dimension, new float[][] { centroid }, assignments, new SoarAssignments(new int[0]));
     }
 
     @Override
     public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        final IvfSegmentConfig ivfSegmentConfig = beginIvfFieldMerge(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
-            mergeOneFieldIVF(fieldInfo, mergeState, ivfSegmentConfig);
+            mergeOneFieldIVF(fieldInfo, mergeState);
         } else {
             // we simply write information that the field is present but we don't do anything with it.
-            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig);
+            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, IvfSegmentConfig.NONE);
         }
         // we merge the vectors at the end so we only have two copies of the vectors on disk at the same time.
         rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
@@ -439,19 +437,20 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     ) throws IOException;
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig ivfSegmentConfig) throws IOException {
+    private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        IvfSegmentConfig resolvedConfig = beginIvfFieldMerge(fieldInfo, mergeState);
+        final IvfSegmentConfig ivfSegmentConfig = resolvedConfig != null ? resolvedConfig : IvfSegmentConfig.NONE;
         final int numVectors;
         String tempRawVectorsFileName = null;
         String docsFileName = null;
+        Preconditioner preconditioner;
         // build a float vector values with random access. In order to do that we dump the vectors to
         // a temporary file and if the segment is not dense, the docs to another file/
-        Preconditioner preconditioner;
         try (
             IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfvec_", IOContext.DEFAULT)
         ) {
             tempRawVectorsFileName = vectorsOut.getName();
             FloatVectorValues mergedFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
-
             // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
             preconditioner = inheritPreconditioner(fieldInfo, mergeState, ivfSegmentConfig);
             mergedFloatVectorValues = preconditionVectors(preconditioner, mergedFloatVectorValues, ivfSegmentConfig);
@@ -508,7 +507,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final long postingListLength;
             final int numCentroids;
             final int[] assignments;
-            final int[] overspillAssignments;
+            final OverspillAssignments overspillAssignments;
             final float[] calculatedGlobalCentroid;
             final CentroidSlices centroidSlices;
             String centroidTempName = null;

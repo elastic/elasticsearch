@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -36,34 +35,10 @@ public class RecoveriesCollection {
     /** This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done */
     private final ConcurrentMap<Long, RecoveryTarget> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
-    private final List<RecoverySchedulingListener> recoverySchedulingListeners = new CopyOnWriteArrayList<>();
-
     private final Logger logger;
 
     public RecoveriesCollection(Logger logger) {
         this.logger = logger;
-    }
-
-    /** Registers a recovery scheduling listener */
-    public void addRecoverySchedulingListener(RecoverySchedulingListener listener) {
-        recoverySchedulingListeners.add(listener);
-    }
-
-    /** Unregisters a recovery scheduling listener */
-    public void removeRecoverySchedulingListener(RecoverySchedulingListener listener) {
-        recoverySchedulingListeners.remove(listener);
-    }
-
-    private void notifyRecoverySchedulingListeners() {
-        assert Thread.holdsLock(onGoingRecoveries) == false;
-        for (RecoverySchedulingListener listener : recoverySchedulingListeners) {
-            try {
-                listener.onRecoverySchedulingChange();
-            } catch (Exception e) {
-                assert false : e;
-                logger.warn("exception from recovery schedule listener", e);
-            }
-        }
     }
 
     /**
@@ -76,7 +51,7 @@ public class RecoveriesCollection {
         DiscoveryNode sourceNode,
         long clusterStateVersion,
         SnapshotFilesProvider snapshotFilesProvider,
-        PeerRecoveryTargetService.RecoveryListener listener,
+        RecoveryListener listener,
         @Nullable Releasable snapshotFileDownloadsPermit
     ) {
         RecoveryTarget recoveryTarget = new RecoveryTarget(
@@ -88,7 +63,6 @@ public class RecoveriesCollection {
             listener
         );
         startRecoveryInternal(recoveryTarget);
-        notifyRecoverySchedulingListeners();
         return recoveryTarget.recoveryId();
     }
 
@@ -101,7 +75,6 @@ public class RecoveriesCollection {
             recoveryTarget.sourceNode(),
             recoveryTarget.recoveryId()
         );
-        recoveryTarget.indexShard().recoveryStats().incCurrentAsTarget();
     }
 
     /**
@@ -111,48 +84,50 @@ public class RecoveriesCollection {
      * @return newly created RecoveryTarget
      */
     public RecoveryTarget resetRecovery(final long recoveryId) {
-        RecoveryTarget oldRecoveryTarget = null;
+        final RecoveryTarget oldRecoveryTarget;
         final RecoveryTarget newRecoveryTarget;
 
-        try {
-            synchronized (onGoingRecoveries) {
-                // swap recovery targets in a synchronized block to ensure that the newly added recovery target is picked up by
-                // cancelRecoveriesForShard whenever the old recovery target is picked up
-                oldRecoveryTarget = onGoingRecoveries.remove(recoveryId);
-                if (oldRecoveryTarget == null) {
-                    return null;
-                }
-                oldRecoveryTarget.indexShard().recoveryStats().decCurrentAsTarget();
-                newRecoveryTarget = oldRecoveryTarget.retryCopy();
-                startRecoveryInternal(newRecoveryTarget);
-            }
-            notifyRecoverySchedulingListeners();
-
-            // Closes the current recovery target
-            boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
-            if (successfulReset) {
-                logger.trace(
-                    "{} restarted recovery from {}, id [{}], previous id [{}]",
-                    newRecoveryTarget.shardId(),
-                    newRecoveryTarget.sourceNode(),
-                    newRecoveryTarget.recoveryId(),
-                    oldRecoveryTarget.recoveryId()
-                );
-                return newRecoveryTarget;
-            } else {
-                logger.trace(
-                    "{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
-                    newRecoveryTarget.shardId(),
-                    newRecoveryTarget.sourceNode(),
-                    newRecoveryTarget.recoveryId(),
-                    oldRecoveryTarget.recoveryId()
-                );
-                cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
+        synchronized (onGoingRecoveries) {
+            // swap recovery targets in a synchronized block to ensure that the newly added recovery target is picked up by
+            // cancelRecoveriesForShard whenever the old recovery target is picked up
+            oldRecoveryTarget = onGoingRecoveries.remove(recoveryId);
+            if (oldRecoveryTarget == null) {
                 return null;
             }
+            newRecoveryTarget = oldRecoveryTarget.retryCopy();
+            startRecoveryInternal(newRecoveryTarget);
+        }
+
+        final boolean successfulReset;
+        try {
+            // Closes the current recovery target
+            successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
         } catch (Exception e) {
-            // fail shard to be safe
-            oldRecoveryTarget.notifyListener(new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e), true);
+            failRecovery(
+                newRecoveryTarget.recoveryId(),
+                new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e),
+                true
+            );
+            return null;
+        }
+        if (successfulReset) {
+            logger.trace(
+                "{} restarted recovery from {}, id [{}], previous id [{}]",
+                newRecoveryTarget.shardId(),
+                newRecoveryTarget.sourceNode(),
+                newRecoveryTarget.recoveryId(),
+                oldRecoveryTarget.recoveryId()
+            );
+            return newRecoveryTarget;
+        } else {
+            logger.trace(
+                "{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
+                newRecoveryTarget.shardId(),
+                newRecoveryTarget.sourceNode(),
+                newRecoveryTarget.recoveryId(),
+                oldRecoveryTarget.recoveryId()
+            );
+            cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
             return null;
         }
     }
@@ -198,10 +173,8 @@ public class RecoveriesCollection {
                 removed.recoveryId(),
                 reason
             );
-            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.cancel(reason);
             cancelled = true;
-            notifyRecoverySchedulingListeners();
         }
         return cancelled;
     }
@@ -223,9 +196,7 @@ public class RecoveriesCollection {
                 removed.recoveryId(),
                 sendShardFailure
             );
-            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.fail(e, sendShardFailure);
-            notifyRecoverySchedulingListeners();
         }
     }
 
@@ -234,9 +205,7 @@ public class RecoveriesCollection {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         if (removed != null) {
             logger.trace("{} marking recovery from {} as done, id [{}]", removed.shardId(), removed.sourceNode(), removed.recoveryId());
-            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.markAsDone();
-            notifyRecoverySchedulingListeners();
         }
     }
 
@@ -272,12 +241,8 @@ public class RecoveriesCollection {
                 removed.recoveryId(),
                 reason
             );
-            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.cancel(reason);
             cancelled = true;
-        }
-        if (cancelled) {
-            notifyRecoverySchedulingListeners();
         }
         return cancelled;
     }

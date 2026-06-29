@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -596,6 +600,69 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code _rowPosition} carries a file-global, split-invariant byte anchor per record — the
+     * substrate {@code _id} is composed from. The anchor is the parser's byte offset captured
+     * right after the record's opening token (record start + 1); the exact anchor is opaque, what
+     * is load-bearing is (a) it is intrinsic to the record's position in the file and (b) the
+     * split fold {@code recordOffsetBase = splitStartByte + skippedPartialLeadingBytes} keeps a
+     * mid-record split emitting the same value the whole-file read emits.
+     */
+    public void testRowPositionIsFileGlobalByteOffset() throws IOException {
+        // Record start bytes: r1 at 0 (9 bytes incl \n), r2 at 9 (10 bytes), r3 at 19.
+        // Emitted anchors are start + 1 (parser position after the opening '{').
+        String data = "{\"id\":1}\n{\"id\":22}\n{\"id\":333}\n";
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        var wholeFile = new BytesStorageObject("file:///offsets.ndjson", bytes);
+        try (
+            var iterator = reader.read(
+                wholeFile,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id", org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor.ROW_POSITION_COLUMN))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.LENIENT)
+                    .firstSplit(true)
+                    .lastSplit(true)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock rowPos = page.getBlock(1);
+            assertEquals(1L, rowPos.getLong(0));
+            assertEquals(10L, rowPos.getLong(1));
+            assertEquals(20L, rowPos.getLong(2));
+        }
+
+        // Split starting mid-r2 at file byte 12: the leading partial line (7 bytes, to the end of
+        // r2) is skipped and folded into the offset base, so r3 still reports the same file-global
+        // anchor the whole-file read emitted (20), not a split-relative one.
+        byte[] tail = Arrays.copyOfRange(bytes, 12, bytes.length);
+        var midRecordSplit = new BytesStorageObject("file:///offsets.ndjson", tail);
+        try (
+            var iterator = reader.read(
+                midRecordSplit,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id", org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor.ROW_POSITION_COLUMN))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.LENIENT)
+                    .firstSplit(false)
+                    .lastSplit(true)
+                    .splitStartByte(12)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            LongBlock rowPos = page.getBlock(1);
+            assertEquals("anchor must be file-global: splitStartByte + skipped partial bytes", 20L, rowPos.getLong(0));
+        }
+    }
+
     public void testSampleData() throws Exception {
         var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));
@@ -861,6 +928,95 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             }
         }
         assertEquals(2, totalRows);
+    }
+
+    /**
+     * Early-close leak regression. {@link NdJsonPageIterator} buffers one look-ahead page in
+     * {@code hasNext()}; before it extended {@link org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator}
+     * a consumer that closed after {@code hasNext()} but before {@code next()} (a pushed-down {@code LIMIT},
+     * a cancellation, a downstream error) left that page's blocks unreleased against the breaker. Each test
+     * below drives a real read on a tracking breaker and asserts usage returns to zero. {@code multiRowFile}
+     * gives several rows so a small batch produces more than one page and the look-ahead is genuinely held.
+     */
+    private static String multiRowNdjson(int rows) {
+        StringBuilder sb = new StringBuilder(rows * 12);
+        for (int i = 1; i <= rows; i++) {
+            sb.append("{\"id\":").append(i).append("}\n");
+        }
+        return sb.toString();
+    }
+
+    public void testCloseAfterHasNextWithoutNextDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        var object = new BytesStorageObject("memory://leak.ndjson", multiRowNdjson(50).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext()); // materializes (and allocates) the first look-ahead page
+            assertThat("hasNext must have buffered a page", breaker.getUsed(), Matchers.greaterThan(0L));
+            // Abandon without next(): try-with-resources close() must release the buffered page.
+        }
+        assertEquals("the buffered look-ahead page must be released on early close", 0L, breaker.getUsed());
+    }
+
+    public void testCloseMidStreamDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        var object = new BytesStorageObject("memory://leak-mid.ndjson", multiRowNdjson(50).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).build();
+        try (var iterator = reader.read(object, ctx)) {
+            // Consume two pages fully (caller releases those), then materialize a third and abandon it.
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext()); // buffers a third page that we never consume
+            assertThat(breaker.getUsed(), Matchers.greaterThan(0L));
+        }
+        assertEquals("no page may leak when the consumer aborts mid-stream", 0L, breaker.getUsed());
+    }
+
+    public void testCloseAfterFullConsumptionDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        var object = new BytesStorageObject("memory://full.ndjson", multiRowNdjson(20).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).build();
+        int totalRows = 0;
+        try (var iterator = reader.read(object, ctx)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(20, totalRows);
+        assertEquals("draining to exhaustion then closing must leave the breaker at zero", 0L, breaker.getUsed());
+    }
+
+    public void testRowLimitEarlyCloseDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        // rowLimit below the file size mimics a pushed-down LIMIT: the iterator stops early and a
+        // partially-built / buffered page can be left in hand at close.
+        var object = new BytesStorageObject("memory://limit.ndjson", multiRowNdjson(100).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).rowLimit(5).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext()); // buffers the (row-limited) page but we never consume it
+            assertThat(breaker.getUsed(), Matchers.greaterThan(0L));
+        }
+        assertEquals("a row-limited buffered page must be released on early close", 0L, breaker.getUsed());
     }
 
     /**
@@ -1585,20 +1741,20 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testFindNextRecordBoundaryNewline() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(data.length, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCRLF() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}\r\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(data.length, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCROnly() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}\rmore".getBytes(StandardCharsets.UTF_8);
         int expected = "{\"key\":\"value\"}\r".length();
-        assertEquals(expected, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(expected, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCRLFAtBufferEdge() throws IOException {
@@ -1609,95 +1765,95 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         byte[] data = new byte[padding.length + suffix.length];
         System.arraycopy(padding, 0, data, 0, padding.length);
         System.arraycopy(suffix, 0, data, padding.length, suffix.length);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals(8193, boundary);
     }
 
     public void testFindNextRecordBoundaryEofNoNewline() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryEmptyStream() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
+        assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
     }
 
     // --- findLastRecordBoundary tests ---
 
-    public void testFindLastRecordBoundaryLfTerminated() {
+    public void testFindLastRecordBoundaryLfTerminated() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\n{\"b\":2}\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(data.length - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
-    public void testFindLastRecordBoundaryCrLfTerminated() {
+    public void testFindLastRecordBoundaryCrLfTerminated() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\r\n{\"b\":2}\r\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\n', data[boundary]);
     }
 
-    public void testFindLastRecordBoundaryLoneCrTerminated() {
+    public void testFindLastRecordBoundaryLoneCrTerminated() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\r{\"b\":2}\r".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\r', data[boundary]);
     }
 
-    public void testFindLastRecordBoundaryMixedTerminators() {
+    public void testFindLastRecordBoundaryMixedTerminators() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\n{\"b\":2}\r\n{\"c\":3}\r".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\r', data[boundary]);
     }
 
-    public void testFindLastRecordBoundaryEmpty() {
+    public void testFindLastRecordBoundaryEmpty() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
-        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], 0));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(new byte[0], 0));
     }
 
-    public void testFindLastRecordBoundaryNoTerminator() {
+    public void testFindLastRecordBoundaryNoTerminator() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
-    public void testFindLastRecordBoundarySingleRecordWithTrailingLf() {
+    public void testFindLastRecordBoundarySingleRecordWithTrailingLf() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(data.length - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
-    public void testFindLastRecordBoundaryTrailingUnterminatedRecord() {
+    public void testFindLastRecordBoundaryTrailingUnterminatedRecord() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\n{\"b\":2}".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals("{\"a\":1}\n".length() - 1, boundary);
         assertEquals('\n', data[boundary]);
     }
 
-    public void testFindLastRecordBoundaryLengthSubsetOfBuffer() {
+    public void testFindLastRecordBoundaryLengthSubsetOfBuffer() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] body = "{\"a\":1}\n{\"b\":2}\n".getBytes(StandardCharsets.UTF_8);
         byte[] padded = new byte[body.length + 64];
         System.arraycopy(body, 0, padded, 0, body.length);
         Arrays.fill(padded, body.length, padded.length, (byte) 0xff);
-        assertEquals(body.length - 1, reader.findLastRecordBoundary(padded, body.length));
+        assertEquals(body.length - 1, reader.recordSplitter().findLastRecordBoundary(padded, body.length));
     }
 
-    public void testFindLastRecordBoundarySingleLf() {
+    public void testFindLastRecordBoundarySingleLf() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
-        assertEquals(0, reader.findLastRecordBoundary(new byte[] { '\n' }, 1));
+        assertEquals(0, reader.recordSplitter().findLastRecordBoundary(new byte[] { '\n' }, 1));
     }
 
-    public void testFindLastRecordBoundarySingleCr() {
+    public void testFindLastRecordBoundarySingleCr() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
-        assertEquals(0, reader.findLastRecordBoundary(new byte[] { '\r' }, 1));
+        assertEquals(0, reader.recordSplitter().findLastRecordBoundary(new byte[] { '\r' }, 1));
     }
 
     private int blockIdx(SourceMetadata meta, String name) {
@@ -1765,6 +1921,245 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertSame(reader, reader.withConfig(Map.of()));
     }
 
+    public void testWithConfigDatetimeFormatInvalidIsRejected() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("datetime_format", "not-a-valid-!!format!!")));
+    }
+
+    /**
+     * Schema inference with a custom datetime format: strings matching the custom pattern are
+     * inferred as DATETIME, not KEYWORD.
+     */
+    public void testDatetimeFormatSchemaInference() throws IOException {
+        String ndjson = "{\"ts\":\"25/12/2023 10:30:00\",\"id\":1}\n" + "{\"ts\":\"01/01/2024 00:00:00\",\"id\":2}\n";
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss")
+        );
+        var metadata = reader.metadata(object);
+        var schema = metadata.schema();
+        var tsAttr = schema.stream().filter(a -> a.name().equals("ts")).findFirst().orElseThrow();
+        assertEquals(DataType.DATETIME, tsAttr.dataType());
+    }
+
+    /**
+     * End-to-end: NDJSON with a custom datetime_format is decoded into epoch-millis values that
+     * match the expected instant for the given pattern.
+     */
+    public void testDatetimeFormatDecoding() throws IOException {
+        String ndjson = "{\"ts\":\"25/12/2023 10:30:00\",\"id\":1}\n";
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss")
+        );
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertFalse(iterator.hasNext());
+            LongBlock tsBlock = page.getBlock(0);
+            assertEquals(1, tsBlock.getPositionCount());
+            long expected = Instant.parse("2023-12-25T10:30:00Z").toEpochMilli();
+            assertEquals(expected, tsBlock.getLong(0));
+        }
+    }
+
+    /**
+     * Fractional seconds in ISO-8601 datetime strings: the {@code strict_date_optional_time}
+     * formatter must preserve millisecond precision when decoding to epoch-milliseconds.
+     */
+    public void testDatetimeWithMilliseconds() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        String ndjson = """
+            {"ts":"2024-03-10T15:30:45.123Z"}
+            {"ts":"2024-03-10T15:30:45.999Z"}
+            {"ts":"2024-03-10T15:30:45.000Z"}
+            """;
+        var object = new BytesStorageObject("file:///ms.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME");
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(Instant.parse("2024-03-10T15:30:45.123Z").toEpochMilli(), ts.getLong(0));
+            assertEquals(Instant.parse("2024-03-10T15:30:45.999Z").toEpochMilli(), ts.getLong(1));
+            assertEquals(Instant.parse("2024-03-10T15:30:45.000Z").toEpochMilli(), ts.getLong(2));
+        }
+    }
+
+    /**
+     * Non-UTC timezone offsets: datetime strings with {@code +HH:mm} and {@code -HH:mm} must be
+     * normalised to their UTC equivalent epoch-milliseconds.
+     */
+    public void testDatetimeWithTimezoneOffset() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        String ndjson = """
+            {"ts":"2024-06-15T12:00:00+05:30"}
+            {"ts":"2024-06-15T10:00:00-08:00"}
+            {"ts":"2024-06-15T10:00:00+00:00"}
+            """;
+        var object = new BytesStorageObject("file:///tz.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME");
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(Instant.parse("2024-06-15T06:30:00Z").toEpochMilli(), ts.getLong(0)); // 12:00+05:30 → 06:30Z
+            assertEquals(Instant.parse("2024-06-15T18:00:00Z").toEpochMilli(), ts.getLong(1)); // 10:00-08:00 → 18:00Z
+            assertEquals(Instant.parse("2024-06-15T10:00:00Z").toEpochMilli(), ts.getLong(2)); // +00:00 = Z
+        }
+    }
+
+    /**
+     * When a field mixes datetime-parseable strings with non-parseable ones, schema inference must
+     * widen to KEYWORD — the resulting block is a {@link BytesRefBlock} with the raw string values.
+     */
+    public void testDatetimeMixedWithNonDatetimeStringFallsBackToKeyword() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        String ndjson = """
+            {"tag":"2024-01-01T00:00:00Z"}
+            {"tag":"not-a-date"}
+            {"tag":"2024-06-01T12:00:00Z"}
+            """;
+        var object = new BytesStorageObject("file:///mixed-dt.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "tag:KEYWORD");
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            assertThat(page.getBlock(0), Matchers.instanceOf(BytesRefBlock.class));
+        }
+    }
+
+    /**
+     * {@code epoch_millis} format ({@link org.elasticsearch.common.time.FormatNames#EPOCH_MILLIS}):
+     * string values containing the milliseconds-since-epoch count (digit-only strings that the
+     * default {@code strict_date_optional_time} formatter cannot parse) are inferred and decoded
+     * as DATETIME.
+     */
+    public void testDatetimeFormatEpochMillis() throws IOException {
+        // 1704067200000 ms = 2024-01-01T00:00:00Z; 1719835200000 ms = 2024-07-01T12:00:00Z
+        String ndjson = "{\"ts\":\"1704067200000\",\"id\":1}\n" + "{\"ts\":\"1719835200000\",\"id\":2}\n";
+        var object = new BytesStorageObject("file:///epoch-ms.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "epoch_millis")
+        );
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME, id:INTEGER");
+
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts", "id")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertFalse(iterator.hasNext());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(2, ts.getPositionCount());
+            assertEquals(1704067200000L, ts.getLong(0));
+            assertEquals(1719835200000L, ts.getLong(1));
+        }
+    }
+
+    /**
+     * {@code epoch_second} format ({@link org.elasticsearch.common.time.FormatNames#EPOCH_SECOND}):
+     * string values containing the seconds-since-epoch count are inferred and decoded as DATETIME,
+     * stored as epoch-milliseconds (× 1000).
+     */
+    public void testDatetimeFormatEpochSecond() throws IOException {
+        // 1704067200 s = 2024-01-01T00:00:00Z; 1719835200 s = 2024-07-01T12:00:00Z
+        String ndjson = "{\"ts\":\"1704067200\",\"id\":1}\n" + "{\"ts\":\"1719835200\",\"id\":2}\n";
+        var object = new BytesStorageObject("file:///epoch-s.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "epoch_second")
+        );
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME, id:INTEGER");
+
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts", "id")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertFalse(iterator.hasNext());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(2, ts.getPositionCount());
+            assertEquals(1704067200L * 1_000, ts.getLong(0));
+            assertEquals(1719835200L * 1_000, ts.getLong(1));
+        }
+    }
+
+    /**
+     * {@code basic_date_time} format ({@link org.elasticsearch.common.time.FormatNames#BASIC_DATE_TIME}):
+     * compact ISO-8601 without separators ({@code yyyyMMdd'T'HHmmss.SSSZ}) — not parseable by
+     * the default {@code strict_date_optional_time} which requires dashes.
+     */
+    public void testDatetimeFormatBasicDateTime() throws IOException {
+        // 20240601T120000.000Z = 2024-06-01T12:00:00Z; 20241231T235959.999Z = 2024-12-31T23:59:59.999Z
+        String ndjson = "{\"ts\":\"20240601T120000.000Z\"}\n" + "{\"ts\":\"20241231T235959.999Z\"}\n";
+        var object = new BytesStorageObject("file:///basic-dt.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "basic_date_time")
+        );
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME");
+
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertFalse(iterator.hasNext());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(2, ts.getPositionCount());
+            assertEquals(Instant.parse("2024-06-01T12:00:00Z").toEpochMilli(), ts.getLong(0));
+            assertEquals(Instant.parse("2024-12-31T23:59:59.999Z").toEpochMilli(), ts.getLong(1));
+        }
+    }
+
+    /**
+     * {@code basic_date_time} with a non-UTC compact offset ({@code +HHmm} / {@code -HHmm}):
+     * the compact form has no colon separator between hours and minutes and is recognised by
+     * the {@code TIME_ZONE_FORMATTER_NO_COLON} parser variant.  Values are normalised to UTC
+     * epoch-milliseconds.
+     */
+    public void testDatetimeFormatBasicDateTimeNonUtcTimezone() throws IOException {
+        // 20240601T120000.000+0530 = 2024-06-01T12:00:00+05:30 → UTC 2024-06-01T06:30:00Z
+        // 20241231T200000.000-0800 = 2024-12-31T20:00:00-08:00 → UTC 2025-01-01T04:00:00Z
+        String ndjson = "{\"ts\":\"20240601T120000.000+0530\"}\n" + "{\"ts\":\"20241231T200000.000-0800\"}\n";
+        var object = new BytesStorageObject("file:///basic-dt-tz.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "basic_date_time")
+        );
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "ts:DATETIME");
+
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertFalse(iterator.hasNext());
+            LongBlock ts = (LongBlock) page.getBlock(0);
+            assertEquals(2, ts.getPositionCount());
+            assertEquals(Instant.parse("2024-06-01T06:30:00Z").toEpochMilli(), ts.getLong(0));
+            assertEquals(Instant.parse("2025-01-01T04:00:00Z").toEpochMilli(), ts.getLong(1));
+        }
+    }
+
     public void testDefaultErrorPolicyIsStrictLikeOtherFormats() {
         assertEquals(ErrorPolicy.STRICT, new NdJsonFormatReader(Settings.EMPTY, blockFactory).defaultErrorPolicy());
     }
@@ -1788,7 +2183,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Per-query override via {@code WITH (segment_size = ...)}; mirrors the existing
+     * Per-query override via {@code WITH {"segment_size": ...}}; mirrors the existing
      * {@code schema_sample_size} pattern. Withconfig returns a new reader; the original is left
      * unchanged so other concurrent queries keep their own values.
      */
@@ -2069,5 +2464,68 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             count,
             Matchers.equalTo((long) rows)
         );
+    }
+
+    /**
+     * Regression for https://github.com/elastic/esql-planning/issues/894: on the byte-array fast path the
+     * cap is now enforced by {@link NdJsonRecordCappingInputStream} during the single {@code readAllBytes}
+     * pull instead of by a separate pre-scan. Under {@link ErrorPolicy#STRICT} an oversized record must
+     * still surface a {@code max_record_size [N]} error rather than parse silently.
+     */
+    public void testByteArrayFastPathStrictModeEnforcesMaxRecordBytes() {
+        int maxRecordBytes = 16;
+        StringBuilder ndjson = new StringBuilder().append("{\"id\":1}\n");
+        ndjson.append("{\"id\":2,\"text\":\"").append("x".repeat(maxRecordBytes)).append("\"}\n");
+        byte[] data = ndjson.toString().getBytes(StandardCharsets.UTF_8);
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cap.ndjson", data);
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        IOException ex = expectThrows(IOException.class, () -> {
+            try (var iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Companion lenient-mode contract: oversized records on the byte-array fast path must be dropped (not
+     * surfaced) so the user-visible {@code max_record_size} contract from PR #150240 is preserved. The pre-read
+     * filter pass (replacing the legacy {@code enforceMaxRecordBytes}) walks the buffered segment once and
+     * skips lines whose terminator-inclusive byte count exceeds the cap, leaving the surrounding rows intact.
+     */
+    public void testByteArrayFastPathLenientModeDropsOversizedRecord() throws IOException {
+        int maxRecordBytes = 16;
+        StringBuilder ndjson = new StringBuilder().append("{\"id\":1}\n");
+        ndjson.append("{\"id\":2,\"text\":\"").append("x".repeat(maxRecordBytes)).append("\"}\n");
+        ndjson.append("{\"id\":3}\n");
+        byte[] data = ndjson.toString().getBytes(StandardCharsets.UTF_8);
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cap-lenient.ndjson", data);
+        ErrorPolicy lenient = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+        FormatReadContext context = FormatReadContext.builder().batchSize(10).errorPolicy(lenient).maxRecordBytes(maxRecordBytes).build();
+
+        long total = 0;
+        try (var iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                var page = iterator.next();
+                total += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertThat("lenient must drop the oversized record and keep the surrounding rows", total, Matchers.equalTo(2L));
     }
 }

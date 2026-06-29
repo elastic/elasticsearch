@@ -10,8 +10,8 @@
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.metrics.LongCounter;
-import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableLongGauge;
+import io.opentelemetry.api.metrics.LongGauge;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.contrib.disk.buffering.exporters.MetricToDiskExporter;
 import io.opentelemetry.contrib.disk.buffering.storage.SignalStorage;
 import io.opentelemetry.contrib.disk.buffering.storage.impl.FileMetricStorage;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -37,13 +38,12 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * Persists failed export batches to disk and replays them once the delegate recovers.
@@ -52,11 +52,12 @@ public class BufferingMetricExporter implements MetricExporter {
 
     private static final Logger logger = LogManager.getLogger(BufferingMetricExporter.class);
 
-    private static final String METRIC_PREFIX = "es.apm.metrics.disk_buffer.";
+    // File rotation windows for the disk-buffering library.
+    private static final long DISK_BUFFER_WRITE_WINDOW_MILLIS = TimeValue.timeValueSeconds(30).millis();
+    private static final long DISK_BUFFER_READ_MIN_AGE_MILLIS = TimeValue.timeValueSeconds(33).millis();
 
     private final MetricExporter delegate;
-    private final Meter meter;
-    private final List<ObservableLongGauge> selfMeters = new ArrayList<>();
+    private final BufferingMetrics bufferingMetrics;
 
     private final TimeValue sendTimeout;
     private final Path diskDir;
@@ -66,21 +67,31 @@ public class BufferingMetricExporter implements MetricExporter {
 
     private final Scheduler.SafeScheduledThreadPoolExecutor diskExecutor;
 
-    private final LongCounter writesCounter;
-    private final LongCounter replaysCounter;
-    private final LongCounter dropsFullCounter;
-
     private volatile long cachedFileCount;
-    private volatile long cachedByteCount;
 
-    public BufferingMetricExporter(MetricExporter delegate, Settings settings, Path bufferPath, Meter meter) {
+    public BufferingMetricExporter(
+        MetricExporter delegate,
+        Settings settings,
+        Path bufferPath,
+        Supplier<MeterProvider> meterProviderSupplier
+    ) {
+        this(delegate, settings, bufferPath, meterProviderSupplier, DISK_BUFFER_WRITE_WINDOW_MILLIS, DISK_BUFFER_READ_MIN_AGE_MILLIS);
+    }
+
+    // Visible for testing
+    BufferingMetricExporter(
+        MetricExporter delegate,
+        Settings settings,
+        Path bufferPath,
+        Supplier<MeterProvider> meterProviderSupplier,
+        long writeWindowMillis,
+        long readMinAgeMillis
+    ) {
         this.delegate = delegate;
-        this.meter = meter;
-        long maxDiskBytes = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE.get(settings).getBytes();
-        long ttlMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_BUFFER_TTL.get(settings).millis();
-        long writeWindowMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_WRITE_WINDOW.get(settings).millis();
-        long readMinAgeMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_READ_MIN_AGE.get(settings).millis();
-        this.sendTimeout = OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings);
+        this.bufferingMetrics = new BufferingMetrics(meterProviderSupplier);
+        long maxDiskBytes = OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE.get(settings).getBytes();
+        long ttlMillis = OtelSdkSettings.TELEMETRY_METRICS_BUFFER_TTL.get(settings).millis();
+        this.sendTimeout = OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings);
         this.diskDir = bufferPath;
 
         FileStorageConfiguration config = FileStorageConfiguration.builder()
@@ -93,15 +104,6 @@ public class BufferingMetricExporter implements MetricExporter {
             .build();
         this.storage = createStorage(diskDir, config);
         this.diskWriter = MetricToDiskExporter.builder(storage).build();
-
-        this.writesCounter = counter("writes", "Metric batches written to disk after delegate failure");
-        this.replaysCounter = counter("replays", "Disk-buffered batches successfully replayed to the delegate");
-        this.dropsFullCounter = counter(
-            "drops_full",
-            "Failed batches dropped because the disk buffer is at its size cap or disk write failed"
-        );
-        longGauge("files", "Metric batches currently pending replay on disk", "1", () -> cachedFileCount);
-        longGauge("bytes", "Total bytes currently used by the on-disk metric buffer", "By", () -> cachedByteCount);
 
         this.diskExecutor = new Scheduler.SafeScheduledThreadPoolExecutor(
             1,
@@ -163,22 +165,7 @@ public class BufferingMetricExporter implements MetricExporter {
     public CompletableResultCode shutdown() {
         diskExecutor.shutdown();
         IOUtils.closeWhileHandlingException(diskWriter, storage);
-        selfMeters.forEach(ObservableLongGauge::close);
         return delegate.shutdown();
-    }
-
-    private LongCounter counter(String suffix, String description) {
-        return meter.counterBuilder(METRIC_PREFIX + suffix).setDescription(description).setUnit("1").build();
-    }
-
-    private void longGauge(String suffix, String description, String unit, LongSupplier value) {
-        selfMeters.add(
-            meter.gaugeBuilder(METRIC_PREFIX + suffix)
-                .ofLongs()
-                .setDescription(description)
-                .setUnit(unit)
-                .buildWithCallback(r -> r.record(value.getAsLong()))
-        );
     }
 
     private void scheduleAsyncDrain() {
@@ -203,17 +190,17 @@ public class BufferingMetricExporter implements MetricExporter {
             CompletableResultCode r = diskWriter.export(metrics);
             r.whenComplete(() -> {
                 if (r.isSuccess()) {
-                    writesCounter.add(1);
+                    bufferingMetrics.writes().add(1);
                     result.succeed();
                 } else {
-                    dropsFullCounter.add(1);
+                    bufferingMetrics.fullDrops().add(1);
                     result.fail();
                 }
                 refreshDiskStats();
             });
         } catch (Exception e) {
             logger.warn("unexpected failure while writing metrics to disk", e);
-            dropsFullCounter.add(1);
+            bufferingMetrics.fullDrops().add(1);
             result.fail();
             refreshDiskStats();
         }
@@ -227,7 +214,7 @@ public class BufferingMetricExporter implements MetricExporter {
                 CompletableResultCode result = delegate.export(batch).join(sendTimeout.millis(), TimeUnit.MILLISECONDS);
                 if (result.isSuccess()) {
                     it.remove();
-                    replaysCounter.add(1);
+                    bufferingMetrics.replays().add(1);
                 } else {
                     logger.warn("delegate failed replay of disk-buffered metrics; deferring drain");
                     return;
@@ -254,11 +241,101 @@ public class BufferingMetricExporter implements MetricExporter {
             logger.warn("failed to scan disk buffer directory", e);
         }
         cachedFileCount = files;
-        cachedByteCount = bytes;
+        bufferingMetrics.cachedFiles().set(files);
+        bufferingMetrics.cachedBytes().set(bytes);
     }
 
     @SuppressForbidden(reason = "disk-buffering library exposes a java.io.File based API")
     private static SignalStorage.Metric createStorage(Path dir, FileStorageConfiguration config) {
         return FileMetricStorage.create(dir.toFile(), config);
+    }
+
+    private static final class BufferingMetrics {
+
+        private static final String METRIC_PREFIX = "es.apm.metrics.disk_buffer.";
+
+        private final Supplier<MeterProvider> meterProviderSupplier;
+
+        @Nullable
+        private volatile LongCounter writes = null;
+        @Nullable
+        private volatile LongCounter replays = null;
+        @Nullable
+        private volatile LongCounter fullDrops = null;
+        @Nullable
+        private volatile LongGauge cachedFiles = null;
+        @Nullable
+        private volatile LongGauge cachedBytes = null;
+
+        private BufferingMetrics(Supplier<MeterProvider> meterProviderSupplier) {
+            this.meterProviderSupplier = meterProviderSupplier;
+        }
+
+        private LongCounter writes() {
+            var counter = this.writes;
+            if (counter == null) {
+                counter = longCounter("writes", "Metric batches written to disk after delegate failure");
+                this.writes = counter;
+            }
+            return counter;
+        }
+
+        private LongCounter replays() {
+            var counter = this.replays;
+            if (counter == null) {
+                counter = longCounter("replays", "Disk-buffered batches successfully replayed to the delegate");
+                this.replays = counter;
+            }
+            return counter;
+        }
+
+        private LongCounter fullDrops() {
+            var counter = this.fullDrops;
+            if (counter == null) {
+                counter = longCounter(
+                    "drops_full",
+                    "Failed batches dropped because the disk buffer is at its size cap or disk write failed"
+                );
+                this.fullDrops = counter;
+            }
+            return counter;
+        }
+
+        private LongGauge cachedFiles() {
+            var gauge = this.cachedFiles;
+            if (gauge == null) {
+                gauge = longGauge("files", "Metric batches currently pending replay on disk", "1");
+                this.cachedFiles = gauge;
+            }
+            return gauge;
+        }
+
+        private LongGauge cachedBytes() {
+            var gauge = this.cachedBytes;
+            if (gauge == null) {
+                gauge = longGauge("bytes", "Total bytes currently used by the on-disk metric buffer", "By");
+                this.cachedBytes = gauge;
+            }
+            return gauge;
+        }
+
+        private LongCounter longCounter(String suffix, String description) {
+            return meterProviderSupplier.get()
+                .get("elasticsearch")
+                .counterBuilder(METRIC_PREFIX + suffix)
+                .setDescription(description)
+                .setUnit("1")
+                .build();
+        }
+
+        private LongGauge longGauge(String suffix, String description, String unit) {
+            return meterProviderSupplier.get()
+                .get("elasticsearch")
+                .gaugeBuilder(METRIC_PREFIX + suffix)
+                .ofLongs()
+                .setDescription(description)
+                .setUnit(unit)
+                .build();
+        }
     }
 }

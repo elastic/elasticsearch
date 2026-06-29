@@ -60,8 +60,8 @@ dependencies {
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
-  implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
-  implementation 'org.apache.commons:commons-text:1.4'
+  implementation 'org.apache.commons:commons-lang3:3.20.0'
+  implementation 'org.apache.commons:commons-text:1.15.0'
 
   /* AWS SDK v2 */
   implementation("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
@@ -577,6 +577,7 @@ tasks.named('yamlRestTest') {
       'inference/130_semantic_field_query/*',
       'inference/140_semantic_field_query_vector_builder/*',
       'inference/150_semantic_field_inference/*',
+      'inference/160_semantic_field_highlighter/*'
     ]
     systemProperty 'tests.rest.blacklist', semanticFieldTests.join(',')
   }

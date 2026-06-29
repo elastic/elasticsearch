@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -40,11 +40,17 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -59,6 +65,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
@@ -67,6 +74,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
@@ -81,6 +89,7 @@ import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -106,6 +115,7 @@ import org.elasticsearch.xpack.esql.datasources.datasource.RestPutDataSourceActi
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportDeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportGetDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
@@ -141,6 +151,7 @@ import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -150,11 +161,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
+
+    private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -167,6 +181,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
         "esql.query.allow_partial_results",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Controls whether LOOKUP JOIN uses the streaming lookup operator, which streams pages to the
+     * lookup node instead of performing a request per input page. Acts as an escape hatch to fall
+     * back to the non-streaming operator; even when enabled, streaming is only used if all target
+     * nodes support the streaming protocol.
+     */
+    public static final Setting<Boolean> LOOKUP_JOIN_STREAMING = Setting.boolSetting(
+        "esql.query.lookup_join_streaming",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -216,6 +243,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
+     * Maximum time (in milliseconds) that a GROK matcher is allowed to run before being interrupted.
+     * Limits how long a GROK matcher can run to protect against expensive regex patterns.
+     */
+    public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
+        "esql.grok.watchdog.max_execution_time",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Tuning parameter for deciding when to use the "merge" stored field loader.
      * Think of it as "how similar to a sequential block of documents do I have to
      * be before I'll use the merge reader?" So a value of {@code 1} means I have to
@@ -242,6 +280,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
+
+    /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
+    private volatile DataSourceModule dataSourceModule;
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(dataSourceModule);
+    }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
@@ -278,20 +324,49 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
+        // createComponents can't reach the encryption plugin's binding, so TransportPutDataSourceAction's
+        // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
+        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
+
+        boolean isStateless = DiscoveryNode.isStateless(settings);
+        AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(
+            isStateless == false && ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings)
+        );
+        services.clusterService()
+            .getClusterSettings()
+            .addSettingsUpdateConsumer(
+                ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED,
+                v -> workloadIdentityEnabled.set(isStateless == false && v)
+            );
+
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
-        DataSourceModule dataSourceModule = new DataSourceModule(
+        dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
             dataSourceCapabilities,
             settings,
             blockFactoryProvider.blockFactory(),
-            services.threadPool().executor(ThreadPool.Names.GENERIC)
+            services.threadPool().executor(ThreadPool.Names.GENERIC),
+            dataSourceCredentials,
+            workloadIdentityEnabled::get,
+            services.threadPool(),
+            services.environment(),
+            services.resourceWatcherService()
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        PromqlFunctionRegistry promqlFunctionRegistry = new PromqlFunctionRegistry();
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        MatcherWatchdog grokWatchdog = MatcherWatchdog.newInstance(GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).millis());
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry, grokWatchdog));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
+
+        services.ipLocationService()
+            .addDatabaseAvailabilityListener(
+                (projectId, databaseFile) -> logger.trace(
+                    "IP location database [{}] became available for project [{}]",
+                    databaseFile,
+                    projectId
+                )
+            );
 
         ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
         services.clusterService()
@@ -350,7 +425,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         for (DataSourcePlugin p : allDataSourcePlugins) {
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
-                if (formatKeyResolver != null && v instanceof FileDataSourceValidator fdv) {
+                if (effective instanceof FileDataSourceValidator fdv) {
+                    effective = fdv.withWorkloadIdentityEnabled(workloadIdentityEnabled::get);
+                }
+                if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
                 }
                 if (crudValidators.putIfAbsent(type, effective) != null) {
@@ -369,7 +447,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider(),
                 dataSourceModule,
                 functionRegistry,
-                promqlFunctionRegistry,
+                PromqlFunctionRegistry.INSTANCE,
                 parser,
                 cacheService
             ),
@@ -381,6 +459,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             blockFactoryProvider,
             dataSourceModule,
+            dataSourceCredentials,
             new ViewResolver(
                 services.threadPool(),
                 services.clusterService(),
@@ -417,6 +496,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
                 QUERY_ALLOW_PARTIAL_RESULTS,
+                LOOKUP_JOIN_STREAMING,
                 ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
@@ -430,7 +510,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
                 DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING
+                DatasetService.MAX_DATASETS_COUNT_SETTING,
+                GROK_WATCHDOG_MAX_EXECUTION_TIME
             )
         );
         settings.addAll(PlannerSettings.settings());
@@ -464,10 +545,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                 new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
                 new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+                // Unconditional like resolve_views: the FROM <dataset> rewrite is gated on datasets being present
+                // in cluster state, not on the feature flag, so its authorization gate must always be resolvable.
+                new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
                 new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
             )
         );
-        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
             actions.add(new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class));
             actions.add(new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class));
             actions.add(new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class));
@@ -498,7 +582,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new RestGetViewAction()
             )
         );
-        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
             handlers.add(new RestPutDataSourceAction());
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
@@ -531,6 +615,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(ValuesSourceReaderOperatorStatus.ENTRY);
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
+        entries.add(EnrichQuerySourceOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
@@ -548,6 +633,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.addAll(ViewMetadata.ENTRIES);
         entries.addAll(DataSourceMetadata.ENTRIES);
         entries.addAll(DatasetMetadata.ENTRIES);
+        // Lets an encrypted data-source secret ride the plan's generic-value serialization to data nodes.
+        entries.add(EncryptedData.ENTRY);
 
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
@@ -571,16 +658,23 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
     }
 
+    // visible for testing
+    static int workerQueueSize(long heapBytes, int allocatedProcessors) {
+        long heapMb = heapBytes / (1024 * 1024);
+        return (int) Math.max((heapMb + (long) allocatedProcessors * 400) / 2, 1000);
+    }
+
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         int configuredSize = ESQL_WORKER_THREAD_POOL_SIZE.get(settings);
         int poolSize = configuredSize > 0 ? configuredSize : ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
+        int queueSize = workerQueueSize(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(), allocatedProcessors);
         return List.of(
             new FixedExecutorBuilder(
                 settings,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 poolSize,
-                1000,
+                queueSize,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )

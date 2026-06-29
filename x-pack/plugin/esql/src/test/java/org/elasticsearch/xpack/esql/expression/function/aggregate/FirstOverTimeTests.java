@@ -54,7 +54,8 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.flattenedCases(1, 1000)
         );
         for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
             for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
@@ -128,5 +129,15 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
         var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
         return List.of(params.get(0), window);
+    }
+
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params, hasSize(2));
+        assertThat(params.get(1).type(), equalTo(DataType.DATETIME));
+        return List.of(params.get(0));
     }
 }

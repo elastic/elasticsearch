@@ -61,11 +61,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             }
         }
 
-        private boolean chunkContainsWholeInput() {
-            return chunk.start() == 0 && chunk.end() == input.value().length();
-        }
 
-        // TODO: add unit tests for ramBytesUsed()
         @Override
         public long ramBytesUsed() {
             if (chunkContainsWholeInput()) {
@@ -80,7 +76,11 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
                 - RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
 
             int chunkChars = chunk.end() - chunk.start();
-            return originalInputDataRamBytesUsed * (chunkChars / originalInputLength);
+            return (long) ((double) originalInputDataRamBytesUsed * ((double) chunkChars / (double) originalInputLength));
+        }
+
+        private boolean chunkContainsWholeInput() {
+            return chunk.start() == 0 && chunk.end() == input.value().length();
         }
     }
 
@@ -92,7 +92,6 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             return () -> requests.stream().map(request -> new InferenceStringGroup(request.chunkText())).collect(Collectors.toList());
         }
 
-        // TODO: add unit tests for ramBytesUsed()
         @Override
         public long ramBytesUsed() {
             var requestsRamBytesUsed = requests().stream().mapToLong(Request::ramBytesUsed).sum();

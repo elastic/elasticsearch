@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -122,6 +123,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
@@ -2100,7 +2102,26 @@ public class EsqlSession {
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
         plan.setAnalyzed();
+        rejectDisabledFunctions(plan, analyzerSettings.fieldExtractEnabled());
         return plan;
+    }
+
+    /**
+     * Enforces ES|QL feature kill switches that act at analysis time. Currently this rejects {@code field_extract} when the
+     * {@code esql.query.field_extract.enabled} cluster setting is disabled. The {@code flattened} type kill switch
+     * ({@code esql.query.flattened.enabled}) is enforced earlier, during index resolution, by resolving the type as
+     * {@code unsupported}.
+     */
+    static void rejectDisabledFunctions(LogicalPlan plan, boolean fieldExtractEnabled) {
+        if (fieldExtractEnabled == false) {
+            boolean[] usesFieldExtract = { false };
+            plan.forEachExpressionDown(FieldExtract.class, fe -> usesFieldExtract[0] = true);
+            if (usesFieldExtract[0]) {
+                throw new VerificationException(
+                    "[field_extract] is currently disabled by the [" + EsqlPlugin.FIELD_EXTRACT_ENABLED.getKey() + "] cluster setting"
+                );
+            }
+        }
     }
 
     private LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {

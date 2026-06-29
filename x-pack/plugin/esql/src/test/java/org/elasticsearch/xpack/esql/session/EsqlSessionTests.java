@@ -15,8 +15,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
@@ -33,7 +37,10 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -230,6 +237,35 @@ public class EsqlSessionTests extends ESTestCase {
                 equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote"))
             );
         }
+    }
+
+    /**
+     * When the {@code esql.query.field_extract.enabled} kill switch is off, a plan that uses {@code field_extract} must be
+     * rejected with a {@code VerificationException} that names the setting. The children of the {@code field_extract} node are
+     * irrelevant here: the switch is enforced by detecting the node in the plan, so unresolved literal arguments are enough.
+     * Asserting the enabled case too proves the switch, not the plan shape, drives the rejection.
+     */
+    public void testFieldExtractRejectedWhenKillSwitchDisabled() {
+        LogicalPlan plan = new Eval(
+            EMPTY,
+            EsqlTestUtils.relation(),
+            List.of(new Alias(EMPTY, "x", new FieldExtract(EMPTY, EsqlTestUtils.of("flattened_root"), EsqlTestUtils.of("host.name"))))
+        );
+
+        EsqlSession.rejectDisabledFunctions(plan, true);
+
+        VerificationException e = expectThrows(VerificationException.class, () -> EsqlSession.rejectDisabledFunctions(plan, false));
+        assertThat(e.getMessage(), containsString("field_extract"));
+        assertThat(e.getMessage(), containsString(EsqlPlugin.FIELD_EXTRACT_ENABLED.getKey()));
+    }
+
+    /**
+     * The {@code field_extract} kill switch must not reject queries that don't use {@code field_extract}, even when it is off.
+     * The plan below carries expressions (a literal {@code EVAL}) but no {@code field_extract}, so it must pass.
+     */
+    public void testFieldExtractKillSwitchAllowsOtherQueries() {
+        LogicalPlan plan = new Eval(EMPTY, EsqlTestUtils.relation(), List.of(new Alias(EMPTY, "x", EsqlTestUtils.of(1))));
+        EsqlSession.rejectDisabledFunctions(plan, false);
     }
 
     private static Map<IndexPattern, IndexResolution> createIndexResolution(String... indices) {

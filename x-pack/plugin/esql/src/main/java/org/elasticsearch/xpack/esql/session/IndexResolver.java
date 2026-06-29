@@ -58,8 +58,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -102,9 +104,20 @@ public class IndexResolver {
         .build();
 
     private final Client client;
+    /**
+     * Whether the {@code flattened} data type is currently enabled, backing the {@code esql.query.flattened.enabled}
+     * kill switch. Read at field-caps resolution time so a runtime change takes effect on the next query. Defaults to
+     * always-enabled for the test/legacy constructor.
+     */
+    private final BooleanSupplier flattenedDataTypeEnabled;
 
     public IndexResolver(Client client) {
+        this(client, () -> true);
+    }
+
+    public IndexResolver(Client client, BooleanSupplier flattenedDataTypeEnabled) {
         this.client = client;
+        this.flattenedDataTypeEnabled = flattenedDataTypeEnabled;
     }
 
     /**
@@ -254,7 +267,8 @@ public class IndexResolver {
                 Build.current().isSnapshot(),
                 useAggregateMetricDoubleWhenNotSupported,
                 useDenseVectorWhenNotSupported,
-                hasTimeSeriesAggregation
+                hasTimeSeriesAggregation,
+                flattenedDataTypeEnabled.getAsBoolean()
             );
             LOGGER.debug(
                 "previously assumed minimum transport version [{}] updated to effective version [{}]"
@@ -313,6 +327,9 @@ public class IndexResolver {
      *                                {@code STATS}). When {@code false}, time series field type consistency checks
      *                                (dimension vs metric conflicts across indices) are skipped, avoiding spurious
      *                                {@link InvalidMappedField} errors for queries that don't aggregate time series data.
+     * @param flattenedDataTypeEnabled whether the {@code flattened} data type is enabled (the {@code esql.query.flattened.enabled}
+     *                                 kill switch). When {@code false}, {@code flattened} fields are resolved as
+     *                                 {@link DataType#UNSUPPORTED}, reverting to pre-flattened-support behavior.
      */
     public record FieldsInfo(
         FieldCapabilitiesResponse caps,
@@ -320,7 +337,8 @@ public class IndexResolver {
         boolean currentBuildIsSnapshot,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
-        boolean hasTimeSeriesAggregation
+        boolean hasTimeSeriesAggregation,
+        boolean flattenedDataTypeEnabled
     ) {}
 
     // public for testing only
@@ -482,12 +500,19 @@ public class IndexResolver {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
-        boolean typeSupported = type.supportedVersion().supportedOn(fieldsInfo.minTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
-            || switch (type) {
-                case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
-                case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;
-                default -> false;
-            };
+        boolean typeSupported;
+        if (type == FLATTENED && fieldsInfo.flattenedDataTypeEnabled() == false) {
+            // esql.query.flattened.enabled kill switch: treat flattened as unsupported, reverting to the
+            // pre-flattened-support behavior (FROM still works and returns the column as unsupported, explicit use errors).
+            typeSupported = false;
+        } else {
+            typeSupported = type.supportedVersion().supportedOn(fieldsInfo.minTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
+                || switch (type) {
+                    case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
+                    case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;
+                    default -> false;
+                };
+        }
         if (false == typeSupported) {
             type = UNSUPPORTED;
         }

@@ -130,4 +130,14 @@ public class DerivTests extends AbstractAggregationTestCase {
         DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
         return List.of(params.get(0), window);
     }
+
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params, hasSize(2));
+        assertThat(params.get(1).type(), equalTo(DataType.DATETIME));
+        return List.of(params.get(0));
+    }
 }

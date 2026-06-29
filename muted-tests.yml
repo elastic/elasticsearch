@@ -419,9 +419,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
   method: testRefreshBlockRemovedAfterDelay
   issue: https://github.com/elastic/elasticsearch/issues/150662
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
-  method: testPeerRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/150663
 - class: org.elasticsearch.index.engine.InternalEngineTests
   method: testShouldPeriodicallyFlushOnSize
   issue: https://github.com/elastic/elasticsearch/issues/150669
@@ -506,9 +503,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   method: testBinaryWithDifferentSelectors
   issue: https://github.com/elastic/elasticsearch/issues/151327
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
-  issue: https://github.com/elastic/elasticsearch/issues/151330
 - class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
   method: testCreateAndRestoreSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/151388
@@ -644,12 +638,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRestartAfterCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/152116
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testSearchPhaseFailureLeak
-  issue: https://github.com/elastic/elasticsearch/issues/152117
 - class: org.elasticsearch.index.engine.InternalEngineTests
   method: testLookupSeqNoByIdInLucene
   issue: https://github.com/elastic/elasticsearch/issues/152120
@@ -692,9 +680,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
-- class: org.elasticsearch.search.basic.SearchDuringRollingRestartIT
-  method: testSearchesSurviveRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/151828
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDifferenceTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152281
@@ -710,9 +695,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
   method: testProviderIsDiscoveredAndHandlerIsInvoked
   issue: https://github.com/elastic/elasticsearch/issues/152303
-- class: org.elasticsearch.xpack.stateless.StatelessConcurrentRefreshIT
-  method: testWaitUntilShouldNotWaitForUpload
-  issue: https://github.com/elastic/elasticsearch/issues/152304
 - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
   method: testThreadSafety
   issue: https://github.com/elastic/elasticsearch/issues/152305
@@ -767,3 +749,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
   method: testAuthenticationSuccessful
   issue: https://github.com/elastic/elasticsearch/issues/152375
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationCycleWithNoHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/152412
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testMultipleIndicesAccumulateBytesRead
+  issue: https://github.com/elastic/elasticsearch/issues/152425

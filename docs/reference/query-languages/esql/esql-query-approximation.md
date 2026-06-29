@@ -12,9 +12,6 @@ mapped_pages:
 
 Approximation breaks the dependency between performance and dataset size. Accuracy depends principally on the data characteristics and the query itself, not on how many rows are in the source index. This means the performance advantage grows as your data grows.
 
-::::{include} _snippets/common/query-performance-tip.md
-::::
-
 
 ## Getting started
 

@@ -66,12 +66,21 @@ public class MergePolicyConfigTests extends ESTestCase {
         assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(maxCFSSize.getMbFrac()));
     }
 
-    public void testPerFieldFilesKeepsCompoundFormat() {
-        // Per-field files must NOT disable compound files: small segments still get bundled via the compound_format
-        // threshold (only segments above it are left as loose per-field files), so the compound behaviour is unchanged.
+    public void testPerFieldFilesLowersCompoundFormatDefault() {
+        // Per-field files defaults the compound threshold to one shared-blob-cache region (16 MB) instead of 1 GB: larger
+        // segments get their own per-field files, while smaller ones stay compound. Compound files are not disabled.
         Settings settings = Settings.builder().put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true).build();
         MergePolicy mp = new MergePolicyConfig(logger, indexSettings(settings)).getMergePolicy(randomBoolean());
         assertThat(mp.getNoCFSRatio(), equalTo(1.0));
+        assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofMb(16).getMbFrac()));
+    }
+
+    public void testExplicitCompoundFormatWinsOverPerFieldFilesDefault() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true)
+            .put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), "1gb")
+            .build();
+        MergePolicy mp = new MergePolicyConfig(logger, indexSettings(settings)).getMergePolicy(randomBoolean());
         assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofGb(1).getMbFrac()));
     }
 

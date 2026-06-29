@@ -15,6 +15,31 @@ export BUILDKITE_RO_API_TOKEN
 DEVELOCITY_API_KEY=$(vault read -field=develocity_api_token secret/ci/elastic-elasticsearch/agentic-workflows)
 export DEVELOCITY_API_KEY
 
+# ── bootstrap nono sandbox (cached after first run on this agent) ────────
+NONO_BIN="${HOME}/.local/bin/nono"
+if [[ ! -x "${NONO_BIN}" ]]; then
+  echo "--- Installing nono sandbox CLI"
+  NONO_VERSION=$(curl -fsSL -I https://github.com/always-further/nono/releases/latest \
+    | grep -i "^location:" | grep -oP 'v\K[0-9a-zA-Z.-]+' | tr -d '\r')
+  NONO_ARCH=$(dpkg --print-architecture)
+  NONO_DEB="nono-cli_${NONO_VERSION}_${NONO_ARCH}.deb"
+  NONO_TMP="$(mktemp -d)"
+  curl -fsSL \
+    "https://github.com/always-further/nono/releases/download/v${NONO_VERSION}/${NONO_DEB}" \
+    -o "${NONO_TMP}/${NONO_DEB}"
+  # Extract without requiring root — dpkg-deb unpacks the deb into a local dir
+  dpkg-deb --extract "${NONO_TMP}/${NONO_DEB}" "${NONO_TMP}/nono-root"
+  mkdir -p "${HOME}/.local/bin"
+  cp "${NONO_TMP}/nono-root/usr/bin/nono" "${HOME}/.local/bin/nono"
+  chmod +x "${HOME}/.local/bin/nono"
+  rm -rf "${NONO_TMP}"
+fi
+export PATH="${HOME}/.local/bin:${PATH}"
+
+# ── verify kernel sandbox support and pull pi profile pack ────────────
+nono setup --check-only
+nono pull always-further/pi
+
 # ── bootstrap pi-agent (cached after first run on this agent) ─────────
 PI_AGENT_DIR="${HOME}/.local/pi-agent"
 if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then
@@ -42,11 +67,14 @@ ln -sf "${PI_AGENT_DIR}/bin/pi-agent.js" "${HOME}/.local/bin/pi-agent"
 chmod +x "${PI_AGENT_DIR}/bin/pi-agent.js"
 rm -rf "${TMPDIR_DL}"
 fi
-export PATH="${HOME}/.local/bin:${PATH}"
-
 # ── run ───────────────────────────────────────────────────────────────
 echo --- Running pi-agent analysis
 
-pi-agent analyze --issue-url "${ISSUE_URL}"
+nono run \
+  --profile always-further/pi \
+  --allow "${PI_AGENT_DIR}" \
+  --allow-cwd \
+  --silent \
+  -- pi-agent analyze --issue-url "${ISSUE_URL}"
 
 # node .buildkite/scripts/pull-request/pipeline.generate.ts

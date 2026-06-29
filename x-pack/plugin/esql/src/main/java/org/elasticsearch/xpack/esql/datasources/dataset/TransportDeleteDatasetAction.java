@@ -77,7 +77,8 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
         try {
             datasetNames = indexNameExpressionResolver.datasets(state.metadata(), request.indicesOptions(), request);
         } catch (IndexNotFoundException e) {
-            listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", e.getIndex().getName()));
+            final String missing = e.getIndex() != null ? e.getIndex().getName() : String.join(",", request.names());
+            listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", missing));
             return;
         }
         if (datasetNames.isEmpty()) {

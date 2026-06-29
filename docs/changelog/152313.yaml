@@ -1,6 +1,0 @@
-pr: 152313
-summary: Dataset delete resolves datasets, not indices
-area: ES|QL
-type: bug
-issues:
- - 152216

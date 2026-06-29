@@ -617,6 +617,21 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     }
 
     /**
+     * A concrete delete of a name that exists but is not a dataset (here, a real index) is a no-op ack, not a
+     * 404: the type filter drops the non-dataset and the index is never touched. Mirrors view delete.
+     */
+    public void testDeleteConcreteNonDatasetNameIsNoOp() throws Exception {
+        final String indexName = "not_a_dataset_index";
+        assertAcked(client().execute(TransportCreateIndexAction.TYPE, new CreateIndexRequest(indexName)).get(30, TimeUnit.SECONDS));
+
+        // DELETE /_query/dataset/<index>: the name resolves to an index, gets type-filtered out, and acks empty.
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(indexName)));
+
+        // The index is untouched.
+        assertThat(indexExists(indexName), equalTo(true));
+    }
+
+    /**
      * PUT of an identical dataset is a no-op: it acks without publishing a new cluster state, mirroring
      * {@code ViewService.putView}. A changed PUT still publishes.
      */

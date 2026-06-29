@@ -374,9 +374,10 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             }
 
             SemanticTextFieldMapper mapper = (SemanticTextFieldMapper) super.build(context);
-            if (useLegacyFormat == false) {
-                // The new format stores the original input in an internal [<field>.input] binary doc values column, so a multi-field
-                // with that name would write to the same Lucene field. Reserve the name to prevent the collision.
+            if (mapper.storesOriginalValuesInDocValues()) {
+                // The original input is stored in an internal [<field>.input] binary doc values column, so a multi-field with that
+                // name would write to the same Lucene field. Reserve the name to prevent the collision. Gated on the doc values
+                // storage condition so existing indices that keep the input in _source remain valid.
                 for (FieldMapper multiField : mapper.multiFields()) {
                     if (multiField.leafName().equals(SemanticTextField.INPUT_FIELD)) {
                         throw new IllegalArgumentException(

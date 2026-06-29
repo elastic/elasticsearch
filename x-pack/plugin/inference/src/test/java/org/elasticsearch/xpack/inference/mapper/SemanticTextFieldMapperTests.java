@@ -841,13 +841,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         // The new format stores the original input in an internal [<field>.input] doc values column; a multi-field with that name
         // would write to the same Lucene field, so it is rejected. (Multi-fields are rejected outright in the legacy format.)
         assumeFalse("multi-fields are rejected entirely in the legacy format", useLegacyFormat);
-        IndexVersion indexVersion = SparseVectorFieldMapperTests.getIndexOptionsCompatibleIndexVersion();
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES,
+            IndexVersion.current()
+        );
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperServiceWithIndexVersion(fieldMapping(b -> {
             b.field("type", "semantic_text");
             b.field("inference_id", "my_inference_id");
-            b.startObject("model_settings");
-            b.field("task_type", "sparse_embedding");
-            b.endObject();
             b.startObject("fields");
             b.startObject("input").field("type", "keyword").endObject();
             b.endObject();

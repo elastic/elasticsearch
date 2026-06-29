@@ -97,8 +97,14 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
 
     /**
      * A single field of the audit line: its JSON key and how its value is encoded.
+     * {@code prefix} is the precomputed {@code , "name":} separator that precedes every field value in the JSON output; pre-computing it
+     * for performance reasons.
      */
-    record LogField(String name, FieldType type) {}
+    record LogField(String name, FieldType type, String prefix) {
+        LogField(String name, FieldType type) {
+            this(name, type, ", \"" + name + "\":");
+        }
+    }
 
     /**
      * The ordered set of fields that may appear in an audit line. The order matches the order in which the fields appear in the
@@ -176,10 +182,8 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
     );
 
     private final LogFormat format;
-    // one slot per field in the format; null means "field not set" and is skipped when rendering
     private final Object[] values;
-    // memoized rendering; the entry is immutable once handed to the logger so this is computed at most once
-    private String rendered;
+    private volatile String rendered;
 
     /**
      * Creates an audit entry seeded with the always-present common fields (node/cluster identity, default origin). Common fields with
@@ -236,7 +240,7 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
      * authentication) as a JSON object; the previous implementation derived this nested object from the sorted backing map of a
      * {@link org.apache.logging.log4j.message.StringMapMessage}, so the sorted order is preserved here for compatibility.
      */
-    SortedMap<String, Object> collectSetFieldsSorted() {
+    SortedMap<String, Object> getData() {
         final SortedMap<String, Object> data = new TreeMap<>();
         for (int i = 0; i < format.fields().length; i++) {
             if (values[i] != null) {
@@ -250,7 +254,7 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
     public void formatTo(StringBuilder buffer) {
         String rendered = this.rendered;
         if (rendered == null) {
-            final StringBuilder sb = new StringBuilder(512);
+            final StringBuilder sb = new StringBuilder(1024);
             final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
             final LogField[] fields = format.fields();
             for (int i = 0; i < fields.length; i++) {
@@ -266,17 +270,21 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
                         if (string.isEmpty()) {
                             continue;
                         }
-                        appendFieldName(sb, field.name());
+                        sb.append(field.prefix());
                         sb.append('"');
-                        jsonStringEncoder.quoteAsString(string, sb);
+                        if (isAsciiSafe(string)) {
+                            sb.append(string);
+                        } else {
+                            jsonStringEncoder.quoteAsString(string, sb);
+                        }
                         sb.append('"');
                     }
                     case STRING_ARRAY -> {
-                        appendFieldName(sb, field.name());
+                        sb.append(field.prefix());
                         appendQuotedJsonArray(sb, (Object[]) value, jsonStringEncoder);
                     }
                     case RAW -> {
-                        appendFieldName(sb, field.name());
+                        sb.append(field.prefix());
                         sb.append(value);
                     }
                 }
@@ -287,12 +295,6 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
         buffer.append(rendered);
     }
 
-    private static void appendFieldName(StringBuilder sb, String name) {
-        // every field is comma-separated from the preceding "timestamp" field (or from each other), matching the layout pattern in
-        // which each field was a `%varsNotEmpty{, "<name>":...}` segment
-        sb.append(", \"").append(name).append("\":");
-    }
-
     private static void appendQuotedJsonArray(StringBuilder sb, Object[] values, JsonStringEncoder jsonStringEncoder) {
         sb.append('[');
         final int start = sb.length();
@@ -301,17 +303,39 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
                 if (sb.length() > start) {
                     sb.append(',');
                 }
+                final String string = value.toString();
                 sb.append('"');
-                jsonStringEncoder.quoteAsString(value.toString(), sb);
+                if (isAsciiSafe(string)) {
+                    sb.append(string);
+                } else {
+                    jsonStringEncoder.quoteAsString(string, sb);
+                }
                 sb.append('"');
             }
         }
         sb.append(']');
     }
 
+    /**
+     * Returns {@code true} if every character in {@code s} can be written into a JSON string as-is, with no escaping needed.
+     * Specifically: all chars are in [0x20, 0x7e] and neither {@code "} nor {@code \}.
+     */
+    private static boolean isAsciiSafe(String s) {
+        for (int i = 0, len = s.length(); i < len; i++) {
+            final char c = s.charAt(i);
+            if (c < 0x20 || c == '"' || c == '\\' || c > 0x7e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     public String getFormattedMessage() {
-        final StringBuilder sb = new StringBuilder(512);
+        if (rendered != null) {
+            return rendered;
+        }
+        final StringBuilder sb = new StringBuilder(1024);
         formatTo(sb);
         return sb.toString();
     }

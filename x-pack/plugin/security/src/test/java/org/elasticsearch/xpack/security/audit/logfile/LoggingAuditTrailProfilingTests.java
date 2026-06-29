@@ -208,6 +208,7 @@ public class LoggingAuditTrailProfilingTests extends ESTestCase {
         output.clear();
 
         runBatches(auditTrail, requestId, authentication, action, request, authorizationInfo, output, warmupIterations);
+        logger.info("==== warmup done — starting measurement (attach profiler now if not already) ====");
         final long elapsedNanos = runBatches(
             auditTrail,
             requestId,

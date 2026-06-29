@@ -1702,7 +1702,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
                         // serialize the nested authentication as a JSON object with keys in sorted order, matching the previous
                         // StringMapMessage-backed behavior
-                        builder.map(crossClusterAccessLogEntry.collectSetFieldsSorted());
+                        builder.map(crossClusterAccessLogEntry.getData());
                         logEntry.with(CROSS_CLUSTER_ACCESS_FIELD_NAME, Strings.toString(builder));
                     } catch (IOException e) {
                         throw new ElasticsearchSecurityException(

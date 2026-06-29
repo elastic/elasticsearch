@@ -412,23 +412,7 @@ final class CsvLogicalRecordReader {
      */
     private int readChar() throws IOException {
         if (bulkBuffered) {
-            if (pending != NO_PENDING) {
-                int c = pending;
-                pending = NO_PENDING;
-                return c;
-            }
-            if (inPos >= inLimit) {
-                if (eof) {
-                    return -1;
-                }
-                inLimit = reader.read(inBuf, 0, inBuf.length);
-                inPos = 0;
-                if (inLimit <= 0) {
-                    eof = true;
-                    return -1;
-                }
-            }
-            return inBuf[inPos++];
+            return nextBulkChar();
         }
         reader.mark(1);
         return reader.read();

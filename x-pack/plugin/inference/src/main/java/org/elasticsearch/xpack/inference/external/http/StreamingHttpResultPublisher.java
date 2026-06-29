@@ -15,6 +15,7 @@ import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -53,11 +54,11 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
 
     private volatile Exception exception;
 
-    StreamingHttpResultPublisher(ThreadPool threadPool, HttpSettings settings, ActionListener<StreamingHttpResult> listener) {
+    StreamingHttpResultPublisher(ThreadPool threadPool, HttpSettings settings, ActionListener<StreamingHttpResult> listener, CircuitBreaker circuitBreaker) {
         this.listener = ActionListener.notifyOnce(Objects.requireNonNull(listener));
 
         this.publisher = new DataPublisher(threadPool);
-        this.backpressure = new ApacheClientBackpressure(Objects.requireNonNull(settings));
+        this.backpressure = new ApacheClientBackpressure(Objects.requireNonNull(settings), Objects.requireNonNull(circuitBreaker));
     }
 
     @Override
@@ -250,12 +251,15 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         private final AtomicLong bytesInQueue = new AtomicLong(0);
         private final Object ioLock = new Object();
         private volatile IOControl savedIoControl;
+        private final CircuitBreaker circuitBreaker;
 
-        private ApacheClientBackpressure(HttpSettings settings) {
+        private ApacheClientBackpressure(HttpSettings settings, CircuitBreaker circuitBreaker) {
             this.settings = settings;
+            this.circuitBreaker = circuitBreaker;
         }
 
         private void addBytesAndMaybePause(long count, IOControl ioControl) {
+            // TODO: add bytes to circuit breaker
             if (bytesInQueue.addAndGet(count) >= settings.getMaxResponseSize().getBytes()) {
                 pauseProducer(ioControl);
             }
@@ -269,6 +273,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         }
 
         private void subtractBytesAndMaybeUnpause(long count) {
+            // TODO: remove bytes from circuit breaker
             var currentBytesInQueue = bytesInQueue.updateAndGet(current -> Long.max(0, current - count));
             if (savedIoControl != null) {
                 var maxBytes = settings.getMaxResponseSize().getBytes() * 0.5;

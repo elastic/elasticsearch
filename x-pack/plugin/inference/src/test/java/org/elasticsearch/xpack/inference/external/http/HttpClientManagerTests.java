@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -64,7 +65,7 @@ public class HttpClientManagerTests extends ESTestCase {
         String paramValue = randomAlphaOfLength(3);
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
-        var manager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        var manager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class), new TestCircuitBreaker());
         try (var httpClient = manager.getHttpClient()) {
             httpClient.start();
 
@@ -84,7 +85,7 @@ public class HttpClientManagerTests extends ESTestCase {
 
     public void testStartsANewEvictor_WithNewEvictionInterval() {
         var threadPool = mock(ThreadPool.class);
-        var manager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        var manager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class), new TestCircuitBreaker());
 
         var evictionInterval = TimeValue.timeValueSeconds(1);
         manager.setEvictionInterval(evictionInterval);
@@ -102,7 +103,8 @@ public class HttpClientManagerTests extends ESTestCase {
             mockConnectionManager,
             threadPool,
             mockClusterService(settings),
-            mock(ThrottlerManager.class)
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
         );
 
         var evictionMaxIdle = TimeValue.timeValueSeconds(1);

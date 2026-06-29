@@ -264,11 +264,11 @@ public class InferencePlugin extends Plugin
 
     // 50% of the available heap will be the upper limit for the memory
     // the inference plugin can use for various tasks (in-flight requests to external providers for example)
-    private static final long DEFAULT_INFERENCE_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo()
+    public static final long DEFAULT_INFERENCE_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo()
         .getMem()
         .getHeapMax()
         .getBytes());
-    private static final double DEFAULT_INFERENCE_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
+    public static final double DEFAULT_INFERENCE_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
 
     /**
      * TransportVersion indicating when Mixedbread features were added. The Mixedbread integration has been removed, but this transport
@@ -295,7 +295,6 @@ public class InferencePlugin extends Plugin
       * Used to limit the amount of memory mainly in-flight request objects
      *  (e.g. {@link org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput} can allocate.
       */
-    // TODO: add telemetry (how often do we trip)
     private final SetOnce<CircuitBreaker> inferenceCircuitBreaker = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
@@ -359,13 +358,16 @@ public class InferencePlugin extends Plugin
         var throttlerManager = new ThrottlerManager(settings, services.threadPool());
         throttlerManager.init(services.clusterService());
 
+        var circuitBreaker = inferenceCircuitBreaker.get();
+
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(
-            new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, inferenceCircuitBreaker.get())
+            new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, circuitBreaker)
         );
         threadPoolSetOnce.set(services.threadPool());
 
-        var httpClientManager = HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager);
+
+        var httpClientManager = HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager, circuitBreaker);
         var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
         httpFactory.set(httpRequestSenderFactory);
 
@@ -384,7 +386,7 @@ public class InferencePlugin extends Plugin
         var inferenceServiceSettings = new CCMInformedSettings(settings, ccmFeature.get());
         inferenceServiceSettings.init(services.clusterService());
 
-        var eisRequestSenderFactoryComponents = createEisRequestSenderComponents(services, throttlerManager, inferenceServiceSettings);
+        var eisRequestSenderFactoryComponents = createEisRequestSenderComponents(services, throttlerManager, inferenceServiceSettings, circuitBreaker);
         var elasticInferenceServiceHttpClientManager = eisRequestSenderFactoryComponents.httpClientManager();
         elasticInferenceServiceFactory.set(eisRequestSenderFactoryComponents.factory());
 
@@ -547,7 +549,8 @@ public class InferencePlugin extends Plugin
     private EisRequestSenderComponents createEisRequestSenderComponents(
         PluginServices services,
         ThrottlerManager throttlerManager,
-        ElasticInferenceServiceSettings inferenceServiceSettings
+        ElasticInferenceServiceSettings inferenceServiceSettings,
+        CircuitBreaker circuitBreaker
     ) {
         // Always use the SSL service to respect SSL settings like verification_mode even in CCM mode.
         // This allows local development with self-signed certificates when verification_mode=none.
@@ -557,7 +560,8 @@ public class InferencePlugin extends Plugin
             services.clusterService(),
             throttlerManager,
             getSslService(),
-            inferenceServiceSettings.getConnectionTtl()
+            inferenceServiceSettings.getConnectionTtl(),
+            circuitBreaker
         );
 
         return new EisRequestSenderComponents(

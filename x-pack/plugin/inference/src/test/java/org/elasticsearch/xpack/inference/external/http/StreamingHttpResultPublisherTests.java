@@ -12,6 +12,7 @@ import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
@@ -67,7 +68,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes));
 
-        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener());
+        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener(), new TestCircuitBreaker());
     }
 
     private ActionListener<StreamingHttpResult> listener() {
@@ -88,7 +89,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testFirstResponseCallsListener() throws IOException {
         var latch = new CountDownLatch(1);
         var listener = ActionTestUtils.<StreamingHttpResult>assertNoFailureListener(r -> latch.countDown());
-        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
+        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener, new TestCircuitBreaker());
 
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
@@ -104,7 +105,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testNonEmptyFirstResponseCallsListener() throws IOException {
         var latch = new CountDownLatch(1);
         var listener = ActionTestUtils.<StreamingHttpResult>assertNoFailureListener(r -> latch.countDown());
-        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener);
+        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener, new TestCircuitBreaker());
 
         when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(9000));
         publisher.responseReceived(mock(HttpResponse.class));
@@ -508,7 +509,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testReuseMlThread() throws ExecutionException, InterruptedException, TimeoutException {
         try {
             threadPool = spy(createThreadPool(inferenceUtilityExecutors()));
-            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener());
+            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener(), new TestCircuitBreaker());
             var subscriber = new TestSubscriber();
             publisher.responseReceived(mock(HttpResponse.class));
             testPublisher().subscribe(subscriber);
@@ -548,7 +549,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
                 return executorServiceSpy;
             }).when(threadPool).executor(UTILITY_THREAD_POOL_NAME);
 
-            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener());
+            publisher = new StreamingHttpResultPublisher(threadPool, settings, listener(), new TestCircuitBreaker());
             publisher.responseReceived(mock(HttpResponse.class));
             publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
             // create an infinitely running Subscriber

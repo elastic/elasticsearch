@@ -265,7 +265,6 @@ public class IndexAbstractionResolverTests extends ESTestCase {
                     Map.entry("my-alias", IndexAbstraction.Type.ALIAS),
                     Map.entry("my-view", IndexAbstraction.Type.VIEW),
                     Map.entry("my-dataset", IndexAbstraction.Type.DATASET)
-
                 )
             )
         );

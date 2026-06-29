@@ -226,8 +226,6 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     }
 
     public void testInterceptAndRewriteSemanticField() throws Exception {
-        assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         final String field = "test_field";
         final TestIndex testIndex = new TestIndex("test-index-1", Map.of(field, EMBEDDING_INFERENCE_ID), Map.of());
         final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(

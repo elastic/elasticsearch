@@ -15,7 +15,6 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 import org.junit.Before;
@@ -405,7 +404,6 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     }
 
     public void testKnnQueryWithSemanticFieldTypeOmittingInference() throws Exception {
-        assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
         for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
             final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
@@ -616,12 +614,10 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 )
             )
         );
-        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-            localFieldMappings.put(SEMANTIC_FIELD, semanticFieldMapping(EMBEDDING_INFERENCE_ID));
-            localDocs.put(getDocId(SEMANTIC_FIELD), Map.of(SEMANTIC_FIELD, "hello"));
-            remoteFieldMappings.put(SEMANTIC_FIELD, semanticFieldMapping(EMBEDDING_INFERENCE_ID));
-            remoteDocs.put(getDocId(SEMANTIC_FIELD), Map.of(SEMANTIC_FIELD, "hello"));
-        }
+        localFieldMappings.put(SEMANTIC_FIELD, semanticFieldMapping(EMBEDDING_INFERENCE_ID));
+        localDocs.put(getDocId(SEMANTIC_FIELD), Map.of(SEMANTIC_FIELD, "hello"));
+        remoteFieldMappings.put(SEMANTIC_FIELD, semanticFieldMapping(EMBEDDING_INFERENCE_ID));
+        remoteDocs.put(getDocId(SEMANTIC_FIELD), Map.of(SEMANTIC_FIELD, "hello"));
         final TestIndexInfo localIndexInfo = new TestIndexInfo(
             LOCAL_INDEX_NAME,
             Map.of(

@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -1400,11 +1399,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 throw new AssertionError("model with inference ID [" + entry.getInferenceId() + "] not found in model map");
             }
 
-            Object inputObject = randomSemanticInput(
-                useLegacyFormat == false
-                    && model.getTaskType() == TaskType.EMBEDDING
-                    && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-            );
+            Object inputObject = randomSemanticInput(useLegacyFormat == false && model.getTaskType() == TaskType.EMBEDDING);
             docMap.put(field, inputObject);
             expectedDocMap.put(field, inputObject);
 

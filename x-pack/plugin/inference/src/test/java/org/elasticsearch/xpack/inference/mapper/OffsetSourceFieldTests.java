@@ -74,8 +74,6 @@ public class OffsetSourceFieldTests extends ESTestCase {
     }
 
     public void testInputIndex() throws Exception {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         Directory dir = newDirectory();
         RandomIndexWriter writer = new RandomIndexWriter(
             random(),
@@ -149,13 +147,11 @@ public class OffsetSourceFieldTests extends ESTestCase {
             OffsetSourceField.OffsetSourceLoader preLoader = OffsetSourceField.loader(terms);
             assertEquals(new OffsetSourceFieldMapper.OffsetSource("term", 0, 0), preLoader.advanceTo(0, preVersion));
 
-            if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-                // Post-sentinel: any version at or after SEMANTIC_FIELD_TYPE interprets (0, 0) as the inputIndex sentinel. The default
-                // PositionIncrementAttribute of 1 lands the token at absolute position 0, so inputIndex == 0.
-                IndexVersion postVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
-                OffsetSourceField.OffsetSourceLoader postLoader = OffsetSourceField.loader(terms);
-                assertEquals(new OffsetSourceFieldMapper.OffsetSource("term", 0), postLoader.advanceTo(0, postVersion));
-            }
+            // Post-sentinel: any version at or after SEMANTIC_FIELD_TYPE interprets (0, 0) as the inputIndex sentinel. The default
+            // PositionIncrementAttribute of 1 lands the token at absolute position 0, so inputIndex == 0.
+            IndexVersion postVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
+            OffsetSourceField.OffsetSourceLoader postLoader = OffsetSourceField.loader(terms);
+            assertEquals(new OffsetSourceFieldMapper.OffsetSource("term", 0), postLoader.advanceTo(0, postVersion));
         }
 
         IOUtils.close(reader, dir);

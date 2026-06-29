@@ -29,4 +29,24 @@ public class PotentiallyUnmappedSingleTypeEsFieldTests extends ESTestCase {
 
         assertThat(field.getProperties(), equalTo(Map.of(child.getName(), child)));
     }
+
+    public void testReportsMappedType() {
+        EsField mappedField = new EsField("f", DataType.LONG, Map.of(), randomBoolean(), EsField.TimeSeriesFieldType.NONE);
+        PotentiallyUnmappedSingleTypeEsField field = new PotentiallyUnmappedSingleTypeEsField(mappedField, Set.of("index-1", "index-2"));
+
+        assertThat(field.getDataType(), equalTo(DataType.LONG));
+        assertThat(field.types(), equalTo(Set.of(DataType.LONG)));
+        assertThat(field.getTypesToIndices(), equalTo(Map.of("long", Set.of("index-1", "index-2"))));
+        assertThat(field.isPotentiallyUnmapped(), equalTo(true));
+    }
+
+    // getDataType() widens (SHORT -> INTEGER) to present like a normal field, while types() keeps SHORT for union-type keying.
+    public void testWidensSmallNumericDataType() {
+        EsField mappedField = new EsField("f", DataType.SHORT, Map.of(), randomBoolean(), EsField.TimeSeriesFieldType.NONE);
+        PotentiallyUnmappedSingleTypeEsField field = new PotentiallyUnmappedSingleTypeEsField(mappedField, Set.of("index-1"));
+
+        assertThat(field.getDataType(), equalTo(DataType.INTEGER));
+        assertThat(field.types(), equalTo(Set.of(DataType.SHORT)));
+        assertThat(field.getTypesToIndices(), equalTo(Map.of("short", Set.of("index-1"))));
+    }
 }

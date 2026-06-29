@@ -1524,6 +1524,124 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         return new EsField(name, DataType.DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
     }
 
+    private static EsField textField(String name) {
+        return new EsField(name, DataType.TEXT, emptyMap(), false, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static EsField aggregateMetricDoubleField(String name) {
+        return new EsField(name, DataType.AGGREGATE_METRIC_DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static List<UnionTypeEsField> unionFields(LogicalPlan plan) {
+        List<UnionTypeEsField> unions = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+            if (fa.field() instanceof UnionTypeEsField u) {
+                unions.add(u);
+            }
+        });
+        return unions;
+    }
+
+    private static List<PotentiallyUnmappedSingleTypeEsField> remainingPunks(LogicalPlan plan) {
+        List<PotentiallyUnmappedSingleTypeEsField> punks = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+            if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk) {
+                punks.add(punk);
+            }
+        });
+        return punks;
+    }
+
+    private static DataType outputType(LogicalPlan plan, String name) {
+        return plan.output()
+            .stream()
+            .filter(a -> a.name().equals(name))
+            .map(a -> a.dataType())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no output column named [" + name + "] in " + plan.output()));
+    }
+
+    // TEXT has no KEYWORD converter, so a partially-unmapped TEXT field exercises the no-implicit-cast branch (LONG/DOUBLE auto-cast).
+    public void testNoConverterPunkBareFallsBackToMappedType() {
+        var esIndex = partialIndex(Map.of("partial_text", textField("partial_text")), Set.of("partial_text"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | KEEP partial_text"));
+        var attr = EsqlTestUtils.singleValue(plan.output());
+        assertThat(attr.name(), equalTo("partial_text"));
+        assertThat(attr.dataType(), equalTo(DataType.TEXT));
+        assertThat(unionFields(plan), Matchers.empty());
+    }
+
+    public void testNoConverterPunkDirectCastLoadsUnmapped() {
+        var esIndex = partialIndex(Map.of("partial_text", textField("partial_text")), Set.of("partial_text"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | EVAL x = partial_text::keyword | KEEP x"));
+        assertTrue(
+            "Expected a KEYWORD union with an unmapped conversion (unmapped rows loaded from _source)",
+            unionFields(plan).stream().anyMatch(u -> u.getDataType() == DataType.KEYWORD && u.getUnmappedConversionExpression() != null)
+        );
+    }
+
+    public void testNoConverterPunkRenameThenBareFallsBack() {
+        var esIndex = partialIndex(Map.of("partial_text", textField("partial_text")), Set.of("partial_text"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | RENAME partial_text AS pt | KEEP pt"));
+        var attr = EsqlTestUtils.singleValue(plan.output());
+        assertThat(attr.name(), equalTo("pt"));
+        assertThat(attr.dataType(), equalTo(DataType.TEXT));
+        assertThat(unionFields(plan), Matchers.empty());
+    }
+
+    /**
+     * Casting a <em>renamed</em> no-converter PUNK falls back (unmapped rows become {@code null}) instead of loading the unmapped leg:
+     * {@code ResolveUnionTypes} only loads it for a cast directly on the field's own {@link FieldAttribute}, like a genuine union type.
+     */
+    public void testNoConverterPunkRenameThenCastDoesNotLoadUnmapped() {
+        var esIndex = partialIndex(Map.of("partial_text", textField("partial_text")), Set.of("partial_text"));
+        var plan = analyzer().addIndex(esIndex)
+            .statement(setUnmappedLoad("FROM idx* | RENAME partial_text AS pt | EVAL x = pt::keyword | KEEP x"));
+        var attr = EsqlTestUtils.singleValue(plan.output());
+        assertThat(attr.name(), equalTo("x"));
+        assertThat(attr.dataType(), equalTo(DataType.KEYWORD));
+        assertThat(unionFields(plan), Matchers.empty());
+    }
+
+    public void testNoConverterPunkStatsByBareFallsBack() {
+        var esIndex = partialIndex(Map.of("partial_text", textField("partial_text")), Set.of("partial_text"));
+        var plan = analyzer().addIndex(esIndex)
+            .statement(setUnmappedLoad("FROM idx* | STATS c = COUNT(*) BY partial_text | KEEP c, partial_text"));
+        assertThat(outputType(plan, "partial_text"), equalTo(DataType.TEXT));
+        assertThat(outputType(plan, "c"), equalTo(DataType.LONG));
+        assertThat(remainingPunks(plan), Matchers.empty());
+        assertThat(unionFields(plan), Matchers.empty());
+    }
+
+    /**
+     * A bare {@code aggregate_metric_double} PUNK is a single mapped type, so {@code ImplicitCastAggregateMetricDoubles} must leave it for
+     * fallback to native aggregation; building a union here regressed grouped {@code COUNT} from {@code 0} to {@code null} on empty groups.
+     */
+    public void testNoConverterPunkAggregateMetricDoubleStatsFallsBack() {
+        var esIndex = partialIndex(Map.of("partial_amd", aggregateMetricDoubleField("partial_amd")), Set.of("partial_amd"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | STATS c = COUNT(partial_amd)"));
+        assertThat(outputType(plan, "c"), equalTo(DataType.LONG));
+        assertThat(remainingPunks(plan), Matchers.empty());
+        assertThat(unionFields(plan), Matchers.empty());
+    }
+
+    /**
+     * Characterizes a pre-existing bug (not caused by removing the global name set): casting a union-typed field <em>after</em> an
+     * aggregation still builds an {@code EsRelation}-level union, which later throws {@code "can't find input"} at execution. It reproduces
+     * for {@code date}/{@code date_nanos} unions on main too. We pin the (buggy) union deliberately; the correct behavior is to fall back,
+     * like {@link #testNoConverterPunkRenameThenCastDoesNotLoadUnmapped}.
+     */
+    public void testNoConverterPunkStatsByThenCastBuildsUnionPreExistingIssue() {
+        var esIndex = partialIndex(Map.of("partial_text", textField("partial_text")), Set.of("partial_text"));
+        var plan = analyzer().addIndex(esIndex)
+            .statement(setUnmappedLoad("FROM idx* | STATS c = COUNT(*) BY partial_text | EVAL x = partial_text::keyword | KEEP x, c"));
+        assertThat(outputType(plan, "x"), equalTo(DataType.KEYWORD));
+        assertThat(
+            unionFields(plan).stream().anyMatch(u -> u.getDataType() == DataType.KEYWORD && u.getUnmappedConversionExpression() != null),
+            equalTo(true)
+        );
+    }
+
     private static final List<DataType> SMALL_NUMERIC_TYPES = List.of(
         DataType.SHORT,
         DataType.BYTE,

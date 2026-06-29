@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -30,7 +31,9 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -450,6 +453,60 @@ public class RetryableStorageObjectTests extends ESTestCase {
         }
         // Initial open + 2 retries (the budget), then it gives up.
         assertEquals("re-opened up to the retry budget then gave up", 3, delegate.openCount());
+    }
+
+    /**
+     * A stuck stream under a long throttle backoff would otherwise sleep this thread for the full budget;
+     * under an active cancellation scope the mid-read resume must abort promptly instead of sleeping, and
+     * must not re-open the range.
+     */
+    public void testMidReadResumeAbortsBackoffWhenCancelled() throws IOException {
+        // Long throttle delays so a non-aborting resume would sleep for a long time.
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        byte[] payload = new byte[500];
+        MidReadFailingStorageObject delegate = new MidReadFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            payload,
+            0,
+            new ExternalUnavailableException(true, "throttled"),
+            true
+        );
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            expectThrows(TaskCancelledException.class, () -> StorageRetryCancellation.runWithCancellation(() -> true, in::readAllBytes));
+        }
+        assertEquals("cancellation aborted the resume before re-opening the range", 1, delegate.openCount());
+    }
+
+    /**
+     * Like {@link #testMidReadResumeAbortsBackoffWhenCancelled} but the signal flips true only <em>after</em>
+     * the backoff sleep has started (not cancelled at the pre-sleep poll), so it exercises the in-sleep
+     * cancellation polling rather than the immediate pre-sleep check.
+     */
+    public void testMidReadResumeAbortsBackoffWhenCancelledDuringSleep() throws IOException {
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        byte[] payload = new byte[500];
+        MidReadFailingStorageObject delegate = new MidReadFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            payload,
+            0,
+            new ExternalUnavailableException(true, "throttled"),
+            true
+        );
+
+        // false at the sleep start, true on the next in-sleep poll.
+        AtomicInteger polls = new AtomicInteger();
+        BooleanSupplier cancel = () -> polls.incrementAndGet() > 1;
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        long startNanos = System.nanoTime();
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            expectThrows(TaskCancelledException.class, () -> StorageRetryCancellation.runWithCancellation(cancel, in::readAllBytes));
+        }
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+        assertEquals("cancellation aborted the resume before re-opening the range", 1, delegate.openCount());
+        assertThat("a cancel during the backoff must abort, not wait out the full delay", elapsedMs, lessThan(5_000L));
     }
 
     /**

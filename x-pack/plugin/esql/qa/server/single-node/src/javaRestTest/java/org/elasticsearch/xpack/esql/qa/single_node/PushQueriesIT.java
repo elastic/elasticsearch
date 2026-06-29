@@ -56,7 +56,9 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(
+        spec -> spec.plugin("inference-service-test").setting("xpack.ml.autodetect_process", "false")
+    );
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -72,7 +74,8 @@ public class PushQueriesIT extends ESRestTestCase {
         KEYWORD(false),
         MATCH_ONLY_TEXT_WITH_KEYWORD(false),
         SEMANTIC_TEXT_WITH_KEYWORD(true),
-        TEXT_WITH_KEYWORD(false);
+        TEXT_WITH_KEYWORD(false),
+        WILDCARD(false);
 
         private final boolean needEmbeddings;
 
@@ -98,9 +101,10 @@ public class PushQueriesIT extends ESRestTestCase {
             case KEYWORD -> "test:%value";
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case WILDCARD -> ": [%value]";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
@@ -116,9 +120,11 @@ public class PushQueriesIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case KEYWORD -> "#test:%value #single_value_match(test)";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            // WILDCARD has no ignore_above, so large values are still pushed
+            case WILDCARD -> ": [%value]";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, type != Type.KEYWORD);
@@ -138,9 +144,11 @@ public class PushQueriesIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
             case KEYWORD -> List.of("test:(%tooBig %value)".replace("%tooBig", tooBig), "test:(%value %tooBig)".replace("%tooBig", tooBig));
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+            // WILDCARD has no ignore_above, so large values are still pushed
+            case WILDCARD -> List.of(": [%tooBig %value]".replace("%tooBig", tooBig), ": [%value %tooBig]".replace("%tooBig", tooBig));
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
@@ -161,9 +169,10 @@ public class PushQueriesIT extends ESRestTestCase {
             case KEYWORD -> List.of("test:%value", "test:%value foo:[2 TO 2]");
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+            case WILDCARD -> List.of(": [%value]", ": [%value] foo:[2 TO 2]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
@@ -190,9 +199,10 @@ public class PushQueriesIT extends ESRestTestCase {
                  * a shard where all `foo = 1`.
                  */
                 List.of("#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]", "FieldExistsQuery [field=_primary_term]");
+            case WILDCARD -> List.of(": [%value]", ": [%value] foo:[2 TO 2]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, esqlQuery, luceneQueryOptions, dataNodeSignature, true);
@@ -209,9 +219,10 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> "*:*";
             case KEYWORD -> "-test:%different_value #*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case WILDCARD -> "-: [%different_value] #*:*";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
@@ -227,11 +238,13 @@ public class PushQueriesIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case KEYWORD -> "-test:%value #single_value_match(test)";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            // WILDCARD has no ignore_above, so large values are still pushed
+            case WILDCARD -> "-: [%value] #*:*";
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
             case CONSTANT_KEYWORD -> ComputeSignature.FIND_NONE;
-            case KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, false);
     }
@@ -246,10 +259,90 @@ public class PushQueriesIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case KEYWORD -> "".equals(value) ? "test:" : "CaseInsensitiveTermQuery{test:%value}";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case WILDCARD -> "".equals(value)
+                ? ":PatternAutomatonProvider[matchPattern=, caseInsensitive=true]"
+                : ":PatternAutomatonProvider[matchPattern=%value, caseInsensitive=true]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
+    public void testCaseInsensitiveLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE TO_LOWER(test) like "%value*"
+            """;
+        String luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case KEYWORD -> "CaseInsensitiveWildcardQuery{:%value*}";
+            case WILDCARD -> ":PatternAutomatonProvider[matchPattern=%value*, caseInsensitive=true]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
+    public void testNotCaseInsensitiveLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE NOT (TO_LOWER(test) like "%different_value*")
+            """;
+        // NOT(CI-LIKE) is not pushed; SEMANTIC_TEXT uses its own match-all sentinel
+        String luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD, KEYWORD, WILDCARD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD, KEYWORD, WILDCARD, SEMANTIC_TEXT_WITH_KEYWORD ->
+                ComputeSignature.FILTER_IN_QUERY;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
+    public void testOrNotCaseInsensitiveLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE test == "cat" OR NOT (TO_LOWER(test) like "%different_value*")
+            """;
+        // OR NOT(CI-LIKE) is not pushed; SEMANTIC_TEXT uses its own match-all sentinel
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD, KEYWORD, WILDCARD -> List.of("*:*");
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD, KEYWORD, WILDCARD, SEMANTIC_TEXT_WITH_KEYWORD ->
+                ComputeSignature.FILTER_IN_QUERY;
+        };
+        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
+    }
+
+    public void testCaseInsensitiveLikeList() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE TO_LOWER(test) like ("%value*", "abc*")
+            """;
+        // WILDCARD field type does not support automatonQuery, so CI WildcardLikeList cannot be pushed
+        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
+        String luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=true";
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
     }
@@ -264,9 +357,10 @@ public class PushQueriesIT extends ESRestTestCase {
             case KEYWORD -> "test:%value*";
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case WILDCARD -> ":PatternAutomatonProvider[matchPattern=%value*, caseInsensitive=false]";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
@@ -278,14 +372,18 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test like ("%value*", "abc*")
             """;
+        // WILDCARD field type does not support automatonQuery, so WildcardLikeList cannot be pushed
+        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String luceneQuery = switch (type) {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=false";
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
     }
@@ -300,9 +398,10 @@ public class PushQueriesIT extends ESRestTestCase {
             case KEYWORD -> "test:/%value.*/";
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case WILDCARD -> ":RegexAutomatonProvider[value=%value.*, syntaxFlags=65791, matchFlags=0, maxDeterminizedStates=10000]";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
@@ -314,14 +413,18 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test rlike ("%value.*", "abc.*")
             """;
+        // WILDCARD field type does not support automatonQuery, so RLikeList cannot be pushed
+        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String luceneQuery = switch (type) {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=false";
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
     }
@@ -456,6 +559,7 @@ public class PushQueriesIT extends ESRestTestCase {
             case KEYWORD -> keyword();
             case SEMANTIC_TEXT_WITH_KEYWORD -> semanticTextWithKeyword();
             case TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> typeWithKeyword();
+            case WILDCARD -> justType();
         };
         json += "}";
         createIndex.setJsonEntity(json);

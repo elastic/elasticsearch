@@ -15,7 +15,6 @@ import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringTests;
 import org.elasticsearch.inference.RerankRequest;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
@@ -100,7 +99,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
     public void testValidate_WithNullInputs_ReturnsValidationException() {
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(null, randomInferenceString(), null, null, Map.of()),
+            new RerankRequest(null, randomQueryInferenceString(), null, null, Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -113,7 +112,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
     public void testValidate_WithEmptyInputs_ReturnsValidationException() {
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(List.of(), randomInferenceString(), null, null, Map.of()),
+            new RerankRequest(List.of(), randomQueryInferenceString(), null, null, Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -128,7 +127,13 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
         var inputWithUnsupportedType = InferenceStringTests.createRandomUsingDataTypes(unsupportedDataTypes);
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(List.of(randomInferenceString(), inputWithUnsupportedType), randomInferenceString(), null, null, Map.of()),
+            new RerankRequest(
+                List.of(randomInputInferenceString(), inputWithUnsupportedType),
+                randomQueryInferenceString(),
+                null,
+                null,
+                Map.of()
+            ),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -162,7 +167,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
                     InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)),
                     InferenceStringTests.createRandomUsingDataTypes(EnumSet.of(DataType.IMAGE))
                 ),
-                randomInferenceString(),
+                randomQueryInferenceString(),
                 null,
                 null,
                 Map.of()
@@ -177,7 +182,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
     public void testValidate_WithNullQuery_ReturnsValidationException() {
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(List.of(randomInferenceString()), null, null, null, Map.of()),
+            new RerankRequest(List.of(randomInputInferenceString()), null, null, null, Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -190,7 +195,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
     public void testValidate_WithEmptyQuery_ReturnsValidationException() {
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(List.of(randomInferenceString()), InferenceString.ofText(""), null, null, Map.of()),
+            new RerankRequest(List.of(randomInputInferenceString()), InferenceString.ofText(""), null, null, Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -202,10 +207,10 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
 
     public void testValidate_WithUnsupportedQueryDataType_ReturnsValidationException() {
         var unsupportedDataTypes = EnumSet.complementOf(SUPPORTED_RERANK_QUERY_DATA_TYPES);
-        var inputWithUnsupportedType = InferenceStringTests.createRandomUsingDataTypes(unsupportedDataTypes);
+        var queryWithUnsupportedType = InferenceStringTests.createRandomUsingDataTypes(unsupportedDataTypes);
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(List.of(randomInferenceString()), inputWithUnsupportedType, null, null, Map.of()),
+            new RerankRequest(List.of(randomInputInferenceString()), queryWithUnsupportedType, null, null, Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -214,7 +219,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
         assertThat(validationException.validationErrors(), hasSize(1));
         assertThat(
             validationException.validationErrors().getFirst(),
-            is(Strings.format("Field [query] contains unsupported [type] value %s", inputWithUnsupportedType.dataType()))
+            is(Strings.format("Field [query] contains unsupported [type] value %s", queryWithUnsupportedType.dataType()))
         );
     }
 
@@ -222,7 +227,7 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
         var invalidTopN = randomFrom(Integer.MIN_VALUE, -1, 0);
         var request = new RerankAction.Request(
             randomAlphanumericOfLength(8),
-            new RerankRequest(List.of(randomInferenceString()), randomInferenceString(), invalidTopN, null, Map.of()),
+            new RerankRequest(List.of(randomInputInferenceString()), randomQueryInferenceString(), invalidTopN, null, Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -253,12 +258,12 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
         );
     }
 
-    /**
-     * Returns a random {@link InferenceString} with a {@link DataType} that is supported as a {@link TaskType#RERANK} query.
-     * Queries only support {@link DataType#TEXT}, which is also a valid input data type, so this is safe to use for both fields.
-     */
-    private static InferenceString randomInferenceString() {
+    private static InferenceString randomQueryInferenceString() {
         return InferenceStringTests.createRandomUsingDataTypes(SUPPORTED_RERANK_QUERY_DATA_TYPES);
+    }
+
+    private static InferenceString randomInputInferenceString() {
+        return InferenceStringTests.createRandomUsingDataTypes(SUPPORTED_RERANK_INPUT_DATA_TYPES);
     }
 
     @Override

@@ -314,8 +314,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
-            if (supportsMultimodalRerank() == false
-                && (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText))) {
+            // Rerank queries are always restricted to text. Non-text inputs are only accepted by services that support multimodal rerank.
+            if (request.query().isNonText()
+                || (supportsMultimodalRerank() == false && request.inputs().stream().anyMatch(InferenceString::isNonText))) {
                 listener.onFailure(createUnsupportedMultimodalRerankException(name()));
                 return;
             }
@@ -332,8 +333,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
     }
 
     /**
-     * Override as necessary for services which support images in rerank inputs and queries
-     * @return true if the service supports images in rerank inputs and queries
+     * Override as necessary for services which support images in rerank inputs. Rerank queries are always restricted to text,
+     * regardless of this setting.
+     * @return true if the service supports images in rerank inputs
      */
     protected boolean supportsMultimodalRerank() {
         return false;

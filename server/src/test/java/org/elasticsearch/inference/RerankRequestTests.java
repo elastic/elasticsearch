@@ -111,6 +111,29 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
         }
     }
 
+    public void testParser_WithObjectArrayInputContainingImage() throws IOException {
+        var requestJson = Strings.format("""
+            {
+                "input": [
+                  {"type":"text", "format":"text", "value":"%s"},
+                  {"type":"image", "format":"base64", "value":"%s"}
+                ],
+                "query": {"type":"text", "format":"text", "value":"%s"}
+            }
+            """, INPUT_TEXT, TEST_DATA_URI, QUERY_TEXT);
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = RerankRequest.PARSER.apply(parser, null);
+            assertThat(
+                request.inputs(),
+                is(List.of(InferenceString.ofText(INPUT_TEXT), new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI)))
+            );
+            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
+            assertThat(request.topN(), is(nullValue()));
+            assertThat(request.returnDocuments(), is(nullValue()));
+            assertThat(request.taskSettings(), anEmptyMap());
+        }
+    }
+
     public void testParser_WithImageInputAndTextQuery() throws IOException {
         var requestJson = Strings.format("""
             {

@@ -260,6 +260,22 @@ public interface BlockLoader {
         default DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
             return null;
         }
+
+        /**
+         * Returns a {@link DocIdSetIterator} that matches documents whose value is exactly equal to
+         * the given term, or {@code null} if this optimization is not supported by the underlying data.
+         *
+         * <p>Implementations should return a {@link TwoPhaseIterator}-backed iterator (wrapped via
+         * {@link TwoPhaseIterator#asDocIdSetIterator}) — see the rationale on
+         * {@link #tryContainsIterator}.
+         *
+         * <p>This optimization is only valid for single-valued fields. Callers must gate on
+         * {@code countsSkipper == null || countsSkipper.maxValue() == 1} before invoking this method
+         * and fall back to the slow per-doc predicate path for multi-valued fields.
+         */
+        default DocIdSetIterator tryTermEqualIterator(BytesRef term) throws IOException {
+            return null;
+        }
     }
 
     /**

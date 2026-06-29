@@ -1,7 +1,12 @@
 setup:
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: [ "semantic_text.original_values_in_doc_values", "semantic_text.highlighter" ]
-      reason: columnar index modes rebuild _source from doc values, where semantic_text stores its original input value
+      reason: columnar index modes (snapshot-only) rebuild _source from doc values, where semantic_text stores its original input value
 
   - do:
       inference.put:

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -118,12 +119,15 @@ public class DatasetService {
                 throw ex;
             }
         }
+        // Shape-only validation of the declared schema (no file I/O): declarable types + role-designation references.
+        DeclaredSchemaValidator.validate(request.schema());
         return new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),
             request.resource(),
             request.description(),
-            validatedSettings
+            validatedSettings,
+            request.schema()
         );
     }
 

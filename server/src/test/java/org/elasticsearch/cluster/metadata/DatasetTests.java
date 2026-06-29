@@ -42,41 +42,54 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
 
     @Override
     protected Dataset mutateInstance(Dataset instance) {
-        return switch (randomIntBetween(0, 4)) {
+        return switch (randomIntBetween(0, 5)) {
             case 0 -> new Dataset(
                 randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
                 instance.dataSource(),
                 instance.resource(),
                 instance.description(),
-                instance.settings()
+                instance.settings(),
+                instance.schema()
             );
             case 1 -> new Dataset(
                 instance.name(),
                 randomValueOtherThan(instance.dataSource(), () -> new DataSourceReference(randomAlphaOfLength(6).toLowerCase(Locale.ROOT))),
                 instance.resource(),
                 instance.description(),
-                instance.settings()
+                instance.settings(),
+                instance.schema()
             );
             case 2 -> new Dataset(
                 instance.name(),
                 instance.dataSource(),
                 randomValueOtherThan(instance.resource(), () -> "s3://" + randomAlphaOfLength(6) + "/" + randomAlphaOfLength(6)),
                 instance.description(),
-                instance.settings()
+                instance.settings(),
+                instance.schema()
             );
             case 3 -> new Dataset(
                 instance.name(),
                 instance.dataSource(),
                 instance.resource(),
                 randomValueOtherThan(instance.description(), () -> randomAlphaOfLengthBetween(1, 16)),
-                instance.settings()
+                instance.settings(),
+                instance.schema()
+            );
+            case 4 -> new Dataset(
+                instance.name(),
+                instance.dataSource(),
+                instance.resource(),
+                instance.description(),
+                randomValueOtherThan(instance.settings(), DatasetTests::randomSettings),
+                instance.schema()
             );
             default -> new Dataset(
                 instance.name(),
                 instance.dataSource(),
                 instance.resource(),
                 instance.description(),
-                randomValueOtherThan(instance.settings(), DatasetTests::randomSettings)
+                instance.settings(),
+                randomValueOtherThan(instance.schema(), DatasetTests::randomSchemaOrNull)
             );
         };
     }
@@ -87,8 +100,36 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
             new DataSourceReference(randomAlphaOfLength(6).toLowerCase(Locale.ROOT)),
             "s3://" + randomAlphaOfLength(8) + "/" + randomAlphaOfLength(6) + ".parquet",
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 32),
-            randomSettings()
+            randomSettings(),
+            randomSchemaOrNull()
         );
+    }
+
+    static DatasetSchema randomSchemaOrNull() {
+        return randomBoolean() ? null : randomSchema();
+    }
+
+    static DatasetSchema randomSchema() {
+        DatasetSchema.Mappings mappings = randomBoolean() ? null : randomMappings();
+        String timestampField = randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        String idField = randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        // assemble() returns null when everything is absent; force at least one piece so we always get a schema
+        if (mappings == null && timestampField == null && idField == null) {
+            mappings = randomMappings();
+        }
+        return DatasetSchema.assemble(mappings, timestampField, idField);
+    }
+
+    private static DatasetSchema.Mappings randomMappings() {
+        DatasetSchema.Dynamic dynamic = randomFrom(DatasetSchema.Dynamic.values());
+        int count = randomIntBetween(0, 4);
+        Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>(count);
+        for (int i = 0; i < count; i++) {
+            String type = randomFrom("keyword", "long", "integer", "double", "boolean", "date");
+            String source = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+            properties.put("col_" + i, new DatasetFieldMapping(type, source));
+        }
+        return new DatasetSchema.Mappings(dynamic, properties);
     }
 
     private static Map<String, Object> randomSettings() {
@@ -221,6 +262,56 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
     public void testXContentRoundTripEmptySettings() throws IOException {
         var dataset = new Dataset("access_logs", new DataSourceReference("my-s3"), "s3://bucket/logs/*.parquet", "desc", Map.of());
         assertExplicitXContentRoundTrip(dataset);
+    }
+
+    public void testNoSchemaStaysNull() throws IOException {
+        var dataset = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
+        assertNull(dataset.schema());
+        BytesStreamOutput out = new BytesStreamOutput();
+        dataset.writeTo(out);
+        assertNull(new Dataset(out.bytes().streamInput()).schema());
+        // XContent of a no-schema dataset must not emit any schema keys
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        dataset.toXContent(builder, null);
+        String json = org.elasticsearch.common.bytes.BytesReference.bytes(builder).utf8ToString();
+        assertFalse(json.contains("mappings"));
+        assertFalse(json.contains("timestamp_field"));
+        assertFalse(json.contains("id_field"));
+    }
+
+    public void testXContentRoundTripWithDeclaredSchema() throws IOException {
+        Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("when", new DatasetFieldMapping("date", "ts"));
+        properties.put("status", new DatasetFieldMapping("integer", null));
+        var schema = new DatasetSchema(new DatasetSchema.Mappings(DatasetSchema.Dynamic.FALSE, properties), "when", "request_id");
+        var dataset = new Dataset(
+            "access_logs",
+            new DataSourceReference("my-s3"),
+            "s3://bucket/logs/*.ndjson",
+            "Access logs",
+            Map.of("schema_sample_size", 20000),
+            schema
+        );
+        assertExplicitXContentRoundTrip(dataset);
+
+        // wire round-trip too
+        BytesStreamOutput out = new BytesStreamOutput();
+        dataset.writeTo(out);
+        Dataset deserialized = new Dataset(out.bytes().streamInput());
+        assertEquals(dataset, deserialized);
+        assertEquals(DatasetSchema.Dynamic.FALSE, deserialized.schema().mappings().dynamic());
+        assertEquals("ts", deserialized.schema().mappings().properties().get("when").source());
+        assertEquals("when", deserialized.schema().timestampField());
+        assertEquals("request_id", deserialized.schema().idField());
+    }
+
+    public void testXContentRoundTripRoleOnlyNoMappings() throws IOException {
+        // timestamp_field with no mappings block — the orthogonality case (works under inference)
+        var schema = new DatasetSchema(null, "@timestamp", null);
+        var dataset = new Dataset("events", new DataSourceReference("s3"), "s3://b/*.ndjson", null, Map.of(), schema);
+        assertExplicitXContentRoundTrip(dataset);
+        assertNull(dataset.schema().mappings());
+        assertEquals("@timestamp", dataset.schema().timestampField());
     }
 
     private void assertExplicitXContentRoundTrip(Dataset dataset) throws IOException {

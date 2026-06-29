@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DatasetSchema;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
@@ -45,6 +46,8 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     private final List<NamedExpression> metadataFields;
     @Nullable
     private final String datasetName;
+    @Nullable
+    private final DatasetSchema schema;
     private final String unresolvedMsg;
 
     /**
@@ -99,11 +102,29 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
         List<NamedExpression> metadataFields,
         @Nullable String datasetName
     ) {
+        this(source, tablePath, config, metadataFields, datasetName, null);
+    }
+
+    /**
+     * Full constructor carrying the dataset's user-declared schema ({@link DatasetSchema}), if any. Only the
+     * {@code FROM <dataset>} path (via {@code DatasetRewriter}) supplies a non-null schema; the inline
+     * {@code EXTERNAL} path and tests pass {@code null} (inference only). The schema is consumed in pre-analysis
+     * by the external-source resolver to drive the strict-skip / non-strict-overlay decision.
+     */
+    public UnresolvedExternalRelation(
+        Source source,
+        Expression tablePath,
+        Map<String, Object> config,
+        List<NamedExpression> metadataFields,
+        @Nullable String datasetName,
+        @Nullable DatasetSchema schema
+    ) {
         super(source);
         this.tablePath = tablePath;
         this.config = config;
         this.metadataFields = Objects.requireNonNull(metadataFields, "metadataFields");
         this.datasetName = datasetName;
+        this.schema = schema;
         this.unresolvedMsg = "Unknown external table or Parquet file [" + extractTablePathValue(tablePath) + "]";
     }
 
@@ -130,7 +151,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
 
     @Override
     protected NodeInfo<UnresolvedExternalRelation> info() {
-        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config, metadataFields, datasetName);
+        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config, metadataFields, datasetName, schema);
     }
 
     public Expression tablePath() {
@@ -153,6 +174,15 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     @Nullable
     public String datasetName() {
         return datasetName;
+    }
+
+    /**
+     * The dataset's user-declared schema (mapping + role designations), or {@code null} when the dataset has none
+     * (inference only) or for the inline {@code EXTERNAL} path. Consumed by the external-source resolver.
+     */
+    @Nullable
+    public DatasetSchema schema() {
+        return schema;
     }
 
     @Override
@@ -179,7 +209,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     public int hashCode() {
         // No source(): equals() below ignores it, and the equals/hashCode contract requires equal
         // nodes to hash equal (same node parsed at two positions must collapse in plan-node sets).
-        return Objects.hash(tablePath, config, metadataFields, datasetName, unresolvedMsg);
+        return Objects.hash(tablePath, config, metadataFields, datasetName, schema, unresolvedMsg);
     }
 
     @Override
@@ -197,6 +227,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
             && Objects.equals(config, other.config)
             && Objects.equals(metadataFields, other.metadataFields)
             && Objects.equals(datasetName, other.datasetName)
+            && Objects.equals(schema, other.schema)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 

@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.DatasetSchema;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,6 +53,12 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         private static final ParseField RESOURCE = new ParseField("resource");
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
+        private static final ParseField MAPPINGS = new ParseField("mappings");
+        private static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
+        private static final ParseField ID_FIELD = new ParseField("id_field");
+
+        /** Gates the optional {@link DatasetSchema} on the request wire (mixed-version upgrade). */
+        private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
 
         public record ParseContext(String name, TimeValue masterNodeTimeout, TimeValue ackTimeout) {}
 
@@ -65,7 +73,8 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 (String) args[0],
                 (String) args[1],
                 (String) args[2],
-                (Map<String, Object>) args[3]
+                (Map<String, Object>) args[3],
+                DatasetSchema.assemble((DatasetSchema.Mappings) args[4], (String) args[5], (String) args[6])
             )
         );
 
@@ -74,6 +83,9 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetSchema.parseMappings(p), MAPPINGS);
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), TIMESTAMP_FIELD);
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), ID_FIELD);
         }
 
         public static Request fromXContent(XContentParser parser, TimeValue masterNodeTimeout, TimeValue ackTimeout, String name)
@@ -87,6 +99,8 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         @Nullable
         private final String description;
         private final Map<String, Object> rawSettings;
+        @Nullable
+        private final DatasetSchema schema;
 
         public Request(
             TimeValue masterNodeTimeout,
@@ -97,12 +111,26 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             @Nullable String description,
             Map<String, Object> rawSettings
         ) {
+            this(masterNodeTimeout, ackTimeout, name, dataSource, resource, description, rawSettings, null);
+        }
+
+        public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            String name,
+            String dataSource,
+            String resource,
+            @Nullable String description,
+            Map<String, Object> rawSettings,
+            @Nullable DatasetSchema schema
+        ) {
             super(masterNodeTimeout, ackTimeout);
             this.name = name;
             this.dataSource = dataSource;
             this.resource = resource;
             this.description = description;
             this.rawSettings = rawSettings == null ? Map.of() : rawSettings;
+            this.schema = schema;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -112,6 +140,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             this.resource = in.readString();
             this.description = in.readOptionalString();
             this.rawSettings = in.readGenericMap();
+            this.schema = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA) ? in.readOptionalWriteable(DatasetSchema::new) : null;
         }
 
         @Override
@@ -122,6 +151,9 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             out.writeString(resource);
             out.writeOptionalString(description);
             out.writeGenericMap(rawSettings);
+            if (out.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)) {
+                out.writeOptionalWriteable(schema);
+            }
         }
 
         @Override
@@ -183,6 +215,12 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             return rawSettings;
         }
 
+        /** The parsed declared schema (mapping + role designations), or {@code null} when none was supplied. */
+        @Nullable
+        public DatasetSchema schema() {
+            return schema;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -192,12 +230,13 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 && Objects.equals(dataSource, request.dataSource)
                 && Objects.equals(resource, request.resource)
                 && Objects.equals(description, request.description)
-                && Objects.equals(rawSettings, request.rawSettings);
+                && Objects.equals(rawSettings, request.rawSettings)
+                && Objects.equals(schema, request.schema);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, dataSource, resource, description, rawSettings);
+            return Objects.hash(name, dataSource, resource, description, rawSettings, schema);
         }
 
         @Override

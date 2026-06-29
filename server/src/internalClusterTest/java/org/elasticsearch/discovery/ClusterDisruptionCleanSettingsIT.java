@@ -9,12 +9,18 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -22,6 +28,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+
+import org.elasticsearch.core.Nullable;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -31,7 +40,7 @@ public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
     }
 
     /**
@@ -62,8 +71,36 @@ public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilderList);
 
-        IndicesStoreIntegrationIT.relocateAndBlockCompletion(logger, "test", 0, node_1, node_2);
+        // Block cluster state processing on target node so shard stays in POST_RECOVERY
+        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(node_2, random());
+        internalCluster().setDisruptionScheme(disruption);
+
+        // Detect when the shard reaches POST_RECOVERY on the target node
+        CountDownLatch postRecoveryLatch = new CountDownLatch(1);
+        for (MockIndexEventListener.TestEventListener eventListener : internalCluster().getInstances(
+            MockIndexEventListener.TestEventListener.class
+        )) {
+            eventListener.setNewDelegate(new IndexEventListener() {
+                @Override
+                public void indexShardStateChanged(
+                    IndexShard indexShard,
+                    @Nullable IndexShardState previousState,
+                    IndexShardState currentState,
+                    @Nullable String reason
+                ) {
+                    if (currentState == IndexShardState.POST_RECOVERY) {
+                        postRecoveryLatch.countDown();
+                    }
+                }
+            });
+        }
+
+        ClusterRerouteUtils.reroute(internalCluster().client(), new MoveAllocationCommand("test", 0, node_1, node_2));
+        postRecoveryLatch.await();
+        disruption.startDisrupting();
+
         // now search for the documents and see if we get a reply
         assertHitCount(prepareSearch().setSize(0), 100);
+        disruption.stopDisrupting();
     }
 }

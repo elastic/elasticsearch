@@ -41,8 +41,8 @@ nono pull always-further/pi
 # ── bootstrap pi-agent (cached after first run on this agent) ─────────
 PI_AGENT_DIR="${HOME}/.local/pi-agent"
 if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then
-# Use the org-level admin token (broader repo access) to fetch the private release
-GH_ADMIN_TOKEN=$(cat "${GH_ADMIN_TOKEN_PATH}")
+# Use the gh_token from Vault (org-level access needed for the private release repo)
+GH_ADMIN_TOKEN=$(vault read -field=gh_token secret/ci/elastic-elasticsearch/agentic-workflows)
 PI_TARBALL_URL=$(curl -fsSL \
     -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
     "https://api.github.com/repos/elastic/rene-bk-experiments/releases" \

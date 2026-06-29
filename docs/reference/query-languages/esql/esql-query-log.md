@@ -1,6 +1,6 @@
 ---
 applies_to:
-  stack:
+  stack: ga 9.1+
   serverless:
 navigation_title: "Query log"
 ---
@@ -136,4 +136,3 @@ PUT /_cluster/settings
   }
 }
 ```
-

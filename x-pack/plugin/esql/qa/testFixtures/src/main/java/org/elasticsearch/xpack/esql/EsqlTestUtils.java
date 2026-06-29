@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -54,6 +55,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.geoip.IpDatabase;
+import org.elasticsearch.ingest.geoip.IpDatabaseProvider;
+import org.elasticsearch.ingest.geoip.IpLocationServiceAdapter;
+import org.elasticsearch.iplocation.api.IpDataLookupInfo;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -71,6 +77,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -692,6 +699,42 @@ public final class EsqlTestUtils {
     }
 
     public static final EsqlFunctionRegistry TEST_FUNCTION_REGISTRY = new EsqlFunctionRegistry();
+
+    /**
+     * A lightweight {@link IpLocationService} for parse-time tests. Backed by a null-returning
+     * {@link IpDatabaseProvider} so that {@code getIpDataLookupInfo} resolves database schemas
+     * from filenames (via {@link IpLocationServiceAdapter}) without requiring actual database files.
+     */
+    public static final IpLocationService TEST_IP_LOCATION_SERVICE = IpLocationServiceAdapter.fromDatabaseProvider(
+        new IpDatabaseProvider() {
+            @Override
+            public Boolean isValid(ProjectId projectId, String name) {
+                return true;
+            }
+
+            @Override
+            public IpDatabase getDatabase(ProjectId projectId, String name) {
+                return null;
+            }
+        }
+    );
+
+    /**
+     * Service-backed {@link IpLocationResolution} for analyzer tests. Production builds a prefetched, plan-derived resolution in
+     * {@code EsqlSession}; the test analyzer context is built before the query plan is known, so it instead resolves database
+     * metadata on demand against {@link #TEST_IP_LOCATION_SERVICE}.
+     */
+    public static final IpLocationResolution TEST_IP_LOCATION_RESOLUTION = new IpLocationResolution() {
+        @Override
+        public boolean serviceAvailable() {
+            return true;
+        }
+
+        @Override
+        public IpDataLookupInfo databaseInfo(String databaseFile) {
+            return TEST_IP_LOCATION_SERVICE.getIpDataLookupInfo(databaseFile);
+        }
+    };
 
     public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
 
@@ -1551,12 +1594,11 @@ public final class EsqlTestUtils {
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
         String command = commandParts[0].trim();
         if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
-            String[] indices = TEST_PARSER.parseQuery(afterSetStatements)
-                .collect(UnresolvedRelation.class)
-                .getFirst()
-                .indexPattern()
-                .indexPattern()
-                .split(",");
+            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
+            if (relations.isEmpty()) {
+                return false;
+            }
+            String[] indices = relations.getFirst().indexPattern().indexPattern().split(",");
             for (String index : indices) {
                 String indexName = index.trim().toLowerCase(Locale.ROOT);
                 if (indicesToCheck.contains(indexName)) {
@@ -1588,12 +1630,11 @@ public final class EsqlTestUtils {
         assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
         if (SourceCommand.isSourceCommand(command)) {
             String commandArgs = commandParts[1].trim();
-            String[] indices = TEST_PARSER.parseQuery(afterSetStatements)
-                .collect(UnresolvedRelation.class)
-                .getFirst()
-                .indexPattern()
-                .indexPattern()
-                .split(",");
+            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
+            if (relations.isEmpty()) {
+                return query;
+            }
+            String[] indices = relations.getFirst().indexPattern().indexPattern().split(",");
             // This method may be called multiple times on the same testcase when using @Repeat
             boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
             if (alreadyConverted == false) {
@@ -1661,7 +1702,13 @@ public final class EsqlTestUtils {
     }
 
     /**
-     * Convert index patterns and subqueries in FROM commands to use remote indices.
+     * Convert index patterns and subqueries in FROM and WHERE IN subqueries to use remote
+     * indices for a given test case.
+     *
+     * <p>Note: like {@link #splitIgnoringParentheses}, this method is not string-literal-aware.
+     * A literal {@code (}, {@code )}, or {@code |} inside a quoted string would be miscounted.
+     * The csv-spec test corpus contains no such literals in subquery tests, so this matches
+     * existing behaviour.
      */
     public static String convertSubqueryToRemoteIndices(String testQuery) {
         String query = testQuery;
@@ -1688,15 +1735,26 @@ public final class EsqlTestUtils {
         mainFrom = mainFromCommandWithMetadata.get(0).strip();
         // if there is metadata, we need to add it back later
         String metadata = mainFromCommandWithMetadata.size() > 1 ? " metadata " + mainFromCommandWithMetadata.get(1) : "";
-        // the main source command could be a comma separated list of index patterns, and subqueries
         // Subqueries whose outer command is ROW (rather than FROM) still contain commas as part of ROW
         // syntax — those must never be interpreted as UNION-of-sources branches nor rewritten into a FROM.
         // Example: ROW emp_no = 99999, languages = 99
+        // The ROW source itself has no index to rewrite, but pipe segments that follow (e.g. WHERE IN)
+        // may contain FROM subqueries that do need rewriting.
         if (startsWithCommandKeyword(mainFrom, ROW_COMMAND_PATTERN)) {
-            return query;
+            for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
+                mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i)));
+            }
+            return String.join(" | ", mainFromCommandAndTheRest);
         }
         // the main from command could be a comma separated list of index patterns, and subqueries
         List<String> indexPatternsAndSubqueries = splitIgnoringParentheses(mainFrom, ",");
+        // Idempotency guard: if any plain (non-subquery) source already has been rewritten to a
+        // remote index pattern, skip conversion. This protects against double-rewriting when
+        // the same testcase instance is reused across @Repeat iterations.
+        boolean alreadyConverted = indexPatternsAndSubqueries.stream().anyMatch(s -> isSubquery(s) == false && s.contains("*:"));
+        if (alreadyConverted) {
+            return query;
+        }
         List<String> transformed = new ArrayList<>();
         for (String indexPatternOrSubquery : indexPatternsAndSubqueries) {
             // remove the FROM or TS keyword if it's there
@@ -1713,19 +1771,76 @@ public final class EsqlTestUtils {
                 String transformedSubquery = convertSubqueryToRemoteIndices(subquery);
                 transformed.add("(" + transformedSubquery + ")");
             } else {
-                // It's an index pattern, we need to convert it to remote index pattern.
-                String remoteIndex = unquoteAndRequoteAsRemote(indexPatternOrSubquery, false);
-                transformed.add(remoteIndex);
+                transformed.add(unquoteAndRequoteAsRemote(indexPatternOrSubquery, false));
             }
         }
         // rebuild source command from transformed index patterns and subqueries, prepending any SET statements
         String transformedFrom = setStatements + sourceCommand + " " + String.join(", ", transformed) + metadata;
+        // Rewrite any WHERE x IN (FROM ...) / NOT IN (...) subqueries in the pipeline segments
+        // that follow the source command. Non-subquery parenthesised groups (value lists, function
+        // arguments, boolean groupings) are left structurally unchanged.
+        for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
+            mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i)));
+        }
         // rebuild the whole query
         mainFromCommandAndTheRest.set(0, transformedFrom);
         testQuery = String.join(" | ", mainFromCommandAndTheRest);
 
         LOGGER.trace("Transform query: \nFROM: {}\nTO:   {}", query, testQuery);
         return testQuery;
+    }
+
+    /**
+     * Rewrites any {@code (FROM ...)}, {@code (TS ...)}, or {@code (ROW ...)} subquery bodies
+     * found inside an expression segment (e.g. a {@code WHERE} or {@code EVAL} clause) by
+     * recursively descending into every top-level parenthesised group.
+     *
+     * <p>Non-subquery parenthesised content — value lists such as {@code IN ("a","b")}, function
+     * arguments such as {@code COUNT(*)}, and boolean groupings such as
+     * {@code (a AND emp_no IN (FROM ...))} — is recursed to surface any nested subquery within,
+     * but the surrounding structure is otherwise left unchanged.
+     *
+     * <p>Like {@link #splitIgnoringParentheses}, this method is not string-literal-aware.
+     */
+    private static String rewriteSubqueriesInExpression(String segment) {
+        StringBuilder result = new StringBuilder();
+        int i = 0;
+        while (i < segment.length()) {
+            char c = segment.charAt(i);
+            if (c == '(') {
+                // find the matching close paren by scanning forward tracking depth
+                int depth = 1;
+                int contentStart = i + 1;
+                int j = contentStart;
+                while (j < segment.length() && depth > 0) {
+                    char d = segment.charAt(j);
+                    if (d == '(') depth++;
+                    else if (d == ')') depth--;
+                    j++;
+                }
+                // segment[contentStart .. j-1] is the content inside the parens; j is past the ')'
+                String content = segment.substring(contentStart, j - 1);
+                String strippedContent = content.strip();
+                String rewrittenGroup;
+                if (startsWithCommandKeyword(strippedContent, FROM_COMMAND_PATTERN)
+                    || startsWithCommandKeyword(strippedContent, TS_COMMAND_PATTERN)
+                    || startsWithCommandKeyword(strippedContent, ROW_COMMAND_PATTERN)) {
+                    // This group is a subquery body — rewrite it recursively.
+                    // ROW bodies are returned unchanged by convertSubqueryToRemoteIndices.
+                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent) + ")";
+                } else {
+                    // Not a direct subquery body (value list, function args, boolean grouping, …).
+                    // Recurse into the raw content to catch any nested subquery inside it.
+                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content) + ")";
+                }
+                result.append(rewrittenGroup);
+                i = j;
+            } else {
+                result.append(c);
+                i++;
+            }
+        }
+        return result.toString();
     }
 
     private static final Pattern FROM_COMMAND_PATTERN = commandPattern("from");

@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -41,11 +40,16 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -70,6 +74,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
@@ -146,6 +151,7 @@ import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -162,10 +168,7 @@ import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
-    // Data sources store credentials encrypted under the project encryption key, so the feature requires it
-    // (enforced in createComponents). The PEK flag lives in the encryption impl plugin, not the SPI we
-    // compile against, so we reference it by name — FeatureFlag resolves identically off the build flag.
-    private static final FeatureFlag PROJECT_ENCRYPTION_KEY_FEATURE_FLAG = new FeatureFlag("project_encryption_key");
+    private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -240,6 +243,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
+     * Maximum time (in milliseconds) that a GROK matcher is allowed to run before being interrupted.
+     * Limits how long a GROK matcher can run to protect against expensive regex patterns.
+     */
+    public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
+        "esql.grok.watchdog.max_execution_time",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Tuning parameter for deciding when to use the "merge" stored field loader.
      * Think of it as "how similar to a sequential block of documents do I have to
      * be before I'll use the merge reader?" So a value of {@code 1} means I have to
@@ -267,17 +281,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
+    /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
+    private volatile DataSourceModule dataSourceModule;
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(dataSourceModule);
+    }
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        // Refuse to start with data sources on but encryption off — the CRUD layer could never store a
-        // secret. Coupling the flags here lets the feature rely on an EncryptionService always being bound.
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            && PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalStateException(
-                "ES|QL external data sources require the project encryption key feature; enable the "
-                    + "[project_encryption_key] feature flag, or disable [esql_external_datasources]"
-            );
-        }
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(
@@ -328,7 +341,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
-        DataSourceModule dataSourceModule = new DataSourceModule(
+        dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
             dataSourceCapabilities,
             settings,
@@ -336,12 +349,24 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC),
             dataSourceCredentials,
             workloadIdentityEnabled::get,
-            services.threadPool()
+            services.threadPool(),
+            services.environment(),
+            services.resourceWatcherService()
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        MatcherWatchdog grokWatchdog = MatcherWatchdog.newInstance(GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).millis());
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry, grokWatchdog));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
+
+        services.ipLocationService()
+            .addDatabaseAvailabilityListener(
+                (projectId, databaseFile) -> logger.trace(
+                    "IP location database [{}] became available for project [{}]",
+                    databaseFile,
+                    projectId
+                )
+            );
 
         ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
         services.clusterService()
@@ -485,7 +510,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
                 DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING
+                DatasetService.MAX_DATASETS_COUNT_SETTING,
+                GROK_WATCHDOG_MAX_EXECUTION_TIME
             )
         );
         settings.addAll(PlannerSettings.settings());
@@ -519,6 +545,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                 new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
                 new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+                // Unconditional like resolve_views: the FROM <dataset> rewrite is gated on datasets being present
+                // in cluster state, not on the feature flag, so its authorization gate must always be resolvable.
+                new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
                 new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
             )
         );
@@ -586,6 +615,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(ValuesSourceReaderOperatorStatus.ENTRY);
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
+        entries.add(EnrichQuerySourceOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);

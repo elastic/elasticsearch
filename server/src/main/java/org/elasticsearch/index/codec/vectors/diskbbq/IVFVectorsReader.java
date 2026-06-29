@@ -69,7 +69,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
-    private final FieldInfos fieldInfos;
+    protected final FieldInfos fieldInfos;
     protected final IntObjectHashMap<E> fields;
     private final GenericFlatVectorReaders genericReaders;
     private final String centroidExtension;
@@ -353,8 +353,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (visitRatio == dynamicVisitRatio) {
             visitRatio = Math.min(computeDynamicVisitRatio(numCands, k), computeSegmentSizeCap(numVectors));
         }
-        // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
-        long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
+        long maxVectorVisited = maxVectorsToVisit(entry, visitRatio, numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
@@ -406,6 +405,16 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 }
             }
         }
+    }
+
+    /**
+     * The cap on the number of (posting-member) vectors the search loop may visit. The default accounts for
+     * SOAR overspill, which can place a vector in up to two postings, by allowing 2x the visit-ratio budget.
+     * Subclasses may override to use a different budgeting model (e.g. an experiment-only posting/head-count
+     * budget where the centroid iterator's own bound governs how many postings are drained).
+     */
+    protected long maxVectorsToVisit(E entry, float visitRatio, int numVectors) {
+        return (long) (2.0 * visitRatio * numVectors);
     }
 
     private static boolean hasNoVectors(FieldInfo fieldInfo, FieldEntry fieldEntry) {
@@ -568,10 +577,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
      * Implementations may return {@code null} if the format does not support reading centroid data
      * (e.g. because the layout differs from the writer that consumes this data).
      *
-     * @param fieldInfo the vector field to read centroids for
+     * @param fieldName the vector field to read centroids for
      * @return centroid data, or {@code null} if unavailable
      */
-    public abstract CentroidData readCentroidData(FieldInfo fieldInfo) throws IOException;
+    public abstract CentroidData readCentroidData(String fieldName) throws IOException;
 
     /**
      * Container for centroid data read from an existing segment. The centroid vectors are

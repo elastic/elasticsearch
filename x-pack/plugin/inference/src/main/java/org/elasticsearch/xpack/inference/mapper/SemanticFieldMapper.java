@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
@@ -70,6 +69,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
@@ -849,6 +849,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return CONTENT_TYPE;
         }
 
+        @Override
+        public String getDefaultHighlighter() {
+            return SemanticTextHighlighter.NAME;
+        }
+
         public String getInferenceId() {
             return inferenceId;
         }
@@ -924,34 +929,26 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 );
             }
             if (format != null) {
-                return new SemanticFieldValueFetcher(
-                    this,
-                    getChunksField().bitsetProducer(),
-                    context.searcher(),
-                    SemanticFieldValueFetcher.Mode.TEXT
-                );
+                return new ChunkValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
             }
 
-            return originalValueFetcher(context);
+            return valueFetcher(context);
         }
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockSourceReader.BytesRefsBlockLoader(allValuesFetcher(blContext), BlockSourceReader.lookupMatchingAll());
+            return new BlockSourceReader.BytesRefsBlockLoader(valueFetcher(blContext), BlockSourceReader.lookupMatchingAll());
         }
 
-        /**
-         * Get a {@link ValueFetcher} for the original value(s) directly written to this field.
-         */
-        protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
-            return SourceValueFetcher.toString(name(), context, null);
+        protected ValueFetcher valueFetcher(SearchExecutionContext context) {
+            return new OriginalValuesSemanticFieldValueFetcher(name(), context);
         }
 
-        /**
-         * Get a {@link ValueFetcher} for all values written to this field, both directly and via {@code copy_to}.
-         */
-        protected ValueFetcher allValuesFetcher(MappedFieldType.BlockLoaderContext blContext) {
-            return SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
+        protected ValueFetcher valueFetcher(MappedFieldType.BlockLoaderContext blContext) {
+            return new OriginalValuesSemanticFieldValueFetcher(
+                blContext.sourcePaths(name()),
+                blContext.indexSettings().getIgnoredSourceFormat()
+            );
         }
 
         /**

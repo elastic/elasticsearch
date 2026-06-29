@@ -11,8 +11,8 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -30,7 +30,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
@@ -140,35 +139,22 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         float maxRescoreOversampleAcrossLeaves = 1f;
         for (LeafReaderContext context : leafReaderContexts) {
-            SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(context.reader());
-            if (segmentReader == null) {
-                IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
-                    IvfSegmentConfig.leafCollectorBudget(k, maxRescoreOversampleAcrossLeaves),
-                    indexSearcher
-                );
-                tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));
-                continue;
+            LeafReader leafReader = context.reader();
+            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+            float segmentOversample = 1f;
+            IvfSegmentConfig resolved = null;
+            if (fieldInfo != null) {
+                resolved = ivfQueryConfigResolver.resolve(fieldInfo, leafReader);
+                segmentOversample = resolved.rescoreOversample();
+                maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, segmentOversample);
             }
-            FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
-            if (fieldInfo == null) {
-                IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
-                    IvfSegmentConfig.leafCollectorBudget(k, maxRescoreOversampleAcrossLeaves),
-                    indexSearcher
-                );
-                tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));
-                continue;
-            }
-            IvfSegmentConfig resolved = ivfQueryConfigResolver.resolve(fieldInfo, segmentReader);
-
-            float segmentOversample = resolved.rescoreOversample();
-            maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, segmentOversample);
 
             IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
                 IvfSegmentConfig.leafCollectorBudget(k, segmentOversample),
                 indexSearcher
             );
 
-            if (resolved.usePrecondition()) {
+            if (resolved != null && resolved.usePrecondition()) {
                 preconditionQuery(context);
             }
             tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));

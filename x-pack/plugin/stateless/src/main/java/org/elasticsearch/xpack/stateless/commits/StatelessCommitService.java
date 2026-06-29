@@ -1168,7 +1168,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitCleaner;
     }
 
-    public record RecoveryInfoFromSource(@Nullable SourceBlobsInfo sourceBlobsInfo, boolean hasRecentIdLookup) {}
+    public record RecoveryInfoFromSource(
+        @Nullable SourceBlobsInfo sourceBlobsInfo,
+        Set<BlobFile> lastCommitBlobs,
+        boolean lastCommitIsHollow,
+        boolean hasRecentIdLookup
+    ) {}
 
     public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
 

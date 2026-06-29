@@ -195,8 +195,8 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
                     cb.recordHeldDelta(preallocated, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
                     cb.recordHeldDelta(-preallocated, preallocateLabel);
                 } else {
-                    next.addWithoutBreaking(preallocated, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
                     next.addWithoutBreaking(-preallocated, preallocateLabel);
+                    next.addWithoutBreaking(preallocated, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
                 }
             }
             closed = true;

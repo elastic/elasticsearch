@@ -61,7 +61,6 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             }
         }
 
-
         @Override
         public long ramBytesUsed() {
             if (chunkContainsWholeInput()) {

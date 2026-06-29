@@ -757,9 +757,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     /**
-     * A deeply nested parenthesized query string drives Lucene's recursive-descent classic query parser into a
-     * {@link StackOverflowError}. Verify that this is converted into a {@link QueryShardException} (a client error)
-     * rather than escaping to the uncaught exception handler, which would halt the node.
+     * A deeply nested query string must fail with a {@link QueryShardException} rather than a {@link StackOverflowError}.
      */
     public void testToQueryWithDeeplyNestedParentheses() {
         int depth = 100000;

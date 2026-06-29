@@ -220,7 +220,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         var dataSourceModule = planExecutor.dataSourceModule();
         OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
             externalSourceExecutor(),
-            threadPool.executor(EsqlPlugin.EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME)
+            threadPool.executor(fileReadExecutorName())
         );
         this.computeService = new ComputeService(
             services,
@@ -274,6 +274,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
      */
     protected Executor externalSourceExecutor() {
         return threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
+    }
+
+    /**
+     * Name of the thread pool that backs {@link OperatorFactoryRegistry#fileReadExecutor()} — the executor on which
+     * blocking external (GCS/local file) reads run. This must be the dedicated, bounded
+     * {@link EsqlPlugin#EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME} pool, never {@link ThreadPool.Names#GENERIC}: routing
+     * blocking external reads onto {@code generic} lets a single heavy external query starve the rest of the node.
+     * The production constructor resolves the read executor through this method, so the unit test that pins the
+     * returned name locks the real wiring.
+     */
+    static String fileReadExecutorName() {
+        return EsqlPlugin.EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME;
     }
 
     @Override

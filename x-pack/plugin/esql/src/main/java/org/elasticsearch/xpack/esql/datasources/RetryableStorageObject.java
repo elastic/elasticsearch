@@ -323,13 +323,13 @@ class RetryableStorageObject implements StorageObject {
                 throw rethrow(e);
             }
             closeQuietly(current);
-            if (decision.delayMillis() > 0) {
-                try {
-                    Thread.sleep(decision.delayMillis());
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
-                }
+            try {
+                // Cancellation-aware sleep: aborts a parked backoff if the query is cancelled before or
+                // during the delay, rather than sleeping through the remaining per-episode retry budget.
+                StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
             }
             retryCounters.addRetry();
             failuresSinceProgress++;

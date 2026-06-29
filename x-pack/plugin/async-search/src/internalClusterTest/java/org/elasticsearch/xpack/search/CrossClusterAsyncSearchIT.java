@@ -31,6 +31,9 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -2161,6 +2164,22 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         waitForSearchTasksToFinish();
     }
 
+    public void testDirectoryMetricsLocalAndRemoteMinimizeRoundtripsTrue() throws Exception {
+        assertAsyncCcsDirectoryMetrics(true, false);
+    }
+
+    public void testDirectoryMetricsLocalAndRemoteMinimizeRoundtripsFalse() throws Exception {
+        assertAsyncCcsDirectoryMetrics(false, false);
+    }
+
+    public void testDirectoryMetricsRemoteOnlyMinimizeRoundtripsTrue() throws Exception {
+        assertAsyncCcsDirectoryMetrics(true, true);
+    }
+
+    public void testDirectoryMetricsRemoteOnlyMinimizeRoundtripsFalse() throws Exception {
+        assertAsyncCcsDirectoryMetrics(false, true);
+    }
+
     private void waitForSearchTasksToFinish() throws Exception {
         assertBusy(() -> {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
@@ -2209,6 +2228,49 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             "should have 'index corrupted' in reason but was: " + shardSearchFailure.reason(),
             shardSearchFailure.reason().contains("index corrupted")
         );
+    }
+
+    private void assertAsyncCcsDirectoryMetrics(boolean minimizeRoundtrips, boolean remoteOnly) {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SubmitAsyncSearchRequest request = remoteOnly
+            ? new SubmitAsyncSearchRequest(REMOTE_CLUSTER + ":" + remoteIndex)
+            : new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        request.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+        request.setKeepOnCompletion(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueSeconds(60));
+        request.getSearchRequest().allowPartialSearchResults(false);
+        request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
+
+        int expectedSuccessfulClusters = remoteOnly ? 1 : 2;
+        String responseId = null;
+        try {
+            final AsyncSearchResponse response = submitAsyncSearch(request);
+            try {
+                responseId = response.getId();
+                assertFalse(response.isRunning());
+                assertNotNull(response.getSearchResponse());
+                assertThat(
+                    response.getSearchResponse().getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                    equalTo(expectedSuccessfulClusters)
+                );
+                assertThat(storeBytesRead(response.getSearchResponse().getDirectoryMetrics()), greaterThan(0L));
+            } finally {
+                response.decRef();
+            }
+        } finally {
+            if (responseId != null) {
+                deleteAsyncSearch(responseId);
+            }
+        }
+    }
+
+    private static long storeBytesRead(DirectoryMetrics metrics) {
+        String value = metrics.entries().get(StoreMetrics.BYTES_READ_METRIC_KEY);
+        return value == null ? 0L : Long.parseLong(value);
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) {

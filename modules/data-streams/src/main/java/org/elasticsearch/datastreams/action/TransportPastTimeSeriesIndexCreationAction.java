@@ -67,7 +67,7 @@ import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationA
 /**
  * Internal action that creates one or more historical TSDB backing indices to cover past timestamps.
  * It submits a cluster update per data stream and creates backing indices anchored to the start time of
- * the next existing backing index, tiling backward in {@link #PAST_TSDB_INDEX_DURATION}-sized slots.
+ * the next existing backing index, tiling backward in {@link #PAST_TSDB_INDEX_INTERVAL}-sized slots.
  * When the gap between two neighbouring indices is small enough (≤ {@link #GAP_FILL_THRESHOLD} × duration),
  * a single index is created that fills the entire gap.
  */
@@ -79,8 +79,8 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
      * Controls the size of each historical TSDB backing index created by this action.
      * Defaults to 1 day; valid range is [1h, 7d].
      */
-    public static final Setting<TimeValue> PAST_TSDB_INDEX_DURATION = Setting.timeSetting(
-        "data_streams.past_tsdb_index_duration",
+    public static final Setting<TimeValue> PAST_TSDB_INDEX_INTERVAL = Setting.timeSetting(
+        "data_streams.past_tsdb_index_interval",
         TimeValue.timeValueDays(1),
         TimeValue.timeValueHours(1),
         TimeValue.timeValueDays(7),
@@ -89,7 +89,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
     );
 
     /**
-     * Maximum gap between two existing backing indices, expressed as a multiple of {@link #PAST_TSDB_INDEX_DURATION},
+     * Maximum gap between two existing backing indices, expressed as a multiple of {@link #PAST_TSDB_INDEX_INTERVAL},
      * that is filled by a single new index instead of tiling backward from the next index.
      */
     static final double GAP_FILL_THRESHOLD = 1.3;
@@ -216,7 +216,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         private final ProjectResolver projectResolver;
         private final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator;
         private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings;
-        private long indexDurationMillis;
+        private long indexIntervalMillis;
 
         PastTimeSeriesIndexCreationExecutor(
             Settings settings,
@@ -235,7 +235,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             this.projectResolver = projectResolver;
             this.timeSeriesEligibleWriteWindowLocator = timeSeriesEligibleWriteWindowLocator;
             this.dataStreamGlobalRetentionSettings = dataStreamGlobalRetentionSettings;
-            this.indexDurationMillis = PAST_TSDB_INDEX_DURATION.get(settings).millis();
+            this.indexIntervalMillis = PAST_TSDB_INDEX_INTERVAL.get(settings).millis();
         }
 
         @Override
@@ -272,7 +272,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                         createdIndexNames,
                         coveredTimestamps,
                         rejectedTimestamps,
-                        indexDurationMillis,
+                        indexIntervalMillis,
                         eligibleWriteWindowStart
                     );
                     stateChanged |= createdIndexNames.isEmpty() == false;
@@ -449,7 +449,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             return updatedClusterState;
         }
 
-        // For testing
+        // Package-visible for testing
         static Deque<IndexBoundaries> sortAndRetrieveExistingBackingIndices(DataStream dataStream, ProjectMetadata currentProject) {
             List<IndexBoundaries> sortedExistingBackingIndices = new ArrayList<>();
             for (Index existingIndex : dataStream.getIndices()) {
@@ -470,7 +470,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
 
         public void init() {
             clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(PAST_TSDB_INDEX_DURATION, tv -> indexDurationMillis = tv.millis());
+                .addSettingsUpdateConsumer(PAST_TSDB_INDEX_INTERVAL, tv -> indexIntervalMillis = tv.millis());
         }
     }
 

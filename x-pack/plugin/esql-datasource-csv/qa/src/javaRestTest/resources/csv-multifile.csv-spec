@@ -5,13 +5,12 @@
 // reading + per-file schema, not standard-CSV-default parsing. Standard-CSV reads are covered by
 // csv-basic.csv-spec on the bracket-free twin.
 //
-// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
-// backends (S3) the harness registers the dataset and runs the FROM query verbatim; on the others it rebuilds
-// the equivalent EXTERNAL query. The dataset name encodes the WITH options (brackets) so the same name always
-// carries the same settings.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The harness registers
+// the dataset on every storage backend and runs the FROM query verbatim. The dataset name encodes the WITH
+// options (brackets) so the same name always carries the same settings.
 
 multiFileFilterAndSort
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
 FROM employees_multifile_split_brackets
@@ -29,7 +28,7 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 multiFileAggregate
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
 FROM employees_multifile_split_brackets
@@ -50,7 +49,7 @@ count:long | gender:keyword
 // If that constant changes, update the names:long expectation here.
 
 multiFileDistinctFileCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_file_metadata_columns
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
@@ -62,7 +61,7 @@ names:long
 ;
 
 multiFileGroupByFile
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_file_metadata_columns
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
@@ -75,7 +74,7 @@ files:long | total:long
 ;
 
 multiFileMetadataSizePositive
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_file_metadata_columns
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 

@@ -78,7 +78,6 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.X
  */
 final class FastLogEntryAccumulator implements Message, StringBuilderFormattable {
 
-    private static final long serialVersionUID = 1L;
     private static final Object[] EMPTY_PARAMS = new Object[0];
 
     /**

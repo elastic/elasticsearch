@@ -327,7 +327,6 @@ public class EsqlSession {
         // PROMQL syntax still visible, views still as UnresolvedRelation, surrogate rewrites not
         // applied. This is the form closest to user intent for failure-path triage.
         planSnapshot = planSnapshot.withParsed(statement.plan());
-        gatherSettingsMetrics(statement);
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
@@ -381,6 +380,7 @@ public class EsqlSession {
             statement,
             SettingsValidationContext.from(remoteClusterService)
         );
+        gatherSettingsMetrics(resolved);
 
         if (QuerySettings.APPROXIMATION.get(resolved) != null) {
             EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
@@ -1112,16 +1112,17 @@ public class EsqlSession {
         return IpLocationResolution.fromPrefetched(databaseInfo);
     }
 
-    private void gatherSettingsMetrics(EsqlStatement statement) {
-        if (metrics == null || statement.settings() == null) {
+    private void gatherSettingsMetrics(ResolvedSettings resolved) {
+        if (metrics == null) {
             return;
         }
-        // Deduplicate settings by name - if the same setting is SET multiple times in a query,
-        // we only count it once for telemetry purposes.
+        // Count every setting the user actually supplied, from any surface — in-query SET, the settings.{} block,
+        // or a legacy top-level body field. ResolvedSettings.consumedSettingNames() already dedups across sources,
+        // so a setting given via both SET and the body is counted once.
         // The Metrics class only registers counters for settings applicable to the current environment
-        // (e.g., snapshot-only settings are not registered in non-snapshot builds).
-        // incSetting() silently ignores settings that don't have a registered counter.
-        statement.settings().stream().map(QuerySetting::name).distinct().forEach(metrics::incSetting);
+        // (e.g., snapshot-only settings are not registered in non-snapshot builds); incSetting() silently
+        // ignores settings that don't have a registered counter.
+        resolved.consumedSettingNames().forEach(metrics::incSetting);
     }
 
     private void gatherViewMetrics(ViewResolver.ViewResolutionResult viewResolution) {

@@ -20,11 +20,14 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
@@ -52,7 +55,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
     protected Configuration mutateInstance(Configuration in) {
         ConfigurationBuilder builder = new ConfigurationBuilder(in);
         switch (between(0, 11)) {
-            case 0 -> builder.zoneId(
+            case 0 -> builder.setting(
+                QuerySettings.TIME_ZONE,
                 randomValueOtherThan(QuerySettings.TIME_ZONE.get(in.resolvedSettings()), () -> randomZone().normalized())
             );
             case 1 -> builder.now(
@@ -102,5 +106,19 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         TransportVersion preWatchdog = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_grok_watchdog"));
         Configuration roundTripped = copyInstance(original, preWatchdog);
         assertThat(roundTripped.grokMatcherWatchdogMs(), equalTo(1000L));
+    }
+
+    public void testOldNodeSynthesizesResolvedSettingsFromLegacyWire() throws IOException {
+        // A node that predates esql_resolved_settings reads time_zone + approximation from their legacy wire slots
+        // and synthesizes a ResolvedSettings from them. Verify both survive the round-trip with non-default values.
+        ResolvedSettings settings = ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"))
+            .withOverride(QuerySettings.APPROXIMATION, new ApproximationSettings(10000, null));
+        Configuration original = new ConfigurationBuilder(randomConfiguration()).resolvedSettings(settings).build();
+        TransportVersion preResolvedSettings = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("esql_resolved_settings")
+        );
+        Configuration roundTripped = copyInstance(original, preResolvedSettings);
+        assertThat(QuerySettings.TIME_ZONE.get(roundTripped.resolvedSettings()), equalTo(ZoneId.of("Europe/Paris")));
+        assertThat(QuerySettings.APPROXIMATION.get(roundTripped.resolvedSettings()).rows(), equalTo(10000));
     }
 }

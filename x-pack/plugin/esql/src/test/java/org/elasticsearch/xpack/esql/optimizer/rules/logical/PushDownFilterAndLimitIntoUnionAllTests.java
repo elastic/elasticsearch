@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -1530,7 +1531,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE @timestamp > "2024-01-01"
             """);
 
-        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration configuration = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1593,7 +1594,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE @timestamp > "2024-01-01" AND @timestamp < "2025-12-31"
             """);
 
-        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration configuration = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1667,7 +1668,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE @timestamp > "2024-01-01" OR @timestamp < "2020-01-01"
             """);
 
-        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration configuration = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1828,7 +1829,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE @timestamp > "2024-01-01" AND qstr("message:disconnect")
             """);
 
-        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration configuration = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1908,7 +1909,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE @timestamp > "2024-01-01"
             """);
 
-        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+        Configuration configuration = randomConfigurationBuilder().setting(QuerySettings.TIME_ZONE, ZoneOffset.UTC).build();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);

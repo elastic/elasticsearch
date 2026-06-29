@@ -166,7 +166,12 @@ public final class QuerySettings {
 
     private static ZoneId parseZoneId(String tz) {
         try {
-            return ZoneId.of(tz);
+            // Normalize so a fixed-offset zone (e.g. "UTC", "+00:00", "Z") collapses to its ZoneOffset. This preserves
+            // the behavior Configuration had before settings moved into ResolvedSettings (it always called
+            // zi.normalized()): downstream code such as Kql/QueryString option emission compares against
+            // ZoneOffset.UTC, and cross-node configs must compare equal whether built fresh or synthesized from a
+            // legacy wire frame. Non-fixed zones (e.g. "Europe/Madrid") are returned unchanged.
+            return ZoneId.of(tz).normalized();
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid time zone [" + tz + "]");
         }

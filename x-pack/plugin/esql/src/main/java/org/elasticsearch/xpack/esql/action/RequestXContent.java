@@ -87,7 +87,6 @@ final class RequestXContent {
     private static final ParseField FILTER_FIELD = new ParseField("filter");
     static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
-    static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
     private static final ParseField ACCEPT_PRAGMA_RISKS = new ParseField("accept_pragma_risks");
@@ -98,8 +97,6 @@ final class RequestXContent {
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
     static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
-    static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
-    private static final ParseField APPROXIMATION_FIELD = new ParseField("approximation");
     static final ParseField SETTINGS_FIELD = new ParseField("settings");
 
     private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(() -> syncEsqlQueryRequest(null));

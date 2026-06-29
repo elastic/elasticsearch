@@ -38,7 +38,7 @@ public class Configuration implements Writeable {
     public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
 
     /** Default grok watchdog timeout, in ms, used when a Configuration is built without an explicit value. */
-    static final long DEFAULT_GROK_MATCHER_WATCHDOG_MS = 1000;
+    public static final long DEFAULT_GROK_MATCHER_WATCHDOG_MS = 1000;
 
     private static final TransportVersion TIMESERIES_DEFAULT_LIMIT = TransportVersion.fromName("timeseries_default_limit");
 
@@ -512,6 +512,8 @@ public class Configuration implements Writeable {
             && Objects.equals(clusterName, that.clusterName)
             && resultTruncationMaxSizeRegular == that.resultTruncationMaxSizeRegular
             && resultTruncationDefaultSizeRegular == that.resultTruncationDefaultSizeRegular
+            && resultTruncationMaxSizeTimeseries == that.resultTruncationMaxSizeTimeseries
+            && resultTruncationDefaultSizeTimeseries == that.resultTruncationDefaultSizeTimeseries
             && Objects.equals(pragmas, that.pragmas)
             && Objects.equals(locale, that.locale)
             && Objects.equals(that.query, query)

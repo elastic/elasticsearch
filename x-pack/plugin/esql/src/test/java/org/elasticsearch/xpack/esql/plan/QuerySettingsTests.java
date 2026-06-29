@@ -95,7 +95,8 @@ public class QuerySettingsTests extends ESTestCase {
 
         assertDefault(setting, both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
 
-        assertValid(setting, of("UTC"), equalTo(ZoneId.of("UTC")));
+        // "UTC" is a fixed-offset zone, so it normalizes to ZoneOffset.UTC (see QuerySettings.parseZoneId).
+        assertValid(setting, of("UTC"), equalTo(ZoneOffset.UTC));
         assertValid(setting, of("Z"), both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
         assertValid(setting, of("Europe/Madrid"), equalTo(ZoneId.of("Europe/Madrid")));
         assertValid(setting, of("+05:00"), equalTo(ZoneId.of("+05:00")));
@@ -112,7 +113,8 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testValidate_TimeZone_techPreview() {
         var setting = QuerySettings.TIME_ZONE;
-        assertValid(setting, of("UTC"), equalTo(ZoneId.of("UTC")), NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        // "UTC" normalizes to ZoneOffset.UTC (see QuerySettings.parseZoneId).
+        assertValid(setting, of("UTC"), equalTo(ZoneOffset.UTC), NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
     }
 
     public void testValidate_UnmappedFields() {
@@ -324,7 +326,8 @@ public class QuerySettingsTests extends ESTestCase {
         QuerySetting set = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "time_zone", of("UTC")));
         EsqlStatement statement = new EsqlStatement(null, List.of(set));
         ResolvedSettings resolved = QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("UTC")));
+        // SET time_zone="UTC" wins and normalizes to ZoneOffset.UTC (see QuerySettings.parseZoneId).
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneOffset.UTC));
         assertThat(resolved.consumedSettingNames(), equalTo(Set.of("time_zone")));
     }
 

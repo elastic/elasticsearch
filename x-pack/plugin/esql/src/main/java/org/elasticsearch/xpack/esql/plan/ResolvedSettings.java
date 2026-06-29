@@ -79,7 +79,8 @@ public final class ResolvedSettings implements Writeable {
 
     /**
      * Produce a copy with one setting's value overridden (or removed, if {@code value} is null).
-     * Used by {@code Configuration.withZoneId} and similar copy-with-modification helpers.
+     * Used by {@code Configuration.withSetting} / {@code ConfigurationBuilder.setting} and similar
+     * copy-with-modification helpers.
      */
     public <T> ResolvedSettings withOverride(QuerySettingDef<T> def, @org.elasticsearch.core.Nullable T value) {
         Map<QuerySettingDef<?>, Object> updated = new HashMap<>(values);

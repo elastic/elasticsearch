@@ -377,8 +377,11 @@ public final class QuerySettingDef<T> {
         }
 
         /**
-         * Body alias at an arbitrary location. {@code parentPath} is a dotted JSON path to the parent
-         * object ({@code ""} = root). Implies {@link #withRequestBody()}. May be called multiple times.
+         * Body alias at a JSON path. {@code parentPath} is a dotted path to the parent object ({@code ""} = root).
+         * Implies {@link #withRequestBody()}. May be called multiple times.
+         * <p>
+         * Only root aliases ({@code parentPath == ""}) are wired in the request parser today; declaring a non-root
+         * alias makes {@code RequestXContent} fail at parser-build time. Nested-path parsing is tracked in #149283.
          */
         public Builder<T> withAliasAt(String parentPath, String aliasName) {
             this.requestBody = true;

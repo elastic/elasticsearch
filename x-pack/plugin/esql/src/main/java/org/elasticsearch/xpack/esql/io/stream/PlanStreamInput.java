@@ -100,7 +100,9 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
     }
 
     public MatcherWatchdog grokMatcherWatchdog() {
-        return MatcherWatchdog.newInstance(configuration != null ? configuration.grokMatcherWatchdogMs() : 1000);
+        return MatcherWatchdog.newInstance(
+            configuration != null ? configuration.grokMatcherWatchdogMs() : Configuration.DEFAULT_GROK_MATCHER_WATCHDOG_MS
+        );
     }
 
     /**

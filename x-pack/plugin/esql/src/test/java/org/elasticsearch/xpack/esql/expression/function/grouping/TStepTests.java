@@ -174,7 +174,10 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                     TEST_SOURCE,
                     randomConfigurationBuilder().query(TEST_SOURCE.text())
                         .now(now)
-                        .zoneId(timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5))
+                        .setting(
+                            QuerySettings.TIME_ZONE,
+                            timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5)
+                        )
                         .build()
                 );
         }));

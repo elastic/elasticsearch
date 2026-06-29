@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
 
@@ -153,11 +151,6 @@ public class ConfigurationBuilder {
     /** Returns the current resolved-settings view; callers compose with {@link ResolvedSettings#withOverride} as needed. */
     public ResolvedSettings resolvedSettings() {
         return resolvedSettings;
-    }
-
-    /** Convenience override for {@code time_zone}; equivalent to {@code setting(QuerySettings.TIME_ZONE, zoneId)}. */
-    public ConfigurationBuilder zoneId(ZoneId zoneId) {
-        return setting(QuerySettings.TIME_ZONE, zoneId.normalized());
     }
 
     public ConfigurationBuilder viewQueries(Map<String, String> viewQueries) {

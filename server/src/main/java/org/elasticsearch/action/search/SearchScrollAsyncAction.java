@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.search.AbstractSearchAsyncAction.createResponseHeaderFromDirectoryMetrics;
 import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
 import static org.elasticsearch.core.Strings.format;
 
@@ -250,10 +249,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     }
 
     protected void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
-        if (metrics.isEmpty()) {
-            return;
-        }
-        mergedDirectoryMetrics.accumulateAndGet(metrics, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming));
+        DirectoryMetrics.accumulate(mergedDirectoryMetrics, metrics);
     }
 
     protected final void sendResponse(
@@ -261,8 +257,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
-            var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
-            createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics.get());
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;
@@ -270,22 +264,21 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                 scrollId = request.scrollId();
             }
             try (var sections = SearchPhaseController.merge(true, queryPhase, fetchResults)) {
-                ActionListener.respondAndRelease(
-                    listener,
-                    new SearchResponse(
-                        sections,
-                        scrollId,
-                        this.scrollId.getContext().length,
-                        successfulOps.get(),
-                        0,
-                        buildTookInMillis(),
-                        buildShardFailures(),
-                        SearchResponse.Clusters.EMPTY,
-                        null,
-                        null,
-                        null
-                    )
+                SearchResponse searchResponse = new SearchResponse(
+                    sections,
+                    scrollId,
+                    this.scrollId.getContext().length,
+                    successfulOps.get(),
+                    0,
+                    buildTookInMillis(),
+                    buildShardFailures(),
+                    SearchResponse.Clusters.EMPTY,
+                    null,
+                    null,
+                    null
                 );
+                searchResponse.setDirectoryMetrics(mergedDirectoryMetrics.get());
+                ActionListener.respondAndRelease(listener, searchResponse);
             }
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));

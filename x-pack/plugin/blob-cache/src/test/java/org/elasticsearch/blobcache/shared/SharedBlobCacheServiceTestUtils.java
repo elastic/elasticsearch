@@ -7,6 +7,9 @@
 
 package org.elasticsearch.blobcache.shared;
 
+import java.util.Map;
+import java.util.function.Predicate;
+
 /**
  * Test utilities for {@link SharedBlobCacheService} that expose package-private methods to other modules.
  */
@@ -46,5 +49,27 @@ public final class SharedBlobCacheServiceTestUtils {
         long timestampMillis
     ) {
         cacheService.get(cacheKey, fileLength, region, timestampMillis);
+    }
+
+    /**
+     * Returns a map of access frequency to the number of cached regions matching the predicate.
+     */
+    public static <K extends SharedBlobCacheService.KeyBase> Map<Integer, Integer> countCachedRegionsByFreq(
+        SharedBlobCacheService<K> cacheService,
+        Predicate<K> predicate
+    ) {
+        return cacheService.countCachedRegionsByFreq(predicate);
+    }
+
+    /**
+     * Returns a map of access frequency to the number of cached regions matching the predicate,
+     * optionally including evicted regions.
+     */
+    public static <K extends SharedBlobCacheService.KeyBase> Map<Integer, Integer> countCachedRegionsByFreq(
+        SharedBlobCacheService<K> cacheService,
+        Predicate<K> predicate,
+        boolean includeEvicted
+    ) {
+        return cacheService.countCachedRegionsByFreq(predicate, includeEvicted);
     }
 }

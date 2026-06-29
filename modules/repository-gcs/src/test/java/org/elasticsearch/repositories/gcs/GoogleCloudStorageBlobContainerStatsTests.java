@@ -262,7 +262,8 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             null,
             MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
             MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
-            GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY)
+            GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY),
+            OptionalInt.empty()
         );
         googleCloudStorageService.refreshAndClearCache(Map.of(clientName, clientSettings));
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore(
@@ -273,7 +274,6 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             googleCloudStorageService,
             BigArrays.NON_RECYCLING_INSTANCE,
             Math.toIntExact(BUFFER_SIZE.getBytes()),
-            OptionalInt.empty(),
             BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(10), 10),
             new GcsRepositoryStatsCollector(),
             null,

@@ -258,12 +258,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             return pendingRecoveries.size();
         }
 
-        /// Enqueues the recovery request and starts it immediately if a slot is available, otherwise leaves it queued for later.
         /// Always enqueues first to preserve FIFO ordering across all recoveries.
+        /// Attempts recoveries for pending items (if slots are available) after enqueuing.
         void enqueueRecovery(StartRecoveryRequest request, Task task, IndexShard shard, ActionListener<RecoveryResponse> listener) {
             synchronized (this) {
                 assert lifecycle.started();
                 ensureNoDuplicateAllocationId(request.targetAllocationId());
+                // TODO: consider capping the queue depth and rejecting with DelayRecoveryException once exceeded.
                 final var subscribableListener = new SubscribableListener<RecoveryResponse>();
                 subscribableListener.addListener(listener);
                 pendingRecoveries.add(new PendingRecovery(request, task, shard, subscribableListener));
@@ -359,6 +360,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 oldMax = maxConcurrentOutgoingRecoveries;
                 maxConcurrentOutgoingRecoveries = newMax;
             }
+            // Called outside the lock: startRecoveriesUpToLimit() re-acquires it per dequeue iteration.
             if (oldMax < newMax) {
                 startRecoveriesUpToLimit();
             }

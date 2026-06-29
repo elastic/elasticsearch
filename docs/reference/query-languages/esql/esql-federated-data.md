@@ -24,14 +24,18 @@ Many organizations store large volumes of data in cloud object storage for cost 
 
 ## How it works
 
-Federated data uses two building blocks:
+Federated data separates connection details from reading and parsing details:
 
-- A **[data source](esql-federated-data-reference.md#data-source-api)** is a named connection to an external system. It stores the connection type, region, and credentials. A data source defines how to connect, not what data to query.
-- A **[dataset](esql-federated-data-reference.md#dataset-api)** is a virtual index that references a data source and specifies what to query. For file-based data sources, this is a resource path or glob pattern over files. A dataset is the entity you query by name, just like a regular index.
+- A **[data source](esql-federated-data-reference.md#data-source-api)** is where and how {{es}} connects. It stores the connection type, region, endpoint, and credentials. A data source defines how to connect, not what data to query.
+- A **[dataset](esql-federated-data-reference.md#dataset-api)** is what to read. For file-based data sources, this is a resource path or glob pattern over files. A dataset is the entity you query by name, just like a regular index.
+- **Compression** is how bytes are unwrapped before text files are parsed. For example, `logs.ndjson.gz` is recognized as a gzip-compressed NDJSON resource.
+- A **format reader** is how records are parsed after the bytes are available. Parquet, CSV, TSV, and NDJSON each have their own reader behavior and settings.
 
-Datasets share the same namespace as indices, aliases, and views. A dataset cannot have the same name as an existing index.
+In practice, you create a data source first, then create one or more datasets that reference it. The dataset selects the resource to read and, when needed, overrides format-reader settings such as CSV delimiters or schema sampling. Compression is inferred from the resource extension for supported text formats.
 
 One data source can serve many datasets. When credentials rotate, you update the data source in one place without touching the datasets that reference it.
+
+Datasets share the same namespace as indices, aliases, and views. A dataset cannot have the same name as an existing index.
 
 Once a dataset exists, you query it with `FROM`:
 

@@ -12,6 +12,17 @@ products:
 
 This page covers the full API surface, settings, and operational details for {{esql}} federated data sources and datasets. For an introduction to these concepts, refer to [{{esql}} federated data](esql-federated-data.md). For a quickstart guide, refer to [](esql-federated-data-quickstart.md).
 
+## Mental model
+
+Federated data has four layers:
+
+- **Data source:** where and how {{es}} connects. Data source settings configure the external system, endpoint, region, and authentication.
+- **Dataset:** what to read. Dataset definitions choose a data source and identify the resource, such as an S3 path or glob.
+- **Compression:** how bytes are unwrapped. For supported text formats, compression is inferred from the resource extension before parsing.
+- **Format reader:** how records are parsed. Each reader, such as Parquet, CSV, TSV, or NDJSON, has format-specific behavior and settings.
+
+The API sections below follow this model: data source APIs manage connections, dataset APIs manage queryable resources, and dataset settings configure compression and format-reader behavior.
+
 ## Supported data source types
 
 The following data source types are supported:

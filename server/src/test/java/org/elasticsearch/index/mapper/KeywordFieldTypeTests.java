@@ -17,6 +17,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -159,6 +160,104 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         };
         MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
         assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", MOCK_CONTEXT));
+    }
+
+    public void testNormalizeWildcardPatternReescapesOperators() {
+        // Regression test for #150699: when a normalizer (e.g. ICU NFKC) maps fullwidth forms to the ASCII wildcard
+        // operators, literal data must not become an operator, and the contents of an escape sequence must be
+        // normalized like any other literal.
+        Analyzer normalizer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer in = new WhitespaceTokenizer();
+                return new TokenStreamComponents(in, fullwidthToAsciiFilter(in));
+            }
+
+            @Override
+            protected TokenStream normalize(String fieldName, TokenStream in) {
+                return fullwidthToAsciiFilter(in);
+            }
+        };
+        NamedAnalyzer named = new NamedAnalyzer("fullwidth_nfkc", AnalyzerScope.INDEX, normalizer);
+
+        // Bug 1: an escaped fullwidth '＊' must be normalized to an escaped ASCII '*' (a literal star), not left as-is.
+        assertEquals("東京\\*大阪", StringFieldType.normalizeWildcardPattern("f", "東京\\＊大阪", named));
+        // Bug 2: a bare fullwidth '＊' must become an escaped ASCII '*' (literal), not a wildcard operator.
+        assertEquals("東京\\*大阪", StringFieldType.normalizeWildcardPattern("f", "東京＊大阪", named));
+        // Bug 2: a bare fullwidth '？' must become an escaped ASCII '?' (literal).
+        assertEquals("東京\\?大阪", StringFieldType.normalizeWildcardPattern("f", "東京？大阪", named));
+        // Real ASCII wildcard operators are preserved verbatim, including at the start and end of the pattern.
+        assertEquals("東京*大阪", StringFieldType.normalizeWildcardPattern("f", "東京*大阪", named));
+        assertEquals("foo?bar*", StringFieldType.normalizeWildcardPattern("f", "foo?bar*", named));
+        assertEquals("*大阪", StringFieldType.normalizeWildcardPattern("f", "*大阪", named));
+        assertEquals("東京*", StringFieldType.normalizeWildcardPattern("f", "東京*", named));
+        // A fullwidth backslash '＼' that normalizes to '\' must be re-escaped to a literal backslash, whether the
+        // user wrote it bare or escaped.
+        assertEquals("東京\\\\大阪", StringFieldType.normalizeWildcardPattern("f", "東京＼大阪", named));
+        assertEquals("東京\\\\大阪", StringFieldType.normalizeWildcardPattern("f", "東京\\＼大阪", named));
+        // An escape before a line terminator is still an escape (WILDCARD_PATTERN is DOTALL): "a\<LF>b" is the literal
+        // "a<LF>b", and the backslash must not be re-introduced as a literal backslash.
+        assertEquals("a\nb", StringFieldType.normalizeWildcardPattern("f", "a\\\nb", named));
+    }
+
+    private static TokenFilter fullwidthToAsciiFilter(TokenStream in) {
+        // Mimics the ICU NFKC mapping of the wildcard control characters: ＊ -> *, ？ -> ?, ＼ -> \
+        return new TokenFilter(in) {
+            private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+
+            @Override
+            public boolean incrementToken() throws IOException {
+                if (input.incrementToken() == false) {
+                    return false;
+                }
+                String normalized = termAtt.toString().replace('＊', '*').replace('？', '?').replace('＼', '\\');
+                termAtt.setEmpty().append(normalized);
+                return true;
+            }
+        };
+    }
+
+    public void testNormalizeWildcardPatternNormalizesContiguousLiteralRunAcrossEscape() {
+        // Regression test for #150699: an escape sequence in the middle of a literal run must not split normalization.
+        // A context-sensitive normalizer (here a multi-character mapping "ab" -> "x") must see the whole run "ab",
+        // even when it is written as "a\b".
+        Analyzer normalizer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer in = new WhitespaceTokenizer();
+                return new TokenStreamComponents(in, mappingFilter(in));
+            }
+
+            @Override
+            protected TokenStream normalize(String fieldName, TokenStream in) {
+                return mappingFilter(in);
+            }
+        };
+        NamedAnalyzer named = new NamedAnalyzer("ab_to_x", AnalyzerScope.INDEX, normalizer);
+
+        // "a\b" is the literal "ab" in Lucene; normalizing the whole contiguous run yields "x".
+        assertEquals("x", StringFieldType.normalizeWildcardPattern("f", "a\\b", named));
+        // Adjacent escapes accumulate into the same run, so "\a\b" (also literal "ab") yields "x" too.
+        assertEquals("x", StringFieldType.normalizeWildcardPattern("f", "\\a\\b", named));
+        // A wildcard operator between the two characters keeps them in separate runs, so the mapping does not apply.
+        assertEquals("a*b", StringFieldType.normalizeWildcardPattern("f", "a*b", named));
+    }
+
+    private static TokenFilter mappingFilter(TokenStream in) {
+        // A deliberately context-sensitive normalizer: it only maps the two-character sequence "ab" to "x".
+        return new TokenFilter(in) {
+            private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+
+            @Override
+            public boolean incrementToken() throws IOException {
+                if (input.incrementToken() == false) {
+                    return false;
+                }
+                String normalized = termAtt.toString().replace("ab", "x");
+                termAtt.setEmpty().append(normalized);
+                return true;
+            }
+        };
     }
 
     public void testTermsQuery() {

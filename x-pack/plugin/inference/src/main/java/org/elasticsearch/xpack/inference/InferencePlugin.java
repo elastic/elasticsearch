@@ -62,6 +62,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.inference.action.AuthorizationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
+import org.elasticsearch.xpack.inference.action.TransportElasticInferenceServiceAuthorizationAction;
 import org.elasticsearch.xpack.inference.action.TransportEmbeddingAction;
 import org.elasticsearch.xpack.inference.action.TransportGetCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
@@ -314,7 +316,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
             new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
             new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
-            new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class)
+            new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
+            new ActionHandler(AuthorizationAction.INSTANCE, TransportElasticInferenceServiceAuthorizationAction.class)
         );
     }
 
@@ -526,23 +529,21 @@ public class InferencePlugin extends Plugin
             services.featureService(),
             ccmEnablementService,
             ccmFeature,
-            new AuthorizationPoller.Parameters(
-                serviceComponents,
-                authorizationHandler,
-                sender,
-                inferenceServiceSettings,
-                modelRegistry,
-                services.client(),
-                ccmFeature,
-                ccmService,
-                inferenceFeatureService
-            )
+            new AuthorizationPoller.Parameters(serviceComponents, inferenceServiceSettings, services.client())
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);
         authTaskExecutor.startAndLazilyCreateTask();
 
         return new CCMRelatedComponents(
-            List.of(authorizationHandler, authTaskExecutor, ccmService, ccmPersistentStorageService, ccmCache, ccmEnablementService),
+            List.of(
+                authorizationHandler,
+                authTaskExecutor,
+                ccmService,
+                ccmPersistentStorageService,
+                ccmCache,
+                ccmEnablementService,
+                new PluginComponentBinding<>(InferenceFeatureService.class, inferenceFeatureService)
+            ),
             ccmAuthApplierFactory
         );
     }

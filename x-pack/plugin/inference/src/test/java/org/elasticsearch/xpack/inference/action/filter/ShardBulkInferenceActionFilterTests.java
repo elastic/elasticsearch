@@ -46,6 +46,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -96,6 +98,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -104,6 +107,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
@@ -1196,6 +1200,107 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         verify(coordinatingIndexingPressure).close();
     }
 
+    /**
+     * A base64 input whose decoded size exceeds the configured maximum should be rejected with a {@code 400 Bad Request} before any
+     * inference is performed. The failure message should identify the field, the offending source field, the decoded and maximum sizes, and
+     * the setting that controls the limit.
+     */
+    public void testBase64InputExceedingMaxSizeIsRejected() throws Exception {
+        assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
+        assumeTrue(
+            "Multimodal base64 inputs require the semantic field feature",
+            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
+        );
+
+        ByteSizeValue maxSize = ByteSizeValue.ofBytes(2);
+        // 8 base64 chars without padding decode to 6 bytes, which exceeds the 2 byte limit.
+        InferenceString input = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,AAAAAAAA");
+
+        BulkItemResponse.Failure failure = runSingleInputThroughFilter(maxSize, input);
+        assertNotNull("an oversized base64 input should be rejected", failure);
+        assertThat(failure.getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("Input for field [semantic_field] from source field [semantic_field]"));
+        assertThat(failure.getMessage(), containsString("decoded base64 size of [" + ByteSizeValue.ofBytes(6) + "]"));
+        assertThat(failure.getMessage(), containsString("exceeds the maximum allowed size of [" + maxSize + "]"));
+        assertThat(failure.getMessage(), containsString(INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getKey()));
+    }
+
+    /**
+     * A base64 input whose decoded size is exactly at the configured maximum should be accepted. This also verifies that base64 padding
+     * characters are correctly excluded from the decoded size calculation: without accounting for padding, the inputs below would be
+     * computed as larger than their true decoded size and incorrectly rejected.
+     */
+    public void testBase64InputAtMaxSizeWithPaddingIsAccepted() throws Exception {
+        assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
+        assumeTrue(
+            "Multimodal base64 inputs require the semantic field feature",
+            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
+        );
+
+        // "AAA=" -> 4 base64 chars with one padding char -> 2 decoded bytes, exactly at the 2 byte limit.
+        InferenceString singlePadding = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,AAA=");
+        assertNull("a base64 input at the limit should be accepted", runSingleInputThroughFilter(ByteSizeValue.ofBytes(2), singlePadding));
+
+        // "AAAAAA==" -> 8 base64 chars with two padding chars -> 4 decoded bytes, exactly at the 4 byte limit.
+        InferenceString doublePadding = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,AAAAAA==");
+        assertNull("a base64 input at the limit should be accepted", runSingleInputThroughFilter(ByteSizeValue.ofBytes(4), doublePadding));
+    }
+
+    /**
+     * Indexes a single document with one inference field set to the given input and returns the resulting item failure, or {@code null} if
+     * the item was processed successfully. When {@code cacheEmbedding} is set, the inference result for the input is pre-cached so that the
+     * inference call succeeds for inputs that are expected to pass the base64 size check.
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private BulkItemResponse.Failure runSingleInputThroughFilter(ByteSizeValue maxBase64InputSize, InferenceString input) throws Exception {
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
+        final StaticModel model = StaticModel.createRandomInstance(TaskType.EMBEDDING);
+
+        model.putResult(new InferenceStringGroup(input), randomMultimodalEmbedding(model));
+
+        ShardBulkInferenceActionFilter filter = createFilter(
+            threadPool,
+            Map.of(model.getInferenceEntityId(), model),
+            NOOP_INDEXING_PRESSURE,
+            useLegacyFormat,
+            inferenceStats,
+            maxBase64InputSize
+        );
+
+        final String field = "semantic_field";
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            field,
+            new InferenceFieldMetadata(field, model.getInferenceEntityId(), new String[] { field }, null)
+        );
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").source(Map.of(field, input), XContentType.JSON)) };
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
+        request.setInferenceFieldMap(inferenceFieldMap);
+
+        AtomicReference<BulkItemResponse.Failure> failureHolder = new AtomicReference<>();
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain actionFilterChain = (task, action, req, listener) -> {
+            try {
+                BulkItemRequest item = ((BulkShardRequest) req).items()[0];
+                if (item.getPrimaryResponse() != null) {
+                    failureHolder.set(item.getPrimaryResponse().getFailure());
+                }
+            } finally {
+                chainExecuted.countDown();
+            }
+        };
+        ActionListener actionListener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+        return failureHolder.get();
+    }
+
     private static ShardBulkInferenceActionFilter createFilter(
         ThreadPool threadPool,
         Map<String, StaticModel> modelMap,
@@ -1203,9 +1308,46 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         boolean useLegacyFormat,
         InferenceStats inferenceStats
     ) {
+        return createFilter(
+            threadPool,
+            modelMap,
+            indexingPressure,
+            useLegacyFormat,
+            inferenceStats,
+            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY)
+        );
+    }
+
+    private static ShardBulkInferenceActionFilter createFilter(
+        ThreadPool threadPool,
+        Map<String, StaticModel> modelMap,
+        IndexingPressure indexingPressure,
+        boolean useLegacyFormat,
+        InferenceStats inferenceStats,
+        ByteSizeValue maxBase64InputSize
+    ) {
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
-        return createFilter(threadPool, modelMap, indexingPressure, useLegacyFormat, licenseState, inferenceStats);
+        return createFilter(threadPool, modelMap, indexingPressure, useLegacyFormat, licenseState, inferenceStats, maxBase64InputSize);
+    }
+
+    private static ShardBulkInferenceActionFilter createFilter(
+        ThreadPool threadPool,
+        Map<String, StaticModel> modelMap,
+        IndexingPressure indexingPressure,
+        boolean useLegacyFormat,
+        MockLicenseState licenseState,
+        InferenceStats inferenceStats
+    ) {
+        return createFilter(
+            threadPool,
+            modelMap,
+            indexingPressure,
+            useLegacyFormat,
+            licenseState,
+            inferenceStats,
+            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY)
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -1215,7 +1357,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         IndexingPressure indexingPressure,
         boolean useLegacyFormat,
         MockLicenseState licenseState,
-        InferenceStats inferenceStats
+        InferenceStats inferenceStats,
+        ByteSizeValue maxBase64InputSize
     ) {
         ModelRegistry modelRegistry = mock(ModelRegistry.class);
         Answer<?> unparsedModelAnswer = invocationOnMock -> {
@@ -1349,7 +1492,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
 
         return new ShardBulkInferenceActionFilter(
-            createClusterService(useLegacyFormat),
+            createClusterService(useLegacyFormat, maxBase64InputSize),
             inferenceServiceRegistry,
             modelRegistry,
             licenseState,
@@ -1359,6 +1502,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     private static ClusterService createClusterService(boolean useLegacyFormat) {
+        return createClusterService(useLegacyFormat, INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY));
+    }
+
+    private static ClusterService createClusterService(boolean useLegacyFormat, ByteSizeValue maxBase64InputSize) {
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         var indexSettings = useLegacyFormat
             ? SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true)
@@ -1376,9 +1523,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
         long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
-        Settings settings = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes)).build();
+        Settings settings = Settings.builder()
+            .put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes))
+            .put(INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getKey(), maxBase64InputSize)
+            .build();
         when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE)));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE, INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE))
+        );
         return clusterService;
     }
 

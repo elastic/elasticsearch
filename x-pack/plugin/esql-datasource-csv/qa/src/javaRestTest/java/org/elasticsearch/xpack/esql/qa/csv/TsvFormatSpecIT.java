@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for standalone TSV files.
@@ -45,13 +44,6 @@ public class TsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
-    }
-
-    // Migrated specs run via FROM <dataset> on S3 (the anonymous-capable fixture backs a dataset without
-    // a cluster encryption key) and via the rebuilt EXTERNAL query on the other backends, so none are skipped.
-    @Override
-    protected Set<StorageBackend> datasetModeBackends() {
-        return Set.of(StorageBackend.S3);
     }
 
     // external-basic.csv-spec is dropped for TSV: its multi-value queries (MV_EXPAND / MV_COUNT on the

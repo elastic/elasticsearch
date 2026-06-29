@@ -3328,7 +3328,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
-            if(event.state().metadata().nodeShutdowns().contains(event.state().nodes().getLocalNodeId())) {
+            if (event.state().metadata().nodeShutdowns().contains(event.state().nodes().getLocalNodeId())) {
                 isNodeShuttingDown.compareAndSet(false, true);
             }
             if (event.nodesDelta().removed()) {

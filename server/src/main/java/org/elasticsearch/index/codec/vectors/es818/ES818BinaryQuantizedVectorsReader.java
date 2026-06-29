@@ -446,6 +446,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
             });
         } catch (Throwable t) {
             IOUtils.closeWhileSuppressingExceptions(t, quantizedScoreDataInput);
+            IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempScoreQuantizedVectorName);
             throw t;
         }
     }

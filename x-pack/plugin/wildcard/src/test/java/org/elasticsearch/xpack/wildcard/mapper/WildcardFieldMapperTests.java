@@ -1299,7 +1299,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 }
             });
 
-            // wildcard always uses SORTED_UNIQUE ordering: values are always deduplicated and sorted
+            // TODO update wildcard to use UNSORTED in columnar mode: https://github.com/elastic/elasticsearch/issues/152414
+            // Currently wildcard always uses SORTED_UNIQUE ordering: values are always deduplicated and sorted.
             List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
             Collections.sort(outList);
 

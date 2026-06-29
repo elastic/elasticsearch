@@ -1370,8 +1370,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         /**
-         * @return true when the index mode for this test is strictly columnar, meaning multi-value fields preserve insertion order and
-         * sorted-set fields preserve duplicates.
+         * @return true when the index mode for this test is strictly columnar,
+         * meaning multi-value fields preserve insertion order and duplicates.
          */
         default boolean isColumnar() {
             return false;

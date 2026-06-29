@@ -614,18 +614,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
   method: testMergingFallsBehindAndThenCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/152045
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
-  method: testDownsampling
-  issue: https://github.com/elastic/elasticsearch/issues/152060
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
-  method: testDownsamplingTriggersOnlyUpToMaxIndices
-  issue: https://github.com/elastic/elasticsearch/issues/152061
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
-  method: testDownsamplingOnlyExecutesTheLastMatchingRound
-  issue: https://github.com/elastic/elasticsearch/issues/152062
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
-  method: testUpdateDownsampleRound
-  issue: https://github.com/elastic/elasticsearch/issues/152063
 - class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
   method: testGenerateDefinitions
   issue: https://github.com/elastic/elasticsearch/issues/152095

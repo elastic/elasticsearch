@@ -1,0 +1,6 @@
+pr: 143824
+summary: Scope ES|QL aggregate canonicalization to deduplication paths during optimization.
+area: ES|QL
+type: bug
+issues:
+  - 137892

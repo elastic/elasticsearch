@@ -126,7 +126,7 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
                         Alias alias = rootAggs.get(canonical);
                         if (alias == null) {
                             // create synthetic alias over the found agg function
-                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), af.canonical(), null, true);
+                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), af, null, true);
                             // and remember it to remove duplicates
                             rootAggs.put(canonical, alias);
                             // add it to the list of aggregates and continue
@@ -172,7 +172,9 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
     }
 
     private static AggregateFunction getCannonical(AggregateFunction af, AttributeMap<Expression> aliases) {
-        return (AggregateFunction) af.canonical().transformUp(e -> aliases.resolve(e, e));
+        AggregateFunction resolved = (AggregateFunction) af.transformUp(e -> aliases.resolve(e, e));
+        AggregateFunction canonical = (AggregateFunction) resolved.canonical();
+        return canonical.equals(resolved) ? resolved : canonical;
     }
 
     private static String syntheticName(Expression expression, Expression af, int counter) {

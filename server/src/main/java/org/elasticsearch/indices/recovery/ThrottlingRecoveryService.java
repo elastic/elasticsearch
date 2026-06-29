@@ -9,8 +9,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -52,7 +50,6 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     private final Executor executor;
     private final ThreadContext threadContext;
-    private final ProjectResolver projectResolver;
     private final CompositeRecoverySchedulingListener schedulingListeners;
 
     private int maxConcurrentRecoveries;
@@ -63,13 +60,11 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     public ThrottlingRecoveryService(
         ThreadPool threadPool,
-        ProjectResolver projectResolver,
         ClusterService clusterService,
         CompositeRecoverySchedulingListener schedulingListeners
     ) {
         this.executor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
-        this.projectResolver = projectResolver;
         this.schedulingListeners = schedulingListeners;
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
@@ -77,7 +72,6 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
     public void enqueue(
-        ProjectId projectId,
         RecoveryListener recoveryListener,
         RecoveryState recoveryState,
         RecoveryStats stats,
@@ -86,8 +80,13 @@ public final class ThrottlingRecoveryService implements Closeable {
         final PendingRecovery pendingRecovery;
         synchronized (this) {
             if (closed == false) {
-                final var restorableContext = threadContext.newRestorableContext(false);
-                pendingRecovery = new PendingRecovery(projectId, recoveryState, stats, task, recoveryListener, restorableContext);
+                // restore context from enqueue time at execution time
+                final Supplier<ThreadContext.StoredContext> restorableContext = threadContext.newRestorableContext(false);
+                pendingRecovery = new PendingRecovery(recoveryState, stats, rl -> {
+                    try (var ignored = restorableContext.get()) {
+                        task.accept(rl);
+                    }
+                }, recoveryListener);
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             } else {
@@ -152,14 +151,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            try (ThreadContext.StoredContext ignore = recovery.context.get()) {
-                projectResolver.executeOnProject(
-                    recovery.projectId,
-                    () -> executor.execute(
-                        new RecoveryRunnable(recovery, RecoveryListener.runAfter(recovery.listener, () -> releaseSlot(recovery)))
-                    )
-                );
-            }
+            executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
@@ -191,28 +183,26 @@ public final class ThrottlingRecoveryService implements Closeable {
     }
 
     /// Metadata holder for a recovery that has been enqueued but not yet dispatched.
-    /// The `listener` is the one passed in to [#enqueue] by indicesServices. Slot-release, project context and
-    /// other wrappers are added at dispatch time, such that aborting a queued-but-never-dispatched task are not affected
+    /// The `listener` is the one passed in to [#enqueue] by indicesServices. Slot-release and other wrappers are added
+    /// at dispatch time, such that aborting a queued-but-never-dispatched task does not decrement a slot that was never taken.
     private record PendingRecovery(
-        ProjectId projectId,
         RecoveryState recoveryState,
         RecoveryStats stats,
         Consumer<RecoveryListener> task,
-        RecoveryListener listener,
-        Supplier<ThreadContext.StoredContext> context
+        RecoveryListener listener
     ) {}
 
-    /// Executable wrapper for a dispatched recovery.
-    /// The provided recovery listener is wrapped with `assertOnce` (to ensure there is only one terminal callback).
+    /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
+    /// with `runAfter` (to release a recovery slot on completion) and `assertOnce` (to ensure there is only one terminal callback).
     private static class RecoveryRunnable extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
         private final RecoveryListener listener;
 
-        private RecoveryRunnable(PendingRecovery pending, RecoveryListener recoveryListener) {
+        private RecoveryRunnable(PendingRecovery pending, Runnable runAfter) {
             this.recoveryState = pending.recoveryState;
             this.task = pending.task;
-            this.listener = RecoveryListener.assertOnce(recoveryListener);
+            this.listener = RecoveryListener.assertOnce(RecoveryListener.runAfter(pending.listener, runAfter));
         }
 
         @Override

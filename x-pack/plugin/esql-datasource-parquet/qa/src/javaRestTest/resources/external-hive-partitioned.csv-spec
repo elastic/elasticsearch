@@ -4,13 +4,13 @@
 // shadow of the payload column `languages`; rows in lang=__HIVE_DEFAULT_PARTITION__ are exactly the
 // rows where the payload's languages column is also null. Bucket sizes: 15/19/17/18/21/10.
 //
-// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
-// backends (S3) ParquetFormatSpecIT registers the dataset and runs the FROM query verbatim; the other backends
-// — and ParquetRsFormatSpecIT — rebuild the equivalent EXTERNAL query. The hive template has no index twin, so
-// the dataset keeps the bare name employees_hive.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The format ITs register
+// the dataset on every storage backend and run the FROM query verbatim (HTTP, which cannot list a directory,
+// skips these glob reads). The hive template has no index twin, so the dataset keeps the bare name
+// employees_hive.
 
 hivePartitionStatsByLang
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -27,7 +27,7 @@ count:long | lang:integer
 ;
 
 hivePartitionWhereIsNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -39,7 +39,7 @@ count:long
 ;
 
 hivePartitionWhereEquals
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -51,7 +51,7 @@ count:long
 ;
 
 hivePartitionConsistentWithPayload
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -63,7 +63,7 @@ count:long
 ;
 
 hivePartitionWhereIsNotNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -78,7 +78,7 @@ count:long
 // other partitions. Kleene OR pulls in lang=null/gender=M rows (NULL OR TRUE = TRUE).
 // M rows per partition: 9+11+11+8+7=46 (lang=1,2,4,5,null), plus 17 lang=3.
 hivePartitionOrNonPartitionFilter
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -93,7 +93,7 @@ count:long
 // FALSE: lang in {1,2,4,5} AND gender = "F". F rows: 4+5+6+9 = 24. lang=null and
 // gender=null rows are filtered out by Kleene (NULL → NULL → NOT NULL = NULL).
 hivePartitionNotOrFilter
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -108,7 +108,7 @@ count:long
 // lang!=3 rows survive (73). lang=3 gender=F survives (6). lang=null gender=F
 // survives (NULL AND FALSE = FALSE → NOT FALSE = TRUE; 3 rows).
 hivePartitionNotAndFilter
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -120,7 +120,7 @@ count:long
 ;
 
 hivePartitionStatsByLangAndGender
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive

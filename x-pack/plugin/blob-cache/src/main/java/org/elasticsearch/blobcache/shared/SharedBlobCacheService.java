@@ -968,7 +968,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * The predicate is evaluated when the task runs; demotion is skipped when it returns {@code false}.
      */
     public void demoteAllAsync(ShardId shard, Predicate<ShardId> shouldDemote) {
-        // TODO do not submit task if shutting down
         asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
             @Override
             public void onResponse(Releasable releasable) {

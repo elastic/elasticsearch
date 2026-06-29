@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -89,7 +90,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         final var plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
-        return plugins;
+        return Collections.unmodifiableList(plugins);
     }
 
     @Override

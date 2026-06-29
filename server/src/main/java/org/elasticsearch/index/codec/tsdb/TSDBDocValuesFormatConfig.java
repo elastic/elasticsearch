@@ -140,5 +140,6 @@ public record TSDBDocValuesFormatConfig(
     public static final int VERSION_NUMERIC_LARGE_BLOCKS = 2;
     public static final int VERSION_PREFIX_PARTITIONS = 4;
     public static final int VERSION_SEPARATE_SKIPLIST = 5;
-    public static final int VERSION_CURRENT = VERSION_SEPARATE_SKIPLIST;
+    public static final int VERSION_ORDINAL_BLOCK_SHIFT = 6;
+    public static final int VERSION_CURRENT = VERSION_ORDINAL_BLOCK_SHIFT;
 }

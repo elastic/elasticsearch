@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 960
+pr: 152021
+summary: Bound and cancel external-source resolution
+type: enhancement

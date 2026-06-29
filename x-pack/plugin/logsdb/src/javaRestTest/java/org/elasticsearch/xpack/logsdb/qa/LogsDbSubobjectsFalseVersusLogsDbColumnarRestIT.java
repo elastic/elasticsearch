@@ -41,6 +41,8 @@ import java.util.stream.Collectors;
  *   <li>{@code store} – not allowed in columnar mode</li>
  *   <li>{@code synthetic_source_keep} – not allowed in columnar mode</li>
  *   <li>{@code subobjects} – not allowed in columnar mode</li>
+ *   <li>{@code copy_to} – not allowed in columnar mode; stripped from both sides so
+ *       the common supported subset is compared without cross-field copying.</li>
  *   <li>{@code dynamic: runtime} – not supported in strict columnar mode</li>
  *   <li>{@code dynamic: false} – logsdb stores ignored field values in {@code _ignored_source}
  *       (they appear in the reconstructed source), but logsdb_columnar drops them entirely
@@ -76,7 +78,7 @@ import java.util.stream.Collectors;
  *       {@code defaultDocValuesParameters()}, activating {@code usesBinaryDocValues()=true};
  *       combined with {@code FieldMapper.indexParam()} defaulting to {@code false} when
  *       {@code isIndexDisabledByDefault()=true} (set by logsdb_columnar), {@code hasTerms()=false}
- *       routes term/prefix/range queries through {@code SlowCustomBinaryDocValues*Query}, which
+ *       routes term/prefix/range queries through {@code ScanningBinaryDocValues*Query}, which
  *       uses {@code MultiValueSeparateCountBinaryDocValuesReader} expecting {@code SeparateCount}
  *       format; the binary DV is stored in {@code ArrayOrderInlineNull} format
  *       ({@code arrayOrderBinaryDocValues=true} in strict-columnar + multiValue), causing an
@@ -129,7 +131,7 @@ import java.util.stream.Collectors;
  */
 public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallengeRestIT {
 
-    private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects");
+    private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects", "copy_to");
     private static final Set<String> SHAPE_TYPES = Set.of("geo_shape", "shape");
 
     private Set<String> shapeFieldPaths;
@@ -296,7 +298,7 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
         // returns HIGH when isStrictColumnar()), which activates usesBinaryDocValues()=true.
         // Combined with isIndexDisabledByDefault()=true (FieldMapper.indexParam() returns false by
         // default when the index setting is disabled), index:false means hasTerms()=false →
-        // term/prefix/range queries route through SlowCustomBinaryDocValues*Query. That reader uses
+        // term/prefix/range queries route through ScanningBinaryDocValues*Query. That reader uses
         // MultiValueSeparateCountBinaryDocValuesReader which expects SeparateCount format, but the
         // data is stored in ArrayOrderInlineNull format (arrayOrderBinaryDocValues=true in strict-
         // columnar + multiValue mode) → Invalid vInt server crash.

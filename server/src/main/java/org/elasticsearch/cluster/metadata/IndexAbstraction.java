@@ -9,9 +9,13 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -21,12 +25,35 @@ import java.util.Objects;
  * An index abstraction has a unique name and encapsulates all the {@link Index} instances it is pointing to.
  * Also depending on type it may refer to a single or many concrete indices and may or may not have a write index.
  */
-public interface IndexAbstraction {
+public interface IndexAbstraction extends Writeable {
 
     /**
      * @return the type of the index abstraction
      */
     Type getType();
+
+    /**
+     * Writes a type discriminator followed by the abstraction's payload to {@code out}.
+     * Companion to {@link #read}.
+     */
+    static void write(StreamOutput out, IndexAbstraction abstraction) throws IOException {
+        out.writeEnum(abstraction.getType());
+        abstraction.writeTo(out);
+    }
+
+    /**
+     * Reads an {@link IndexAbstraction} from {@code in}, expecting the format written by {@link #write}.
+     */
+    static IndexAbstraction read(StreamInput in) throws IOException {
+        Type type = in.readEnum(Type.class);
+        return switch (type) {
+            case CONCRETE_INDEX -> ConcreteIndex.readFrom(in);
+            case ALIAS -> Alias.readFrom(in);
+            case DATA_STREAM -> DataStream.read(in);
+            case VIEW -> new View(in);
+            case DATASET -> new Dataset(in);
+        };
+    }
 
     /**
      * @return the name of the index abstraction
@@ -177,6 +204,24 @@ public interface IndexAbstraction {
             this(indexMetadata, null);
         }
 
+        private ConcreteIndex(Index concreteIndex, boolean isHidden, boolean isSystem) {
+            this.concreteIndex = concreteIndex;
+            this.isHidden = isHidden;
+            this.isSystem = isSystem;
+            this.dataStream = null;
+        }
+
+        static ConcreteIndex readFrom(StreamInput in) throws IOException {
+            return new ConcreteIndex(new Index(in), in.readBoolean(), in.readBoolean());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            concreteIndex.writeTo(out);
+            out.writeBoolean(isHidden);
+            out.writeBoolean(isSystem);
+        }
+
         @Override
         public String getName() {
             return concreteIndex.getName();
@@ -289,6 +334,47 @@ public interface IndexAbstraction {
             this.isSystem = false;
             this.dataStreamAlias = true;
             this.dataStreams = dataStreams;
+        }
+
+        private Alias(
+            String aliasName,
+            List<Index> referenceIndices,
+            @Nullable Index writeIndex,
+            boolean isHidden,
+            boolean isSystem,
+            boolean dataStreamAlias,
+            List<String> dataStreams
+        ) {
+            this.aliasName = aliasName;
+            this.referenceIndices = referenceIndices;
+            this.writeIndex = writeIndex;
+            this.isHidden = isHidden;
+            this.isSystem = isSystem;
+            this.dataStreamAlias = dataStreamAlias;
+            this.dataStreams = dataStreams;
+        }
+
+        static Alias readFrom(StreamInput in) throws IOException {
+            return new Alias(
+                in.readString(),
+                in.readCollectionAsList(Index::new),
+                in.readOptionalWriteable(Index::new),
+                in.readBoolean(),
+                in.readBoolean(),
+                in.readBoolean(),
+                in.readStringCollectionAsList()
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(aliasName);
+            out.writeCollection(referenceIndices);
+            out.writeOptionalWriteable(writeIndex);
+            out.writeBoolean(isHidden);
+            out.writeBoolean(isSystem);
+            out.writeBoolean(dataStreamAlias);
+            out.writeStringCollection(dataStreams);
         }
 
         @Override

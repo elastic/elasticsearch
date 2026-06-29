@@ -12,12 +12,15 @@ package org.elasticsearch.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -96,12 +99,42 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
      * Represents local (non-remote) resolution results, including expanded indices, and a {@link LocalIndexResolutionResult}.
      */
     public static final class LocalExpressions implements Writeable {
+        private static final TransportVersion RESOLVED_ABSTRACTION_VERSION = TransportVersion.fromName(
+            "resolved_abstraction_in_local_expressions"
+        );
+
         private final Set<String> indices;
         private final LocalIndexResolutionResult localIndexResolutionResult;
         @Nullable
         private ElasticsearchException exception;
+        /**
+         * Per-index abstraction details, keyed by the same strings as {@link #indices} (including any selector suffix).
+         * Null when received from a node that predates {@link #RESOLVED_ABSTRACTION_VERSION}.
+         */
+        @Nullable
+        private final Map<String, IndexAbstraction> resolutions;
 
         /**
+         * @param indices represents the resolved concrete indices backing the expression
+         * @param resolutions per-index abstraction details; must have the same key set as {@code indices} when non-null
+         */
+        public LocalExpressions(
+            Set<String> indices,
+            LocalIndexResolutionResult localIndexResolutionResult,
+            @Nullable ElasticsearchException exception,
+            @Nullable Map<String, IndexAbstraction> resolutions
+        ) {
+            assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS || exception == null
+                : "If the local resolution result is SUCCESS, exception must be null";
+            this.indices = indices;
+            this.localIndexResolutionResult = localIndexResolutionResult;
+            this.exception = exception;
+            this.resolutions = resolutions;
+        }
+
+        /**
+         * Convenience constructor for callers that do not yet populate abstraction details.
+         *
          * @param indices represents the resolved concrete indices backing the expression
          */
         public LocalExpressions(
@@ -109,11 +142,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
             LocalIndexResolutionResult localIndexResolutionResult,
             @Nullable ElasticsearchException exception
         ) {
-            assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS || exception == null
-                : "If the local resolution result is SUCCESS, exception must be null";
-            this.indices = indices;
-            this.localIndexResolutionResult = localIndexResolutionResult;
-            this.exception = exception;
+            this(indices, localIndexResolutionResult, exception, null);
         }
 
         public Set<String> indices() {
@@ -127,6 +156,15 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
         @Nullable
         public ElasticsearchException exception() {
             return exception;
+        }
+
+        /**
+         * Per-index abstraction details, keyed by the same strings as {@link #indices()}.
+         * Returns null when received from a node that predates {@link #RESOLVED_ABSTRACTION_VERSION}.
+         */
+        @Nullable
+        public Map<String, IndexAbstraction> resolutions() {
+            return resolutions;
         }
 
         public void setExceptionIfUnset(ElasticsearchException exception) {
@@ -151,12 +189,13 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
             var that = (LocalExpressions) obj;
             return Objects.equals(this.indices, that.indices)
                 && Objects.equals(this.localIndexResolutionResult, that.localIndexResolutionResult)
-                && Objects.equals(this.exception, that.exception);
+                && Objects.equals(this.exception, that.exception)
+                && Objects.equals(this.resolutions, that.resolutions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, localIndexResolutionResult, exception);
+            return Objects.hash(indices, localIndexResolutionResult, exception, resolutions);
         }
 
         @Override
@@ -170,6 +209,9 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
                 + ", "
                 + "exception="
                 + exception
+                + ", "
+                + "resolutions="
+                + resolutions
                 + ']';
         }
 
@@ -180,7 +222,10 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
             this(
                 in.readCollectionAsImmutableSet(StreamInput::readString),
                 in.readEnum(LocalIndexResolutionResult.class),
-                ElasticsearchException.readException(in)
+                ElasticsearchException.readException(in),
+                in.getTransportVersion().supports(RESOLVED_ABSTRACTION_VERSION) && in.readBoolean()
+                    ? in.readMap(IndexAbstraction::read)
+                    : null
             );
         }
 
@@ -189,6 +234,12 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
             out.writeStringCollection(indices);
             out.writeEnum(localIndexResolutionResult);
             ElasticsearchException.writeException(exception, out);
+            if (out.getTransportVersion().supports(RESOLVED_ABSTRACTION_VERSION)) {
+                out.writeBoolean(resolutions != null);
+                if (resolutions != null) {
+                    out.writeMap(resolutions, IndexAbstraction::write);
+                }
+            }
         }
     }
 }

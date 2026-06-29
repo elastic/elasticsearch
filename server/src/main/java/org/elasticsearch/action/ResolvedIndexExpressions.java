@@ -12,14 +12,17 @@ package org.elasticsearch.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndexExpression.LocalExpressions;
 import org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -62,10 +65,8 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         private final List<ResolvedIndexExpression> expressions = new ArrayList<>();
 
         /**
-         * Add a new resolved expression.
-         * @param original         the original expression that was resolved -- may be blank for "access all" cases
-         * @param localExpressions is a HashSet as an optimization -- the set needs to be mutable, and we want to avoid copying it.
-         *                         May be empty.
+         * Add a new resolved expression without abstraction details. Prefer the overload that accepts
+         * {@code resolutions} when {@link IndexAbstraction} objects are available at the call site.
          */
         public void addExpressions(
             String original,
@@ -73,12 +74,34 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult,
             Set<String> remoteExpressions
         ) {
+            addExpressions(original, localExpressions, new HashMap<>(), resolutionResult, remoteExpressions);
+        }
+
+        /**
+         * Add a new resolved expression.
+         * @param original         the original expression that was resolved -- may be blank for "access all" cases
+         * @param localExpressions is a HashSet as an optimization -- the set needs to be mutable, and we want to avoid copying it.
+         *                         May be empty.
+         * @param resolutions      per-index abstraction details; must have the same key set as {@code localExpressions}.
+         */
+        public void addExpressions(
+            String original,
+            HashSet<String> localExpressions,
+            HashMap<String, IndexAbstraction> resolutions,
+            ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult,
+            Set<String> remoteExpressions
+        ) {
             Objects.requireNonNull(original);
             Objects.requireNonNull(localExpressions);
+            Objects.requireNonNull(resolutions);
             Objects.requireNonNull(resolutionResult);
             Objects.requireNonNull(remoteExpressions);
             expressions.add(
-                new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult, null), remoteExpressions)
+                new ResolvedIndexExpression(
+                    original,
+                    new LocalExpressions(localExpressions, resolutionResult, null, resolutions),
+                    remoteExpressions
+                )
             );
         }
 
@@ -131,6 +154,10 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
                         continue;
                     }
                     localExpressions.removeAll(expressionsToExclude);
+                    final Map<String, IndexAbstraction> resolutions = current.localExpressions().resolutions();
+                    if (resolutions != null) {
+                        resolutions.keySet().removeAll(expressionsToExclude);
+                    }
                 }
             }
         }

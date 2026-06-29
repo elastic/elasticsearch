@@ -9,9 +9,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.IndexAbstractionOptions;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -25,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -36,6 +40,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class IndexAbstractionResolverTests extends ESTestCase {
@@ -212,6 +217,59 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("*", "-*::custom")));
     }
 
+    public void testResolutionsContainCorrectAbstractionTypesForWildcard() {
+        Settings indexSettings = Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .put("index.number_of_shards", 1)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .build();
+
+        IndexMetadata myIndex = IndexMetadata.builder("my-index")
+            .settings(indexSettings)
+            .putAlias(AliasMetadata.builder("my-alias").build())
+            .build();
+
+        View myView = new View("my-view", "FROM my-index");
+        Dataset myDataset = new Dataset("my-dataset", new DataSourceReference("ds-source"), "s3://bucket/logs/*.parquet", null, Map.of());
+
+        ProjectMetadata project = ProjectMetadata.builder(projectMetadata.id())
+            .put(myIndex, false)
+            .views(Map.of("my-view", myView))
+            .datasets(Map.of("my-dataset", myDataset))
+            .build();
+
+        IndicesOptions options = IndicesOptions.builder(IndicesOptions.strictExpandOpen())
+            .indexAbstractionOptions(new IndexAbstractionOptions(true, true, true))
+            .build();
+
+        Set<String> allNames = Set.of("my-index", "my-alias", "my-view", "my-dataset");
+
+        ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
+            List.of("*"),
+            options,
+            project,
+            (ignored) -> allNames,
+            (ignored1, ignored2) -> true,
+            true
+        );
+
+        assertThat(resolved.expressions(), hasSize(1));
+        Map<String, IndexAbstraction> resolutions = resolved.expressions().getFirst().localExpressions().resolutions();
+        assertNotNull(resolutions);
+
+        assertThat(
+            Maps.transformValues(resolutions, IndexAbstraction::getType),
+            equalTo(
+                Map.ofEntries(
+                    Map.entry("my-index", IndexAbstraction.Type.CONCRETE_INDEX),
+                    Map.entry("my-alias", IndexAbstraction.Type.ALIAS),
+                    Map.entry("my-view", IndexAbstraction.Type.VIEW),
+                    Map.entry("my-dataset", IndexAbstraction.Type.DATASET)
+                )
+            )
+        );
+    }
+
     public void testIsIndexVisible() {
         assertThat(isIndexVisible("index1", null), is(true));
         assertThat(isIndexVisible("index1", "data"), is(true));
@@ -278,7 +336,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         // these indices options are for the GET _data_streams case
         final IndicesOptions noHiddenNoAliases = IndicesOptions.builder()
             .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(false).build())
-            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
+            .indexAbstractionOptions(IndexAbstractionOptions.builder().resolveAliases(false).build())
             .build();
 
         {

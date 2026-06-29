@@ -803,9 +803,9 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp
 2024-10-23T13:55:01.543Z | null
 ;
 
-// An unmapped field referenced only in the outer query (above the union) and unmapped in every branch source is null-filled
-// everywhere for union-type consistency, even though it exists in each branch's _source. The branches do not
-// project their output, so the null-filled column flows up to the union for the outer reference to resolve against.
+// An unmapped field referenced only after the union (above the subqueries) and unmapped in every branch source is loaded from
+// _source in all branches, exactly as "FROM idx1, idx2 | KEEP missing" loads it from every index. Each branch surfaces its own
+// _source value for unmapped_message.
 loadUnmappedFieldReferencedOnlyAboveSubqueries
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: subquery_in_from_command
@@ -817,9 +817,9 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
 | SORT @timestamp
 ;
 
-@timestamp:date          | message:keyword        | unmapped_message:null
-2024-10-23T13:33:34.937Z | 42                     | null
-2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | null
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 42                     | 43
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 ;
 
 // Subquery load is per-branch: unmapped_message loads only in the branch that references it; the sibling
@@ -836,6 +836,24 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp
 @timestamp:date          | unmapped_message:keyword | client_ip:ip | event_duration:long | message:keyword
 2024-10-23T13:33:34.937Z | 43                       | null         | null                | null
 2024-10-23T13:55:01.543Z | null                     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1!
+;
+
+// An outer-only unmapped field over a union mixing an index branch and a ROW branch is loaded from _source in the index
+// branch; the ROW branch cannot load it and is null-filled during alignment with the union's keyword representative type.
+loadUnmappedFieldReferencedOnlyAboveIndexAndRowUnion
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"), (ROW synthetic = 99)
+| KEEP message, unmapped_message, synthetic
+| SORT synthetic NULLS LAST, message
+;
+
+message:keyword | unmapped_message:keyword | synthetic:integer
+null            | null                     | 99
+42              | 43                       | null
 ;
 
 // A field cast to different numeric types in sibling subqueries resolves to UNSUPPORTED (cross-branch
@@ -863,6 +881,256 @@ null                        | 11
 null                        | 11
 null                        | 11
 null                        | 11
+;
+
+// An unmapped field referenced only after the subqueries is loaded from _source in every branch and then fed to a function.
+loadSubqueryOuterEvalFunctionMaterializesAllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| EVAL upper = TO_UPPER(unmapped_message)
+| KEEP message, unmapped_message, upper
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | upper:keyword
+42                     | 43                         | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+;
+
+// An unmapped field materialized in all branches and then filtered by an outer WHERE keeps only the matching rows.
+loadSubqueryOuterWhereMaterializesAllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connection error?")
+| WHERE unmapped_message == "Disconnection error"
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword   | unmapped_message:keyword
+Connection error? | Disconnection error
+Connection error? | Disconnection error
+Connection error? | Disconnection error
+;
+
+// An unmapped field materialized in all branches and used as an outer STATS grouping key.
+loadSubqueryOuterStatsByMaterializesAllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+;
+
+// An unmapped field materialized in three branches and ordered by an outer SORT.
+loadSubqueryOuterSortDescMaterializesThreeBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.2!")
+| KEEP message, unmapped_message
+| SORT unmapped_message DESC
+;
+
+message:keyword        | unmapped_message:keyword
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+42                     | 43
+;
+
+// A different unmapped field, referenced only after the subqueries, is materialized in every branch and cast to a number.
+loadSubqueryOuterCastEvalMaterializesAllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| EVAL dur = unmapped_event_duration::long
+| KEEP message, dur
+| SORT message
+;
+
+message:keyword        | dur:long
+42                     | 1232383
+Connected to 10.1.0.1! | 1756468
+;
+
+// One branch DROPs an unmapped field that is referenced after the subqueries: the dropping branch null-fills it while the
+// sibling still materializes it from _source, exactly as a mapped field aligns across branches.
+loadSubqueryDropInOneBranchMaterializesSibling
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// One branch RENAMEs the unmapped field away; an outer reference to the original name still materializes in the sibling,
+// while the renamed branch surfaces the value under the new name.
+loadSubqueryRenameAwayOuterReferencesOriginalName
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message, renamed
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | renamed:keyword
+42                     | null                       | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
+;
+
+// A branch filters on the unmapped field then DROPs it; the outer reference still materializes in the sibling branch.
+loadSubqueryWhereThenDropInOneBranchMaterializesSibling
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE unmapped_message == "43" | DROP unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// EVAL keeps the unmapped field in the branch output, so the in-branch reference scopes it to that branch and the sibling
+// null-fills it (independent sources).
+loadSubqueryEvalInOneBranchScopesFieldToBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | EVAL tag = unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message, tag
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | tag:keyword
+42                     | 43                       | 43
+Connected to 10.1.0.1! | null                     | null
+;
+
+// KEEP surfaces the unmapped field in the branch output, scoping it to that branch; an outer expression sees null in the sibling.
+loadSubqueryKeepInOneBranchScopesFieldToBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP message)
+| EVAL has = unmapped_message IS NOT NULL
+| KEEP message, unmapped_message, has
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | has:boolean
+42                     | 43                       | true
+Connected to 10.1.0.1! | null                     | false
+;
+
+// One branch renames the unmapped field; an outer reference to the NEW name resolves only against that branch, so the sibling null-fills it.
+loadSubqueryRenameInOneBranchOuterReferencesNewName
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, renamed
+| SORT message
+;
+
+message:keyword        | renamed:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+// One branch DROPs unmapped_message (materialized in the sibling) while a second, outer-only unmapped field is materialized in both branches.
+loadSubqueryDropOneFieldMaterializeAnother
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message, unmapped_event_duration
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | unmapped_event_duration:keyword
+42                     | null                       | 1232383
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1756468
+;
+
+// A STATS branch aggregates the unmapped field away (does not surface it), so the outer reference broadcasts: the plain branch
+// materializes it from _source while the STATS branch null-fills it at the union.
+loadSubqueryStatsInOneBranchNullFillsOuterReference
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | STATS rows = COUNT(*))
+| KEEP message, unmapped_message, rows
+| SORT message NULLS LAST
+;
+
+message:keyword | unmapped_message:keyword | rows:long
+42              | 43                       | null
+null            | null                     | 1
+;
+
+// Consistency anchor: a MAPPED field dropped in one branch and referenced outside null-fills the dropping branch and surfaces in the sibling,
+// matching the loaded-unmapped-field behavior above.
+loadSubqueryMappedFieldDropBaselineConsistency
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP event_duration),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, event_duration
+| SORT message
+;
+
+message:keyword        | event_duration:long
+42                     | null
+Connected to 10.1.0.1! | 1756466
 ;
 
 // An unmapped field referenced in one FORK branch can be renamed and grouped on after the FORK; it is

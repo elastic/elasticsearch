@@ -83,11 +83,10 @@ setup:
   - match: { values.2: [3, "n3"] }
 
 ---
-"null-fill unmapped field referenced only above a branching view":
+"load unmapped field referenced only above a branching view":
   # The view branches over independent sources (idx1 and the idx2 subquery), so it expands to a ViewUnionAll. note is referenced only
-  # in the outer query, above the union, and is unmapped in every branch source, so it is null-filled everywhere for union-type
-  # consistency (Decision B) - its column type is null. Note that a plain multi-index pattern (FROM idx1, idx2) would instead resolve
-  # to a single source and load note from _source; the subquery is what creates the cross-source boundary.
+  # in the outer query, above the union, and is unmapped in every branch source. Because it is mentioned only after the union, it is
+  # loaded from _source in all branches (#142033), exactly as a plain multi-index pattern (FROM idx1, idx2) would load it.
   - do:
       esql.put_view:
         name: v_union
@@ -102,11 +101,11 @@ setup:
   - match: { columns.1.name: color }
   - match: { columns.1.type: keyword }
   - match: { columns.2.name: note }
-  - match: { columns.2.type: "null" }
+  - match: { columns.2.type: keyword }
   - length: { values: 3 }
-  - match: { values.0: [1, "red", null] }
-  - match: { values.1: [2, "blue", null] }
-  - match: { values.2: [3, "green", null] }
+  - match: { values.0: [1, "red", "n1"] }
+  - match: { values.1: [2, "blue", "n2"] }
+  - match: { values.2: [3, "green", "n3"] }
 
 ---
 "cross-branch type conflict fails when the column is used":

@@ -129,10 +129,16 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
             return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify);
         });
+        return nullifyNonEsRelationSources(transformed, unresolved);
+    }
 
-        // For non-EsRelation sources (Row, LocalRelation): insert Eval nodes with null assignments
-        // This handles cases like: ROW x = 1 | EVAL y = unmapped_field
-        transformed = transformed.transformUp(
+    /**
+     * Inserts {@code EVAL <name> = NULL} atop non-{@link EsRelation} sources (Row/LocalRelation) for every attribute in
+     * {@code unresolved}. EsRelation sources are handled separately (their output gains the fields directly). This handles cases
+     * like {@code ROW x = 1 | EVAL y = unmapped_field}.
+     */
+    private static LogicalPlan nullifyNonEsRelationSources(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+        var transformed = plan.transformUp(
             n -> n instanceof UnaryPlan unary && unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false,
             p -> evalUnresolvedAtopUnary((UnaryPlan) p, nullAliases(unresolved))
         );
@@ -172,39 +178,67 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * Loading is scope-aware with respect to subqueries and views ({@link UnionAll}, including {@code ViewUnionAll}). Because the rule is
      * applied bottom-up, a field referenced inside one branch is loaded when the rule fires on that branch's subtree (which contains no
      * {@code UnionAll}, so it takes the simple, source-spanning path below) - sibling branches are not touched and are later null-filled by
-     * {@code ResolveRefs#resolveFork} alignment.
-     * When the rule instead fires on a node spanning a {@code UnionAll} (an outer reference),
-     * a field absent from every branch source cannot be attributed to a single independent source, so it is null-filled everywhere;
-     * a field already present (mapped or already loaded) in some branch is left to resolve through the union output.
-     *
-     * Null-filling happens at the branch sources, so the outer reference only resolves when the column survives each
-     * branch's pipeline up to the union; if every branch drops it (e.g. a non-grouping STATS), the reference correctly stays unresolved
-     * and fails verification.
-     *
+     * {@code ResolveRefs#resolveFork} alignment. This keeps an in-branch reference scoped to its own independent source (see
+     * <a href="https://github.com/elastic/elasticsearch/issues/142033">#142033</a>).
+     * <p>
+     * When the rule instead fires on a node spanning a {@code UnionAll} (an outer reference, mentioned only after the subqueries/views), a
+     * field surfaced (mapped, or loaded by an in-branch reference and kept in the branch output) by some branch is left to resolve through
+     * the union output - we must not leak a single branch's in-branch load into its siblings. A field not surfaced by any branch was
+     * referenced only above the union, so it is loaded from {@code _source} in <i>all</i> branches that can surface it (the
+     * {@link EsRelation} sources), exactly as {@code FROM idx1, idx2 | KEEP missing} loads it from every index. Crucially, a branch that
+     * references a field only to {@code DROP}/{@code RENAME} it away does not surface it, so that branch no longer suppresses the broadcast
+     * to its siblings and the field still materializes there - just as a mapped field would be aligned across branches. Non-{@link
+     * EsRelation} sources (Row/LocalRelation) cannot load from {@code _source}; a branch that does not surface the column (a Row/LocalRelation
+     * source, or a pipeline that drops it, e.g. a non-grouping STATS) is null-filled by {@code ResolveRefs#resolveFork} alignment, which uses
+     * the union representative's type so the loaded keyword and the null-filled siblings reconcile.
+     * <p>
      * Cross-branch type conflicts are caught later by {@code UnionAll#checkUnionAll}.
      */
     private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
         if (plan.anyMatch(p -> p instanceof UnionAll)) {
-            // Crossing independent-source boundaries: never load an outer reference into a branch source.
-            Set<String> presentInAnyBranch = esRelationOutputNames(plan);
-            LinkedHashSet<UnresolvedAttribute> toNullify = new LinkedHashSet<>();
+            // A field surfaced by some branch (mapped, or loaded by an in-branch reference and kept in the branch's output) stays scoped
+            // to that branch and resolves through the union output; only a field not surfaced by any branch is a pure outer reference,
+            // broadcast-loaded into all branches that can surface it (#142033). Using the branches' surfaced outputs - rather than the
+            // deep EsRelation outputs - means a branch that references a field only to DROP/RENAME it away no longer suppresses the
+            // broadcast to its siblings, so the field still materializes there, exactly as a mapped field would be aligned across branches.
+            Set<String> surfacedByAnyBranch = unionBranchOutputNames(plan);
+            LinkedHashSet<UnresolvedAttribute> outerReferences = new LinkedHashSet<>();
             for (UnresolvedAttribute ua : unresolved) {
-                if (presentInAnyBranch.contains(ua.name()) == false) {
-                    toNullify.add(ua);
+                if (surfacedByAnyBranch.contains(ua.name()) == false) {
+                    outerReferences.add(ua);
                 }
             }
-            return toNullify.isEmpty() ? plan : nullify(plan, toNullify);
+            return outerReferences.isEmpty() ? plan : loadIntoSources(plan, outerReferences);
         }
+        return loadIntoSources(plan, unresolved);
+    }
+
+    /**
+     * Adds {@code _source} keyword loaders for {@code toLoad} to every (non-LOOKUP) {@link EsRelation} reachable from {@code plan}.
+     * Non-{@link EsRelation} sources (Row/LocalRelation) cannot load from {@code _source} and are left for {@code ResolveRefs#resolveFork}
+     * to null-fill during branch alignment.
+     */
+    private static LogicalPlan loadIntoSources(LogicalPlan plan, Set<UnresolvedAttribute> toLoad) {
         return plan.transformUp(EsRelation.class, esr -> {
-            List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, Expressions.names(esr.output()));
+            List<FieldAttribute> fieldsToLoad = fieldsToLoad(toLoad, Expressions.names(esr.output()));
             return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad);
         });
     }
 
-    private static Set<String> esRelationOutputNames(LogicalPlan plan) {
+    /**
+     * The names surfaced by any branch of a {@link UnionAll} (subquery / view) - i.e. what each branch's pipeline actually outputs to the
+     * union. A field surfaced by some branch (mapped, or loaded by an in-branch reference that the branch keeps in its output) resolves
+     * through the union output and is not broadcast into siblings. A field referenced inside a branch only to be dropped/renamed away is
+     * not surfaced, so an outer reference still broadcast-loads it into every branch that can surface it - matching mapped-field behavior.
+     */
+    private static Set<String> unionBranchOutputNames(LogicalPlan plan) {
         Set<String> names = new HashSet<>();
-        plan.forEachDown(EsRelation.class, esr -> names.addAll(Expressions.names(esr.output())));
+        plan.forEachDown(UnionAll.class, ua -> {
+            for (LogicalPlan branch : ua.children()) {
+                names.addAll(Expressions.names(branch.output()));
+            }
+        });
         return names;
     }
 

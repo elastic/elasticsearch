@@ -196,7 +196,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     // unmapped_fields="load" now supports subqueries (see #142033); does_not_exist1/2 are outer-only references unmapped in every
-    // branch, so they are null-filled (Decision B) and the statement analyzes successfully (LOOKUP JOIN inside a branch is fine).
+    // branch, so they are loaded from _source in all branches (loaded into the non-lookup sources; branches that drop the column - e.g.
+    // the STATS branch - null-fill it at the union), and the statement analyzes successfully (LOOKUP JOIN inside a branch is fine).
     public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
@@ -600,8 +601,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM (FROM test | WHERE emp_no > 1),(FROM test | WHERE emp_no < 100)"));
     }
 
-    // does_not_exist is referenced only in the outer KEEP and is unmapped in every branch, so it is null-filled (Decision B) and the
-    // branching-view equivalent analyzes successfully (#142033).
+    // does_not_exist is referenced only in the outer KEEP and is unmapped in every branch, so it is loaded from _source in all branches
+    // (#142033); the branching-view equivalent analyzes successfully.
     public void testLoadModeAllowsBranchingViewEquivalentWithUnmappedField() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().statement(

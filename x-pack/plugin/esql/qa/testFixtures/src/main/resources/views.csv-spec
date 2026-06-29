@@ -2706,6 +2706,25 @@ Connection error?      | Disconnection error
 Connection error?      | Disconnection error
 ;
 
+// An unmapped field referenced only after a branching union of views is loaded from _source in every branch (#142033),
+// so each branch surfaces its own _source value rather than null-filling the column.
+loadViewBranchingUnmappedFieldReferencedOnlyAboveUnion
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
 // MV_EXPAND on a multi-value field loaded from _source through a view splits every value into its own row.
 loadMvViewExpandCount
 required_capability: optional_fields_load_with_fork_subqueries_and_views
@@ -2795,4 +2814,234 @@ message:keyword        | unmapped_mv:keyword
 42                     | h
 42                     | i
 Connected to 10.1.0.1! | [a, b]
+;
+
+// An unmapped field referenced only after a branching union of views is loaded from _source in every branch and fed to a function.
+loadViewOuterEvalFunctionMaterializesAllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| EVAL upper = TO_UPPER(unmapped_message)
+| KEEP message, unmapped_message, upper
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | upper:keyword
+42                     | 43                         | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+;
+
+// An unmapped field materialized across a branching view union and used as an outer STATS grouping key.
+loadViewOuterStatsByMaterializesAllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+;
+
+// An unmapped field materialized across three view branches and ordered by an outer SORT.
+loadViewOuterSortDescMaterializesThreeBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.2!")
+| KEEP message, unmapped_message
+| SORT unmapped_message DESC
+;
+
+message:keyword        | unmapped_message:keyword
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+42                     | 43
+;
+
+// One view branch DROPs an unmapped field referenced after the union: the dropping branch null-fills it, the sibling materializes it.
+loadViewDropInOneBranchMaterializesSibling
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// One view branch RENAMEs the field away; an outer reference to the original name still materializes in the sibling.
+loadViewRenameAwayOuterReferencesOriginalName
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message, renamed
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | renamed:keyword
+42                     | null                       | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
+;
+
+// A view branch filters on the unmapped field then DROPs it; the outer reference still materializes in the sibling view branch.
+loadViewWhereThenDropInOneBranchMaterializesSibling
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// EVAL keeps the field in the view branch output, scoping the in-branch reference to that branch; the sibling null-fills it.
+loadViewEvalInOneBranchScopesFieldToBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message, tag
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | tag:keyword
+42                     | 43                       | 43
+Connected to 10.1.0.1! | null                     | null
+;
+
+// KEEP surfaces the field in the view branch output, scoping it to that branch; an outer expression sees null in the sibling.
+loadViewKeepInOneBranchScopesFieldToBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message)
+| EVAL has = unmapped_message IS NOT NULL
+| KEEP message, unmapped_message, has
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | has:boolean
+42                     | 43                       | true
+Connected to 10.1.0.1! | null                     | false
+;
+
+// One view branch renames the field; an outer reference to the NEW name resolves only against that branch, so the sibling null-fills it.
+loadViewRenameInOneBranchOuterReferencesNewName
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, renamed
+| SORT message
+;
+
+message:keyword        | renamed:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+// A union mixing a view branch and a direct-index branch: an outer-only unmapped field materializes from _source in both.
+loadViewMixedViewAndIndexBranchesMaterialize
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// A view branch DROPs the field while the sibling index branch materializes it from _source.
+loadViewDropInViewBranchMaterializeIndexBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// A non-branching view passes unmapped fields through; an outer EVAL materializes and transforms them from _source.
+loadViewPassthroughOuterEvalMaterializes
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_view
+| WHERE message == "Connected to 10.1.0.3!"
+| EVAL upper = TO_UPPER(unmapped_message), len = LENGTH(unmapped_message)
+| KEEP message, upper, len
+;
+
+message:keyword        | upper:keyword              | len:integer
+Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3 | 26
 ;

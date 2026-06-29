@@ -327,8 +327,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
-    // does_not_exist is referenced only in the outer KEEP and is unmapped in every branch source: it is null-filled everywhere
-    // (Decision B in #142033), so the load golden equals the nullify golden.
+    // does_not_exist is referenced only in the outer KEEP and is unmapped in every branch source: it is loaded from _source in all
+    // branches (#142033, "referenced after subqueries"), exactly as "FROM idx1, idx2 | KEEP missing" loads it from every index.
     public void testSubqueryKeepUnmapped() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTests("""
@@ -665,8 +665,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // does_not_exist1 is loaded per branch (Decision A); does_not_exist2 is referenced only in the outer WHERE and is unmapped in
-    // every branch, so it is null-filled everywhere (Decision B).
+    // does_not_exist1 is referenced inside each branch, so it is loaded into each branch's own source (in-branch scope); does_not_exist2
+    // is referenced only in the outer WHERE and is unmapped in every branch, so it is loaded from _source in all branches (#142033).
     public void testDoubleSubqueryOnlyWithTopFilterAndNoMain() throws Exception {
         assumeTrue(
             "Requires subquery in FROM command support",
@@ -682,8 +682,9 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // does_not_exist1 is loaded into the languages branch (Decision A); does_not_exist2 is referenced only in the outer WHERE and is
-    // unmapped everywhere, so it is null-filled (Decision B).
+    // does_not_exist1 is referenced inside the languages branch, so it is loaded only there (in-branch scope) and null-filled in the
+    // employees branch; does_not_exist2 is referenced only in the outer WHERE and is unmapped everywhere, so it is loaded from _source
+    // in all branches (#142033).
     public void testSubqueryAndMainQuery() throws Exception {
         assumeTrue(
             "Requires subquery in FROM command support",
@@ -694,6 +695,18 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
                 (FROM languages
                  | WHERE does_not_exist1::LONG > 1)
             | WHERE does_not_exist2::LONG < 10 AND emp_no > 0
+            """);
+    }
+
+    // Outer-only reference over a union that mixes an index branch and a ROW (LocalRelation) branch: does_not_exist is loaded from
+    // _source into the employees EsRelation, while the ROW branch - which cannot load from _source - is null-filled by
+    // ResolveRefs#resolveFork alignment, so the outer reference still resolves over the union.
+    public void testSubqueryWithRowBranchOuterReference() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        runTests("""
+            FROM employees, (ROW synthetic = 1)
+            | KEEP emp_no, synthetic, does_not_exist
             """);
     }
 
@@ -734,8 +747,9 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // does_not_exist is referenced only in the outer SORT and is unmapped everywhere (the STATS branch drops everything but c),
-    // so it is null-filled (Decision B); the load golden equals the nullify golden.
+    // does_not_exist is referenced only in the outer SORT and is unmapped everywhere, so it is loaded from _source in all branches
+    // (#142033). The main branch surfaces the loaded keyword; the STATS branch loads it at its source but STATS drops it, so that
+    // branch null-fills the column at the union.
     public void testSubqueryAfterUnionAllOfStatsAndMain() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTests("""
@@ -745,8 +759,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // does_not_exist1 is referenced inside both language branches (Decision A) and again in the outer WHERE (resolves via the union
-    // output); does_not_exist2 is outer-only and unmapped everywhere (Decision B).
+    // does_not_exist1 is referenced inside both language branches (loaded there, in-branch scope) and again in the outer WHERE (resolves
+    // via the union output); does_not_exist2 is outer-only and unmapped everywhere, so it is loaded from _source in all branches (#142033).
     public void testSubquerysWithMainAndSameOptional() throws Exception {
         assumeTrue(
             "Requires subquery in FROM command support",
@@ -1128,8 +1142,31 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // does_not_exist is referenced after the subqueries; the languages branch DROPs it, so it does not surface there and is null-filled,
+    // while the employees branch materializes it from _source - matching how a mapped field aligns across branches (#142033). The
+    // in-branch DROP no longer suppresses the outer-reference broadcast to the sibling, because the branch no longer surfaces the column.
+    public void testSubqueryDropInBranchMaterializesSibling() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTests("""
+            FROM employees,
+                (FROM languages | DROP does_not_exist)
+            | KEEP emp_no, language_code, does_not_exist
+            """);
+    }
+
+    // The languages branch RENAMEs does_not_exist away; an outer reference to the original name still materializes it in the employees
+    // branch (#142033), while the languages branch surfaces the value under the new name and null-fills the original name at the union.
+    public void testSubqueryRenameInBranchOuterReferencesOriginalName() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTests("""
+            FROM employees,
+                (FROM languages | RENAME does_not_exist AS renamed)
+            | KEEP emp_no, language_code, does_not_exist, renamed
+            """);
+    }
+
     // Branching view (expands to ViewUnionAll, a UnionAll subclass): does_not_exist is referenced only in the outer KEEP and is
-    // unmapped in every branch, so it is null-filled everywhere (Decision B). Exercises the ViewUnionAll scope boundary.
+    // unmapped in every branch, so it is loaded from _source in all branches (#142033). Exercises the ViewUnionAll scope boundary.
     public void testViewBranchingLoadsUnmappedField() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         runTests("""
@@ -1159,10 +1196,11 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // does_not_exist is referenced only in the outer WHERE, but the ::LONG cast over the union is handled by union-type conversion, which
-    // pushes a per-branch $$does_not_exist$converted_to$long into every branch source; load and nullify therefore converge here. The value
-    // of the test is confirming that load mode handles a branching subquery mixing a plain source, a filtered source and a LOOKUP JOIN
-    // without hitting the (now lifted) restriction.
+    // does_not_exist is referenced only in the outer WHERE and is unmapped everywhere, so it is loaded from _source in all branches
+    // (#142033); the ::LONG cast then applies per branch via union-type conversion ($$does_not_exist$converted_to$long). The loaded
+    // source is added only to the non-lookup EsRelations - the languages_lookup relation on the LOOKUP JOIN's right side is left untouched.
+    // The value of the test is confirming that load mode handles a branching subquery mixing a plain source, a filtered source and a
+    // LOOKUP JOIN without hitting the (now lifted) restriction.
     public void testSubqueryWithLookupJoin() throws Exception {
         assumeTrue(
             "Requires subquery in FROM command support",

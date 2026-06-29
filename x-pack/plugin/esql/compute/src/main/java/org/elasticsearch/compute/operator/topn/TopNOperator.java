@@ -481,7 +481,6 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public Operator tryPromote(DriverContext driverContext) {
-        // TODO:
         if (parallelWorkerConfig == null) {
             return this;
         }
@@ -502,8 +501,7 @@ public class TopNOperator implements Operator, Accountable {
             maxPageRows,
             jumboPageBytes,
             inputOrdering,
-            minCompetitiveSupplier,
-            null
+            minCompetitiveSupplier
         );
     }
 

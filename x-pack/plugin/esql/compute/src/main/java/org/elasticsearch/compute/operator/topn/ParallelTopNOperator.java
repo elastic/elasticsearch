@@ -228,6 +228,7 @@ public class ParallelTopNOperator implements Operator, Accountable {
     public void addInput(Page page) {
         page.allowPassingToDifferentDriver();
         in.addPage(page);
+        // if `in` buffer is full, process on Driver thread
         if (in.waitForWriting().listener().isDone() == false) {
             processPagesWithCurrentThread();
         }

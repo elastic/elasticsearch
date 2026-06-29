@@ -47,12 +47,15 @@ import java.util.function.Supplier;
  *   <li>The {@link ThrottledIterator} releasable is closed on send ACK, triggering the next chunk</li>
  * </ul>
  * <b>Threading:</b> The search thread produces up to {@code maxInFlightChunks} chunks in the
- * initial burst, then returns to the thread pool. Subsequent chunks are produced on whatever
- * thread ACKs a previous send. Per-leaf Lucene readers are re-acquired via {@link #setNextReader}
- * (clone-per-chunk) whenever production crosses a leaf boundary or moves to a different thread,
- * satisfying Lucene's thread-affinity assertions. If consecutive chunks stay within the same leaf
- * on the same producer thread, the previous leaf setup is reused to avoid rebuilding stored-field
- * loaders, doc-values, and sub-phase processor state on every chunk.
+ * initial burst, then returns to the thread pool. Subsequent chunks are produced on the
+ * {@code continuationExecutor}, which the caller pins to a single thread for the lifetime of the
+ * fetch so that all post-burst continuations run on that one thread. Per-leaf Lucene readers are
+ * re-acquired via {@link #setNextReader} (clone-per-chunk) whenever production crosses a leaf
+ * boundary or moves to a different thread, satisfying Lucene's thread-affinity assertions. Because
+ * continuations are pinned, after the initial hand-off from the burst thread the leaf setup is
+ * reused across chunks within the same leaf instead of being rebuilt whenever a continuation hops
+ * to a different search thread, avoiding redundant stored-field loader, doc-values, and sub-phase
+ * processor rebuilds for large responses.
  * <p>
  * <b>Memory Management:</b> The circuit breaker tracks recycler page allocations via the
  * {@link RecyclerBytesStreamOutput} passed from the chunk writer. If the breaker trips
@@ -82,7 +85,14 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
      * @param maxInFlightChunks   maximum concurrent unacknowledged chunks
      * @param sendFailure         atomic reference to capture send failures
      * @param isCancelled         supplier for cancellation checking
-     * @param continuationExecutor executor for dispatching chunk production after ACKs
+     * @param continuationExecutor executor for dispatching chunk production after ACKs. To keep the leaf-setup thread
+     *                             stable across chunks (so per-leaf Lucene setup is reused rather than rebuilt on every
+     *                             chunk), the caller should supply an executor that runs all continuations on a single
+     *                             thread for the lifetime of this fetch.
+     * @param completionExecutor  executor used to dispatch the final completion handler off the ACK / producer thread.
+     *                             This is kept separate from {@code continuationExecutor} so that small responses, which
+     *                             never trigger a post-burst continuation, do not pay the cost of spinning up the pinned
+     *                             continuation thread just to run the completion handler.
      * @param listener            receives the result with the last chunk bytes
      */
     void iterateAsync(
@@ -96,6 +106,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         AtomicReference<Throwable> sendFailure,
         Supplier<Boolean> isCancelled,
         Executor continuationExecutor,
+        Executor completionExecutor,
         ActionListener<IterateResult> listener
     ) {
         if (docIds == null || docIds.length == 0) {
@@ -128,8 +139,10 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         );
 
         // Dispatch rawCompletion off the ACK / producer thread; it fires the listener itself and never throws.
+        // Use the completion executor (the shared search pool) rather than the pinned continuation executor so that
+        // small responses, which never produce a continuation, do not lazily start the single-thread continuation pool.
         Runnable rawCompletion = createCompletionHandler(listener, producerError, sendFailure, isCancelled, lastChunkHolder);
-        Runnable onCompletion = () -> continuationExecutor.execute(new AbstractRunnable() {
+        Runnable onCompletion = () -> completionExecutor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
                 rawCompletion.run();

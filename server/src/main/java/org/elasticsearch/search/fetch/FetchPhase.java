@@ -92,7 +92,7 @@ public final class FetchPhase {
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
         // Synchronous wrapper for backward compatibility,
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        execute(context, docIdsToLoad, rankDocs, null, null, null, null, null, null, future);
+        execute(context, docIdsToLoad, rankDocs, null, null, null, null, null, null, null, future);
         try {
             future.actionGet();
         } catch (UncategorizedExecutionException e) {
@@ -113,7 +113,7 @@ public final class FetchPhase {
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
         // Synchronous wrapper for backward compatibility,
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        execute(context, docIdsToLoad, rankDocs, memoryChecker, null, null, null, null, null, future);
+        execute(context, docIdsToLoad, rankDocs, memoryChecker, null, null, null, null, null, null, future);
         try {
             future.actionGet();
         } catch (UncategorizedExecutionException e) {
@@ -142,9 +142,15 @@ public final class FetchPhase {
      *                          value is resolved from {@link SearchService#FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES}.
      * @param continuationExecutor executor for dispatching chunk production after ACK-driven continuation in streaming mode.
      *                             When a chunk ACK arrives on a network thread, this executor ensures the next chunk is produced
-     *                             on a search thread rather than inline on the network thread. Required when {@code writer} is
+     *                             off the network thread. To allow per-leaf Lucene setup to be reused across chunks, this executor
+     *                             should pin all of a fetch's continuations to a single thread. Required when {@code writer} is
      *                             non-{@code null} (streaming mode); ignored otherwise. May be {@code null} only in non-streaming
      *                             mode.
+     * @param completionExecutor executor used to dispatch the final completion handler in streaming mode. Kept separate from
+     *                           {@code continuationExecutor} (typically the shared search pool) so that small responses, which
+     *                           produce no continuation, do not start the pinned continuation thread. Required when {@code writer}
+     *                           is non-{@code null} (streaming mode); ignored otherwise. May be {@code null} only in non-streaming
+     *                           mode.
      * @param buildListener optional listener invoked when all {@link SearchHit} objects have been constructed
      *                      (and, in streaming mode, serialized into chunks and dispatched to the writer).
      *                      In non-streaming mode this fires immediately after the hits are built, just like {@code listener}.
@@ -164,6 +170,7 @@ public final class FetchPhase {
         @Nullable Integer maxInFlightChunks,
         @Nullable Integer targetChunkBytes,
         @Nullable Executor continuationExecutor,
+        @Nullable Executor completionExecutor,
         @Nullable ActionListener<Void> buildListener,
         ActionListener<Void> listener
     ) {
@@ -218,6 +225,7 @@ public final class FetchPhase {
             buildSearchHits(context, docIdsToLoad, docsIterator, resolvedBuildListener, hitsListener);
         } else {
             assert continuationExecutor != null : "continuationExecutor is required in streaming mode";
+            assert completionExecutor != null : "completionExecutor is required in streaming mode";
             var settings = context.getSearchExecutionContext().getIndexSettings().getSettings();
             buildSearchHitsStreaming(
                 context,
@@ -227,6 +235,7 @@ public final class FetchPhase {
                 resolveMaxInFlightChunks(maxInFlightChunks, settings),
                 resolveTargetChunkBytes(targetChunkBytes, settings),
                 continuationExecutor,
+                completionExecutor,
                 resolvedBuildListener,
                 hitsListener
             );
@@ -470,6 +479,7 @@ public final class FetchPhase {
         int maxInFlightChunks,
         int targetChunkBytes,
         Executor continuationExecutor,
+        Executor completionExecutor,
         ActionListener<Void> buildListener,
         ActionListener<SearchHitsWithSizeBytes> listener
     ) {
@@ -517,6 +527,7 @@ public final class FetchPhase {
             sendFailure,
             context::isCancelled,
             continuationExecutor,
+            completionExecutor,
             new ActionListener<>() {
                 @Override
                 public void onResponse(FetchPhaseDocsIterator.IterateResult result) {

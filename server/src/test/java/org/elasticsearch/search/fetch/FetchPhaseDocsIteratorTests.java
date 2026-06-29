@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.ShardId;
@@ -57,6 +58,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -196,6 +198,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             sendFailure,
             cancelled::get,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -274,6 +277,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             sendFailure,
             cancelled::get,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -321,6 +325,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             sendFailure,
             cancelled::get,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -361,6 +366,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
@@ -419,6 +425,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
                 sendFailure,
                 cancelled::get,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 future
             );
 
@@ -472,6 +479,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             sendFailure,
             cancelled::get,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
         chunkWriter.ackAll();
@@ -510,6 +518,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
@@ -565,6 +574,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
@@ -622,6 +632,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             sendFailure,
             cancelled::get,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -658,6 +669,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
@@ -708,6 +720,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
@@ -786,6 +799,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             sendFailure,
             cancelled::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
@@ -911,6 +925,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             new AtomicReference<>(),
             new AtomicBoolean(false)::get,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
 
@@ -958,6 +973,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             4,
             new AtomicReference<>(),
             new AtomicBoolean(false)::get,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
@@ -1012,6 +1028,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
                 sendFailure,
                 new AtomicBoolean(false)::get,
                 threadPool.generic(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 future
             );
 
@@ -1052,6 +1069,79 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         docs.directory.close();
     }
 
+    public void testPinnedContinuationsReuseLeafSetupAcrossChunks() throws Exception {
+        LuceneDocs docs = createDocs(150, true);
+        assertThat("need a single leaf", docs.reader.leaves().size(), equalTo(1));
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        InFlightTrackingChunkWriter chunkWriter = new InFlightTrackingChunkWriter(circuitBreaker);
+        AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+        RecordingStreamingIterator it = new RecordingStreamingIterator();
+
+        // A single-thread executor pins every post-burst continuation to one thread, mirroring the production
+        // PinnedContinuationExecutor that SearchService supplies for streaming fetches.
+        ExecutorService pinnedExecutor = EsExecutors.newFixed(
+            "pinned-test",
+            1,
+            -1,
+            EsExecutors.daemonThreadFactory("test", "pinned-test"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        try {
+            PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+            CountDownLatch refsComplete = new CountDownLatch(1);
+            RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+            it.iterateAsync(
+                createShardTarget(),
+                docs.reader,
+                docs.docIds,
+                chunkWriter,
+                50, // tiny chunk size -> many chunks
+                refs,
+                1, // every ACK dispatches a continuation on the pinned executor
+                sendFailure,
+                new AtomicBoolean(false)::get,
+                pinnedExecutor,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                future
+            );
+
+            Thread testThread = Thread.currentThread();
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (future.isDone() == false && System.nanoTime() < deadlineNanos) {
+                chunkWriter.ackAll();
+                Thread.yield();
+            }
+
+            IterateResult result = future.get(10, TimeUnit.SECONDS);
+            refs.close();
+            assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+
+            assertThat("no send failure", sendFailure.get(), nullValue());
+            assertThat("producer should have emitted many chunks", chunkWriter.getSentChunks().size(), greaterThan(2));
+
+            // With continuations pinned to one thread, leaf setup is rebuilt only at the single hand-off from the
+            // caller (burst) thread to the pinned thread: once on each. It must NOT be rebuilt on every chunk, even
+            // though many chunks are produced via post-burst continuations within the same leaf.
+            assertThat("leaf setup must not be rebuilt per chunk", it.setupCount(), equalTo(2));
+            Set<String> threadsSeen = it.distinctThreads();
+            assertThat("setup runs on the caller thread then the single pinned thread", threadsSeen.size(), equalTo(2));
+            assertTrue("first leaf setup must come from the caller thread", threadsSeen.contains(testThread.getName()));
+
+            int totalHits = chunkWriter.getSentChunks().stream().mapToInt(c -> c.hitCount).sum() + result.lastChunkHitCount;
+            assertThat(totalHits, equalTo(docs.docIds.length));
+
+            result.close();
+            assertThat(circuitBreaker.getUsed(), equalTo(0L));
+        } finally {
+            pinnedExecutor.shutdown();
+            assertTrue(pinnedExecutor.awaitTermination(10, TimeUnit.SECONDS));
+            docs.reader.close();
+            docs.directory.close();
+        }
+    }
+
     public void testIterateAsyncConcurrentLeafSetupStress() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         Executor continuationExecutor = threadPool.generic();
@@ -1086,6 +1176,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
                         sendFailure,
                         new AtomicBoolean(false)::get,
                         continuationExecutor,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         future
                     );
 

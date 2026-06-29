@@ -54,6 +54,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -162,6 +163,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -275,7 +277,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<Boolean> FETCH_PHASE_CHUNKED_ENABLED = Setting.boolSetting(
         "search.fetch_phase_chunked_enabled",
-        CHUNKED_FETCH_PHASE_FEATURE_FLAG,
+        true,
         Property.NodeScope,
         Property.Dynamic
     );
@@ -1224,12 +1226,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<FetchSearchResult> listener
     ) {
         final Executor searchExecutor = getExecutor(readerContext.indexShard());
+        // Pins all post-burst streaming-fetch chunk-production continuations to a single thread so that per-leaf Lucene
+        // setup (stored-field/source/id loaders and sub-phase processors) is reused across chunks instead of being rebuilt
+        // whenever a continuation would otherwise hop to a different search thread. The executor is created lazily on first
+        // use, so responses that fit within the initial in-flight burst (and non-streaming fetches) never start a thread.
+        final PinnedContinuationExecutor pinnedContinuationExecutor = new PinnedContinuationExecutor(
+            clusterService.getNodeName(),
+            threadPool.getThreadContext()
+        );
         searchExecutor.execute(new AbstractRunnable() {
             private volatile SearchContext searchContext;
 
             private final Releasable closeOnce = Releasables.releaseOnce(Releasables.wrap(() -> {
                 if (readerContext.singleSession()) freeReaderContext(request.contextId(), "fetch phase finalize (single session)");
-            }, () -> Releasables.close(searchContext), markAsUsed));
+            }, () -> Releasables.close(searchContext), markAsUsed, pinnedContinuationExecutor::shutdown));
 
             @Override
             protected void doRun() throws Exception {
@@ -1256,6 +1266,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         writer,
                         fetchPhaseMaxInFlightChunks,
                         fetchPhaseTargetChunkBytes,
+                        pinnedContinuationExecutor,
                         searchExecutor,
                         newFetchBuildListener(opsListener, searchContext, startTime, metricsDelta, fetchResult, closeOnce),
                         newFetchCompletionListener(listener, fetchResult)
@@ -1314,6 +1325,67 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchSearchResult fetchResult
     ) {
         return ActionListener.releaseAfter(listener.map(ignored -> fetchResult), fetchResult::decRef);
+    }
+
+    /**
+     * An {@link Executor} that lazily creates a single-thread pool on first use and runs every task on that one thread.
+     * <p>
+     * Used to pin a streaming fetch's chunk-production continuations to a single thread. {@code ThrottledIterator} already
+     * serializes production (only one continuation runs at a time), but each post-burst continuation would otherwise be
+     * dispatched to an arbitrary search-pool thread, forcing the streaming fetch docs iterator to rebuild per-leaf
+     * Lucene setup (stored-field/source/id loaders and sub-phase processors) on nearly every chunk to satisfy Lucene's
+     * thread-affinity assertions. Running all continuations on one thread lets that per-leaf setup be reused across chunks.
+     * <p>
+     * The underlying pool is created lazily, so responses that never produce a post-burst continuation (the common case, and
+     * all non-streaming fetches) do not start a thread. It is released via {@link #shutdown()} once the fetch completes.
+     */
+    private static final class PinnedContinuationExecutor implements Executor {
+
+        private static final String NAME = "fetch_chunk_continuation";
+
+        private final String nodeName;
+        private final ThreadContext threadContext;
+        private ExecutorService delegate; // guarded by this
+        private boolean shutdown; // guarded by this
+
+        PinnedContinuationExecutor(String nodeName, ThreadContext threadContext) {
+            this.nodeName = nodeName;
+            this.threadContext = threadContext;
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            final ExecutorService target;
+            synchronized (this) {
+                if (shutdown == false && delegate == null) {
+                    // A fixed pool of exactly one thread: every task runs on the same worker for the lifetime of the fetch.
+                    delegate = EsExecutors.newFixed(
+                        NAME,
+                        1,
+                        -1,
+                        EsExecutors.daemonThreadFactory(nodeName, NAME),
+                        threadContext,
+                        EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                    );
+                }
+                target = shutdown ? null : delegate;
+            }
+            if (target == null) {
+                // No continuations are expected after the fetch completes; run inline as a defensive fallback.
+                command.run();
+            } else {
+                target.execute(command);
+            }
+        }
+
+        synchronized void shutdown() {
+            shutdown = true;
+            if (delegate != null) {
+                // Graceful shutdown lets any in-flight/queued task finish; the (daemon) worker then exits.
+                delegate.shutdown();
+                delegate = null;
+            }
+        }
     }
 
     public void executeQueryPhase(

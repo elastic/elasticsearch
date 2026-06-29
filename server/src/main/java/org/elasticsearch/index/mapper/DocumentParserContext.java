@@ -13,6 +13,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -35,6 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
@@ -439,13 +441,8 @@ public abstract class DocumentParserContext {
         if (satisfiedIsSubset ? satisfied.size() == required.size() : satisfied.containsAll(required)) {
             return;
         }
-        List<String> missing = new ArrayList<>();
-        for (String field : required) {
-            if (satisfied.contains(field) == false) {
-                missing.add(field);
-            }
-        }
-        Collections.sort(missing); // deterministic message regardless of iteration order
+        // sortedDifference gives a deterministic message regardless of iteration order; only allocated on the (cold) failure path.
+        SortedSet<String> missing = Sets.sortedDifference(required, satisfied);
         throw new IllegalArgumentException("Field(s) " + missing + " are configured with [nullability=false] but no value was provided");
     }
 

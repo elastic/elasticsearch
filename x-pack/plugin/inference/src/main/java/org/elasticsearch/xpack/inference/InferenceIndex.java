@@ -37,9 +37,14 @@ public class InferenceIndex {
      * Returns true when the .inference index already has v4 mappings that include the {@code doc_type} field,
      * or when the index does not yet exist and it is safe to assume it will be created with v4 mappings.
      * <p>
-     * Returns false during a mixed-version cluster (where an old master may create the index with v3 mappings),
-     * and false when the index exists but still carries v3 or earlier mappings (i.e. before the mapping migration
-     * completes during a rolling upgrade).
+     * When the index does not yet exist, returns true only if all nodes in the cluster carry the
+     * {@link InferenceFeatures#INFERENCE_INFERENCE_INDEX_DOC_TYPE} feature, which guarantees that whichever
+     * node creates the index will apply the v4 mappings. Returns false if any node is missing the feature.
+     * <p>
+     * When the index exists, returns false if it still carries v3 or earlier mappings (before the mapping
+     * migration completes during a rolling upgrade).
+     * <p>
+     * Callers are responsible for also checking the region-policy feature flag before acting on this result.
      */
     public static boolean inferenceIndexHasV4Mappings(ClusterState clusterState) {
         var projectMetadata = clusterState.metadata().getProject();
@@ -55,10 +60,12 @@ public class InferenceIndex {
             }
         }
         if (indexMetadata == null) {
-            // The index doesn't exist yet. In a mixed-version cluster the old master may create it with
-            // v3 mappings (SystemIndexMappingUpdateService skips upgrades while versions differ), so
-            // we cannot safely assume v4 will be used.
-            return clusterState.nodes().isMixedVersionCluster() == false;
+            // The index doesn't exist yet. Return true only when all nodes carry the doc_type feature,
+            // which guarantees that whoever creates the index will apply v4 mappings. An old node missing
+            // the feature would create the index with v3 mappings, causing a strict_dynamic_mapping_exception
+            // if doc_type were written.
+            return clusterState.clusterFeatures()
+                .clusterHasFeature(clusterState.nodes(), InferenceFeatures.INFERENCE_INFERENCE_INDEX_DOC_TYPE);
         }
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {

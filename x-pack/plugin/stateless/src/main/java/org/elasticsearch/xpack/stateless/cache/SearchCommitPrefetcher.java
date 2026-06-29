@@ -292,6 +292,10 @@ public class SearchCommitPrefetcher {
                     long maxPrefetchedOffsetInRegion = Math.min(cacheService.getRegionEnd(region), adjustedRangeToPrefetch.end());
                     // TODO: Implement force version that decays entries from level 1 if there's no room in the cache
 
+                    if (cacheService.isRangeFullyCached(cacheKey, region, adjustedRangeToPrefetch)) {
+                        continue;
+                    }
+
                     // We cannot simply fetch the region directly because pre-fetching from index nodes introduces specific edge cases:
                     // 1. If the missing gaps are within or equal to the current VBCC size:
                     // - The get VBCC chunk action would return data up to the current VBCC length.

@@ -280,6 +280,37 @@ public class SharedBytesTests extends ESTestCase {
         }
     }
 
+    // Verifies that getSlotIndex() on each IO object returns the physical slot index
+    // that was used to obtain it, for every region in a multi-region SharedBytes instance.
+    public void testGetSlotIndexIsConsistentWithPageStart() throws Exception {
+        int regions = randomIntBetween(2, 8);
+        int regionSize = randomIntBetween(1, 4) * SharedBytes.PAGE_SIZE;
+        var nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put("path.home", createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+            .build();
+        SharedBytes sharedBytes = null;
+        try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
+            sharedBytes = new SharedBytes(
+                regions,
+                regionSize,
+                nodeEnv,
+                ignored -> {},
+                ignored -> {},
+                IOUtils.WINDOWS == false && randomBoolean()
+            );
+            for (int i = 0; i < regions; i++) {
+                SharedBytes.IO io = sharedBytes.getFileChannel(i);
+                assertEquals(i, io.getSlotIndex());
+            }
+        } finally {
+            if (sharedBytes != null) {
+                sharedBytes.decRef();
+            }
+        }
+    }
+
     // Verify that a freshly created region starts with MADV_NORMAL advice.
     public void testMadviseDefaultIsNormal() throws Exception {
         int regions = randomIntBetween(1, 4);

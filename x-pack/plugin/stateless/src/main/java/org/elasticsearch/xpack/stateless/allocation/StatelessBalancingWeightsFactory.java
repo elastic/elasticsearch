@@ -127,7 +127,7 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
         private StatelessBalancingWeights() {
             final float diskUsageBalanceFactor = balancerSettings.getDiskUsageBalanceFactor();
             final float indexBalanceFactor = balancerSettings.getIndexBalanceFactor();
-            this.searchWeightFunction = new WeightFunction(
+            this.searchWeightFunction = new CacheRestoreAwareWeightFunction(
                 searchTierShardBalanceFactor,
                 indexBalanceFactor,
                 searchTierWriteLoadBalanceFactor,
@@ -233,6 +233,36 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
                         .distinct()
                         .count() == allNodes.length;
             }
+        }
+    }
+
+    /**
+     * WeightFunction subclass that applies a constant boost (negative weight delta) during the
+     * active replacement window — while the source node named by {@code es_cache_restored_from_node}
+     * is still in the cluster. Used as the shared {@code searchWeightFunction} so that
+     * {@code NodeSorter} and {@code weightFunctionForShard} both see the boost.
+     */
+    private static final class CacheRestoreAwareWeightFunction extends WeightFunction {
+
+        static final float CACHE_RESTORED_BOOST = 10.0f;
+
+        CacheRestoreAwareWeightFunction(float shardBalance, float indexBalance, float writeLoadBalance, float diskUsageBalance) {
+            // Same balance factors as the base searchWeightFunction so that the package-private
+            // minWeightDelta() (inherited unchanged) computes correctly for rebalance thresholds.
+            super(shardBalance, indexBalance, writeLoadBalance, diskUsageBalance);
+        }
+
+        @Override
+        public float calculateNodeWeightWithIndex(
+            BalancedShardsAllocator.Balancer balancer,
+            BalancedShardsAllocator.ModelNode node,
+            BalancedShardsAllocator.ProjectIndex index
+        ) {
+            float base = super.calculateNodeWeightWithIndex(balancer, node, index);
+            if (CacheRestoredAllocationDecider.isReplacementWindowActive(node.getRoutingNode().node(), balancer.getAllocation().nodes())) {
+                return base - CACHE_RESTORED_BOOST;
+            }
+            return base;
         }
     }
 }

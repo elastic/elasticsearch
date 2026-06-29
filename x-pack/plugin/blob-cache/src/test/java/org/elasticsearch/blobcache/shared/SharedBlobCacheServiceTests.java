@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -672,6 +673,46 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertTrue(region0.isEvicted());
             assertFalse(region1.isEvicted());
             assertEquals(4, cacheService.freeRegionCount());
+        }
+    }
+
+    // Verifies that async eviction blocks while the service is frozen and completes after unfreeze().
+    public void testFreezeBlocksForceEvictAsyncUntilUnfreeze() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final var threadPool = new TestThreadPool("testFreezeBlocksForceEvictAsyncUntilUnfreeze");
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey1 = generateCacheKey();
+            final var cacheKey2 = generateCacheKey();
+            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            cacheService.get(cacheKey2, size(250), 1);
+            cacheService.forceEvictAsync(ck -> ck == cacheKey1);
+
+            long stamp = cacheService.freeze();
+
+            assertFalse("region should not be evicted while frozen", region0.isEvicted());
+            Thread.sleep(150);
+            assertFalse("async eviction should still be blocked while frozen", region0.isEvicted());
+
+            cacheService.unfreeze(stamp);
+
+            assertBusy(() -> assertTrue("region should be evicted after unfreeze", region0.isEvicted()));
+        } finally {
+            TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
 
@@ -4226,6 +4267,232 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 ),
                 cacheFile.toString()
             );
+        }
+    }
+
+    // Verifies that freeze() returns a non-zero write stamp and that unfreeze(stamp) does not throw.
+    public void testFreezeAndUnfreezeReturnStamp() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            long stamp = cacheService.freeze();
+            assertThat(stamp, greaterThanOrEqualTo(1L));
+            cacheService.unfreeze(stamp);
+        }
+    }
+
+    // Verifies that forceEvict blocks while the service is frozen, and completes once unfreeze() is called.
+    public void testFreezeBlocksForceEvictAndUnfreezeReleases() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            long stamp = cacheService.freeze();
+            // forceEvict acquires the read lock — it blocks while the write lock (freeze) is held
+            CountDownLatch evictDone = new CountDownLatch(1);
+            Thread evictThread = new Thread(() -> {
+                cacheService.forceEvict(k -> true);
+                evictDone.countDown();
+            }, "test-force-evict");
+            evictThread.setDaemon(true);
+            evictThread.start();
+
+            // The thread must still be blocked after a short wait
+            assertFalse("forceEvict should block while frozen", evictDone.await(150, TimeUnit.MILLISECONDS));
+
+            cacheService.unfreeze(stamp);
+
+            // After unfreeze the read lock becomes available and forceEvict must complete quickly
+            assertTrue("forceEvict should complete after unfreeze", evictDone.await(5, TimeUnit.SECONDS));
+        }
+    }
+
+    // Verifies that CacheFile.populate blocks while the service is frozen, and returns once unfreeze() is called.
+    public void testFreezeBlocksCacheFilePopulateUntilUnfreeze() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                generateCacheKey(),
+                size(100),
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+            long stamp = cacheService.freeze();
+            CountDownLatch populateStarted = new CountDownLatch(1);
+            CountDownLatch populateReturned = new CountDownLatch(1);
+            Thread populateThread = new Thread(() -> {
+                populateStarted.countDown();
+                cacheFile.populate(
+                    ByteRange.of(0, size(100)),
+                    ByteRange.of(0, size(10)),
+                    (channel, channelPos, relativePos, len) -> len,
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completionListener
+                        .onResponse(null),
+                    "test-freeze",
+                    ActionListener.noop()
+                );
+                populateReturned.countDown();
+            }, "test-cachefile-populate");
+            populateThread.setDaemon(true);
+            populateThread.start();
+
+            assertTrue("populate thread did not start in time", populateStarted.await(5, TimeUnit.SECONDS));
+            assertFalse("CacheFile.populate should block while frozen", populateReturned.await(150, TimeUnit.MILLISECONDS));
+
+            cacheService.unfreeze(stamp);
+
+            assertTrue("CacheFile.populate should return after unfreeze", populateReturned.await(5, TimeUnit.SECONDS));
+        }
+    }
+
+    // Verifies that isRangeFullyCached returns false for a key that has never been cached.
+    public void testIsRangeFullyCachedFalseForUncachedKey() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            TestCacheKey neverCachedKey = generateCacheKey();
+            assertFalse(cacheService.isRangeFullyCached(neverCachedKey, 0, ByteRange.of(0L, size(1))));
+        }
+    }
+
+    // Verifies that getOccupiedEntries() captures the live effective region size for tail regions.
+    public void testGetOccupiedEntriesUsesTrackerLengthForTailRegion() throws Exception {
+        final long regionSize = size(100);
+        final long tailRegionSize = size(50);
+        final long fileLength = regionSize + tailRegionSize;
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(300)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            final TestCacheKey cacheKey = generateCacheKey();
+            final int tailRegion = 1;
+            var entry = cacheService.get(cacheKey, fileLength, tailRegion);
+            final PlainActionFuture<Boolean> populateFuture = new PlainActionFuture<>();
+            entry.populate(
+                ByteRange.of(0, tailRegionSize),
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> progressUpdater.accept(length)
+                ),
+                taskQueue.getThreadPool().generic(),
+                populateFuture
+            );
+            taskQueue.runAllRunnableTasks();
+            assertTrue(populateFuture.get(10, TimeUnit.SECONDS));
+
+            long stamp = cacheService.freeze();
+            try {
+                List<SharedBlobCacheService.CacheIndexEntry<TestCacheKey>> entries = cacheService.getOccupiedEntries();
+                assertThat(entries, hasSize(1));
+                assertThat(entries.get(0).region(), equalTo(tailRegion));
+                assertThat(entries.get(0).effectiveRegionSize(), equalTo(Math.toIntExact(tailRegionSize)));
+            } finally {
+                cacheService.unfreeze(stamp);
+            }
+        }
+    }
+
+    // Verifies that getOccupiedEntries() returns an empty list when no regions have completed ranges.
+    public void testGetOccupiedEntriesEmptyInitially() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(300)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            // No data has been written; all regions are either free or have no completed ranges.
+            long stamp = cacheService.freeze();
+            try {
+                List<SharedBlobCacheService.CacheIndexEntry<TestCacheKey>> entries = cacheService.getOccupiedEntries();
+                assertThat(entries, empty());
+            } finally {
+                cacheService.unfreeze(stamp);
+            }
         }
     }
 

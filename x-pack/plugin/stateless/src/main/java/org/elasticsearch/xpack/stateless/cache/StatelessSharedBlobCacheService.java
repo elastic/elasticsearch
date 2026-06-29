@@ -24,6 +24,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -32,7 +34,11 @@ import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHand
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -91,16 +97,38 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             Setting.Property.NodeScope
         );
 
+    /**
+     * When enabled, the node will write a JSON metadata file alongside the cache file on startup and
+     * on demand (via the {@code POST /_stateless/cache/snapshot} API), and will attempt to restore
+     * occupancy from that file on the next startup.
+     */
+    public static final Setting<Boolean> STATELESS_CACHE_SNAPSHOT_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache_snapshot.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Selects which cloud volume snapshot provider to use. Recognised values: {@code azure}, {@code noop} (or empty for disabled).
+     */
+    public static final Setting<String> STATELESS_CACHE_SNAPSHOT_CLOUD_PROVIDER_SETTING = Setting.simpleString(
+        "stateless.cache_snapshot.cloud_provider",
+        Setting.Property.NodeScope
+    );
+
     // Stateless shared blob cache service populates-and-reads in-thread. And it relies on the cache service to fetch gap bytes
     // asynchronously using a CacheBlobReader.
     private static final Executor IO_EXECUTOR = EsExecutors.DIRECT_EXECUTOR_SERVICE;
+    private static final Logger logger = LogManager.getLogger(StatelessSharedBlobCacheService.class);
 
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
     private final boolean cacheBoostPreferenceEnabled;
+    private final CacheSnapshotService snapshotService;
 
     // TODO Merge the two constructors
+    @SuppressWarnings("this-escape")
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
@@ -122,6 +150,30 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
+        final boolean snapshotEnabled = STATELESS_CACHE_SNAPSHOT_ENABLED_SETTING.get(settings);
+        if (snapshotEnabled) {
+            Path cacheFilePath = environment.nodeDataPaths()[0].resolve("shared_snapshot_cache");
+            Path snapshotFile = CacheSnapshotService.snapshotFilePath(cacheFilePath);
+            CacheSnapshotService.SnapshotMetadata metadata = CacheSnapshotService.readSnapshotFile(
+                snapshotFile,
+                getNumRegions(),
+                getRegionSize()
+            );
+            if (metadata.sourceNodeId() != null && metadata.entries().isEmpty() == false) {
+                restoreOccupancy(metadata.entries());
+                logger.info("restored [{}] cache regions from snapshot of node [{}]", metadata.entries().size(), metadata.sourceNodeId());
+            }
+            if (metadata.sourceNodeId() != null) {
+                try {
+                    Files.deleteIfExists(snapshotFile);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+            this.snapshotService = new CacheSnapshotService(snapshotFile, resolveCloudProvider(settings));
+        } else {
+            this.snapshotService = null;
+        }
     }
 
     // for tests
@@ -161,6 +213,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
+        this.snapshotService = null;
     }
 
     /**
@@ -283,5 +336,22 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public boolean isCacheBoostPreferenceEnabled() {
         return cacheBoostPreferenceEnabled;
+    }
+
+    /**
+     * Returns the {@link CacheSnapshotService} for this node, or {@code null} if
+     * {@link #STATELESS_CACHE_SNAPSHOT_ENABLED_SETTING} is disabled.
+     */
+    public CacheSnapshotService getSnapshotService() {
+        return snapshotService;
+    }
+
+    static CloudVolumeSnapshotProvider resolveCloudProvider(Settings settings) {
+        String provider = STATELESS_CACHE_SNAPSHOT_CLOUD_PROVIDER_SETTING.get(settings);
+        return switch (provider) {
+            case "azure" -> new AzureCloudVolumeSnapshotProvider(settings, () -> System.currentTimeMillis() / 1000L);
+            case "", "noop" -> new CloudVolumeSnapshotProvider.NoOp();
+            default -> throw new IllegalArgumentException("unknown stateless.cache_snapshot.cloud_provider: " + provider);
+        };
     }
 }

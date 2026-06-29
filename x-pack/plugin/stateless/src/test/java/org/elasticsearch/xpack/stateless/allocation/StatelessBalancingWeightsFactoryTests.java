@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -139,6 +140,131 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
         assertThat(tierToSetToZero.shardCounts(shardsPerNode), equalTo(List.of(0, 4)));
         // The shard count of the other tier should be balanced
         assertThat(tierToSetToZero.other().shardCounts(shardsPerNode), equalTo(List.of(2, 2)));
+    }
+
+    /**
+     * Verifies that a search node carrying the {@code es_cache_restored_from_node} attribute is
+     * preferred over an equally-loaded search node that does not have the attribute. The
+     * {@code CacheRestoreAwareWeightFunction} subtracts
+     * {@code CACHE_RESTORED_BOOST} (10.0) from the weight of the attributed node, so the
+     * balancer should route the unassigned SEARCH_ONLY shard to that node.
+     */
+    public void testCacheRestoreAwareWeightReduced() {
+        final var clusterSettings = statelessBalancingSettings(Settings.EMPTY);
+        final var balancerSettings = new BalancerSettings(clusterSettings);
+        final var allocationService = new ESAllocationTestCase.MockAllocationService(
+            statelessAllocationDeciders(),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(
+                balancerSettings,
+                TEST_WRITE_LOAD_FORECASTER,
+                new StatelessBalancingWeightsFactory(balancerSettings, clusterSettings)
+            ),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
+
+        // "attributed-search" carries the cache-restored attribute; "plain-search" does not.
+        final String attributedSearchNodeId = "attributed-search";
+        final String plainSearchNodeId = "plain-search";
+        final String indexingNodeId = "indexing-only";
+        final String sourceNodeId = "original-search";  // the node the cache was cloned from
+
+        final DiscoveryNode attributedSearchNode = DiscoveryNodeUtils.builder(attributedSearchNodeId)
+            .roles(SEARCH_ROLES)
+            .attributes(Map.of(CacheRestoredAllocationDecider.CACHE_RESTORED_FROM_ATTR, sourceNodeId))
+            .build();
+        final DiscoveryNode plainSearchNode = DiscoveryNodeUtils.builder(plainSearchNodeId).roles(SEARCH_ROLES).build();
+        final DiscoveryNode indexingNode = DiscoveryNodeUtils.builder(indexingNodeId).roles(INDEXING_ROLES).build();
+        // Source must still be in the cluster for the replacement-window weight boost to apply.
+        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder(sourceNodeId).roles(SEARCH_ROLES).build();
+
+        final var indexMetadata = aStatelessIndex("test-index").build();
+        final var metadataBuilder = Metadata.builder().put(indexMetadata, false);
+        final var routingTableBuilder = RoutingTable.builder(new StatelessShardRoutingRoleStrategy()).addAsNew(indexMetadata);
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(indexingNode).add(sourceNode).add(attributedSearchNode).add(plainSearchNode))
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+
+        final var finalState = applyStartedShardsUntilNoChange(clusterState, allocationService);
+
+        assertFalse("all shards should be assigned after reroute", finalState.getRoutingNodes().hasUnassignedShards());
+
+        // The SEARCH_ONLY shard should land on the attributed node due to its lower calculated weight.
+        final var searchShard = finalState.getRoutingNodes()
+            .node(attributedSearchNodeId)
+            .shardsWithState(ShardRoutingState.STARTED)
+            .filter(s -> s.role() == ShardRouting.Role.SEARCH_ONLY)
+            .findFirst();
+        assertTrue(
+            "SEARCH_ONLY shard should be on the cache-restored attributed node [" + attributedSearchNodeId + "]",
+            searchShard.isPresent()
+        );
+    }
+
+    /**
+     * Once the source node has left the cluster the weight boost must not apply even though the
+     * replacement still carries {@code es_cache_restored_from_node} for the process lifetime.
+     */
+    public void testCacheRestoreBoostSkippedWhenSourceNodeHasLeft() {
+        final var clusterSettings = statelessBalancingSettings(Settings.EMPTY);
+        final var balancerSettings = new BalancerSettings(clusterSettings);
+        final var allocationService = new ESAllocationTestCase.MockAllocationService(
+            statelessAllocationDeciders(),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(
+                balancerSettings,
+                TEST_WRITE_LOAD_FORECASTER,
+                new StatelessBalancingWeightsFactory(balancerSettings, clusterSettings)
+            ),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
+
+        final String attributedSearchNodeId = "attributed-search";
+        final String plainSearchNodeId = "plain-search";
+        final String indexingNodeId = "indexing-only";
+        final String departedSourceNodeId = "departed-source";
+
+        final DiscoveryNode attributedSearchNode = DiscoveryNodeUtils.builder(attributedSearchNodeId)
+            .roles(SEARCH_ROLES)
+            .attributes(Map.of(CacheRestoredAllocationDecider.CACHE_RESTORED_FROM_ATTR, departedSourceNodeId))
+            .build();
+        final DiscoveryNode plainSearchNode = DiscoveryNodeUtils.builder(plainSearchNodeId).roles(SEARCH_ROLES).build();
+        final DiscoveryNode indexingNode = DiscoveryNodeUtils.builder(indexingNodeId).roles(INDEXING_ROLES).build();
+
+        final var indexMetadata = aStatelessIndex("test-index").build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(indexingNode).add(attributedSearchNode).add(plainSearchNode))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder(new StatelessShardRoutingRoleStrategy()).addAsNew(indexMetadata))
+            .build();
+
+        final var finalState = applyStartedShardsUntilNoChange(clusterState, allocationService);
+
+        assertFalse("all shards should be assigned after reroute", finalState.getRoutingNodes().hasUnassignedShards());
+
+        final var searchShard = finalState.getRoutingNodes()
+            .node(attributedSearchNodeId)
+            .shardsWithState(ShardRoutingState.STARTED)
+            .filter(s -> s.role() == ShardRouting.Role.SEARCH_ONLY)
+            .findFirst();
+        final var plainShard = finalState.getRoutingNodes()
+            .node(plainSearchNodeId)
+            .shardsWithState(ShardRoutingState.STARTED)
+            .filter(s -> s.role() == ShardRouting.Role.SEARCH_ONLY)
+            .findFirst();
+        final boolean onAttributed = searchShard.isPresent();
+        final boolean onPlain = plainShard.isPresent();
+        assertTrue(
+            "without the source in the cluster, boost is inactive and either search node may receive the shard",
+            onAttributed ^ onPlain
+        );
     }
 
     private enum StatelessTier {

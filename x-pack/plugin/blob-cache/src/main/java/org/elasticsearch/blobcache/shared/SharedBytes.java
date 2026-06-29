@@ -50,6 +50,9 @@ public class SharedBytes extends AbstractRefCounted {
     );
     private static final Logger logger = LogManager.getLogger(SharedBytes.class);
 
+    public static final int SYNC_FILE_RANGE_WRITE = 2;
+    public static final int SYNC_FILE_RANGE_WAIT_AFTER = 4;
+
     public static final int PAGE_SIZE = 4096;
 
     private static final String CACHE_FILE_NAME = "shared_snapshot_cache";
@@ -444,6 +447,10 @@ public class SharedBytes extends AbstractRefCounted {
             return bytesWritten;
         }
 
+        public int getSlotIndex() {
+            return Math.toIntExact(pageStart / regionSize);
+        }
+
         private void checkOffsets(int position, int length) {
             if (position < 0 || position + length > regionSize) {
                 offsetCheckFailed();
@@ -460,5 +467,14 @@ public class SharedBytes extends AbstractRefCounted {
 
     private static CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
         return NATIVE_ACCESS.map(fileChannel, mode, position, size);
+    }
+
+    /**
+     * Flushes the page-cache data for the given slot's byte range.
+     * On non-Linux platforms the fallback calls fc.force(false) when WAIT_AFTER is set.
+     */
+    public void syncRange(int slot, int flags) throws IOException {
+        if (fileChannel == null) return;
+        NATIVE_ACCESS.syncFileRange(path, (long) slot * regionSize, regionSize, flags);
     }
 }

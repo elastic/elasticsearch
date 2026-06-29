@@ -172,6 +172,37 @@ public interface NativeAccess {
      */
     OptionalLong allocatedSizeInBytes(Path path);
 
+    /**
+     * Flag for sync_file_range(2): initiate writeback for dirty pages in the given range (non-blocking).
+     */
+    int SYNC_FILE_RANGE_WRITE = 2;
+
+    /**
+     * Flag for sync_file_range(2): wait for writeback of pages in the given range to complete.
+     */
+    int SYNC_FILE_RANGE_WAIT_AFTER = 4;
+
+    /**
+     * Flushes dirty page-cache pages for the given byte range in the file at {@code path} to disk.
+     * The default implementation calls {@code FileChannel.force(false)} on the whole file when
+     * {@code SYNC_FILE_RANGE_WAIT_AFTER} is set, providing a correct (if range-unaware) durability
+     * guarantee on non-Linux platforms.
+     * Linux overrides this with a real {@code sync_file_range(2)} call.
+     *
+     * @param path   path to the file to flush
+     * @param offset byte offset of the range start
+     * @param nbytes length of the range in bytes
+     * @param flags  combination of SYNC_FILE_RANGE_* flags
+     * @throws IOException if the flush fails
+     */
+    default void syncFileRange(Path path, long offset, long nbytes, int flags) throws IOException {
+        if ((flags & SYNC_FILE_RANGE_WAIT_AFTER) != 0) {
+            try (FileChannel fc = FileChannel.open(path, java.nio.file.StandardOpenOption.READ, java.nio.file.StandardOpenOption.WRITE)) {
+                fc.force(false);
+            }
+        }
+    }
+
     void tryPreallocate(Path file, long size);
 
     /*

@@ -20,8 +20,7 @@ store.
 ## Assumptions & storage prerequisites
 
 This mechanism assumes the `shared_snapshot_cache` file resides on a **cloud
-network-attached block volume** (AWS EBS, GCP Persistent Disk, Azure Managed Disk, or
-equivalent). On these volumes the storage backend acknowledges a write only after it has
+network-attached block volume** (AWS EBS, GCP Persistent Disk or Azure Managed Disk). On these volumes the storage backend acknowledges a write only after it has
 reached persistent media, so `sync_file_range(WAIT_AFTER)` provides the same durability
 guarantee as `fdatasync` from the application's perspective — there is no volatile
 device-side write-back DRAM buffer that survives independently of the block device
@@ -33,11 +32,11 @@ so the metadata file may describe ranges whose bytes were never durably persiste
 leading to corrupted (not merely stale) cache entries on restore.
 
 **The snapshotted volume must be the node's full data path root** — the single directory
-that contains both `shared_snapshot_cache` (the cache file) and `nodes/0/` (which holds
-`node.json` and persistent node state). `SharedBytes` asserts `nodeDataPaths().length == 1`
+that contains both `shared_snapshot_cache` (the cache file) and `_state/` (which holds
+the persistent node ID and other node metadata). `SharedBytes` asserts `nodeDataPaths().length == 1`
 and resolves the cache file from `nodeDataPaths()[0]`. A configuration that mounts the
-cache file on a separate block volume from `nodes/0/` is not supported: the startup script
-would find no `node.json` on the cache volume and the identity-swap logic would not work.
+cache file on a separate block volume from `_state/` is not supported: clone-boot logic
+would find no persisted node identity on the cache volume and the identity-swap would not work.
 
 The mechanism is disabled by default and must be explicitly opted in via a setting
 (see Step 0). The setting serves as an operator assertion that the storage prerequisites
@@ -47,20 +46,23 @@ above are satisfied.
 
 ## Key classes
 
-| Class | Module | Role |
-|---|---|---|
-| `SharedBlobCacheService<K>` | `blob-cache` | Generic LFU cache; `freeRegions`, `keyMapping`, `CacheFileRegion`; gains `slotToRegion[]`, `StampedLock`, freeze/unfreeze |
-| `SharedBytes.IO` | `blob-cache` | One physical slot; `pageStart = sharedBytesPos * regionSize`; gains `getSlotIndex()` |
-| `SparseFileTracker` | `blob-cache` | Tracks completed byte ranges per region |
-| `CacheFileRegion<K>` | `blob-cache` | One logical region; `tracker` is `final`; gains restore constructor |
-| `LFUCache` | `blob-cache` (inner) | `assignToSlot` assigns slots; `closeInternal` returns them; gains `restoreEntries()` |
-| `StatelessSharedBlobCacheService` | `stateless` | Concrete subclass; gains startup restore and `snapshotService` wiring |
-| `FileCacheKey` | `stateless` | `record(ShardId, long primaryTerm, String fileName)` |
-| `CacheSnapshotService` | `stateless` *(new)* | Freeze+flush+write+cloud-API sequence; file I/O |
-| `CloudVolumeSnapshotProvider` | `stateless` *(new)* | Per-cloud implementation of `createSnapshot()` |
-| `TransportCacheSnapshotAction` | `stateless` *(new)* | Node transport action; returns `snapshotId` |
-| `CacheRestoredAllocationDecider` | `stateless` *(new)* | `canAllocate(ShardRouting, RoutingNode, RoutingAllocation)` — labels matching (shard, node) pairs for audit trail in `GET /_cluster/allocation/explain`; does not affect numeric ranking |
-| `StatelessBalancingWeightsFactory` | `stateless` | Blanket weight reduction for any node with `es_cache_restored_from_node` set, ranking the replacement above other eligible nodes |
+
+| Class                              | Module               | Role                                                                                                                                                                                     |
+| ---------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SharedBlobCacheService<K>`        | `blob-cache`         | Generic LFU cache; `freeRegions`, `keyMapping`, `CacheFileRegion`; gains `slotToRegion[]`, `StampedLock`, freeze/unfreeze                                                                |
+| `SharedBytes.IO`                   | `blob-cache`         | One physical slot; `pageStart = sharedBytesPos * regionSize`; gains `getSlotIndex()`                                                                                                     |
+| `SparseFileTracker`                | `blob-cache`         | Tracks completed byte ranges per region                                                                                                                                                  |
+| `CacheFileRegion<K>`               | `blob-cache`         | One logical region; `tracker` is `final`; gains restore constructor                                                                                                                      |
+| `LFUCache`                         | `blob-cache` (inner) | `assignToSlot` assigns slots; `closeInternal` returns them; gains `restoreEntries()`                                                                                                     |
+| `StatelessSharedBlobCacheService`  | `stateless`          | Concrete subclass; gains startup restore and `snapshotService` wiring                                                                                                                    |
+| `FileCacheKey`                     | `stateless`          | `record(ShardId, long primaryTerm, String fileName)`                                                                                                                                     |
+| `CacheSnapshotService`             | `stateless` *(new)*  | Freeze+flush+write+cloud-API sequence; file I/O                                                                                                                                          |
+| `CloudVolumeSnapshotProvider`      | `stateless` *(new)*  | Per-cloud implementation of `createSnapshot()`                                                                                                                                           |
+| `TransportCacheSnapshotAction`     | `stateless` *(new)*  | Node transport action; returns `snapshotId`                                                                                                                                              |
+| `CacheRestoredAllocationDecider`   | `stateless` *(new)*  | `canAllocate` — audit trail (labelled `YES` for matching shard/node pairs); parallel-clone `NO` for wrong replacement while source is in cluster; shares `isReplacementWindowActive` with weight boost |
+| `CacheSnapshotBootstrap`           | `stateless` *(new)*  | Clone-boot prep in `StatelessPlugin.additionalSettings()`: wipe `_state/`, inject `es_cache_restored_from_node`                                                                          |
+| `StatelessBalancingWeightsFactory` | `stateless`          | `CacheRestoreAwareWeightFunction` subtracts weight during active replacement window (source still in cluster); ranks designated replacement above other search nodes |
+
 
 ---
 
@@ -76,24 +78,24 @@ Snapshot API call (POST /_stateless/cache/snapshot on the source node)
        — blocks all mutation and search-I/O entry points (fetchRegion, CacheFile.populate, forceEvict, shard-close, …)
        — spin-waits until all in-flight gap-fill async completions land (activeGapFills → 0)
        — after this point the set of completed ranges across all slots is stable
-  2. Phase 1: sync_file_range(WRITE) for each occupied slot   [non-blocking: start I/O]
-  3. Phase 2: sync_file_range(WAIT_AFTER) for each occupied slot   [wait per slot]
-  4. Write CacheSnapshotFile to volume:
+  2. getOccupiedEntries() → List<CacheIndexEntry> in one O(n) pass
+  3. Phase 1: sync_file_range(WRITE) for each entry's slot   [non-blocking: start I/O]
+  4. Phase 2: sync_file_range(WAIT_AFTER) for each entry's slot   [wait per slot]
+  5. Write CacheSnapshotFile to volume:
        header(numRegions, regionSize, sourceNodeId) +
-       for each occupied slot: (slot, key, region, completedRanges)
-  5. fsync CacheSnapshotFile
-  6. Call cloud volume snapshot API  →  snapshot ID
-  7. Release cache freeze lock
-  8. Return snapshotId to caller
+       for each entry: (slot, key, region, completedRanges)
+  6. fsync CacheSnapshotFile
+  7. Call cloud volume snapshot API  →  snapshot ID
+  8. Release cache freeze lock
+  9. Return snapshotId to caller
 
 Replacement node startup (from snapshot volume)
-  1. Read CacheSnapshotFile header — extract sourceNodeId
-  2. If node.json nodeId == sourceNodeId: delete node.json   [force fresh identity]
-  3. ES generates new nodeId; node sets node attribute:
-       node.attr.es_cache_restored_from_node = <sourceNodeId>
-  4. Full read of CacheSnapshotFile → restore occupied slots (O(n))
-  5. Delete CacheSnapshotFile (state is now in memory)
-  6. Node joins cluster; master sees the attribute
+  1. StatelessPlugin.additionalSettings() (before NodeEnvironment): if snapshot file present,
+       delete `_state/` + legacy `node-*.json`, inject node.attr.es_cache_restored_from_node
+  2. NodeEnvironment generates a fresh nodeId (no persisted metadata)
+  3. StatelessSharedBlobCacheService constructor: full read of CacheSnapshotFile → restore slots
+  4. Delete CacheSnapshotFile (state is now in memory)
+  5. Node joins cluster; master sees the attribute
 
 Shard handoff (operator-triggered)
   1. Operator decommissions source: exclude._id = sourceNodeId
@@ -102,7 +104,8 @@ Shard handoff (operator-triggered)
        a blanket negative weight delta → replacement ranked above other search nodes
   4. Shards relocate to replacement node (stateless: no data transfer)
   5. Operator clears exclusion; source node terminated
-  6. Attribute is harmless after source departure; absent from next restart
+  6. Once source leaves, weight boost and parallel-clone guards stop (attribute may
+     persist until process restart but is ignored by the allocator)
 ```
 
 ---
@@ -125,9 +128,10 @@ Default is `false`. An operator sets it to `true` only on nodes where the cache 
 resides on a cloud network-attached block volume (see "Assumptions" above).
 
 When the setting is `false`:
+
 - The freeze lock and `CacheSnapshotService` are never instantiated.
 - The transport action is registered but returns an immediate error if called, explaining
-  the setting requirement.
+the setting requirement.
 - Normal operation is completely unaffected — zero overhead.
 - The pre-warming skip guards (Step 8) remain active independently of this flag.
 
@@ -135,7 +139,7 @@ When the setting is `false`:
 
 ## Step 1 — `SharedBytes.IO.getSlotIndex()`
 
-**`SharedBytes.java`** — add one accessor (same as v1):
+`**SharedBytes.java**` — add one accessor (same as v1):
 
 ```java
 public int getSlotIndex() {
@@ -161,11 +165,13 @@ private final CacheFileRegion<KeyType>[] slotToRegion =
 ```
 
 Wire it in `assignToSlot` (line 2368), after `entry.chunk.volatileIO(freeSlot)`:
+
 ```java
 slotToRegion[freeSlot.getSlotIndex()] = entry.chunk;
 ```
 
 Clear it in `CacheFileRegion.closeInternal` (line 1144), before `freeRegions.add(io)`:
+
 ```java
 blobCacheService.slotToRegion[io.getSlotIndex()] = null;
 ```
@@ -220,14 +226,16 @@ gap-fill dispatch. **During implementation, verify this list against the actual
 codebase** — any entry point that calls `populate()` or `populateAndRead()` (directly or
 transitively) and is not in the table leaves gap fills unguarded by the freeze:
 
-| Entry point | Mutation |
-|---|---|
-| `fetchRegion()` / `maybeFetchRegion()` | slot assignment via `assignToSlot`; gap-fill dispatch via `populate` |
-| `fetchRange()` / `maybeFetchRange()` | gap-fill dispatch via `populate` / `populateAndRead` |
-| `CacheFile.populate()` / `CacheFile.populateAndRead()` | gap-fill dispatch via `CacheFileRegion.populateAndRead`; called by `CacheFileReader` directly on the active search I/O path |
-| `maybeEvictLeastUsed()` | eviction via `closeInternal`; called inside `fetchRegion` before `synchronized` |
-| `forceEvict()` / `forceEvictAsync()` | eviction via `closeInternal` |
-| shard-close eviction path (stateless `removeFromCache`) | eviction via `closeInternal` |
+
+| Entry point                                             | Mutation                                                                                                                    |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `fetchRegion()` / `maybeFetchRegion()`                  | slot assignment via `assignToSlot`; gap-fill dispatch via `populate`                                                        |
+| `fetchRange()` / `maybeFetchRange()`                    | gap-fill dispatch via `populate` / `populateAndRead`                                                                        |
+| `CacheFile.populate()` / `CacheFile.populateAndRead()`  | gap-fill dispatch via `CacheFileRegion.populateAndRead`; called by `CacheFileReader` directly on the active search I/O path |
+| `maybeEvictLeastUsed()`                                 | eviction via `closeInternal`; called inside `fetchRegion` before `synchronized`                                             |
+| `forceEvict()` / `forceEvictAsync()`                    | eviction via `closeInternal`                                                                                                |
+| shard-close eviction path (stateless `removeFromCache`) | eviction via `closeInternal`                                                                                                |
+
 
 Each of these acquires the read stamp at its outermost point, before any `synchronized`
 block. Acquiring inside the synchronized block deadlocks: the write-lock waits for all
@@ -257,8 +265,7 @@ creation time, one decrement when the gap's data has **actually landed in the pa
 and `SparseFileTracker` has marked the range complete. Call sites (`populate`,
 `populateAndRead`) require no `activeGapFills` bookkeeping.
 
-`fillGapRunnable` wraps the passed listener with `ActionListener.runAfter(listener,
-activeGapFills::decrementAndGet)`. `ActionListener.run(countedListener, ...)` calls the
+`fillGapRunnable` wraps the passed listener with `ActionListener.runAfter(listener, activeGapFills::decrementAndGet)`. `ActionListener.run(countedListener, ...)` calls the
 listener on every exit path: blob-store success (bytes written, `gap.onCompletion()`
 called), blob-store failure, and `SparseFileTracker` abort. This is correct — "complete"
 means bytes are in the page cache and the range is marked done, not when the dispatch
@@ -299,9 +306,10 @@ occur with internal ES thread pools that do not have backpressure rejection sema
 
 `freeze()` first acquires the write stamp (blocking all new read stamps, i.e., all new
 entry-point calls), then spin-waits until `activeGapFills` reaches zero. At that point:
+
 - No new gap fills can be dispatched (all entry points are blocked).
 - All in-flight gap fills have written their bytes to the page cache and their
-  `SparseFileTracker` completion listeners have fired.
+`SparseFileTracker` completion listeners have fired.
 - The set of completed ranges across all slots is stable.
 - `sync_file_range` can proceed with a consistent view.
 
@@ -338,7 +346,7 @@ fills they would dispatch are also blocked during the freeze window.
 
 ## Step 3 — `getNumRegions()`, snapshot read API, and restore
 
-**`SharedBlobCacheService.java`**:
+`**SharedBlobCacheService.java**`:
 
 ```java
 public int getNumRegions() { return numRegions; }
@@ -357,7 +365,8 @@ public record CacheIndexEntry<K>(
 `restoreOccupancy(List<CacheIndexEntry<KeyType>>)` — delegates to
 `LFUCache.restoreEntries(...)` (Step 4).
 
-`CacheFileRegion` restore constructor (unchanged from v1):
+`CacheFileRegion` restore constructor:
+
 ```java
 CacheFileRegion(..., SortedSet<ByteRange> completedRanges) {
     ...
@@ -369,8 +378,7 @@ CacheFileRegion(..., SortedSet<ByteRange> completedRanges) {
 
 ## Step 4 — O(n) `LFUCache.restoreEntries()`
 
-The original plan called `freeRegions.remove(io)` for each entry — O(n) per call, O(n²)
-total. The fix: drain `freeRegions` once into a `Map`, then restore.
+Drain `freeRegions` once into a `Map`, then restore.
 
 ```java
 void restoreEntries(List<CacheIndexEntry<KeyType>> entries) {
@@ -423,7 +431,7 @@ re-add remaining slots. Overall O(n).
 
 ## Step 5 — `CacheSnapshotService` (new class, in `stateless` plugin)
 
-**`x-pack/plugin/stateless/…/cache/CacheSnapshotService.java`**
+`**x-pack/plugin/stateless/…/cache/CacheSnapshotService.java**`
 
 Owns the freeze+flush+write+cloud-API sequence. Constructed and held by
 `StatelessSharedBlobCacheService` when the feature flag is enabled.
@@ -451,6 +459,7 @@ previous file intact or no file at all — never a partial file.
         "file_name": "_0.cfs"
       },
       "region": 4,
+      "effective_region_size": 16777216,
       "ranges": [
         { "start": 0, "end": 1048576 },
         { "start": 2097152, "end": 3145728 }
@@ -466,8 +475,8 @@ the running node's configuration on read; a mismatch discards the file and start
 A truncated or malformed JSON document fails parsing and is also discarded.
 
 The `node_id` field is the persistent ES node ID of the node that created the snapshot
-(`NodeEnvironment.nodeId()`). Because the file is plain JSON, the startup script can
-extract it with a single `jq` call without any custom binary parsing (see Step 7a).
+(`NodeEnvironment.nodeId()`). `CacheSnapshotBootstrap` reads it via
+`CacheSnapshotService.readSourceNodeId()` during `additionalSettings()` (see Step 7a).
 
 ### 5b. `CloudVolumeSnapshotProvider` interface
 
@@ -492,34 +501,25 @@ injected into `CacheSnapshotService`.
 ### 5c. Snapshot sequence
 
 ```java
-SnapshotResult snapshot(StatelessSharedBlobCacheService cache) throws IOException {
+String snapshot(StatelessSharedBlobCacheService cache, String nodeId) throws IOException {
     // 1. Acquire the write stamp — drains all in-flight slot ops and blocks new ones
     long stamp = cache.freeze();
     try {
-        // 2. Capture source node identity and enumerate occupied slots
-        String sourceNodeId = cache.getNodeId();   // NodeEnvironment.nodeId()
-        List<Integer> occupiedSlots = cache.getOccupiedSlots();   // reads slotToRegion[]
+        // 2. Collect entries (slot index, key, region, completed ranges) in one pass
+        List<CacheIndexEntry<FileCacheKey>> entries = cache.getOccupiedEntries();
 
         // 3. Phase 1: kick off writeback for all occupied slots (non-blocking)
-        for (int slot : occupiedSlots) {
-            cache.syncSlotRange(slot, SYNC_FILE_RANGE_WRITE);
+        for (var entry : entries) {
+            cache.syncSlotRange(entry.physicalSlot(), SYNC_FILE_RANGE_WRITE);
         }
 
         // 4. Phase 2: wait for writeback to complete per slot
-        for (int slot : occupiedSlots) {
-            cache.syncSlotRange(slot, SYNC_FILE_RANGE_WAIT_AFTER);
+        for (var entry : entries) {
+            cache.syncSlotRange(entry.physicalSlot(), SYNC_FILE_RANGE_WAIT_AFTER);
         }
 
-        // 5. Collect completed ranges and write metadata file (includes sourceNodeId)
-        List<CacheIndexEntry<FileCacheKey>> entries = new ArrayList<>(occupiedSlots.size());
-        for (int slot : occupiedSlots) {
-            SortedSet<ByteRange> ranges = cache.getCompletedRangesForSlot(slot);
-            if (ranges.isEmpty()) continue;
-            CacheFileRegion<FileCacheKey> region = cache.getSlotRegion(slot);
-            entries.add(new CacheIndexEntry<>(slot, region.regionKey().file(),
-                region.regionKey().region(), cache.getRegionSize(), ranges));
-        }
-        writeSnapshotFile(sourceNodeId, entries);   // → tmp → force → atomic rename
+        // 5. Write metadata file (includes nodeId)
+        writeSnapshotFile(nodeId, entries, cache.getNumRegions(), cache.getRegionSize());
         // snapshot file is now durable on the volume
 
         // 6. Call cloud snapshot API — if this fails, delete the metadata file.
@@ -549,15 +549,16 @@ SnapshotResult snapshot(StatelessSharedBlobCacheService cache) throws IOExceptio
 }
 ```
 
-`getOccupiedSlots()` is a new package-private method on `SharedBlobCacheService` that
-iterates `slotToRegion[]` and returns the indices of non-null entries — O(numRegions).
+`getOccupiedEntries()` is a new **public** method on `SharedBlobCacheService` that
+iterates `slotToRegion[]` in a single O(numRegions) pass and returns a
+`List<CacheIndexEntry<KeyType>>` — slot index, logical key, region index, effective region size, and completed byte ranges — for every non-null, non-empty slot. The consolidation is necessary because `CacheFileRegion<K>` is a package-private inner class of
+`SharedBlobCacheService` and cannot be returned to callers in the `stateless` plugin
+package; `CacheIndexEntry<K>` is a public record and crosses the package boundary cleanly.
+Called only under the freeze write stamp, so no additional synchronisation is needed
+inside the method.
 
-`getSlotRegion(int slot)` is a new package-private method that returns `slotToRegion[slot]`
-— O(1). Called only under the freeze write stamp, so no additional synchronization is
-needed.
-
-`writeSnapshotFile(sourceNodeId, entries)` builds the JSON document using
-`XContentBuilder`, writes it to a `.tmp` file via a `FileOutputStream`, calls
+`writeSnapshotFile(nodeId, entries, numRegions, regionSize)` builds the JSON document
+using `XContentBuilder`, writes it to a `.tmp` file via a `FileOutputStream`, calls
 `FileChannel.force(false)` on the underlying channel, then does an atomic rename over
 the real path.
 
@@ -646,58 +647,54 @@ Files.deleteIfExists(snapshotFile);
 
 ## Step 7 — Wire into `StatelessSharedBlobCacheService` and transport action
 
-### 7a. Pre-startup: node.json deletion and attribute injection (startup script responsibility)
+### 7a. Clone boot via `StatelessPlugin.additionalSettings()`
 
-This step happens **before the ES process starts**, so it cannot be performed by a plugin
-hook. The `nodeId` in `node.json` is read by `NodeEnvironment` during early bootstrap —
-before plugins are even loaded — so any plugin code would be too late to influence the
-node's identity.
+Plugins are loaded and `additionalSettings()` is merged **before** `NodeEnvironment`
+reads persisted node identity from `{dataPath}/_state/`. `CacheSnapshotBootstrap` runs
+at that point when `stateless.cache_snapshot.enabled = true` and
+`{dataPath}/shared_snapshot_cache.snapshot` exists:
 
-The snapshot file is already present on the volume the replacement node boots from.
-Because the file is plain JSON, the startup script (Kubernetes init container, deployment
-entrypoint) can extract `sourceNodeId` with a single `jq` call — no binary parsing, no
-operator input needed. It is responsible for two actions before starting ES:
+1. Read `node_id` from the snapshot JSON header (`CacheSnapshotService.readSourceNodeId`).
+2. Delete `{dataPath}/_state/` and any legacy `{dataPath}/node-*.json` so ES mints a fresh ID.
+3. Add `node.attr.es_cache_restored_from_node = <sourceNodeId>` to the returned settings
+  (unless the operator already set that key explicitly — explicit node settings win over
+   plugin `additionalSettings` in `Node.mergePluginSettings`).
 
-**1. Delete `node.json` if it matches `sourceNodeId`**
-
-The snapshot volume contains `node.json` from the source node. If the replacement node
-starts with that file, it presents the same ES node ID as the still-live source node.
-Two nodes with the same ID cannot coexist: the join is rejected.
-
-```bash
-SNAPSHOT="${ES_PATH_DATA}/nodes/0/shared_snapshot_cache.snapshot"
-NODE_JSON="${ES_PATH_DATA}/nodes/0/node.json"
-
-SOURCE_NODE_ID=$(jq -r '.node_id' "${SNAPSHOT}")
-
-# node.json may not exist (e.g. snapshot volume was prepared without one)
-if [ -f "${NODE_JSON}" ]; then
-    CURRENT_NODE_ID=$(jq -r '.node.id' "${NODE_JSON}")
-    if [ "${SOURCE_NODE_ID}" = "${CURRENT_NODE_ID}" ]; then
-        rm "${NODE_JSON}"
-    fi
-fi
+```java
+// StatelessPlugin.additionalSettings()
+settings.put(CacheSnapshotBootstrap.applyCloneBootSettings(pluginSettings));
 ```
 
-ES then generates a fresh ID at startup.
-
-**2. Set the allocation attribute**
-
-Pass the attribute via `-E` on the ES command line (or the equivalent env-var mechanism
-used by the deployment). Do **not** append to `elasticsearch.yml` — repeated clones
-would accumulate duplicate entries:
-
-```bash
-exec elasticsearch -E "node.attr.es_cache_restored_from_node=${SOURCE_NODE_ID}"
+```java
+// CacheSnapshotBootstrap.java
+public static Settings applyCloneBootSettings(Settings settings) {
+    if (STATELESS_CACHE_SNAPSHOT_ENABLED_SETTING.get(settings) == false) {
+        return Settings.EMPTY;
+    }
+    Path dataPath = resolveSingleDataPath(settings);  // path.data must be a single directory
+    Path snapshotFile = CacheSnapshotService.snapshotFilePath(
+        dataPath.resolve("shared_snapshot_cache"));
+    Optional<String> sourceNodeId = CacheSnapshotService.readSourceNodeId(snapshotFile);
+    if (sourceNodeId.isEmpty()) {
+        return Settings.EMPTY;  // malformed or missing node_id — do not wipe _state
+    }
+    resetPersistedNodeIdentity(dataPath);  // rm _state/ + node-*.json
+    if (settings.hasValue("node.attr.es_cache_restored_from_node")) {
+        return Settings.EMPTY;
+    }
+    return Settings.builder()
+        .put("node.attr.es_cache_restored_from_node", sourceNodeId.get())
+        .build();
+}
 ```
 
-This attribute is included in the `DiscoveryNode` sent during cluster join and is visible
-to the master's allocator immediately.
+No init container, `jq`, or `-E` flags are required. The operator only provisions the
+replacement from the snapshot volume and enables `stateless.cache_snapshot.enabled`.
 
 ### 7b. Construction
 
-By the time the `StatelessSharedBlobCacheService` constructor runs, the operator has
-already deleted `node.json` (if needed) and set the node attribute. The constructor
+By the time the `StatelessSharedBlobCacheService` constructor runs, clone boot has already
+reset persisted node identity and injected the allocation attribute. The constructor
 restores the cache state from the snapshot file if one is present:
 
 ```java
@@ -772,6 +769,7 @@ POST /_stateless/cache/snapshot?node_id={node_id}
 returns `400 Bad Request` if the parameter is absent.
 
 Response body:
+
 ```json
 {
   "snapshot_id": "snap-0a1b2c3d"
@@ -788,9 +786,9 @@ the `Rest*Action` naming convention — `RestCacheSnapshotAction`.
 Three services warm the cache proactively after a shard is assigned:
 
 - `StatelessOnlinePrewarmingService` — warms region 0 (and optionally region 1) of every
-  segment file on the hot query path.
+segment file on the hot query path.
 - `SearchCommitPrefetcher` — prefetches commit data in the background when new commits
-  arrive.
+arrive.
 - `SharedBlobCacheWarmingService` — broader warming on shard recovery.
 
 All three ultimately call `maybeFetchRange` / `fetchRange`, which internally calls
@@ -870,22 +868,58 @@ yet in the cache.
 `StatelessExistingShardsAllocator.allocateUnassigned` is a deliberate no-op in stateless.
 Numeric ranking is controlled by `StatelessBalancingWeightsFactory`, which replaces
 `searchWeightFunction` at construction time with `CacheRestoreAwareWeightFunction` — a
-subclass whose `calculateNodeWeightWithIndex` checks `ModelNode.getRoutingNode().node()
-.getAttributes()` and subtracts a constant boost for attributed nodes. This is the shared
-instance used by `NodeSorter` in `decideMove`, so all relocation ranking picks up the boost.
+subclass whose `calculateNodeWeightWithIndex` calls
+`CacheRestoredAllocationDecider.isReplacementWindowActive` and subtracts a constant boost
+while the named source node is still a cluster member. This is the shared instance used by
+`NodeSorter` in `decideMove`, so relocation ranking picks up the boost only during that
+active replacement window.
 
-For audit purposes, `AllocationDecider.canAllocate(ShardRouting shard, RoutingNode node,
-RoutingAllocation allocation)` provides shard context. It is called for every
-(shard, candidate-node) pair during exclusion-triggered relocation, exposes
-`shard.currentNodeId()`, and can emit a labelled `Decision.YES` that appears in
-`GET /_cluster/allocation/explain`.
+`AllocationDecider.canAllocate(ShardRouting shard, RoutingNode node, RoutingAllocation
+allocation)` is called for every (shard, candidate-node) pair during
+exclusion-triggered relocation and exposes `shard.currentNodeId()`. The decider has two
+responsibilities:
+
+1. **Audit trail** — emit a labelled `Decision.YES` for matching (shard, node) pairs so
+   that `GET /_cluster/allocation/explain` identifies the warm-cache destination.
+2. **Parallel-clone isolation** — when multiple replacements are in the cluster
+   simultaneously (operator is cloning several nodes at once), prevent a replacement from
+   attracting shards it has no warm cache for. Without this guard, the weight boost would
+   make all attributed nodes equally attractive, causing shards to scatter across
+   replacements regardless of which one was actually cloned from the shard's current home.
+
+The decider's responsibilities and the weight boost (Step 9b) are both scoped to the
+**active replacement window** — the period while the source node is still a member of the
+cluster. Once the source has left, the attribute on the replacement is stale: the decider
+returns `Decision.YES` unconditionally (lifting any parallel-clone `NO` decisions) and the
+weight boost stops.
 
 ### 9a. `CacheRestoredAllocationDecider` (new)
+
+The decision logic, in order:
+
+1. No attribute on the candidate node → `YES` (not a replacement).
+2. The source node named by the attribute is **not in the cluster** → `YES` (source has
+   left; replacement window is over; attribute is stale).
+3. Attribute matches `shard.currentNodeId()` → labelled `YES` (this is the correct warm
+   replacement).
+4. A correct replacement **does** exist in the cluster → `NO` (parallel-clone guard:
+   defer to the designated replacement).
+5. No correct replacement in the cluster → `YES` (fallback; shard allocation is never
+   indefinitely stalled).
 
 ```java
 public class CacheRestoredAllocationDecider extends AllocationDecider {
 
     static final String NAME = "cache_restored";
+
+    /** Shared with CacheRestoreAwareWeightFunction — true while source is still in cluster. */
+    static boolean isReplacementWindowActive(DiscoveryNode node, DiscoveryNodes nodes) {
+        String restoredFrom = node.getAttributes().get("es_cache_restored_from_node");
+        if (restoredFrom == null) {
+            return false;
+        }
+        return nodes.get(restoredFrom) != null;
+    }
 
     @Override
     public Decision canAllocate(ShardRouting shard,
@@ -893,7 +927,7 @@ public class CacheRestoredAllocationDecider extends AllocationDecider {
                                 RoutingAllocation allocation) {
         String restoredFrom =
             node.node().getAttributes().get("es_cache_restored_from_node");
-        if (restoredFrom == null) {
+        if (isReplacementWindowActive(node.node(), allocation.nodes()) == false) {
             return Decision.YES;
         }
         if (restoredFrom.equals(shard.currentNodeId())) {
@@ -902,22 +936,53 @@ public class CacheRestoredAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME,
                 "node has warm cache restored from source node [%s]", restoredFrom);
         }
-        return Decision.YES;   // no preference; still allowed as fallback
+        // This is an attributed replacement, but not the one cloned from this shard's
+        // source. Defer to the correct replacement if it is present in the cluster.
+        if (correctReplacementExists(shard.currentNodeId(), allocation)) {
+            return allocation.decision(Decision.NO, NAME,
+                "node's warm cache was restored from [%s], not this shard's current "
+                + "node [%s]; deferring to the designated replacement node",
+                restoredFrom, shard.currentNodeId());
+        }
+        // The correct replacement is not (or no longer) in the cluster — allow fallback
+        // so that allocation is never indefinitely stalled.
+        return Decision.YES;
+    }
+
+    private static boolean correctReplacementExists(String sourceNodeId,
+                                                    RoutingAllocation allocation) {
+        if (sourceNodeId == null) {
+            return false;
+        }
+        for (RoutingNode rn : allocation.routingNodes()) {
+            String attr = rn.node().getAttributes().get("es_cache_restored_from_node");
+            if (sourceNodeId.equals(attr)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 ```
 
-Both the matching and non-matching cases return `Decision.YES`, so the decider never
-hard-blocks fallback placement. The labelled `Decision.YES` for the matching case provides
-an audit trail in `GET /_cluster/allocation/explain`. Preference ranking is handled by
-`StatelessBalancingWeightsFactory`.
+The source-left guard (step 2) ensures that once the operator terminates the source node,
+both the parallel-clone `NO` decisions and the weight boost from
+`CacheRestoreAwareWeightFunction` are immediately lifted — the replacement becomes a plain
+search node from the allocator's perspective even though the attribute persists for the
+lifetime of the process. `GET /_cluster/allocation/explain` surfaces both the `NO` decisions
+(during the parallel window) and the final labelled `YES` (when the shard lands on its
+warm-cache destination).
+
+Both the decider and the weight function share
+`CacheRestoredAllocationDecider.isReplacementWindowActive(node, nodes)` — the attribute is
+meaningful only while the named source node is still a cluster member.
 
 ### 9b. `StatelessBalancingWeightsFactory` — concrete weight boost
 
 `StatelessBalancingWeightsFactory.create()` returns a `StatelessBalancingWeights` object.
 `StatelessBalancingWeights` constructs two `WeightFunction` instances
 (`searchWeightFunction`, `indexingWeightFunction`) that are passed directly to
-`NodeSorter` in `createNodeSorters`. **`NodeSorter` is what `decideMove` uses to rank
+`NodeSorter` in `createNodeSorters`. `**NodeSorter` is what `decideMove` uses to rank
 relocation targets** — it is built with these shared instances, not with per-node results
 from `weightFunctionForNode`. `weightFunctionForNode` is only called for metrics
 (node weight stats collection); overriding it has no effect on relocation ranking.
@@ -934,10 +999,10 @@ correctly for rebalance threshold checks — no separate override is needed.
 ```java
 // StatelessBalancingWeightsFactory.java — new private static inner class
 /**
- * WeightFunction subclass that applies a constant boost (negative delta) to nodes
- * whose attribute indicates they are a cache-restored replacement. Used as the
- * shared searchWeightFunction so that NodeSorter and weightFunctionForShard both
- * see the boost. calculateNodeWeightWithIndex checks node attributes on each call.
+ * WeightFunction subclass that applies a constant boost (negative delta) during the
+ * active replacement window — while the source node named by the attribute is still in
+ * the cluster. Used as the shared searchWeightFunction so that NodeSorter and
+ * weightFunctionForShard both see the boost.
  */
 private static final class CacheRestoreAwareWeightFunction extends WeightFunction {
 
@@ -956,8 +1021,8 @@ private static final class CacheRestoreAwareWeightFunction extends WeightFunctio
             BalancedShardsAllocator.ModelNode node,
             BalancedShardsAllocator.ProjectIndex index) {
         float base = super.calculateNodeWeightWithIndex(balancer, node, index);
-        if (node.getRoutingNode().node().getAttributes()
-                .containsKey("es_cache_restored_from_node")) {
+        if (CacheRestoredAllocationDecider.isReplacementWindowActive(
+                node.getRoutingNode().node(), balancer.getAllocation().nodes())) {
             return base - CACHE_RESTORED_BOOST;
         }
         return base;
@@ -979,19 +1044,19 @@ this.searchWeightFunction = new CacheRestoreAwareWeightFunction(
 now automatically uses the boost-aware instance for search nodes.
 
 **Tradeoff acknowledged:** the blanket boost affects all shard placements on the
-replacement node, not only shards that were on `sourceNodeId`. If other shards happen
-to be rebalancing concurrently, some may also be steered toward the replacement node.
+replacement node, not only shards that were on `sourceNodeId`. If unrelated shards happen
+to be rebalancing concurrently they may also be steered toward the replacement node.
 This is acceptable because:
-- The attribute is short-lived (present only during the replacement window, absent after
-  the next restart).
+
+- The replacement window is bounded by source node membership in the cluster (not process
+  lifetime): both the weight boost and the parallel-clone `NO` guard stop once the source
+  leaves. The attribute string may persist until the next restart but is ignored.
 - The replacement node is sized identically to the source, so it can absorb the same
   shard set.
-- At most one replacement node per source carries the attribute at any given time (the
-  operator performs one clone at a time).
-
-If stricter per-shard routing is required, a follow-on iteration can extend
-`CacheRestoredAllocationDecider` to return `Decision.NO` for shards not from
-`sourceNodeId`, but this is not needed for the initial implementation.
+- `CacheRestoredAllocationDecider` (Step 9a) prevents cross-assignment between
+  concurrent replacements: it returns `Decision.NO` for shards whose source node is
+  covered by a different attributed node, so spurious attraction only affects shards with
+  no competing attributed node in the cluster.
 
 ### 9c. Triggering relocation while the source is live
 
@@ -1015,9 +1080,12 @@ removes the exclusion and terminates the source node.
 
 ### Attribute lifecycle
 
-The `es_cache_restored_from_node` attribute persists for the lifetime of the node process.
-It is absent from the next restart (the replacement starts fresh without a snapshot file)
-and needs no explicit cleanup.
+The `es_cache_restored_from_node` attribute string persists for the lifetime of the node
+process but is **only consulted while the named source node is still in the cluster**.
+Once the source leaves, `isReplacementWindowActive` returns false and both the weight
+boost and the parallel-clone `NO` guard cease. The attribute is absent from the next
+restart (the replacement starts fresh without a snapshot file) and needs no explicit
+cleanup.
 
 ### Source node draining — complete sequence
 
@@ -1034,72 +1102,101 @@ The orchestration layer is responsible for:
 If the source node leaves before step 4, shards are allocated normally to other nodes
 (cold misses, but correct behaviour).
 
+**Parallel cloning** — the sequence above may be run concurrently for multiple source
+nodes. Each replacement carries a different `es_cache_restored_from_node` value.
+`CacheRestoredAllocationDecider` returns `Decision.NO` for (shard, replacement) pairs
+where the replacement was not cloned from the shard's current node, as long as the correct
+replacement is in the cluster. Steps 4–7 for each source/replacement pair are independent
+and may overlap. The `exclude._id` setting accepts a comma-separated list:
+
+```
+PUT /_cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.exclude._id": "<sourceNodeId1>,<sourceNodeId2>"
+  }
+}
+```
+
 ---
 
 ## Correctness guarantees
 
-| Invariant | How it is maintained |
-|---|---|
-| Metadata describes only durable data | `sync_file_range(WAIT_AFTER)` per slot completes before `writeSnapshotFile` is called; bytes are on the volume before the metadata file is written |
-| Metadata file is atomic | Written to `.tmp`, fsynced, then atomically renamed — never partially visible |
-| Metadata and data are consistent | `freeze()` blocks all mutation and search-I/O entry points (including `CacheFile.populate`/`populateAndRead` reached by `CacheFileReader`) and spin-waits until `activeGapFills == 0`; the counter is decremented in each gap's async completion listener (after bytes are written to the file and the `SparseFileTracker` range is marked done), so `activeGapFills == 0` means all in-flight blob-store writes have landed; `sync_file_range` and `getCompletedRanges` therefore see a stable, consistent view |
-| Truncation detected on read | A truncated or malformed JSON document fails XContent parsing and discards the file — no partial restore |
-| Cloud snapshot captures both | The cloud snapshot is initiated after both the data flush and the metadata fsync are complete; the snapshot includes the metadata file and all flushed data |
-| Safe on cloud snapshot volume | The snapshot is taken after `sync_file_range(WAIT_AFTER)` acknowledges all bytes have reached the block device; cloud network volumes do not have a volatile device cache between the OS and persistent storage |
-| Stale metadata never persists if snapshot fails | If `createSnapshot()` throws, the metadata file is deleted before re-throwing; a subsequent restart from the original volume starts cold rather than restoring with a snapshot ID that does not exist |
-| Replacement node gets a fresh identity | The startup script reads `sourceNodeId` from the snapshot file header, compares it to `node.json`, and deletes `node.json` if they match; no operator input is required; the node generates a new ID and cannot collide with the still-running source node |
-| Replacement node gets the correct shards | `CacheRestoreAwareWeightFunction` (injected as `searchWeightFunction`) gives the replacement node a blanket negative weight delta; operator decommissions source to trigger relocation; `NodeSorter` ranks replacement above other search nodes for all shard placements |
-| Preference is advisory, not blocking | If the replacement node is unavailable, the allocator falls back to normal placement; shard allocation is never indefinitely stalled waiting for a specific node |
+
+| Invariant                                       | How it is maintained                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Metadata describes only durable data            | `sync_file_range(WAIT_AFTER)` per slot completes before `writeSnapshotFile` is called; bytes are on the volume before the metadata file is written                                                                                                                                                                                                                                                                                                                                                               |
+| Metadata file is atomic                         | Written to `.tmp`, fsynced, then atomically renamed — never partially visible                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Metadata and data are consistent                | `freeze()` blocks all mutation and search-I/O entry points (including `CacheFile.populate`/`populateAndRead` reached by `CacheFileReader`) and spin-waits until `activeGapFills == 0`; the counter is decremented in each gap's async completion listener (after bytes are written to the file and the `SparseFileTracker` range is marked done), so `activeGapFills == 0` means all in-flight blob-store writes have landed; `sync_file_range` and `getCompletedRanges` therefore see a stable, consistent view |
+| Truncation detected on read                     | A truncated or malformed JSON document fails XContent parsing and discards the file — no partial restore                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Cloud snapshot captures both                    | The cloud snapshot is initiated after both the data flush and the metadata fsync are complete; the snapshot includes the metadata file and all flushed data                                                                                                                                                                                                                                                                                                                                                      |
+| Safe on cloud snapshot volume                   | The snapshot is taken after `sync_file_range(WAIT_AFTER)` acknowledges all bytes have reached the block device; cloud network volumes do not have a volatile device cache between the OS and persistent storage                                                                                                                                                                                                                                                                                                  |
+| Stale metadata never persists if snapshot fails | If `createSnapshot()` throws, the metadata file is deleted before re-throwing; a subsequent restart from the original volume starts cold rather than restoring with a snapshot ID that does not exist                                                                                                                                                                                                                                                                                                            |
+| Replacement node gets a fresh identity          | `CacheSnapshotBootstrap` (via `additionalSettings()`, before `NodeEnvironment`) reads `sourceNodeId` from `shared_snapshot_cache.snapshot`, deletes `{dataPath}/_state/` and legacy `node-*.json`, so ES generates a new ID; the replacement cannot collide with the still-running source node                                                                                                                                                                                                                   |
+| Replacement node gets the correct shards        | During the active replacement window (source still in cluster): `CacheRestoreAwareWeightFunction` gives the designated replacement a blanket negative weight delta; `CacheRestoredAllocationDecider` returns `Decision.NO` for (shard, node) pairs where the node was cloned from a different source; operator decommissions source to trigger relocation; `NodeSorter` ranks the correct replacement above other search nodes |
+| Parallel-clone isolation is hard; fallback is soft | While the source is in the cluster and the correct replacement is present, wrong replacements get a hard `Decision.NO` from the decider. If the correct replacement is absent, the decider lifts `NO` to `YES` so allocation is never stalled. Ranking preference via the weight boost is also limited to the same replacement window — once the source leaves, both mechanisms stop and normal balancing resumes |
+
 
 ---
 
 ## Implementation edge cases
 
-| Case | Note |
-|---|---|
+
+| Case                             | Note                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `fillGapRunnable` never executed | If the `Runnable` returned by `fillGapRunnable` is submitted to an executor that rejects it before calling `run()`, the `countedListener` is never called and `activeGapFills` never decrements — `freeze()` then spin-waits forever. Moving the increment inside `run()` would avoid this leak but introduces a freeze race: `freeze()` acquires the write stamp after all entry-point read stamps are released, but a queued-but-not-yet-executing runnable has not yet incremented the counter, so `freeze()` sees zero and proceeds to `sync_file_range` while a gap fill is still pending. Factory-time increment is therefore required for correctness. The never-run case is accepted because internal ES thread pools do not reject; if this invariant needs hardening, use `AbstractRunnable.onRejection` to decrement explicitly. |
-| Freeze spin-wait timeout | The `while (activeGapFills.get() > 0) { Thread.onSpinWait(); }` loop has no timeout. If a blob-store I/O hangs (e.g., S3 request stuck), `freeze()` spins indefinitely on a CPU core. Consider a bounded wait with an interrupt or logged warning after a threshold (e.g., 30 s). |
-| `slotToRegion` on failed assign | `assignToSlot` can evict an existing entry and then fail to assign the new one (e.g., evicted-during-allocation path). Ensure `slotToRegion[slot]` is cleared in every exit path of `assignToSlot`, not only on success. |
-| Snapshot file with zero entries | Handled in Step 7b: deletion is conditioned on `metadata.sourceNodeId() != null`, so a valid file with no entries is still deleted after processing. |
-| Cloud provider scope | Shipping three cloud provider implementations (AWS EBS, GCP PD, Azure Managed Disk) in the initial PR is a large slice. Consider shipping with one fully implemented provider and a `NoOpCloudVolumeSnapshotProvider` stub (returns a fixed token, logs a warning) for the others until they are needed. |
+| Freeze spin-wait timeout         | The `while (activeGapFills.get() > 0) { Thread.onSpinWait(); }` loop has no timeout. If a blob-store I/O hangs (e.g., S3 request stuck), `freeze()` spins indefinitely on a CPU core. Consider a bounded wait with an interrupt or logged warning after a threshold (e.g., 30 s).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `slotToRegion` on failed assign  | `assignToSlot` can evict an existing entry and then fail to assign the new one (e.g., evicted-during-allocation path). Ensure `slotToRegion[slot]` is cleared in every exit path of `assignToSlot`, not only on success.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Snapshot file with zero entries  | Handled in Step 7b: deletion is conditioned on `metadata.sourceNodeId() != null`, so a valid file with no entries is still deleted after processing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Cloud provider scope             | Shipping three cloud provider implementations (AWS EBS, GCP PD, Azure Managed Disk) in the initial PR is a large slice. Consider shipping with one fully implemented provider and a `NoOpCloudVolumeSnapshotProvider` stub (returns a fixed token, logs a warning) for the others until they are needed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Parallel cloning — replacement crashes mid-drain | If replacement R1 (for source S1) crashes after S1 is excluded but before all shards have relocated, `correctReplacementExists(S1)` returns false for all other nodes. `CacheRestoredAllocationDecider` lifts any remaining `NO` decisions to `YES`, allowing S1's shards to fall back to R2 (which has S2's warm cache) or any other search node. This is correct — warmth is lost for those shards but the cluster remains available. |
+| Parallel cloning — source excluded before replacement joins | If the operator excludes S1 before R1 has joined, `CacheRestoredAllocationDecider` returns `YES` for every candidate (no attributed node in the cluster yet). S1's shards relocate to plain search nodes. When R1 eventually joins and the operator re-excludes S1 (if it is still live), the weight boost will prefer R1, but it may now carry shards that have already been re-warmed on other nodes. |
+
 
 ---
 
 ## Files changed / created
 
-| File | Change |
-|---|---|
-| `libs/native/…/NativeAccess.java` (interface + Linux impl) | `syncFileRange(FileChannel, long offset, long nbytes, int flags)`; Linux impl calls `sync_file_range(2)` via Panama FFI; default impl falls back to `fc.force(false)` |
-| `blob-cache/…/SharedBytes.java` | `IO.getSlotIndex()`, `SharedBytes.syncRange(int slot, int flags)`, `SYNC_FILE_RANGE_WRITE`, `SYNC_FILE_RANGE_WAIT_AFTER` constants |
-| `blob-cache/…/SharedBlobCacheService.java` | `slotToRegion[]` array + wiring in `assignToSlot` and `closeInternal`; `activeGapFills` counter + centralized increment/decrement in `fillGapRunnable`; `getNumRegions()`, `getRegionSize()`, `getSlotRegion()`, `isRangeFullyCached()`, `getOccupiedSlots()`, `getCompletedRangesForSlot()`, `syncSlotRange()`, `freeze()`/`unfreeze()` (StampedLock + activeGapFills drain), read-stamp call sites at all mutation and search-I/O entry points (`fetchRegion`, `maybeFetchRegion`, `fetchRange`, `maybeFetchRange`, `CacheFile.populate`, `CacheFile.populateAndRead`, `maybeEvictLeastUsed`, `forceEvict`, `forceEvictAsync`, shard-close eviction), `CacheIndexEntry` record, `restoreOccupancy()`, `CacheFileRegion` restore constructor |
-| `stateless/…/StatelessSharedBlobCacheService.java` | `STATELESS_CACHE_SNAPSHOT_ENABLED_SETTING`, flag-gated `CacheSnapshotService` construction and startup restore, `snapshotService` field |
-| `stateless/…/cache/CacheSnapshotService.java` *(new)* | `snapshot()` sequence; `writeSnapshotFile()` using `XContentBuilder` (JSON); `readSnapshotFile()` using streaming `XContentParser`; `CloudVolumeSnapshotProvider` interface |
-| `stateless/…/cache/CloudVolumeSnapshotProvider.java` *(new)* | Interface + per-cloud implementations (AWS EBS, GCP PD, Azure Managed Disk) |
-| `stateless/…/action/CacheSnapshotRequest.java` *(new)* | Transport request |
-| `stateless/…/action/CacheSnapshotResponse.java` *(new)* | Transport response (`snapshotId`) |
-| `stateless/…/action/TransportCacheSnapshotAction.java` *(new)* | Node-level transport action; invokes `CacheSnapshotService.snapshot()` |
-| `stateless/…/action/RestCacheSnapshotAction.java` *(new)* | `POST /_stateless/cache/snapshot?node_id=…` REST handler (`node_id` required) |
-| `stateless/…/cache/StatelessOnlinePrewarmingService.java` | `isRangeFullyCached` guard before `ThrottledTaskRunner` dispatch |
-| `stateless/…/cache/SearchCommitPrefetcher.java` | `isRangeFullyCached` guard before each dispatch |
-| `stateless/…/cache/SharedBlobCacheWarmingService.java` | `isRangeFullyCached` guard before each dispatch |
-| `stateless/…/allocation/CacheRestoredAllocationDecider.java` *(new)* | `canAllocate(ShardRouting, RoutingNode, RoutingAllocation)` — labels matching (shard, node) pairs for audit; registered in stateless plugin's `createAllocationDeciders()` |
-| `stateless/…/allocation/StatelessBalancingWeightsFactory.java` | Blanket weight reduction for nodes with `es_cache_restored_from_node` attribute set |
+
+| File                                                                 | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `libs/native/…/NativeAccess.java` (interface + Linux impl)           | `syncFileRange(FileChannel, long offset, long nbytes, int flags)`; Linux impl calls `sync_file_range(2)` via Panama FFI; default impl falls back to `fc.force(false)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `blob-cache/…/SharedBytes.java`                                      | `IO.getSlotIndex()`, `SharedBytes.syncRange(int slot, int flags)`, `SYNC_FILE_RANGE_WRITE`, `SYNC_FILE_RANGE_WAIT_AFTER` constants                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `blob-cache/…/SharedBlobCacheService.java`                           | `slotToRegion[]` array + wiring in `assignToSlot` and `closeInternal`; `activeGapFills` counter + centralized increment/decrement in `fillGapRunnable`; `getNumRegions()`, `getRegionSize()`, `getOccupiedEntries()` (public; replaces the three package-private methods `getOccupiedSlots()` / `getSlotRegion()` / `getCompletedRangesForSlot()` — `CacheFileRegion` is package-private and cannot cross to the `stateless` module), `isRangeFullyCached()`, `syncSlotRange()`, `freeze()`/`unfreeze()` (StampedLock + activeGapFills drain), read-stamp call sites at all mutation and search-I/O entry points (`fetchRegion`, `maybeFetchRegion`, `fetchRange`, `maybeFetchRange`, `CacheFile.populate`, `CacheFile.populateAndRead`, `maybeEvictLeastUsed`, `forceEvict`, `forceEvictAsync`, shard-close eviction), `CacheIndexEntry` record, `restoreOccupancy()`, `CacheFileRegion` restore constructor |
+| `stateless/…/cache/CacheSnapshotBootstrap.java` *(new)*              | Clone boot in `additionalSettings()`: wipe `_state/`, inject `es_cache_restored_from_node` from snapshot `node_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `stateless/…/StatelessPlugin.java`                                   | Calls `CacheSnapshotBootstrap.applyCloneBootSettings()` from `additionalSettings()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `stateless/…/StatelessSharedBlobCacheService.java`                   | `STATELESS_CACHE_SNAPSHOT_ENABLED_SETTING`, flag-gated `CacheSnapshotService` construction and startup restore, `snapshotService` field                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `stateless/…/cache/CacheSnapshotService.java` *(new)*                | `snapshot()` sequence; `readSourceNodeId()` for bootstrap; JSON read/write                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `stateless/…/cache/CloudVolumeSnapshotProvider.java` *(new)*         | Interface + per-cloud implementations (AWS EBS, GCP PD, Azure Managed Disk)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `stateless/…/action/CacheSnapshotRequest.java` *(new)*               | Transport request                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `stateless/…/action/CacheSnapshotResponse.java` *(new)*              | Transport response (`snapshotId`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `stateless/…/action/TransportCacheSnapshotAction.java` *(new)*       | Node-level transport action; invokes `CacheSnapshotService.snapshot()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `stateless/…/action/RestCacheSnapshotAction.java` *(new)*            | `POST /_stateless/cache/snapshot?node_id=…` REST handler (`node_id` required)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `stateless/…/cache/StatelessOnlinePrewarmingService.java`            | `isRangeFullyCached` guard before `ThrottledTaskRunner` dispatch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `stateless/…/cache/SearchCommitPrefetcher.java`                      | `isRangeFullyCached` guard before each dispatch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `stateless/…/cache/SharedBlobCacheWarmingService.java`               | `isRangeFullyCached` guard before each dispatch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `stateless/…/allocation/CacheRestoredAllocationDecider.java` *(new)* | `canAllocate` — labelled `YES` for matching (shard, node) pairs; `Decision.NO` for parallel-clone cross-assignment while source is in cluster; `isReplacementWindowActive`; registered in `createAllocationDeciders()` |
+| `stateless/…/allocation/StatelessBalancingWeightsFactory.java`       | `CacheRestoreAwareWeightFunction` — weight boost via `isReplacementWindowActive` during active replacement window only |
+
 
 ---
 
 ## Test plan
 
-| Test class | What it covers |
-|---|---|
-| `SharedBytesTests` | `IO.getSlotIndex()` correctness |
-| `SharedBlobCacheServiceTests` | `slotToRegion[]` populated on assign, cleared on evict; `freeze()` blocks all entry points and drains in-flight gap fills before returning; `activeGapFills` counter incremented/decremented correctly; `isRangeFullyCached` returns true/false correctly; `getOccupiedSlots()` matches live slot state |
-| `CacheSnapshotServiceTests` *(new)* | Round-trip: populate cache → `snapshot()` → verify snapshot file is valid JSON, entries match live state; missing snapshot file → `readSnapshotFile` returns empty; malformed JSON → discarded, starts cold; `version` mismatch → discarded; `num_regions` / `region_size` mismatch → discarded |
-| `CacheSnapshotFreezeTests` *(new)* | Freeze blocks all mutation and search-I/O entry points (including `CacheFile.populate`); in-flight async gap fills complete before freeze returns (`activeGapFills` drains to zero); warm hits via `CacheFile.tryRead` proceed while freeze is pending; cache-miss reads via `CacheFile.populate` block until freeze releases; freeze releases on error (finally block); completed-range snapshot is stable after freeze |
-| `CacheSnapshotFlushOrderingTests` *(new)* | Assert `sync_file_range(WRITE)` issued for all occupied slots before any `sync_file_range(WAIT_AFTER)`; assert `writeSnapshotFile` called only after all WAIT_AFTER calls return; intercept `NativeAccess.syncFileRange` to verify ordering |
-| `CacheSnapshotRestoreTests` *(new)* | End-to-end: populate → snapshot → re-create service → verify `freeRegionCount` reduced, `getIfPresent` non-null, completed ranges match; snapshot file deleted after successful restore; no snapshot file → cold start |
-| `TransportCacheSnapshotActionTests` *(new)* | Feature flag disabled → `IllegalStateException`; enabled → delegates to `CacheSnapshotService`; response contains `snapshotId`; cloud provider error propagated; metadata file deleted on cloud provider failure |
-| `StatelessOnlinePrewarmingServiceTests` | Restored regions: `maybeFetchRange` never called (skip guard fires); non-restored regions: `maybeFetchRange` called as before |
-| `CacheSnapshotNodeReplacementTests` *(new)* | Startup script logic: snapshot header parsed correctly; `node.json` with matching `sourceNodeId` is deleted; `node.json` with a different ID is left untouched; `es_cache_restored_from_node` attribute set from snapshot header value; attribute absent when no snapshot file is present |
-| `CacheRestoredAllocationDeciderTests` *(new)* | Returns labelled `Decision.YES` for (shard, node) pair where `es_cache_restored_from_node == shard.currentNodeId()`; returns plain `Decision.YES` for non-matching nodes (fallback allowed); neutral when attribute absent |
-| `StatelessBalancingWeightsFactoryTests` | `NodeSorter` built with `CacheRestoreAwareWeightFunction` places attributed node at head of sort order; `calculateNodeWeightWithIndex` returns lower value for attributed node; boost does not override hard NO decisions from other deciders |
-| `SearchNodeCloningAllocationIT` *(new, integration)* | Full flow: source node cloned → replacement joins with `es_cache_restored_from_node` attribute → source excluded via `exclude._id` → all shards relocate to replacement (not to other search nodes); verify via routing table; clear exclusion; source terminated cleanly |
+
+| Test class                                           | What it covers                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SharedBytesTests`                                   | `IO.getSlotIndex()` correctness                                                                                                                                                                                                                                                                                                                                                                                          |
+| `SharedBlobCacheServiceTests`                        | `slotToRegion[]` populated on assign, cleared on evict; `freeze()` blocks all entry points (including `CacheFile.populate`) and drains in-flight gap fills before returning; `activeGapFills` counter incremented/decremented correctly; `isRangeFullyCached` returns true/false correctly; `getOccupiedEntries()` matches live slot state                                                                               |
+| `CacheSnapshotServiceTests` *(new)*                  | Round-trip: populate cache → `snapshot()` → verify snapshot file is valid JSON, entries match live state; missing snapshot file → `readSnapshotFile` returns empty; malformed JSON → discarded, starts cold; `version` mismatch → discarded; `num_regions` / `region_size` mismatch → discarded                                                                                                                          |
+| `CacheSnapshotFreezeTests` *(new)*                   | Freeze blocks all mutation and search-I/O entry points (including `CacheFile.populate`); in-flight async gap fills complete before freeze returns (`activeGapFills` drains to zero); warm hits via `CacheFile.tryRead` proceed while freeze is pending; cache-miss reads via `CacheFile.populate` block until freeze releases; freeze releases on error (finally block); completed-range snapshot is stable after freeze |
+| `CacheSnapshotFlushOrderingTests` *(new)*            | Assert `sync_file_range(WRITE)` issued for all occupied slots before any `sync_file_range(WAIT_AFTER)`; assert `writeSnapshotFile` called only after all WAIT_AFTER calls return; intercept `NativeAccess.syncFileRange` to verify ordering                                                                                                                                                                              |
+| `CacheSnapshotRestoreTests` *(new)*                  | End-to-end: populate → snapshot → re-create service → verify `freeRegionCount` reduced, `getIfPresent` non-null, completed ranges match; snapshot file deleted after successful restore; no snapshot file → cold start                                                                                                                                                                                                   |
+| `TransportCacheSnapshotActionTests` *(new)*          | Feature flag disabled → `IllegalStateException`; enabled → delegates to `CacheSnapshotService`; response contains `snapshotId`; cloud provider error propagated; metadata file deleted on cloud provider failure                                                                                                                                                                                                         |
+| `StatelessOnlinePrewarmingServiceTests`              | Restored regions: `maybeFetchRange` never called (skip guard fires); non-restored regions: `maybeFetchRange` called as before                                                                                                                                                                                                                                                                                            |
+| `CacheSnapshotBootstrapTests` *(new)*                | Clone boot: snapshot present → `_state/` and legacy `node-*.json` removed, attribute injected; feature off / no snapshot / malformed JSON → no-op; explicit attribute not overridden; `StatelessPlugin.additionalSettings()` integration                                                                                                                                                                                 |
+| `CacheRestoredAllocationDeciderTests` *(new)*        | Returns labelled `Decision.YES` for (shard, node) pair where `es_cache_restored_from_node == shard.currentNodeId()`; neutral when attribute absent; **parallel cloning**: returns `Decision.NO` for a (shard, wrongReplacement) pair when both sources and the correct replacement are in the cluster; lifts `NO` to `YES` when the correct replacement is absent (fallback); **source-left**: returns `YES` unconditionally once the source node has left the cluster |
+| `StatelessBalancingWeightsFactoryTests`              | `NodeSorter` built with `CacheRestoreAwareWeightFunction` places attributed node at head of sort order while source is in cluster; boost skipped once source has left; `calculateNodeWeightWithIndex` returns lower value only during active replacement window |
+| `SearchNodeCloningAllocationTests` *(new)*           | Single-clone flow: source excluded → all shards relocate to replacement, not to other search nodes; verify routing table; **parallel-clone flow**: two sources excluded simultaneously → S1's shards go to R1 and S2's shards go to R2 with no cross-assignment; replacement crashes mid-drain → `NO` lifts to `YES`, shards fall back to plain search nodes |
+
+

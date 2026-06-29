@@ -13,6 +13,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -196,6 +197,11 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                     // implementation, which cannot read past the end of the non-uploaded blob when fetching from
                     // indexing nodes.
                     var lengthToRead = Math.min(cacheService.getRegionSize(), blobLength - offset);
+                    if (cacheService.isRangeFullyCached(cacheKey, i, ByteRange.of(offset, offset + lengthToRead))) {
+                        logger.trace("online prewarming skipped for key [{}] region [{}]: already cached", cacheKey, i);
+                        store.decRef();
+                        continue;
+                    }
                     var range = cacheBlobReader.getRange(offset, Math.toIntExact(lengthToRead), blobLength - offset);
                     logger.trace("online prewarming for key [{}] and region [{}] triggered", cacheKey, i);
                     long segmentWarmingTriggeredMillis = threadPool.relativeTimeInMillis();

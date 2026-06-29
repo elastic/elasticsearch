@@ -21,6 +21,8 @@ module org.elasticsearch.xpack.stateless {
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.xcontent;
 
+    requires java.net.http;
+
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
 

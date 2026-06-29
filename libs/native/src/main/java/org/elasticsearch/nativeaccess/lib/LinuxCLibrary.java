@@ -38,4 +38,15 @@ public interface LinuxCLibrary {
     long syscall(long number, int operation, int flags, long address);
 
     int fallocate(int fd, int mode, long offset, long length);
+
+    /**
+     * maps to sync_file_range(2) — Linux-only
+     * Initiates/waits for writeback of a byte range of a file to disk.
+     * @param fd     file descriptor opened with write access
+     * @param offset byte offset of the range start
+     * @param nbytes length of the range (0 means "to end of file")
+     * @param flags  combination of SYNC_FILE_RANGE_WRITE | SYNC_FILE_RANGE_WAIT_AFTER
+     * @return 0 on success, -1 on error with errno set
+     */
+    int syncFileRange(int fd, long offset, long nbytes, int flags);
 }

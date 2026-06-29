@@ -15,6 +15,8 @@ import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFilter;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 
 public class LinuxNativeAccess extends PosixNativeAccess {
@@ -138,6 +140,24 @@ public class LinuxNativeAccess extends PosixNativeAccess {
             return false;
         }
         return true;
+    }
+
+    @Override
+    public void syncFileRange(Path path, long offset, long nbytes, int flags) throws IOException {
+        int fd = libc.open(path.toAbsolutePath().toString(), 1 /* O_WRONLY */);
+        if (fd == -1) {
+            int errno = libc.errno();
+            throw new IOException("open(" + path + ") failed: " + libc.strerror(errno) + " (errno=" + errno + ")");
+        }
+        try {
+            int rc = linuxLibc.syncFileRange(fd, offset, nbytes, flags);
+            if (rc != 0) {
+                int errno = libc.errno();
+                throw new IOException("sync_file_range failed for " + path + ": " + libc.strerror(errno) + " (errno=" + errno + ")");
+            }
+        } finally {
+            libc.close(fd);
+        }
     }
 
     /**

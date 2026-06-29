@@ -54,6 +54,10 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
         "fallocate",
         FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG)
     );
+    private static final MethodHandle syncFileRange$mh = downcallHandleWithErrno(
+        "sync_file_range",
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_INT)
+    );
 
     private static class JdkSockFProg implements SockFProg {
         private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_SHORT, paddingLayout(6), ADDRESS);
@@ -110,6 +114,15 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     public int fallocate(int fd, int mode, long offset, long length) {
         try {
             return (int) fallocate$mh.invokeExact(errnoState, fd, mode, offset, length);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int syncFileRange(int fd, long offset, long nbytes, int flags) {
+        try {
+            return (int) syncFileRange$mh.invokeExact(errnoState, fd, offset, nbytes, flags);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

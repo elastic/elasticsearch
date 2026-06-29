@@ -457,6 +457,10 @@ public class SharedBlobCacheWarmingService {
         try (var listeners = new RefCountingListener(listener.map(ignored -> null))) {
             for (int region = 0; region <= endingRegion; region++) {
                 final long regionOffset = (long) region * regionSize;
+                ByteRange fullRegionRange = ByteRange.of(regionOffset, regionOffset + regionSize);
+                if (cacheService.isRangeFullyCached(cacheKey, region, fullRegionRange)) {
+                    continue;
+                }
                 cacheService.maybeFetchRegion(
                     cacheKey,
                     region,
@@ -1435,6 +1439,10 @@ public class SharedBlobCacheWarmingService {
                 try (RefCountingListener ref = new RefCountingListener(ActionListener.releaseAfter(listener, releasable))) {
                     for (int i = 0; i <= endingRegion; i++) {
                         long offset = (long) i * cacheService.getRegionSize();
+                        ByteRange fullRegionRange = ByteRange.of(offset, offset + cacheService.getRegionSize());
+                        if (cacheService.isRangeFullyCached(cacheKey, i, fullRegionRange)) {
+                            continue;
+                        }
                         cacheService.maybeFetchRegion(
                             cacheKey,
                             i,

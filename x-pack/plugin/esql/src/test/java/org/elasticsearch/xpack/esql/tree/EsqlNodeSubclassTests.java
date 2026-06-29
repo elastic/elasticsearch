@@ -619,7 +619,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                     randomFrom(org.elasticsearch.cluster.metadata.DatasetSchema.Dynamic.values()),
                     java.util.Map.of(
                         randomAlphaOfLength(5),
-                        new org.elasticsearch.cluster.metadata.DatasetFieldMapping("keyword", randomBoolean() ? null : randomAlphaOfLength(4))
+                        new org.elasticsearch.cluster.metadata.DatasetFieldMapping(
+                            "keyword",
+                            randomBoolean() ? null : randomAlphaOfLength(4)
+                        )
                     )
                 ),
                 randomBoolean() ? null : randomAlphaOfLength(5),

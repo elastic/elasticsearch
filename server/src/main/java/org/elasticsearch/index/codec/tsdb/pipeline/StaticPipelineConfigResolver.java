@@ -34,8 +34,8 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
  *       longs and produces the same compaction. {@code kMax} is sized from
  *       {@code blockSize} as {@code clamp(blockSize / 32, 4, 64)} so large blocks with
  *       many resets do not bow out under the default cap.</li>
- *   <li>IP and keyword TSDB dimension fields ({@link MappedFieldType#IP} and
- *       {@link MappedFieldType#KEYWORD} with {@link FieldContext#isDimension()}) use a
+ *   <li>IP TSDB dimension fields ({@link MappedFieldType#IP} with
+ *       {@link FieldContext#isDimension()}) use a
  *       block size of {@code 1024} ({@code blockShift=10}) regardless of the format-level
  *       default. Only {@code blockSize()} of the returned config is used for ordinal
  *       fields; the pipeline stages are never executed. At {@code blockSize=1024},
@@ -94,7 +94,7 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
         if (context.isDimension() == false) {
             return false;
         }
-        return context.mappedFieldType() == MappedFieldType.IP || context.mappedFieldType() == MappedFieldType.KEYWORD;
+        return context.mappedFieldType() == MappedFieldType.IP;
     }
 
     private static boolean useSplitDelta(final FieldContext context) {

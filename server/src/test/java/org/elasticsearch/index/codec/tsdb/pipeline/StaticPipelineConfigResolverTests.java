@@ -273,36 +273,10 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         assertEquals(1024, config.blockSize());
     }
 
-    public void testKeywordDimensionFieldUsesBlockSize1024() {
-        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
-        final FieldContext context = new FieldContext(
-            randomFrom(128, 512),
-            randomNonTimestampFieldName(),
-            null,
-            null,
-            MappedFieldType.KEYWORD,
-            true
-        );
-
-        final PipelineConfig config = resolver.resolve(context);
-
-        assertEquals(1024, config.blockSize());
-    }
-
     public void testIpNonDimensionFieldUsesFormatDefaultBlockSize() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomFrom(128, 512);
         final FieldContext context = new FieldContext(blockSize, randomNonTimestampFieldName(), null, null, MappedFieldType.IP, false);
-
-        final PipelineConfig config = resolver.resolve(context);
-
-        assertEquals(blockSize, config.blockSize());
-    }
-
-    public void testKeywordNonDimensionFieldUsesFormatDefaultBlockSize() {
-        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
-        final int blockSize = randomFrom(128, 512);
-        final FieldContext context = new FieldContext(blockSize, randomNonTimestampFieldName(), null, null, MappedFieldType.KEYWORD, false);
 
         final PipelineConfig config = resolver.resolve(context);
 

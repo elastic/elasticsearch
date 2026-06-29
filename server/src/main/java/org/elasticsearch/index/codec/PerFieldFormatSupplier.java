@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -247,16 +246,6 @@ public class PerFieldFormatSupplier {
         }
         if (mapper instanceof IpFieldMapper ipFieldMapper) {
             return new FieldContext(blockSize, fieldName, null, null, MappedFieldType.IP, ipFieldMapper.fieldType().isDimension());
-        }
-        if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
-            return new FieldContext(
-                blockSize,
-                fieldName,
-                null,
-                null,
-                MappedFieldType.KEYWORD,
-                keywordFieldMapper.fieldType().isDimension()
-            );
         }
         return new FieldContext(blockSize, fieldName, null, null, null, false);
     }
